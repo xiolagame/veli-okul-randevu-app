@@ -1,0 +1,142 @@
+{
+  "app_name": "Şehit Ömer Takdemir Randevu Sistemi",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A pristine, trustworthy Turkish school appointment portal with iOS-native typography and warm stone aesthetics.",
+  "color": {
+    "surface": "#FDFCFA",
+    "onSurface": "#1C1C1E",
+    "surfaceSecondary": "#F4F3F0",
+    "onSurfaceSecondary": "#3A3A3C",
+    "surfaceTertiary": "#EAE8E4",
+    "onSurfaceTertiary": "#636366",
+    "surfaceInverse": "#1C1C1E",
+    "onSurfaceInverse": "#FDFCFA",
+    "brand": "#2C5234",
+    "brandPrimary": "#2C5234",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#4A7C59",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E2EFE3",
+    "onBrandTertiary": "#1C3B22",
+    "success": "#3B7A57",
+    "onSuccess": "#FFFFFF",
+    "warning": "#C27803",
+    "onWarning": "#FFFFFF",
+    "error": "#B83232",
+    "onError": "#FFFFFF",
+    "info": "#2B6CB0",
+    "onInfo": "#FFFFFF",
+    "border": "#E2E0DC",
+    "borderStrong": "#C8C5C0",
+    "divider": "#ECEAE6",
+    "muted": "#8E8E93",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous iOS vertical padding with 16pt lateral margins and sticky bottom CTA anchoring.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "stack_only",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use frosted glass header and bottom sheets for sticky controls over scrolling content",
+      "Ensure translucent tinted base behind text over photos"
+    ],
+    "dont's": [
+      "Avoid applying blur to form fields or dense tabular rows",
+      "Do not use transparent bars without tinted backing"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth",
+      "purpose": "Role-based sign in and registration for Teachers, Parents, and School Security.",
+      "states": {
+        "loading": "Authenticating credentials...",
+        "empty": "Please enter your school registered email and password.",
+        "error": "Invalid email or password. Please try again."
+      },
+      "layout": "Clean card container with segmented role selector (Veli, Öğretmen, Güvenlik), email/password inputs, and a primary action button."
+    },
+    {
+      "name": "TeacherDashboard",
+      "purpose": "Weekly slot management and upcoming parent consultations for teachers.",
+      "states": {
+        "loading": "Loading weekly slots...",
+        "empty": "No appointment slots created yet. Tap '+' to open new consultation hours.",
+        "error": "Failed to load teacher schedule. Tap retry."
+      },
+      "layout": "Top summary banner with Kahramankazan Şehit Ömer Takdemir Ortaokulu branding, weekly slot creator card, and list of booked/available consultation hours with quick toggle controls."
+    },
+    {
+      "name": "ParentDashboard",
+      "purpose": "Browse available teacher slots, book appointments, and view QR entry passes.",
+      "states": {
+        "loading": "Fetching teacher availability...",
+        "empty": "No available appointments found matching your criteria.",
+        "error": "Could not connect to appointment service. Please retry."
+      },
+      "layout": "Hero greeting banner, teacher directory search, active bookings list with QR entry code modal, and instant booking bottom sheet."
+    },
+    {
+      "name": "SecurityScanner",
+      "purpose": "Gate security check-in verification for parents arriving with active appointment QR codes.",
+      "states": {
+        "loading": "Verifying entry pass...",
+        "empty": "Ready to scan parent QR codes for today's active appointments.",
+        "error": "Pass verification failed. Invalid or expired token."
+      },
+      "layout": "Camera viewfinder simulation with manual token lookup input, real-time success/denial status banner, and audit log of verified parent entries."
+    }
+  ],
+  "images": {
+    "school_hero": {
+      "url": "https://images.unsplash.com/photo-1785190095889-86bb13040624?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "dark": "https://images.unsplash.com/photo-1785190095889-86bb13040624?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Kahramankazan Şehit Ömer Takdemir Ortaokulu exterior"
+    },
+    "meeting_banner": {
+      "url": "https://images.unsplash.com/photo-1655337690875-628a91e91a61?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Teacher and parent consultation"
+    }
+  },
+  "instructions_to_main_agent": "Ensure all Turkish strings match the app language requirements. Implement role-based navigation so teachers manage slots, parents book appointments, and security guards verify QR codes. Observe safe areas and stick to iOS-Native Clean styling with 16pt margins and sticky CTAs."
+}

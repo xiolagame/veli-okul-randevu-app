@@ -1,0 +1,6 @@
+{
+  "name": "VELİ - Okul Randevu Sistemi",
+  "description": "Öğretmen, veli ve okul güvenliği için randevu ve ziyaretçi giriş yönetim sistemi",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
