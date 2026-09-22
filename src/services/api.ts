@@ -38,6 +38,8 @@ export const setActiveSchoolId = (schoolId: string | null) => {
 
 export const getActiveSchoolId = () => currentSchoolId;
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -52,7 +54,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['X-School-Id'] = currentSchoolId;
   }
 
-  const res = await fetch(endpoint, {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const res = await fetch(url, {
     ...options,
     headers,
   });

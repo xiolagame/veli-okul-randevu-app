@@ -1,0 +1,21 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Direct all /api/* calls to Netlify Serverless Express Function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Single Page Application (SPA) Client-Side Route Fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

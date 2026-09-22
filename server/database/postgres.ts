@@ -99,6 +99,11 @@ export async function getDb(): Promise<{
 }
 
 export async function initDatabase(): Promise<void> {
+  // Serverless / Warm Invocation Reuse: If pool or instance is already alive and initialized, reuse safely
+  if (isInitialized && (pgPool || pgliteInstance)) {
+    return;
+  }
+
   const isProduction = process.env.NODE_ENV === 'production';
   const databaseUrl = process.env.DATABASE_URL;
 
