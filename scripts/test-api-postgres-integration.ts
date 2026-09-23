@@ -10,6 +10,7 @@ import http from 'http';
 import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
+import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
 
 async function runApiIntegrationTests() {
   console.log('===============================================================');
@@ -20,6 +21,7 @@ async function runApiIntegrationTests() {
   console.log('\n[1/10] PostgreSQL Veritabanı başlatılıyor...');
   await initDatabase();
   const db = await getDb();
+  const fixturePassword = await bootstrapLocalPasswordFixtures(db);
   console.log('✅ PostgreSQL Veritabanı hazır.');
 
   // Step 2: Set up real HTTP test server on ephemeral port
@@ -85,21 +87,18 @@ async function runApiIntegrationTests() {
     }
     console.log(`✅ Okul bağlamı çözüldü: ${contextRes.body.school.name} (${contextRes.body.school.code})`);
 
-    // TEST 3: Auth & OTP Verification
-    console.log('\n[4/10] Auth & OTP doğrulama testleri...');
+    // TEST 3: Password Authentication
+    console.log('\n[4/10] Password Authentication testi...');
     const phone = '+905559876543'; // Fatma Kaya
-    const sendOtpRes = await makeRequest('POST', '/auth/send-otp', { body: { phone } });
-    if (sendOtpRes.status !== 200 || !sendOtpRes.body.success) {
-      throw new Error(`POST /auth/send-otp failed: ${JSON.stringify(sendOtpRes.body)}`);
+    const loginRes = await makeRequest('POST', '/auth/login', { body: { phone, password: fixturePassword } });
+    if (loginRes.status !== 200 || !loginRes.body.token || loginRes.body.user?.phone !== phone) {
+      throw new Error(`POST /auth/login failed: ${JSON.stringify(loginRes.body)}`);
     }
-    const otpCode = sendOtpRes.body.debugOtpCode || '123456';
-
-    const verifyOtpRes = await makeRequest('POST', '/auth/verify-otp', { body: { phone, code: otpCode } });
-    if (verifyOtpRes.status !== 200 || !verifyOtpRes.body.token) {
-      throw new Error(`POST /auth/verify-otp failed: ${JSON.stringify(verifyOtpRes.body)}`);
+    if (!loginRes.body.memberships?.some((membership: { schoolId: string; role: string }) => membership.schoolId === 'sch-kazan-01' && membership.role === 'parent')) {
+      throw new Error('Password login did not return the expected parent membership.');
     }
-    const userToken = verifyOtpRes.body.token;
-    console.log(`✅ OTP doğrulandı. Token üretildi. Kullanıcı: ${verifyOtpRes.body.user.phone}`);
+    const userToken = loginRes.body.token;
+    console.log(`✅ Parola doğrulandı. Token üretildi. Kullanıcı: ${loginRes.body.user.phone}`);
 
     // TEST 4: Profile /user/me
     console.log('\n[5/10] GET /user/me testi...');
@@ -204,7 +203,10 @@ async function runApiIntegrationTests() {
     // TEST 8: Teacher Approval & Security Check-In
     console.log('\n[9/10] Randevu Onayı ve Güvenlik Nizamiye Giriş Kontrolü...');
     // Login as admin/teacher to approve
-    const adminRes = await makeRequest('POST', '/auth/login', { body: { role: 'admin' } });
+    const adminRes = await makeRequest('POST', '/auth/login', { body: { phone: '+905559998877', password: fixturePassword } });
+    if (adminRes.status !== 200 || !adminRes.body.token) {
+      throw new Error(`Admin password login failed: ${JSON.stringify(adminRes.body)}`);
+    }
     const adminToken = adminRes.body.token;
 
     const approveRes = await makeRequest('POST', `/schools/sch-kazan-01/appointments/${createdAppointment.id}/approve`, {
@@ -219,7 +221,10 @@ async function runApiIntegrationTests() {
     console.log('✅ Randevu öğretmen/yönetici tarafından onaylandı (status: booked).');
 
     // Security Login and Check-In
-    const secRes = await makeRequest('POST', '/auth/login', { body: { role: 'security' } });
+    const secRes = await makeRequest('POST', '/auth/login', { body: { phone: '+905550001122', password: fixturePassword } });
+    if (secRes.status !== 200 || !secRes.body.token) {
+      throw new Error(`Security password login failed: ${JSON.stringify(secRes.body)}`);
+    }
     const secToken = secRes.body.token;
 
     const checkInRes = await makeRequest('POST', '/schools/sch-kazan-01/security/check-in', {

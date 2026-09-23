@@ -9,6 +9,9 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "tsc --noEmit",
+    "test:auth": "tsx scripts/test-activation-auth.ts",
+    "test:activation": "tsx scripts/test-activation-auth.ts",
+    "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
   },
   "dependencies": {

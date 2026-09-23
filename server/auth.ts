@@ -3,7 +3,14 @@ import crypto from 'crypto';
 import { userRepository, membershipRepository } from './repositories';
 import { UserRole, SchoolMembership } from '../src/types';
 
-const SECRET_KEY = process.env.JWT_SECRET || 'veli-multi-tenant-secure-secret-key-2025';
+const configuredSecret = process.env.JWT_SECRET?.trim();
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && (!configuredSecret || configuredSecret.length < 32)) {
+  throw new Error('KRİTİK HATA (Production Fail-Fast): JWT_SECRET tanımlı ve en az 32 karakter olmalıdır.');
+}
+
+const SECRET_KEY = configuredSecret || crypto.randomBytes(32).toString('base64url');
 
 export interface AuthUser {
   id: string;

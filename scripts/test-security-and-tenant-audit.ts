@@ -16,6 +16,7 @@ import http from 'http';
 import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
+import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
 import {
   appointmentRepository,
   availabilityRepository,
@@ -56,6 +57,7 @@ async function runSecurityAudit() {
   console.log('Initializing PostgreSQL database...');
   await initDatabase();
   const db = await getDb();
+  const fixturePassword = await bootstrapLocalPasswordFixtures(db);
   console.log('Database initialized.\n');
 
   // Step 2: Set up test HTTP server
@@ -101,33 +103,32 @@ async function runSecurityAudit() {
     // SETUP TEST TOKENS
     // -------------------------------------------------------------
     console.log('--- HAZIRLIK: TEST KULLANICI TOKENLERİ ---');
+    const login = async (phone: string) => {
+      const response = await makeReq('POST', '/auth/login', { body: { phone, password: fixturePassword } });
+      if (response.status !== 200 || !response.body.token || response.body.user?.phone !== phone) {
+        throw new Error(`Password login failed for audit fixture: ${JSON.stringify(response.body)}`);
+      }
+      return response;
+    };
+
     // Parent 1 (Fatma Kaya - Only in sch-kazan-01)
-    const p1Otp = await makeReq('POST', '/auth/send-otp', { body: { phone: '+905559876543' } });
-    const p1TokenRes = await makeReq('POST', '/auth/verify-otp', {
-      body: { phone: '+905559876543', code: p1Otp.body.debugOtpCode || '123456' },
-    });
+    const p1TokenRes = await login('+905559876543');
     const parent1Token = p1TokenRes.body.token;
 
     // Parent 2 (Ahmet Yılmaz - Multi-school in sch-kazan-01 and sch-cumhuriyet-03)
-    const p2Otp = await makeReq('POST', '/auth/send-otp', { body: { phone: '+905551234567' } });
-    const p2TokenRes = await makeReq('POST', '/auth/verify-otp', {
-      body: { phone: '+905551234567', code: p2Otp.body.debugOtpCode || '123456' },
-    });
+    const p2TokenRes = await login('+905551234567');
     const parent2Token = p2TokenRes.body.token;
 
     // Teacher 1 (Mehmet Demir - Only in sch-kazan-01)
-    const t1Otp = await makeReq('POST', '/auth/send-otp', { body: { phone: '+905321112233' } });
-    const t1TokenRes = await makeReq('POST', '/auth/verify-otp', {
-      body: { phone: '+905321112233', code: t1Otp.body.debugOtpCode || '123456' },
-    });
+    const t1TokenRes = await login('+905321112233');
     const teacher1Token = t1TokenRes.body.token;
 
     // Admin 1 (Admin in sch-kazan-01)
-    const adminRes = await makeReq('POST', '/auth/login', { body: { role: 'admin' } });
+    const adminRes = await login('+905559998877');
     const admin1Token = adminRes.body.token;
 
     // Security 1 (Security in sch-kazan-01)
-    const secRes = await makeReq('POST', '/auth/login', { body: { role: 'security' } });
+    const secRes = await login('+905550001122');
     const sec1Token = secRes.body.token;
 
     console.log('Test tokenleri başarıyla oluşturuldu.\n');

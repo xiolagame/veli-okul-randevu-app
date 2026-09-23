@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { SchoolRosterRecord } from '../types';
+import { api } from '../services/api';
 
 interface AdminViewProps {
   onClose: () => void;
@@ -35,7 +36,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     settings,
     updateSettings,
     auditLogs,
-    resetUserPassword,
     roster,
     uploadRoster,
     runIsolationTests,
@@ -53,10 +53,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   // Roster Filter
   const [rosterSearch, setRosterSearch] = useState('');
 
-  // Password reset prompt
-  const [resettingUserPhone, setResettingUserPhone] = useState<string | null>(null);
-  const [tempPassword, setTempPassword] = useState('12345678');
-  const [resetSuccess, setResetSuccess] = useState('');
 
   // Settings form state
   const [schoolNameInput, setSchoolNameInput] = useState(settings.schoolName);
@@ -70,6 +66,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     `+905557778899, Merve Doğan, Ece Doğan, 7-A, 612\n+905556665544, Hasan Yurt, Ali Yurt, 8-B, 804`
   );
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
+  const [authCodeRoster, setAuthCodeRoster] = useState<SchoolRosterRecord | null>(null);
+  const [authCodePurpose, setAuthCodePurpose] = useState<'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET'>('ACCOUNT_ACTIVATION');
+  const [generatedAuthCode, setGeneratedAuthCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [authCodeError, setAuthCodeError] = useState('');
+  const [isCreatingAuthCode, setIsCreatingAuthCode] = useState(false);
 
   // Test Runner State
   const [isRunningTests, setIsRunningTests] = useState(false);
@@ -89,17 +90,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     });
     setSettingsSavedMsg(true);
     setTimeout(() => setSettingsSavedMsg(false), 2000);
-  };
-
-  const handleResetPasswordSubmit = () => {
-    if (resettingUserPhone) {
-      resetUserPassword(resettingUserPhone, tempPassword);
-      setResetSuccess(`Şifre başarıyla güncellendi: ${tempPassword}`);
-      setTimeout(() => {
-        setResettingUserPhone(null);
-        setResetSuccess('');
-      }, 2000);
-    }
   };
 
   const handleExecuteBulkUpload = async () => {
@@ -126,6 +116,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
         setUploadSuccessMsg('');
         setShowUploadModal(false);
       }, 1500);
+    }
+  };
+
+  const handleCreateAuthCode = async () => {
+    if (!currentSchool || !authCodeRoster) return;
+    setAuthCodeError('');
+    setIsCreatingAuthCode(true);
+    try {
+      const result = await api.createAuthCode(currentSchool.id, authCodeRoster.id, authCodePurpose);
+      setGeneratedAuthCode({ code: result.code, expiresAt: result.expiresAt });
+    } catch (requestError: any) {
+      setAuthCodeError(requestError.message || 'Güvenlik kodu oluşturulamadı.');
+    } finally {
+      setIsCreatingAuthCode(false);
     }
   };
 
@@ -288,7 +292,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                     Öğrenci-Veli Kütüğü (Onboarding Doğrulama Kaynak Tablosu)
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Bu tablo, velilerin SMS ile doğrulandıktan sonra eşleştirileceği resmi öğrenci kütüğüdür.
+                    Bu tablo, okulun tek kullanımlık aktivasyon veya parola sıfırlama kodu oluşturacağı resmi veli kütüğüdür.
                   </p>
                 </div>
                 <button
@@ -320,6 +324,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                       <th className="py-2.5 px-4">Kayıtlı Veli Adı</th>
                       <th className="py-2.5 px-4">Veli Telefonu</th>
                       <th className="py-2.5 px-4">Durum</th>
+                      <th className="py-2.5 px-4">Güvenlik Kodu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -341,6 +346,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                               Beklemede (Talep Edilmedi)
                             </span>
                           )}
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <button type="button" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }} className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-bold">Kod Oluştur</button>
                         </td>
                       </tr>
                     ))}
@@ -501,12 +509,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                       </div>
                       <div className="text-slate-500 mt-0.5 font-mono text-[11px]">{u.phone}</div>
                     </div>
-                    <button
-                      onClick={() => setResettingUserPhone(u.phone)}
-                      className="px-2.5 py-1 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg font-semibold text-[11px] cursor-pointer"
-                    >
-                      Şifre Sıfırla
-                    </button>
+                    <span className="px-2.5 py-1 text-slate-500 bg-slate-50 rounded-lg font-semibold text-[11px]">
+                      OTP ile sıfırlanır
+                    </span>
                   </div>
                 ))}
               </div>
@@ -680,39 +685,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           </div>
         )}
 
-        {/* Reset Password Modal */}
-        {resettingUserPhone && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3">
-              <h4 className="font-bold text-slate-900 text-sm">Geçici Şifre Tanımla</h4>
-              <p className="text-xs text-slate-600">
-                Telefon: <span className="font-mono font-bold text-slate-800">{resettingUserPhone}</span>
-              </p>
-              <input
-                type="text"
-                value={tempPassword}
-                onChange={(e) => setTempPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono"
-              />
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setResettingUserPhone(null)}
-                  className="flex-1 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold"
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetPasswordSubmit}
-                  className="flex-1 py-2 bg-purple-700 text-white rounded-xl text-xs font-bold"
-                >
-                  Şifreyi Güncelle
-                </button>
-              </div>
+        {authCodeRoster && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+              <h4 className="font-bold text-slate-900 text-sm">Tek Kullanımlık Güvenlik Kodu</h4>
+              {!generatedAuthCode ? <>
+                <p className="text-xs text-slate-600">{authCodeRoster.parentName} için kod türünü seçin. Yeni kod, aynı amaçtaki önceki kullanılmamış kodu iptal eder.</p>
+                <select value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+                  <option value="ACCOUNT_ACTIVATION">Hesap Aktivasyon Kodu</option>
+                  <option value="PASSWORD_RESET">Parola Sıfırlama Kodu</option>
+                </select>
+                {authCodeError && <p className="text-xs text-red-700">{authCodeError}</p>}
+                <div className="flex gap-2"><button type="button" onClick={() => setAuthCodeRoster(null)} className="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-semibold">Vazgeç</button><button type="button" disabled={isCreatingAuthCode} onClick={handleCreateAuthCode} className="flex-1 py-2 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">Oluştur</button></div>
+              </> : <>
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">Bu kod yalnızca şimdi gösterilir. Güvenli biçimde veliye iletin.</p>
+                <div className="text-center font-mono text-xl font-black tracking-wider text-slate-900 py-2">{generatedAuthCode.code}</div>
+                <p className="text-center text-xs text-slate-500">Geçerlilik: {new Date(generatedAuthCode.expiresAt).toLocaleString('tr-TR')}</p>
+                <button type="button" onClick={() => { setGeneratedAuthCode(null); setAuthCodeRoster(null); }} className="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Kapat</button>
+              </>}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

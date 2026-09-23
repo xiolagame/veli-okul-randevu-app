@@ -75,25 +75,20 @@ export const api = {
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
 
-  // Auth & OTP
-  sendOtp: (phone: string, schoolId?: string) =>
-    request<{ success: boolean; message: string; debugOtpCode?: string }>('/api/auth/send-otp', {
+  // Authentication
+  activateAccount: (schoolId: string, phone: string, code: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/activate-account', {
       method: 'POST',
-      body: JSON.stringify({ phone, schoolId }),
+      body: JSON.stringify({ schoolId, phone, code, password }),
     }),
 
-  verifyOtp: (phone: string, code: string, schoolId?: string) =>
-    request<{
-      success: boolean;
-      token: string;
-      user: User;
-      memberships: SchoolMembership[];
-    }>('/api/auth/verify-otp', {
+  resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/reset-password-with-code', {
       method: 'POST',
-      body: JSON.stringify({ phone, code, schoolId }),
+      body: JSON.stringify({ schoolId, phone, code, password }),
     }),
 
-  login: (phone: string, role?: string) =>
+  login: (phone: string, password: string, role?: string) =>
     request<{
       success: boolean;
       token: string;
@@ -101,7 +96,7 @@ export const api = {
       memberships: SchoolMembership[];
     }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phone, role }),
+      body: JSON.stringify({ phone, password, role }),
     }),
 
   quickSwitch: (userId: string) =>
@@ -257,6 +252,12 @@ export const api = {
     request<{ success: boolean; addedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, {
       method: 'POST',
       body: JSON.stringify({ records }),
+    }),
+
+  createAuthCode: (schoolId: string, rosterId: string, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET') =>
+    request<{ success: boolean; code: string; purpose: string; expiresAt: string }>(`/api/schools/${schoolId}/auth-codes`, {
+      method: 'POST',
+      body: JSON.stringify({ rosterId, purpose }),
     }),
 
   testIsolation: (schoolId: string) =>

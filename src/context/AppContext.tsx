@@ -34,10 +34,9 @@ interface AppContextType {
   unreadNotificationCount: number;
   isLoading: boolean;
   switchSchool: (schoolId: string) => Promise<void>;
-  login: (phone: string, role?: UserRole) => Promise<boolean>;
+  login: (phone: string, password: string, role?: UserRole) => Promise<boolean>;
   logout: () => void;
   switchUser: (userId: string) => Promise<void>;
-  registerUser: (userData: Partial<User> & { password?: string }) => Promise<User>;
   bookAppointment: (data: {
     teacherId: string;
     studentName: string;
@@ -58,14 +57,8 @@ interface AppContextType {
   updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<void>;
   addStudentToProfile: (student: { name: string; className: string }) => void;
   removeStudentFromProfile: (studentId: string) => void;
-  resetUserPassword: (phone: string, newPass: string) => boolean;
   uploadRoster: (records: Partial<SchoolRosterRecord>[]) => Promise<number>;
   runIsolationTests: () => Promise<TenantIsolationTestResult[]>;
-  sendOtp: (phone: string, schoolId?: string) => Promise<{ success: boolean; message: string; debugOtpCode?: string }>;
-  verifyOtp: (phone: string, code: string, schoolId?: string) => Promise<{ success: boolean; memberships: SchoolMembership[] }>;
-  checkRoster: (schoolId: string) => Promise<any>;
-  claimStudents: (schoolId: string, firstName?: string, lastName?: string) => Promise<any>;
-  refreshCurrentSchoolData: () => Promise<void>;
 }
 
 const DEFAULT_SETTINGS: SchoolSettings = {
@@ -192,33 +185,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setAuthToken(null);
             setCurrentUser(null);
           }
-        } else {
-          // If no token, auto-login as default parent Ahmet Yılmaz (+905551234567) for smooth immediate preview
-          try {
-            const loginRes = await api.login('+905551234567');
-            setAuthToken(loginRes.token);
-            const activeUser = loginRes.user;
-            setUserMemberships(loginRes.memberships);
-
-            const targetSchoolId = loginRes.memberships[0]?.schoolId || 'sch-kazan-01';
-            setActiveSchoolId(targetSchoolId);
-
-            const activeSchool = schoolsRes.schools.find((s) => s.id === targetSchoolId) || null;
-            setCurrentSchool(activeSchool);
-
-            const activeMem = loginRes.memberships.find((m) => m.schoolId === targetSchoolId) || null;
-            setCurrentMembership(activeMem);
-
-            if (activeMem) {
-              activeUser.role = activeMem.role;
-              activeUser.branch = activeMem.branch;
-            }
-
-            setCurrentUser(activeUser);
-            await loadSchoolData(targetSchoolId, activeUser, activeMem);
-          } catch (err) {
-            console.error('Default auto-login error:', err);
-          }
         }
       } catch (err) {
         console.error('Initialization error:', err);
@@ -260,9 +226,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Login
-  const login = async (phone: string, role?: UserRole): Promise<boolean> => {
+  const login = async (phone: string, password: string, role?: UserRole): Promise<boolean> => {
     try {
-      const res = await api.login(phone, role);
+      const res = await api.login(phone, password, role);
       setAuthToken(res.token);
       setUserMemberships(res.memberships);
 
@@ -329,37 +295,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Switch user error:', err);
     }
-  };
-
-  // Register User
-  const registerUser = async (userData: Partial<User> & { password?: string }): Promise<User> => {
-    const phone = userData.phone || '+905550000000';
-    await api.sendOtp(phone).catch(() => {});
-    const verifyRes = await api.verifyOtp(phone, '123456');
-    setAuthToken(verifyRes.token);
-
-    const schoolId = currentSchool?.id || 'sch-kazan-01';
-    const claimRes = await api
-      .claimStudents(schoolId, userData.firstName, userData.lastName)
-      .catch(() => ({ memberships: [] }));
-
-    const updatedMemberships = claimRes.memberships || [];
-    setUserMemberships(updatedMemberships);
-
-    const activeMem = updatedMemberships.find((m: any) => m.schoolId === schoolId) || null;
-    setCurrentMembership(activeMem);
-
-    const fullUser: User = {
-      ...verifyRes.user,
-      firstName: userData.firstName || 'Ad',
-      lastName: userData.lastName || 'Soyad',
-      role: activeMem?.role || userData.role || 'parent',
-      branch: userData.branch,
-    };
-
-    setCurrentUser(fullUser);
-    await loadSchoolData(schoolId, fullUser, activeMem);
-    return fullUser;
   };
 
   // Book Appointment
@@ -469,11 +404,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser({ ...currentUser, students: updated });
   };
 
-  // Password reset helper
-  const resetUserPassword = (_phone: string, _newPass: string): boolean => {
-    return true;
-  };
-
   // Admin: Upload Roster
   const uploadRoster = async (records: Partial<SchoolRosterRecord>[]): Promise<number> => {
     if (!currentSchool) return 0;
@@ -493,34 +423,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       console.error('Test isolation error:', err);
       return [];
-    }
-  };
-
-  // Onboarding helpers
-  const sendOtp = async (phone: string, schoolId?: string) => {
-    return api.sendOtp(phone, schoolId);
-  };
-
-  const verifyOtp = async (phone: string, code: string, schoolId?: string) => {
-    const res = await api.verifyOtp(phone, code, schoolId);
-    setAuthToken(res.token);
-    setUserMemberships(res.memberships);
-    return res;
-  };
-
-  const checkRoster = async (schoolId: string) => {
-    return api.checkRoster(schoolId);
-  };
-
-  const claimStudents = async (schoolId: string, firstName?: string, lastName?: string) => {
-    const res = await api.claimStudents(schoolId, firstName, lastName);
-    setUserMemberships(res.memberships);
-    return res;
-  };
-
-  const refreshCurrentSchoolData = async () => {
-    if (currentSchool && currentUser) {
-      await loadSchoolData(currentSchool.id, currentUser, currentMembership);
     }
   };
 
@@ -551,7 +453,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login,
         logout,
         switchUser,
-        registerUser,
         bookAppointment,
         approveAppointment,
         rejectAppointment,
@@ -564,14 +465,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSettings,
         addStudentToProfile,
         removeStudentFromProfile,
-        resetUserPassword,
         uploadRoster,
         runIsolationTests,
-        sendOtp,
-        verifyOtp,
-        checkRoster,
-        claimStudents,
-        refreshCurrentSchoolData,
       }}
     >
       {children}

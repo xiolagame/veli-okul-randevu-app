@@ -1,12 +1,13 @@
 import { Router, Response } from 'express';
+import crypto from 'crypto';
 import {
   AuthenticatedRequest,
   authMiddleware,
   tenantGuard,
   createToken,
-  checkRateLimit,
 } from './auth';
-import { getSmsProvider } from './services/sms';
+import { hashPassword, validatePassword, verifyPassword } from './passwords';
+import { generateActivationCode, hashActivationCode } from './activation-codes';
 import {
   getDb,
   checkDatabaseHealth,
@@ -23,7 +24,7 @@ import {
   appointmentRepository,
   notificationRepository,
   auditLogRepository,
-  otpRepository,
+  invitationRepository,
 } from './repositories';
 import {
   Appointment,
@@ -40,7 +41,6 @@ apiRouter.get('/health', async (req, res) => {
   const isProd = process.env.NODE_ENV === 'production';
   const hasSupabaseUrl = !!process.env.SUPABASE_URL;
   const hasDbUrl = !!process.env.DATABASE_URL;
-  const smsProviderName = process.env.SMS_PROVIDER || (isProd ? 'netgsm' : 'mock');
 
   const health = await checkDatabaseHealth();
   const isHealthy = health.status === 'connected';
@@ -62,10 +62,7 @@ apiRouter.get('/health', async (req, res) => {
         configured: hasSupabaseUrl || hasDbUrl,
         status: hasSupabaseUrl || hasDbUrl ? 'connected' : 'pending_configuration',
       },
-      sms: {
-        provider: smsProviderName,
-        status: isProd && smsProviderName === 'mock' ? 'invalid_configuration' : 'ready',
-      },
+      activationCodes: { status: 'ready' },
     },
   });
 });
@@ -105,128 +102,133 @@ apiRouter.get('/public/school-context', async (req, res) => {
   }
 });
 
-// Send SMS OTP for phone verification
-apiRouter.post('/auth/send-otp', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone || phone.length < 10) {
-    return res.status(400).json({ error: 'Geçerli bir telefon numarası giriniz' });
+type AuthCodePurpose = 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+const AUTH_CODE_ERROR = 'Bilgiler doğrulanamadı veya kodun süresi dolmuş olabilir.';
+
+function splitParentName(name: string): { firstName: string; lastName: string } {
+  const parts = name.trim().split(/\s+/);
+  return { firstName: parts[0] || 'Veli', lastName: parts.slice(1).join(' ') };
+}
+
+async function recordFailedAuthCodeAttempt(schoolId: string, phone: string, purpose: AuthCodePurpose): Promise<void> {
+  await invitationRepository.recordFailedAuthCodeAttempt(schoolId, phone, purpose).catch(() => undefined);
+}
+
+apiRouter.post('/auth/activate-account', async (req, res) => {
+  const { schoolId, phone, code, password } = req.body;
+  const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
+  const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
+  const passwordError = validatePassword(password);
+
+  if (!schoolId || !cleanPhone || !codeHash || passwordError) {
+    return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
   }
-
-  const cleanPhone = phone.replace(/\s+/g, '');
-  const ip = req.ip || 'local';
-
-  // Rate limiting against enumeration
-  if (!checkRateLimit(`otp-${cleanPhone}-${ip}`, 5, 60)) {
-    return res.status(429).json({ error: 'Çok fazla OTP denemesi yapıldı. Lütfen 1 dakika bekleyiniz.' });
-  }
-
-  // Generate 6-digit OTP code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
   try {
-    await otpRepository.saveOtp(cleanPhone, code, expiresAt);
+    const db = await getDb();
+    await db.transaction(async (tx) => {
+      const rosterEntries = await rosterRepository.checkPhone(schoolId, cleanPhone, tx);
+      const existingUser = await userRepository.getByPhone(cleanPhone, tx);
+      if (rosterEntries.length === 0) throw new Error('INVALID_AUTH_CODE');
 
-    // Send OTP via configured SMS Provider (Netgsm in prod, Mock in dev)
-    try {
-      const sms = getSmsProvider();
-      sms.sendOtp(cleanPhone, code).catch((err) => {
-        console.error('[SMS Dispatch Error]:', err);
-      });
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'production') {
-        return res.status(500).json({ error: err.message });
+      const consumed = await invitationRepository.consumeAuthCode(
+        {
+          schoolId,
+          targetPhone: cleanPhone,
+          targetUserId: existingUser?.id,
+          purpose: 'ACCOUNT_ACTIVATION',
+          codeHash,
+        },
+        tx
+      );
+      if (!consumed) throw new Error('INVALID_AUTH_CODE');
+
+      const parentName = splitParentName(rosterEntries[0].parentName);
+      const user = existingUser || await userRepository.create(
+        { phone: cleanPhone, firstName: parentName.firstName, lastName: parentName.lastName, isPhoneVerified: false },
+        tx
+      );
+      await userRepository.updatePasswordHash(user.id, hashPassword(password), tx);
+      await membershipRepository.createOrActivate({ schoolId, userId: user.id, role: 'parent' }, tx);
+
+      for (const rosterEntry of rosterEntries) {
+        await rosterRepository.claimRosterRecord(schoolId, rosterEntry.id, tx);
+        const student = await studentRepository.findOrCreateStudent(
+          schoolId,
+          { name: rosterEntry.studentName, className: rosterEntry.className, studentNumber: rosterEntry.studentNumber },
+          tx
+        );
+        await relationRepository.createRelation({ schoolId, studentId: student.id, parentUserId: user.id }, tx);
       }
-    }
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.json({
-      success: true,
-      message: `${cleanPhone} numarasına SMS doğrulama kodu iletildi.`,
-      ...(isProduction ? {} : { debugOtpCode: code }),
+      await auditLogRepository.createAuditLog(
+        {
+          schoolId,
+          action: 'Hesap Aktivasyonu',
+          actorName: 'Sistem',
+          details: `Veli hesabı ${user.id} için aktivasyon tamamlandı.`,
+        },
+        tx
+      );
     });
+    return res.json({ success: true, message: 'Hesabınız etkinleştirildi. Yeni şifrenizle giriş yapabilirsiniz.' });
   } catch (err: any) {
-    console.error('[POST /auth/send-otp Error]:', err);
-    res.status(500).json({ error: 'Doğrulama kodu oluşturulurken hata meydana geldi' });
+    if (err?.message === 'INVALID_AUTH_CODE') {
+      await recordFailedAuthCodeAttempt(schoolId, cleanPhone, 'ACCOUNT_ACTIVATION');
+      return res.status(400).json({ error: AUTH_CODE_ERROR });
+    }
+    console.error('[POST /auth/activate-account Error]:', err);
+    return res.status(500).json({ error: 'Hesap etkinleştirilemedi.' });
   }
 });
 
-// Verify SMS OTP
-apiRouter.post('/auth/verify-otp', async (req, res) => {
-  const { phone, code } = req.body;
-  const cleanPhone = (phone || '').replace(/\s+/g, '');
-  const cleanCode = (code || '').trim();
+apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
+  const { schoolId, phone, code, password } = req.body;
+  const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
+  const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
+  const passwordError = validatePassword(password);
+
+  if (!schoolId || !cleanPhone || !codeHash || passwordError) {
+    return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
+  }
 
   try {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const stored = await otpRepository.getOtp(cleanPhone);
-
-    const isValid =
-      (stored && !stored.isConsumed && stored.code === cleanCode && Date.now() < stored.expiresAt) ||
-      (!isProduction && cleanCode === '123456');
-
-    if (!isValid) {
-      if (stored && !stored.isConsumed) {
-        await otpRepository.incrementAttempts(cleanPhone);
-      }
-      return res.status(400).json({ error: 'Hatalı veya süresi dolmuş SMS kodu.' });
-    }
-
-    // Consume OTP
-    await otpRepository.consumeOtp(cleanPhone);
-
-    // Find or create global user in PostgreSQL
-    let user = await userRepository.getByPhone(cleanPhone);
-    if (!user) {
-      user = await userRepository.create({
-        phone: cleanPhone,
-        isPhoneVerified: true,
-      });
-    } else {
-      await userRepository.verifyPhone(user.id);
-      user.isPhoneVerified = true;
-    }
-
-    // Generate verified token
-    const token = createToken({ userId: user.id, phone: user.phone });
-    const memberships = await membershipRepository.getMembershipsByUserId(user.id);
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isPhoneVerified: true,
-      },
-      memberships,
+    const db = await getDb();
+    await db.transaction(async (tx) => {
+      const user = await userRepository.getByPhone(cleanPhone, tx);
+      if (!user) throw new Error('INVALID_AUTH_CODE');
+      const consumed = await invitationRepository.consumeAuthCode(
+        { schoolId, targetPhone: cleanPhone, targetUserId: user.id, purpose: 'PASSWORD_RESET', codeHash },
+        tx
+      );
+      if (!consumed) throw new Error('INVALID_AUTH_CODE');
+      await userRepository.updatePasswordHash(user.id, hashPassword(password), tx);
+      await auditLogRepository.createAuditLog(
+        { schoolId, action: 'Parola Sıfırlama', actorName: 'Sistem', details: `Veli hesabı ${user.id} için parola sıfırlandı.` },
+        tx
+      );
     });
+    return res.json({ success: true, message: 'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
   } catch (err: any) {
-    console.error('[POST /auth/verify-otp Error]:', err);
-    res.status(500).json({ error: 'Doğrulama işlemi sırasında hata oluştu' });
+    if (err?.message === 'INVALID_AUTH_CODE') {
+      await recordFailedAuthCodeAttempt(schoolId, cleanPhone, 'PASSWORD_RESET');
+      return res.status(400).json({ error: AUTH_CODE_ERROR });
+    }
+    console.error('[POST /auth/reset-password-with-code Error]:', err);
+    return res.status(500).json({ error: 'Şifre güncellenemedi.' });
   }
 });
 
 // Standard password/role login
 apiRouter.post('/auth/login', async (req, res) => {
-  const { phone, role } = req.body;
+  const { phone, password } = req.body;
   const cleanPhone = (phone || '').replace(/\s+/g, '');
 
   try {
-    let user = await userRepository.getByPhone(cleanPhone);
+    const user = await userRepository.getAuthByPhone(cleanPhone);
 
-    if (!user && role) {
-      // If phone not found but role requested, find sample user with that role
-      const mem = await membershipRepository.getMembershipByRole(role);
-      if (mem) {
-        user = await userRepository.getById(mem.userId);
-      }
-    }
-
-    if (!user) {
-      return res.status(401).json({ error: 'Kullanıcı bulunamadı. Lütfen telefon numaranızı kontrol ediniz.' });
+    if (!user || typeof password !== 'string' || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Telefon numarası veya şifre hatalı.' });
     }
 
     const token = createToken({ userId: user.id, phone: user.phone });
@@ -240,7 +242,7 @@ apiRouter.post('/auth/login', async (req, res) => {
         phone: user.phone,
         firstName: user.firstName,
         lastName: user.lastName,
-        isPhoneVerified: true,
+        isPhoneVerified: user.isPhoneVerified,
       },
       memberships,
     });
@@ -252,6 +254,10 @@ apiRouter.post('/auth/login', async (req, res) => {
 
 // Quick Switcher endpoint for demo/evaluation
 apiRouter.post('/auth/quick-switch', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Bulunamadı' });
+  }
+
   const { userId } = req.body;
   try {
     const user = await userRepository.getById(userId);
@@ -1105,6 +1111,63 @@ apiRouter.get(
     } catch (err: any) {
       console.error('[GET /schools/:schoolId/roster Error]:', err);
       res.status(500).json({ error: 'Okul kütüğü alınamadı' });
+    }
+  }
+);
+
+// Admin: Generate a one-time activation or password-reset code for a roster parent.
+apiRouter.post(
+  '/schools/:schoolId/auth-codes',
+  authMiddleware,
+  tenantGuard(['admin']),
+  async (req: AuthenticatedRequest, res) => {
+    const schoolId = req.membership!.schoolId;
+    const { rosterId, purpose } = req.body as { rosterId?: string; purpose?: AuthCodePurpose };
+    if (!rosterId || (purpose !== 'ACCOUNT_ACTIVATION' && purpose !== 'PASSWORD_RESET')) {
+      return res.status(400).json({ error: 'Geçersiz kod oluşturma isteği.' });
+    }
+
+    try {
+      const rosterEntry = await rosterRepository.getById(schoolId, rosterId);
+      if (!rosterEntry) return res.status(404).json({ error: 'Kütük kaydı bulunamadı.' });
+
+      const user = await userRepository.getByPhone(rosterEntry.parentPhone);
+      if (purpose === 'PASSWORD_RESET' && !user) {
+        return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });
+      }
+      if (purpose === 'PASSWORD_RESET' && user) {
+        const memberships = await membershipRepository.getMembershipsByUserId(user.id);
+        const hasParentMembership = memberships.some((membership) =>
+          membership.schoolId === schoolId && membership.role === 'parent' && membership.status === 'active'
+        );
+        if (!hasParentMembership) {
+          return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });
+        }
+      }
+
+      const code = generateActivationCode();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await invitationRepository.createAuthCode({
+        schoolId,
+        targetPhone: rosterEntry.parentPhone,
+        targetUserId: user?.id,
+        purpose,
+        codeHash: hashActivationCode(code),
+        createdBy: req.user!.id,
+        expiresAt,
+        token: crypto.randomUUID(),
+      });
+      await auditLogRepository.createAuditLog({
+        schoolId,
+        action: purpose === 'ACCOUNT_ACTIVATION' ? 'Aktivasyon Kodu Oluşturuldu' : 'Parola Sıfırlama Kodu Oluşturuldu',
+        actorName: `${req.user!.firstName} ${req.user!.lastName} (Yönetici)`.trim(),
+        details: `Kütük kaydı ${rosterEntry.id} için tek kullanımlık güvenlik kodu oluşturuldu.`,
+      });
+
+      return res.json({ success: true, code, purpose, expiresAt });
+    } catch (err: any) {
+      console.error('[POST /schools/:schoolId/auth-codes Error]:', err);
+      return res.status(500).json({ error: 'Güvenlik kodu oluşturulamadı.' });
     }
   }
 );

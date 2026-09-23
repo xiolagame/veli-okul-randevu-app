@@ -115,6 +115,28 @@ export const schoolRepository = {
 // 2. USER REPOSITORY (Global Identities)
 // ==============================================================================
 export const userRepository = {
+  async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null }) | null> {
+    const clean = phone.replace(/\s+/g, '');
+    const res = await execQuery<any>(
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, password_hash, created_at
+       FROM users
+       WHERE REPLACE(phone, ' ', '') = $1;`,
+      [clean]
+    );
+    if (res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      phone: r.phone,
+      firstName: r.first_name || '',
+      lastName: r.last_name || '',
+      isPhoneVerified: r.is_phone_verified,
+      securityQuestion: r.security_question,
+      createdAt: r.created_at,
+      passwordHash: r.password_hash,
+    };
+  },
+
   async getById(id: string, client?: TransactionClient): Promise<User | null> {
     const res = await execQuery<any>(
       `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
@@ -136,13 +158,14 @@ export const userRepository = {
     };
   },
 
-  async getByPhone(phone: string): Promise<User | null> {
+  async getByPhone(phone: string, client?: TransactionClient): Promise<User | null> {
     const clean = phone.replace(/\s+/g, '');
     const res = await execQuery<any>(
       `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
        FROM users 
        WHERE REPLACE(phone, ' ', '') = $1;`,
-      [clean]
+      [clean],
+      client
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -155,6 +178,15 @@ export const userRepository = {
       securityQuestion: r.security_question,
       createdAt: r.created_at,
     };
+  },
+
+  async updatePasswordHash(id: string, passwordHash: string, client?: TransactionClient): Promise<boolean> {
+    const res = await execQuery(
+      `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`,
+      [passwordHash, id],
+      client
+    );
+    return res.rows.length > 0;
   },
 
   async create(
@@ -555,13 +587,14 @@ export const rosterRepository = {
     }));
   },
 
-  async checkPhone(schoolId: string, parentPhone: string): Promise<SchoolRosterRecord[]> {
+  async checkPhone(schoolId: string, parentPhone: string, client?: TransactionClient): Promise<SchoolRosterRecord[]> {
     const clean = parentPhone.replace(/\s+/g, '');
     const res = await execQuery<any>(
       `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
        FROM school_roster
        WHERE school_id = $1 AND REPLACE(parent_phone, ' ', '') = $2;`,
-      [schoolId, clean]
+      [schoolId, clean],
+      client
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -573,6 +606,27 @@ export const rosterRepository = {
       studentNumber: r.student_number || undefined,
       isClaimed: r.is_claimed,
     }));
+  },
+
+  async getById(schoolId: string, rosterId: string, client?: TransactionClient): Promise<SchoolRosterRecord | null> {
+    const res = await execQuery<any>(
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
+       FROM school_roster WHERE school_id = $1 AND id = $2;`,
+      [schoolId, rosterId],
+      client
+    );
+    if (res.rows.length === 0) return null;
+    const roster = res.rows[0];
+    return {
+      id: roster.id,
+      schoolId: roster.school_id,
+      parentPhone: roster.parent_phone,
+      parentName: roster.parent_name,
+      studentName: roster.student_name,
+      className: roster.class_name,
+      studentNumber: roster.student_number || undefined,
+      isClaimed: roster.is_claimed,
+    };
   },
 
   async claimRosterRecord(schoolId: string, rosterId: string, client?: TransactionClient): Promise<boolean> {
@@ -1206,64 +1260,86 @@ export const invitationRepository = {
       description: r.description || undefined,
     };
   },
+
+  async createAuthCode(
+    data: {
+      schoolId: string;
+      targetPhone: string;
+      targetUserId?: string;
+      purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+      codeHash: string;
+      createdBy: string;
+      expiresAt: string;
+      token: string;
+    },
+    client?: TransactionClient
+  ): Promise<{ id: string; expiresAt: string }> {
+    const cleanPhone = data.targetPhone.replace(/\s+/g, '');
+    await execQuery(
+      `UPDATE invitations SET is_active = FALSE, revoked_at = NOW()
+       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3
+         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL;`,
+      [data.schoolId, cleanPhone, data.purpose],
+      client
+    );
+
+    const id = `inv-auth-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    const res = await execQuery<any>(
+      `INSERT INTO invitations (
+         id, school_id, token, is_active, expires_at, purpose, target_phone,
+         target_user_id, code_hash, created_by, attempts
+       ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, 0)
+       RETURNING id, expires_at;`,
+      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.codeHash, data.createdBy],
+      client
+    );
+    return { id: res.rows[0].id, expiresAt: res.rows[0].expires_at };
+  },
+
+  async consumeAuthCode(
+    data: {
+      schoolId: string;
+      targetPhone: string;
+      targetUserId?: string;
+      purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+      codeHash: string;
+    },
+    client?: TransactionClient
+  ): Promise<{ id: string } | null> {
+    const cleanPhone = data.targetPhone.replace(/\s+/g, '');
+    const res = await execQuery<any>(
+      `UPDATE invitations SET consumed_at = NOW(), is_active = FALSE
+       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3 AND code_hash = $4
+         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL
+         AND attempts < 5 AND expires_at > NOW()
+         AND (target_user_id IS NULL OR target_user_id = $5)
+       RETURNING id;`,
+      [data.schoolId, cleanPhone, data.purpose, data.codeHash, data.targetUserId || null],
+      client
+    );
+    return res.rows[0] ? { id: res.rows[0].id } : null;
+  },
+
+  async recordFailedAuthCodeAttempt(
+    schoolId: string,
+    targetPhone: string,
+    purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET',
+    client?: TransactionClient
+  ): Promise<void> {
+    const cleanPhone = targetPhone.replace(/\s+/g, '');
+    await execQuery(
+      `UPDATE invitations
+       SET attempts = attempts + 1,
+           revoked_at = CASE WHEN attempts + 1 >= 5 THEN NOW() ELSE revoked_at END,
+           is_active = CASE WHEN attempts + 1 >= 5 THEN FALSE ELSE is_active END
+       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3
+         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > NOW();`,
+      [schoolId, cleanPhone, purpose],
+      client
+    );
+  },
 };
 
 // ==============================================================================
-// 13. OTP REPOSITORY (Secure Verification Store)
+// Legacy otp_verifications data is intentionally retained in the database until a separate cleanup migration.
 // ==============================================================================
-export const otpRepository = {
-  async saveOtp(phone: string, code: string, expiresAt: number): Promise<void> {
-    const cleanPhone = phone.replace(/\s+/g, '');
-    await execQuery(
-      `INSERT INTO otp_verifications (phone, code, expires_at, attempts, is_consumed, updated_at)
-       VALUES ($1, $2, $3, 0, FALSE, NOW())
-       ON CONFLICT (phone) DO UPDATE SET
-         code = EXCLUDED.code,
-         expires_at = EXCLUDED.expires_at,
-         attempts = 0,
-         is_consumed = FALSE,
-         updated_at = NOW();`,
-      [cleanPhone, code, expiresAt]
-    );
-  },
-
-  async getOtp(phone: string): Promise<{ code: string; expiresAt: number; attempts: number; isConsumed: boolean } | null> {
-    const cleanPhone = phone.replace(/\s+/g, '');
-    const res = await execQuery<any>(
-      `SELECT phone, code, expires_at, attempts, is_consumed
-       FROM otp_verifications
-       WHERE phone = $1;`,
-      [cleanPhone]
-    );
-    if (res.rows.length === 0) return null;
-    const r = res.rows[0];
-    return {
-      code: r.code,
-      expiresAt: Number(r.expires_at),
-      attempts: Number(r.attempts || 0),
-      isConsumed: Boolean(r.is_consumed),
-    };
-  },
-
-  async consumeOtp(phone: string): Promise<void> {
-    const cleanPhone = phone.replace(/\s+/g, '');
-    await execQuery(
-      `UPDATE otp_verifications 
-       SET is_consumed = TRUE, updated_at = NOW() 
-       WHERE phone = $1;`,
-      [cleanPhone]
-    );
-  },
-
-  async incrementAttempts(phone: string): Promise<number> {
-    const cleanPhone = phone.replace(/\s+/g, '');
-    const res = await execQuery<any>(
-      `UPDATE otp_verifications
-       SET attempts = attempts + 1, updated_at = NOW()
-       WHERE phone = $1
-       RETURNING attempts;`,
-      [cleanPhone]
-    );
-    return res.rows[0]?.attempts || 1;
-  },
-};

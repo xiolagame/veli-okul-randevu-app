@@ -27,6 +27,7 @@ let initPromise: Promise<void> | null = null;
 
 const SCHEMA_PATH = path.join(process.cwd(), 'server', 'database', 'supabase_schema.sql');
 const SEED_PATH = path.join(process.cwd(), 'server', 'database', 'seed_supabase_migration.sql');
+const MIGRATIONS_DIR = path.join(process.cwd(), 'server', 'database', 'migrations');
 const DATA_DIR = path.join(process.cwd(), 'server', 'data', 'postgres_db');
 
 export async function getDb(): Promise<{
@@ -218,6 +219,22 @@ export async function initDatabase(): Promise<void> {
     }
   };
 
+  const applyDevelopmentMigrations = async (pg: PGlite) => {
+    if (!fs.existsSync(MIGRATIONS_DIR)) {
+      return;
+    }
+
+    const migrationFiles = fs.readdirSync(MIGRATIONS_DIR)
+      .filter((file) => file.endsWith('.sql'))
+      .sort();
+
+    for (const migrationFile of migrationFiles) {
+      const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
+      await pg.exec(fs.readFileSync(migrationPath, 'utf-8'));
+      console.log(`[PostgreSQL Engine] Development migration applied: ${migrationFile}`);
+    }
+  };
+
   try {
     // Attempt normal boot of PGlite instance
     pgliteInstance = new PGlite(DATA_DIR);
@@ -241,31 +258,18 @@ export async function initDatabase(): Promise<void> {
         console.warn('[PostgreSQL Engine] Schema update check notice:', e.message);
       }
     }
+
+    await applyDevelopmentMigrations(pgliteInstance);
   } catch (initErr: any) {
-    console.error('[PostgreSQL Engine] PGlite failed on existing directory. Repairing data directory...', initErr.message);
-    try {
-      if (pgliteInstance) {
-        try {
-          await pgliteInstance.close();
-        } catch (_) {}
-      }
-      pgliteInstance = null;
-
-      // Clean corrupted/stale data directory
-      if (fs.existsSync(DATA_DIR)) {
-        fs.rmSync(DATA_DIR, { recursive: true, force: true });
-      }
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-
-      // Fresh initialization
-      pgliteInstance = new PGlite(DATA_DIR);
-      console.log('[PostgreSQL Engine] Clean data directory initialized. Reapplying schema and seed migration...');
-      await applySchemaAndSeed(pgliteInstance);
-      console.log('[PostgreSQL Engine] Recovery complete. Database is healthy.');
-    } catch (recoverErr: any) {
-      console.error('[PostgreSQL Engine Fatal] Recovery failed:', recoverErr);
-      throw recoverErr;
+    if (pgliteInstance) {
+      try {
+        await pgliteInstance.close();
+      } catch (_) {}
     }
+    pgliteInstance = null;
+    throw new Error(
+      `[PostgreSQL Engine] Local PGlite initialization failed without modifying existing data: ${initErr.message}`
+    );
   }
 
   isInitialized = true;
