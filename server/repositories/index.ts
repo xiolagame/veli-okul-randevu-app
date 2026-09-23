@@ -5,6 +5,7 @@
 // Supports both standalone queries and atomic multi-table transactions.
 // ==============================================================================
 
+import crypto from 'crypto';
 import { getDb, TransactionClient } from '../database/postgres';
 import {
   School,
@@ -36,6 +37,55 @@ async function execQuery<T = any>(
   const db = await getDb();
   return db.query<T>(sql, params);
 }
+
+function mapTeacherProfile(row: any): TeacherProfile {
+  return {
+    id: row.id,
+    schoolId: row.school_id,
+    userId: row.user_id || undefined,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    branch: row.branch,
+    email: row.email || undefined,
+    phone: row.phone || '',
+  };
+}
+
+function mapAppointment(row: any): Appointment {
+  return {
+    id: row.id ?? row.appointment_id,
+    schoolId: row.school_id,
+    teacherId: row.teacher_id,
+    teacherName: row.teacher_name,
+    teacherBranch: row.teacher_branch,
+    parentId: row.parent_id,
+    parentName: row.parent_name,
+    parentPhone: row.parent_phone,
+    studentId: row.student_id || undefined,
+    studentName: row.student_name,
+    className: row.class_name,
+    date: row.date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status as AppointmentStatus,
+    entryCode: row.entry_code || undefined,
+    qrToken: row.qr_token || undefined,
+    notes: row.notes || undefined,
+    rejectionReason: row.rejection_reason || undefined,
+    approvedAt: row.approved_at || undefined,
+    approvedBy: row.approved_by || undefined,
+    checkedInAt: row.checked_in_at || undefined,
+    checkedInBy: row.checked_in_by || undefined,
+    checkedOutAt: row.checked_out_at || undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export type AuthCodePurpose =
+  | 'ACCOUNT_ACTIVATION'
+  | 'TEACHER_ACTIVATION'
+  | 'SECURITY_ACTIVATION'
+  | 'PASSWORD_RESET';
 
 // ==============================================================================
 // 1. SCHOOL REPOSITORY
@@ -731,35 +781,58 @@ export const teacherRepository = {
        ORDER BY first_name ASC, last_name ASC;`,
       [schoolId]
     );
-    return res.rows.map((r) => ({
-      id: r.id,
-      schoolId: r.school_id,
-      firstName: r.first_name,
-      lastName: r.last_name,
-      branch: r.branch,
-      email: r.email || undefined,
-      phone: r.phone || '',
-    }));
+    return res.rows.map(mapTeacherProfile);
   },
 
-  async getTeacherById(schoolId: string, teacherId: string): Promise<TeacherProfile | null> {
+  async getTeacherById(schoolId: string, teacherId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
        FROM teacher_profiles
        WHERE school_id = $1 AND (id = $2 OR user_id = $2);`,
-      [schoolId, teacherId]
+      [schoolId, teacherId],
+      client
     );
     if (res.rows.length === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      schoolId: r.school_id,
-      firstName: r.first_name,
-      lastName: r.last_name,
-      branch: r.branch,
-      email: r.email || undefined,
-      phone: r.phone || '',
-    };
+    return mapTeacherProfile(res.rows[0]);
+  },
+
+  async getTeacherByUserId(schoolId: string, userId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
+    const res = await execQuery<any>(
+      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
+       FROM teacher_profiles
+       WHERE school_id = $1 AND user_id = $2
+       LIMIT 1;`,
+      [schoolId, userId],
+      client
+    );
+    return res.rows[0] ? mapTeacherProfile(res.rows[0]) : null;
+  },
+
+  async getTeacherByPhone(schoolId: string, phone: string, client?: TransactionClient): Promise<TeacherProfile | null> {
+    const lookupDigits = getTurkishPhoneLookupDigits(phone);
+    if (!lookupDigits) return null;
+    const res = await execQuery<any>(
+      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
+       FROM teacher_profiles
+       WHERE school_id = $1
+         AND regexp_replace(phone, '[^0-9]', '', 'g') IN ($2, $3, $4)
+       LIMIT 1;`,
+      [schoolId, ...lookupDigits],
+      client
+    );
+    return res.rows[0] ? mapTeacherProfile(res.rows[0]) : null;
+  },
+
+  async linkUser(schoolId: string, teacherId: string, userId: string, client?: TransactionClient): Promise<boolean> {
+    const res = await execQuery<any>(
+      `UPDATE teacher_profiles
+       SET user_id = $3, updated_at = NOW()
+       WHERE school_id = $1 AND id = $2 AND (user_id IS NULL OR user_id = $3)
+       RETURNING id;`,
+      [schoolId, teacherId, userId],
+      client
+    );
+    return res.rows.length > 0;
   },
 };
 
@@ -868,7 +941,7 @@ export const appointmentRepository = {
   ): Promise<Appointment[]> {
     let sql = `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                       student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                      notes, rejection_reason, check_in_time, check_out_time, created_at
+                      notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
                FROM appointments
                WHERE school_id = $1`;
     const params: any[] = [schoolId];
@@ -901,10 +974,11 @@ export const appointmentRepository = {
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
+      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.check_in_time || undefined,
-      checkedOutAt: r.check_out_time || undefined,
+      checkedInAt: r.checked_in_at || undefined,
+      checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
     }));
   },
@@ -913,7 +987,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, check_in_time, check_out_time, created_at
+              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments
        WHERE school_id = $1 AND id = $2;`,
       [schoolId, appointmentId]
@@ -937,10 +1011,11 @@ export const appointmentRepository = {
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
+      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.check_in_time || undefined,
-      checkedOutAt: r.check_out_time || undefined,
+      checkedInAt: r.checked_in_at || undefined,
+      checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
     };
   },
@@ -950,7 +1025,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, check_in_time, check_out_time, created_at
+              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments
        WHERE school_id = $1 AND (entry_code = $2 OR id = $2);`,
       [schoolId, clean]
@@ -974,12 +1049,24 @@ export const appointmentRepository = {
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
+      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.check_in_time || undefined,
-      checkedOutAt: r.check_out_time || undefined,
+      checkedInAt: r.checked_in_at || undefined,
+      checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
     };
+  },
+
+  async getAppointmentByQrToken(schoolId: string, qrToken: string): Promise<Appointment | null> {
+    const res = await execQuery<any>(
+      `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
+              student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
+              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+       FROM appointments WHERE school_id = $1 AND qr_token = $2;`,
+      [schoolId, qrToken.trim()]
+    );
+    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
   },
 
   async findByCodeAnySchool(code: string): Promise<Appointment | null> {
@@ -1036,14 +1123,15 @@ export const appointmentRepository = {
   async createAppointment(apt: Appointment, client?: TransactionClient): Promise<Appointment> {
     const id = apt.id || 'apt-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const entryCode = apt.entryCode || Math.floor(100000 + Math.random() * 900000).toString();
+    const qrToken = apt.qrToken || `VELIQR1:${crypto.randomBytes(24).toString('base64url')}`;
 
     const res = await execQuery<any>(
       `INSERT INTO appointments (
          id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token, notes
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-                 student_id, student_name, class_name, date, start_time, end_time, status, entry_code, notes, created_at;`,
+                 student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token, notes, created_at;`,
       [
         id,
         apt.schoolId,
@@ -1061,51 +1149,32 @@ export const appointmentRepository = {
         apt.endTime,
         apt.status || 'pending',
         entryCode,
+        qrToken,
         apt.notes || null,
       ],
       client
     );
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      schoolId: r.school_id,
-      teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
-      teacherBranch: r.teacher_branch,
-      parentId: r.parent_id,
-      parentName: r.parent_name,
-      parentPhone: r.parent_phone,
-      studentId: r.student_id || undefined,
-      studentName: r.student_name,
-      className: r.class_name,
-      date: r.date,
-      startTime: r.start_time,
-      endTime: r.end_time,
-      status: r.status as AppointmentStatus,
-      entryCode: r.entry_code,
-      notes: r.notes || undefined,
-      createdAt: r.created_at,
-    };
+    return mapAppointment({ ...res.rows[0], id: res.rows[0]?.id ?? id });
   },
 
   async updateStatus(
     schoolId: string,
     appointmentId: string,
     status: AppointmentStatus,
-    extra?: { rejectionReason?: string; checkedInAt?: string; checkedOutAt?: string },
+      extra?: { rejectionReason?: string; checkedInAt?: string; checkedOutAt?: string },
     client?: TransactionClient
   ): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `UPDATE appointments
        SET status = $1,
            rejection_reason = COALESCE($2, rejection_reason),
-           check_in_time = COALESCE($3, check_in_time),
-           check_out_time = COALESCE($4, check_out_time),
+           checked_in_at = COALESCE($3, checked_in_at),
+           checked_out_at = COALESCE($4, checked_out_at),
            updated_at = NOW()
        WHERE school_id = $5 AND id = $6
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                  student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                 notes, rejection_reason, check_in_time, check_out_time, created_at;`,
+                 notes, rejection_reason, checked_in_at, checked_out_at, created_at;`,
       [
         status,
         extra?.rejectionReason || null,
@@ -1137,14 +1206,47 @@ export const appointmentRepository = {
       entryCode: r.entry_code,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.check_in_time || undefined,
-      checkedOutAt: r.check_out_time || undefined,
+      checkedInAt: r.checked_in_at || undefined,
+      checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
     };
   },
-};
 
 // ==============================================================================
+  async transitionStatus(
+    schoolId: string,
+    appointmentId: string,
+    fromStatus: AppointmentStatus,
+    toStatus: AppointmentStatus,
+    extra?: { rejectionReason?: string; approvedBy?: string; approvedAt?: string },
+    client?: TransactionClient
+  ): Promise<Appointment | null> {
+    const res = await execQuery<any>(
+      `UPDATE appointments SET status = $1, rejection_reason = COALESCE($2, rejection_reason),
+         approved_at = COALESCE($3, approved_at), approved_by = COALESCE($4, approved_by), updated_at = NOW()
+       WHERE school_id = $5 AND id = $6 AND status = $7
+       RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
+         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
+         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
+      [toStatus, extra?.rejectionReason || null, extra?.approvedAt || null, extra?.approvedBy || null, schoolId, appointmentId, fromStatus],
+      client
+    );
+    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
+  },
+
+  async checkInAtomically(schoolId: string, appointmentId: string, checkedInBy: string): Promise<Appointment | null> {
+    const res = await execQuery<any>(
+      `UPDATE appointments SET status = 'checked_in', checked_in_at = NOW(), checked_in_by = $1, updated_at = NOW()
+       WHERE school_id = $2 AND id = $3 AND status = 'booked'
+       RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
+         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
+         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
+      [checkedInBy, schoolId, appointmentId]
+    );
+    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
+  },
+};
+
 // 10. NOTIFICATION REPOSITORY (Tenant & User Scoped)
 // ==============================================================================
 export const notificationRepository = {
@@ -1298,7 +1400,8 @@ export const invitationRepository = {
       schoolId: string;
       targetPhone: string;
       targetUserId?: string;
-      purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+      targetRole?: UserRole;
+      purpose: AuthCodePurpose;
       codeHash: string;
       createdBy: string;
       expiresAt: string;
@@ -1320,10 +1423,10 @@ export const invitationRepository = {
     const res = await execQuery<any>(
       `INSERT INTO invitations (
          id, school_id, token, is_active, expires_at, purpose, target_phone,
-         target_user_id, code_hash, created_by, attempts
-       ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, 0)
+         target_user_id, target_role, code_hash, created_by, attempts
+       ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, 0)
        RETURNING id, expires_at;`,
-      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.codeHash, data.createdBy],
+      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.targetRole || null, data.codeHash, data.createdBy],
       client
     );
     return { id: res.rows[0].id, expiresAt: res.rows[0].expires_at };
@@ -1334,11 +1437,12 @@ export const invitationRepository = {
       schoolId: string;
       targetPhone: string;
       targetUserId?: string;
-      purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
+      targetRole?: UserRole;
+      purpose: AuthCodePurpose;
       codeHash: string;
     },
     client?: TransactionClient
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; targetRole?: UserRole; targetUserId?: string } | null> {
     const cleanPhone = normalizeTurkishPhone(data.targetPhone);
     if (!cleanPhone) return null;
     const res = await execQuery<any>(
@@ -1347,11 +1451,11 @@ export const invitationRepository = {
          AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL
          AND attempts < 5 AND expires_at > NOW()
          AND (target_user_id IS NULL OR target_user_id = $5)
-       RETURNING id;`,
+       RETURNING id, target_role, target_user_id;`,
       [data.schoolId, cleanPhone, data.purpose, data.codeHash, data.targetUserId || null],
       client
     );
-    return res.rows[0] ? { id: res.rows[0].id } : null;
+    return res.rows[0] ? { id: res.rows[0].id, targetRole: res.rows[0].target_role || undefined, targetUserId: res.rows[0].target_user_id || undefined } : null;
   },
 
   async recordFailedAuthCodeAttempt(

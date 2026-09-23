@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTodayDateString } from '../data/mockData';
-import { Appointment } from '../types';
+import { Appointment, SecurityQrVerification } from '../types';
 import {
   ShieldCheck,
   Search,
@@ -17,15 +17,11 @@ import {
 } from 'lucide-react';
 
 export const SecurityView: React.FC = () => {
-  const { appointments, checkInVisitor, checkOutVisitor, settings } = useApp();
+  const { appointments, verifySecurityQr, checkInVisitor, checkOutVisitor, settings } = useApp();
   const todayStr = getTodayDateString();
 
   const [inputCode, setInputCode] = useState<string>('');
-  const [verifyResult, setVerifyResult] = useState<{
-    success: boolean;
-    message: string;
-    appointment?: Appointment;
-  } | null>(null);
+  const [verifyResult, setVerifyResult] = useState<SecurityQrVerification | null>(null);
 
   const [segment, setSegment] = useState<'all' | 'expected' | 'inside' | 'done'>('all');
 
@@ -46,16 +42,15 @@ export const SecurityView: React.FC = () => {
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputCode.trim()) return;
-    const res = await checkInVisitor(inputCode.trim());
+    const res = await verifySecurityQr(inputCode.trim());
     setVerifyResult(res);
-    if (res.success) {
-      setInputCode('');
-    }
   };
 
-  const handleManualCheckIn = async (idOrCode: string) => {
-    const res = await checkInVisitor(idOrCode);
+  const handleCheckIn = async () => {
+    if (!inputCode.trim()) return;
+    const res = await checkInVisitor(inputCode.trim());
     setVerifyResult(res);
+    if (res.allowed) setInputCode('');
   };
 
   const handleManualCheckOut = async (id: string) => {
@@ -95,9 +90,9 @@ export const SecurityView: React.FC = () => {
                 <ShieldCheck className="w-6 h-6 text-blue-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">6 Haneli Kod veya QR Sorgula</h2>
+                <h2 className="text-lg font-bold text-white">QR Randevu Doğrulama</h2>
                 <p className="text-xs text-slate-300">
-                  Velinin gösterdiği giriş kartındaki 6 haneli doğrulama kodunu giriniz:
+                  Velinin gösterdiği QR içeriğini giriniz. Giriş kaydı, ayrı bir onaydan sonra oluşturulur.
                 </p>
               </div>
             </div>
@@ -107,10 +102,10 @@ export const SecurityView: React.FC = () => {
                 <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
-                  maxLength={6}
-                  placeholder="Örn: 482915"
+                  maxLength={80}
+                  placeholder="VELIQR1:..."
                   value={inputCode}
-                  onChange={(e) => setInputCode(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => setInputCode(e.target.value.trim())}
                   className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-lg font-mono font-bold tracking-widest text-white placeholder:text-slate-400 placeholder:font-sans placeholder:text-sm placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-blue-400 focus:bg-white/15"
                 />
               </div>
@@ -118,7 +113,7 @@ export const SecurityView: React.FC = () => {
                 type="submit"
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
               >
-                <LogIn className="w-4 h-4" /> Girişi Onayla
+                <Search className="w-4 h-4" /> QR'ı Doğrula
               </button>
             </form>
 
@@ -126,18 +121,19 @@ export const SecurityView: React.FC = () => {
             {verifyResult && (
               <div
                 className={`p-4 rounded-xl text-xs font-semibold flex items-start gap-3 mt-3 animate-in fade-in ${
-                  verifyResult.success
+                  verifyResult.allowed
                     ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/50'
                     : 'bg-red-950/80 text-red-200 border border-red-500/50'
                 }`}
               >
-                {verifyResult.success ? (
+                {verifyResult.allowed ? (
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                 ) : (
                   <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
                 )}
                 <div>
-                  <p className="text-sm font-bold">{verifyResult.message}</p>
+                  <p className="text-sm font-bold">{verifyResult.title}</p>
+                  <p className="mt-1 font-normal">{verifyResult.message}</p>
                   {verifyResult.appointment && (
                     <div className="mt-1 text-slate-300 font-normal">
                       Öğretmen: {verifyResult.appointment.teacherName} • Saat: {verifyResult.appointment.startTime} - {verifyResult.appointment.endTime}
@@ -145,6 +141,11 @@ export const SecurityView: React.FC = () => {
                   )}
                 </div>
               </div>
+            )}
+            {verifyResult?.allowed && (
+              <button type="button" onClick={handleCheckIn} className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all shadow-md">
+                GİRİŞİ KAYDET
+              </button>
             )}
           </div>
         </div>
@@ -278,7 +279,6 @@ export const SecurityView: React.FC = () => {
                         <span className="text-slate-400">Saat:</span> {apt.startTime} - {apt.endTime}
                       </span>
                       <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-                        Kod: {apt.entryCode}
                       </span>
                     </div>
                   </div>
@@ -287,10 +287,10 @@ export const SecurityView: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {apt.status === 'booked' && (
                       <button
-                        onClick={() => handleManualCheckIn(apt.entryCode)}
+                        onClick={() => { if (apt.qrToken) { setInputCode(apt.qrToken); void verifySecurityQr(apt.qrToken).then(setVerifyResult); } }}
                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
-                        <LogIn className="w-3.5 h-3.5" /> Giriş Yapıldı
+                        <Search className="w-3.5 h-3.5" /> QR'ı Doğrula
                       </button>
                     )}
                     {apt.status === 'checked_in' && (

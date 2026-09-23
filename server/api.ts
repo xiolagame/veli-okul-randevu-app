@@ -8,6 +8,7 @@ import {
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone } from '../src/utils/phone';
+import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, hashActivationCode } from './activation-codes';
 import {
   getDb,
@@ -130,7 +131,6 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
     await db.transaction(async (tx) => {
       const rosterEntries = await rosterRepository.checkPhone(schoolId, cleanPhone, tx);
       const existingUser = await userRepository.getByPhone(cleanPhone, tx);
-      if (rosterEntries.length === 0) throw new Error('INVALID_AUTH_CODE');
 
       const consumed = await invitationRepository.consumeAuthCode(
         {
@@ -143,6 +143,27 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
         tx
       );
       if (!consumed) throw new Error('INVALID_AUTH_CODE');
+
+      if (consumed.targetRole === 'teacher' || consumed.targetRole === 'security') {
+        const targetUser = consumed.targetUserId ? await userRepository.getById(consumed.targetUserId, tx) : existingUser;
+        if (consumed.targetRole === 'teacher') {
+          const teacher = await teacherRepository.getTeacherByPhone(schoolId, cleanPhone, tx);
+          if (!teacher || (consumed.targetUserId && teacher.userId !== consumed.targetUserId)) throw new Error('INVALID_AUTH_CODE');
+          const user = targetUser || await userRepository.create({ phone: cleanPhone, firstName: teacher.firstName, lastName: teacher.lastName }, tx);
+          if (!await teacherRepository.linkUser(schoolId, teacher.id, user.id, tx)) throw new Error('INVALID_AUTH_CODE');
+          await userRepository.updatePasswordHash(user.id, hashPassword(password), tx);
+          await membershipRepository.createOrActivate({ schoolId, userId: user.id, role: 'teacher', branch: teacher.branch }, tx);
+          await auditLogRepository.createAuditLog({ schoolId, action: 'Öğretmen Aktivasyonu', actorName: 'Sistem', details: `Öğretmen hesabı ${user.id} için aktivasyon tamamlandı.` }, tx);
+        } else {
+          if (!targetUser) throw new Error('INVALID_AUTH_CODE');
+          await userRepository.updatePasswordHash(targetUser.id, hashPassword(password), tx);
+          await membershipRepository.createOrActivate({ schoolId, userId: targetUser.id, role: 'security' }, tx);
+          await auditLogRepository.createAuditLog({ schoolId, action: 'Güvenlik Aktivasyonu', actorName: 'Sistem', details: `Güvenlik hesabı ${targetUser.id} için aktivasyon tamamlandı.` }, tx);
+        }
+        return;
+      }
+
+      if (rosterEntries.length === 0) throw new Error('INVALID_AUTH_CODE');
 
       const parentName = splitParentName(rosterEntries[0].parentName);
       const user = existingUser || await userRepository.create(
@@ -676,7 +697,6 @@ apiRouter.post(
             startTime,
             endTime,
             status: 'pending',
-            entryCode: Math.floor(100000 + Math.random() * 900000).toString(),
             notes,
             createdAt: new Date().toISOString(),
           },
@@ -749,7 +769,14 @@ apiRouter.post(
 
       const db = await getDb();
       const updated = await db.transaction(async (tx) => {
-        const updatedApt = await appointmentRepository.updateStatus(schoolId, aptId, 'booked', undefined, tx);
+        const updatedApt = await appointmentRepository.transitionStatus(
+          schoolId,
+          aptId,
+          'pending',
+          'booked',
+          { approvedAt: new Date().toISOString(), approvedBy: req.user!.id },
+          tx
+        );
         if (!updatedApt) return null;
 
         await notificationRepository.createNotification(
@@ -796,7 +823,7 @@ apiRouter.post(
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
     const aptId = req.params.id;
-    const { reason } = req.body;
+      const reason = typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) : undefined;
 
     try {
       // 1. Verify appointment belongs to this school
@@ -815,9 +842,10 @@ apiRouter.post(
 
       const db = await getDb();
       const updated = await db.transaction(async (tx) => {
-        const updatedApt = await appointmentRepository.updateStatus(
+        const updatedApt = await appointmentRepository.transitionStatus(
           schoolId,
           aptId,
+          'pending',
           'rejected',
           { rejectionReason: reason },
           tx
@@ -920,68 +948,47 @@ apiRouter.post(
   }
 );
 
+// Security QR verification is read-only; check-in is a separate atomic action.
+apiRouter.post(
+  '/schools/:schoolId/security/qr/verify',
+  authMiddleware,
+  tenantGuard(['security']),
+  async (req: AuthenticatedRequest, res) => {
+    const schoolId = req.membership!.schoolId;
+    const token = typeof req.body.qrToken === 'string' ? req.body.qrToken.trim() : '';
+    if (!/^VELIQR1:[A-Za-z0-9_-]{32}$/.test(token)) {
+      return res.status(200).json(invalidQrVerification());
+    }
+    try {
+      const appointment = await appointmentRepository.getAppointmentByQrToken(schoolId, token);
+      if (!appointment) return res.status(200).json(invalidQrVerification());
+      return res.status(200).json(evaluateSecurityQr(appointment));
+    } catch (err) {
+      console.error('[POST /security/qr/verify Error]:', err);
+      return res.status(503).json({ success: false, allowed: false, decision: 'INVALID', title: 'RANDEVU DOĞRULANAMADI', message: 'Bağlantıyı kontrol edin. Giriş vermeyin.' });
+    }
+  }
+);
+
 // Security Check-In (Strict School Isolation)
 apiRouter.post(
   '/schools/:schoolId/security/check-in',
   authMiddleware,
-  tenantGuard(['security', 'admin']),
+  tenantGuard(['security']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const { code, entryCode } = req.body;
-    const cleanCode = (code || entryCode || '').trim();
+    const token = typeof req.body.qrToken === 'string' ? req.body.qrToken.trim() : '';
 
     try {
-      // STRICT TENANT ISOLATION: Must match THIS school's appointments only!
-      const apt = await appointmentRepository.getAppointmentByEntryCode(schoolId, cleanCode);
-
-      if (!apt) {
-        // Cross-tenant check for helpful feedback
-        const otherSchoolApt = await appointmentRepository.findByCodeAnySchool(cleanCode);
-        if (otherSchoolApt) {
-          return res.status(404).json({
-            success: false,
-            message: 'HATA: Bu giriş kodu başka bir okula aittir! Bu okul nizamiyesinden giriş izni verilemez (İzolasyon Koruması).',
-          });
-        }
-        return res.status(404).json({
-          success: false,
-          message: 'Bu koda ait geçerli bir randevu bulunamadı.',
-        });
-      }
-
-      if (apt.status === 'pending') {
-        return res.status(400).json({
-          success: false,
-          message: 'Bu randevu henüz öğretmen tarafından onaylanmamış! Giriş yapılamaz.',
-        });
-      }
-
-      if (apt.status === 'checked_in') {
-        return res.status(400).json({
-          success: false,
-          message: 'Ziyaretçi zaten okula giriş yapmış durumda!',
-          appointment: apt,
-        });
-      }
-
-      const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const updated = await appointmentRepository.updateStatus(schoolId, apt.id, 'checked_in', {
-        checkedInAt: timeStr,
-      });
-
-      await auditLogRepository.createAuditLog({
-        schoolId,
-        timestamp: timeStr,
-        action: 'Okula Giriş Yapıldı',
-        actorName: `${req.user!.firstName} ${req.user!.lastName} (Güvenlik)`.trim(),
-        details: `${apt.parentName} (${apt.studentName} velisi) giriş yaptı. Kod: ${apt.entryCode}`,
-      });
-
-      res.json({
-        success: true,
-        message: `${apt.parentName} için giriş onaylandı! (${apt.teacherName} ile randevusu)`,
-        appointment: updated,
-      });
+      if (!/^VELIQR1:[A-Za-z0-9_-]{32}$/.test(token)) return res.status(200).json(invalidQrVerification());
+      const appointment = await appointmentRepository.getAppointmentByQrToken(schoolId, token);
+      if (!appointment) return res.status(200).json(invalidQrVerification());
+      const verification = evaluateSecurityQr(appointment);
+      if (!verification.allowed) return res.status(200).json(verification);
+      const updated = await appointmentRepository.checkInAtomically(schoolId, appointment.id, req.user!.id);
+      if (!updated) return res.status(409).json({ success: false, allowed: false, decision: 'ALREADY_CHECKED_IN', title: 'DAHA ÖNCE GİRİŞ KAYDI YAPILDI', message: 'Bu randevu için giriş kaydı zaten oluşturuldu.' });
+      await auditLogRepository.createAuditLog({ schoolId, action: 'QR Giriş Doğrulandı', actorName: `${req.user!.firstName} ${req.user!.lastName} (Güvenlik)`.trim(), details: `${updated.id} için giriş kaydı oluşturuldu.` });
+      return res.json({ success: true, allowed: true, decision: 'APPROVED', title: 'GİRİŞ KAYDI OLUŞTURULDU', message: 'Giriş kaydı başarıyla oluşturuldu.', appointment: updated });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/security/check-in Error]:', err);
       res.status(500).json({ error: 'Nizamiye giriş kontrolü sırasında hata oluştu' });
@@ -993,7 +1000,7 @@ apiRouter.post(
 apiRouter.post(
   '/schools/:schoolId/security/check-out',
   authMiddleware,
-  tenantGuard(['security', 'admin']),
+  tenantGuard(['security']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
     const { appointmentId } = req.body;
@@ -1008,9 +1015,10 @@ apiRouter.post(
         return res.status(400).json({ error: 'Ziyaretçi henüz okula giriş yapmamış veya zaten çıkış yapmış!' });
       }
 
-      const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      const checkoutTimestamp = new Date();
+      const timeStr = checkoutTimestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
       const apt = await appointmentRepository.updateStatus(schoolId, appointmentId, 'checked_out', {
-        checkedOutAt: timeStr,
+        checkedOutAt: checkoutTimestamp.toISOString(),
       });
 
       if (!apt) {
@@ -1125,16 +1133,38 @@ apiRouter.post(
   tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const { rosterId, purpose } = req.body as { rosterId?: string; purpose?: AuthCodePurpose };
-    if (!rosterId || (purpose !== 'ACCOUNT_ACTIVATION' && purpose !== 'PASSWORD_RESET')) {
+    const { rosterId, purpose, targetType, targetId } = req.body as { rosterId?: string; purpose?: AuthCodePurpose; targetType?: 'parent' | 'teacher' | 'security'; targetId?: string };
+    if ((!rosterId && !targetId) || (purpose !== 'ACCOUNT_ACTIVATION' && purpose !== 'PASSWORD_RESET')) {
       return res.status(400).json({ error: 'Geçersiz kod oluşturma isteği.' });
     }
 
     try {
-      const rosterEntry = await rosterRepository.getById(schoolId, rosterId);
-      if (!rosterEntry) return res.status(404).json({ error: 'Kütük kaydı bulunamadı.' });
-
-      const user = await userRepository.getByPhone(rosterEntry.parentPhone);
+      let targetPhone: string;
+      let targetUserId: string | undefined;
+      let targetRole: 'parent' | 'teacher' | 'security' = 'parent';
+      let targetLabel = rosterId || targetId || 'hedef';
+      if (targetType === 'teacher' && targetId) {
+        const teacher = await teacherRepository.getTeacherById(schoolId, targetId);
+        if (!teacher) return res.status(404).json({ error: 'Öğretmen bulunamadı.' });
+        targetPhone = teacher.phone;
+        targetUserId = teacher.userId;
+        targetRole = 'teacher';
+      } else if (targetType === 'security' && targetId) {
+        const securityUser = await userRepository.getById(targetId);
+        const membership = securityUser ? await membershipRepository.getActiveMembership(securityUser.id, schoolId) : null;
+        if (!securityUser || !membership || membership.role !== 'security') return res.status(404).json({ error: 'Güvenlik personeli bulunamadı.' });
+        targetPhone = securityUser.phone;
+        targetUserId = securityUser.id;
+        targetRole = 'security';
+      } else {
+        const rosterEntry = await rosterRepository.getById(schoolId, rosterId!);
+        if (!rosterEntry) return res.status(404).json({ error: 'Kütük kaydı bulunamadı.' });
+        targetPhone = rosterEntry.parentPhone;
+        const user = await userRepository.getByPhone(targetPhone);
+        targetUserId = user?.id;
+        targetLabel = rosterEntry.id;
+      }
+      const user = await userRepository.getByPhone(targetPhone);
       if (purpose === 'PASSWORD_RESET' && !user) {
         return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });
       }
@@ -1152,8 +1182,9 @@ apiRouter.post(
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       await invitationRepository.createAuthCode({
         schoolId,
-        targetPhone: rosterEntry.parentPhone,
-        targetUserId: user?.id,
+        targetPhone,
+        targetUserId,
+        targetRole,
         purpose,
         codeHash: hashActivationCode(code),
         createdBy: req.user!.id,
@@ -1164,7 +1195,7 @@ apiRouter.post(
         schoolId,
         action: purpose === 'ACCOUNT_ACTIVATION' ? 'Aktivasyon Kodu Oluşturuldu' : 'Parola Sıfırlama Kodu Oluşturuldu',
         actorName: `${req.user!.firstName} ${req.user!.lastName} (Yönetici)`.trim(),
-        details: `Kütük kaydı ${rosterEntry.id} için tek kullanımlık güvenlik kodu oluşturuldu.`,
+        details: `${targetRole} hedefi ${targetLabel} için tek kullanımlık güvenlik kodu oluşturuldu.`,
       });
 
       return res.json({ success: true, code, purpose, expiresAt });

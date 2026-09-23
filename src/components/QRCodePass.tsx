@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Appointment } from '../types';
+import QRCode from 'qrcode';
 import { Calendar, Clock, User, CheckCircle2, AlertCircle, ShieldCheck, Printer, X } from 'lucide-react';
 
 interface QRCodePassProps {
@@ -9,8 +10,12 @@ interface QRCodePassProps {
 }
 
 export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName, onClose }) => {
-  // Generate deterministic QR-like SVG pattern from the 6-digit entry code
-  const code = appointment.entryCode || '123456';
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!appointment.qrToken) return;
+    void QRCode.toDataURL(appointment.qrToken, { margin: 1, width: 220 }).then(setQrDataUrl);
+  }, [appointment.qrToken]);
 
   const handlePrint = () => {
     window.print();
@@ -71,50 +76,13 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
             </div>
           )}
 
-          {/* QR Code & 6-Digit Display */}
+          {/* Opaque QR token; the server remains authoritative for status and time window. */}
           <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-            {/* SVG QR Code Simulation */}
             <div className="w-44 h-44 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900">
-                {/* QR Corner Squares */}
-                <rect x="5" y="5" width="26" height="26" fill="currentColor" rx="2" />
-                <rect x="9" y="9" width="18" height="18" fill="white" rx="1" />
-                <rect x="13" y="13" width="10" height="10" fill="currentColor" rx="1" />
-
-                <rect x="69" y="5" width="26" height="26" fill="currentColor" rx="2" />
-                <rect x="73" y="9" width="18" height="18" fill="white" rx="1" />
-                <rect x="77" y="13" width="10" height="10" fill="currentColor" rx="1" />
-
-                <rect x="5" y="69" width="26" height="26" fill="currentColor" rx="2" />
-                <rect x="9" y="73" width="18" height="18" fill="white" rx="1" />
-                <rect x="13" y="77" width="10" height="10" fill="currentColor" rx="1" />
-
-                {/* Simulated Data Matrix Dots based on code digits */}
-                <rect x="36" y="8" width="8" height="8" fill="currentColor" />
-                <rect x="48" y="14" width="8" height="8" fill="currentColor" />
-                <rect x="36" y="24" width="6" height="6" fill="currentColor" />
-                <rect x="54" y="26" width="6" height="6" fill="currentColor" />
-                <rect x="10" y="38" width="8" height="8" fill="currentColor" />
-                <rect x="24" y="44" width="8" height="8" fill="currentColor" />
-                <rect x="38" y="38" width="12" height="12" fill="currentColor" />
-                <rect x="56" y="42" width="8" height="8" fill="currentColor" />
-                <rect x="72" y="38" width="6" height="6" fill="currentColor" />
-                <rect x="84" y="44" width="8" height="8" fill="currentColor" />
-                <rect x="38" y="60" width="8" height="8" fill="currentColor" />
-                <rect x="52" y="66" width="8" height="8" fill="currentColor" />
-                <rect x="70" y="68" width="10" height="10" fill="currentColor" />
-                <rect x="84" y="74" width="8" height="8" fill="currentColor" />
-                <rect x="42" y="82" width="8" height="8" fill="currentColor" />
-                <rect x="62" y="84" width="6" height="6" fill="currentColor" />
-              </svg>
+              {qrDataUrl ? <img src={qrDataUrl} alt="Randevu QR kodu" className="w-full h-full" /> : <span className="text-xs text-slate-500">QR hazırlanıyor</span>}
             </div>
-
-            {/* 6-Digit Big Badge */}
             <div className="text-center">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">GİRİŞ DOĞRULAMA KODU</span>
-              <div className="font-mono text-3xl font-extrabold tracking-widest text-blue-700 mt-0.5">
-                {code.slice(0, 3)} {code.slice(3)}
-              </div>
+              <span className="text-xs font-semibold text-slate-500">QR kod yalnızca sunucu tarafından doğrulanır.</span>
             </div>
           </div>
 

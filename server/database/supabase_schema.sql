@@ -158,10 +158,16 @@ CREATE TABLE IF NOT EXISTS appointments (
     end_time VARCHAR(10) NOT NULL,
     status VARCHAR(30) DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'booked', 'completed', 'cancelled', 'checked_in', 'rejected', 'checked_out')),
     entry_code VARCHAR(10) NOT NULL,
+    qr_token TEXT,
     notes TEXT,
     rejection_reason TEXT,
+    approved_at TIMESTAMPTZ,
+    approved_by TEXT REFERENCES users(id),
     check_in_time VARCHAR(30),
+    checked_in_by TEXT REFERENCES users(id),
+    checked_in_at TIMESTAMPTZ,
     check_out_time VARCHAR(30),
+    checked_out_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT uq_appointments_school_id UNIQUE (school_id, id),
@@ -213,9 +219,15 @@ CREATE TABLE IF NOT EXISTS invitations (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS qr_token TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_by TEXT REFERENCES users(id);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS checked_in_by TEXT REFERENCES users(id);
+
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS purpose VARCHAR(32);
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20);
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_user_id TEXT REFERENCES users(id);
+ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_role VARCHAR(20);
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS code_hash TEXT;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
@@ -253,6 +265,10 @@ CREATE INDEX IF NOT EXISTS idx_availability_school_teacher ON availability_slots
 CREATE INDEX IF NOT EXISTS idx_appointments_school_teacher ON appointments(school_id, teacher_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_school_parent ON appointments(school_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_school_entry_code ON appointments(school_id, entry_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_qr_token_unique
+  ON appointments(qr_token)
+  WHERE qr_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_appointments_school_qr_token ON appointments(school_id, qr_token);
 CREATE INDEX IF NOT EXISTS idx_notifications_school_user ON notifications(school_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_school ON audit_logs(school_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);

@@ -54,7 +54,7 @@ export const TeacherView: React.FC = () => {
 
   // Teacher appointments
   const teacherAppointments = appointments.filter(
-    (a) => a.teacherId === currentUser?.id || a.teacherName.includes(currentUser?.firstName || '')
+    (a) => a.teacherId === currentUser?.id
   );
 
   const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending');
@@ -241,7 +241,6 @@ export const TeacherView: React.FC = () => {
                         <div className="text-xs text-slate-600 flex items-center gap-3 mt-1">
                           <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {apt.date}</span>
                           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {apt.startTime} - {apt.endTime}</span>
-                          <span className="font-mono text-blue-700 font-bold">Kod: {apt.entryCode}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -376,7 +375,6 @@ export const TeacherView: React.FC = () => {
 
                       <div className="p-2.5 bg-slate-50 rounded-xl text-xs flex items-center justify-between">
                         <span>{apt.date} • {apt.startTime} - {apt.endTime}</span>
-                        <span className="font-mono font-bold text-blue-700">Kod: {apt.entryCode}</span>
                       </div>
                     </div>
 

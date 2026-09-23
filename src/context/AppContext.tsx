@@ -13,6 +13,7 @@ import {
   SchoolMembership,
   SchoolRosterRecord,
   TenantIsolationTestResult,
+  SecurityQrVerification,
 } from '../types';
 import { api, setAuthToken, setActiveSchoolId, getAuthToken, getActiveSchoolId } from '../services/api';
 
@@ -49,7 +50,8 @@ interface AppContextType {
   approveAppointment: (appointmentId: string) => Promise<void>;
   rejectAppointment: (appointmentId: string, reason?: string) => Promise<void>;
   cancelAppointment: (appointmentId: string) => Promise<void>;
-  checkInVisitor: (appointmentIdOrCode: string) => Promise<{ success: boolean; message: string; appointment?: Appointment }>;
+  verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
+  checkInVisitor: (qrToken: string) => Promise<SecurityQrVerification & { appointment?: Appointment }>;
   checkOutVisitor: (appointmentId: string) => Promise<void>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
@@ -335,10 +337,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Check In Visitor (Strictly validated by backend tenant guard)
-  const checkInVisitor = async (appointmentIdOrCode: string) => {
-    if (!currentSchool) return { success: false, message: 'Aktif okul seçili değil' };
+  const verifySecurityQr = async (qrToken: string) => {
+    if (!currentSchool) {
+      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Aktif okul seçili değil' };
+    }
+    return api.verifySecurityQr(currentSchool.id, qrToken);
+  };
+
+  const checkInVisitor = async (qrToken: string) => {
+    if (!currentSchool) return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Aktif okul seçili değil' };
     try {
-      const res = await api.checkInVisitor(currentSchool.id, appointmentIdOrCode);
+      const res = await api.checkInVisitor(currentSchool.id, qrToken);
       if (res.appointment) {
         setAppointments((prev) =>
           prev.map((a) => (a.id === res.appointment!.id ? res.appointment! : a))
@@ -346,7 +355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return res;
     } catch (err: any) {
-      return { success: false, message: err.message || 'Giriş işlemi başarısız' };
+      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: err.message || 'Giriş işlemi başarısız' };
     }
   };
 
@@ -457,6 +466,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveAppointment,
         rejectAppointment,
         cancelAppointment,
+        verifySecurityQr,
         checkInVisitor,
         checkOutVisitor,
         addAvailabilitySlot,

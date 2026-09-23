@@ -5,6 +5,7 @@ import {
   TeacherProfile,
   AvailabilitySlot,
   Appointment,
+  SecurityQrVerification,
   NotificationItem,
   AuditLogItem,
   SchoolSettings,
@@ -213,10 +214,15 @@ export const api = {
       { method: 'POST' }
     ),
 
-  checkInVisitor: (schoolId: string, code: string) =>
-    request<{ success: boolean; message: string; appointment?: Appointment }>(
+  verifySecurityQr: (schoolId: string, qrToken: string) =>
+    request<SecurityQrVerification>(`/api/schools/${schoolId}/security/qr/verify`, {
+      method: 'POST', body: JSON.stringify({ qrToken }),
+    }),
+
+  checkInVisitor: (schoolId: string, qrToken: string) =>
+    request<SecurityQrVerification & { appointment?: Appointment }>(
       `/api/schools/${schoolId}/security/check-in`,
-      { method: 'POST', body: JSON.stringify({ code }) }
+      { method: 'POST', body: JSON.stringify({ qrToken }) }
     ),
 
   checkOutVisitor: (schoolId: string, appointmentId: string) =>
@@ -254,10 +260,10 @@ export const api = {
       body: JSON.stringify({ records }),
     }),
 
-  createAuthCode: (schoolId: string, rosterId: string, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET') =>
+  createAuthCode: (schoolId: string, rosterId: string, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET', target?: { type: 'teacher' | 'security'; id: string }) =>
     request<{ success: boolean; code: string; purpose: string; expiresAt: string }>(`/api/schools/${schoolId}/auth-codes`, {
       method: 'POST',
-      body: JSON.stringify({ rosterId, purpose }),
+      body: JSON.stringify({ rosterId: target ? undefined : rosterId, purpose, targetType: target?.type, targetId: target?.id }),
     }),
 
   testIsolation: (schoolId: string) =>

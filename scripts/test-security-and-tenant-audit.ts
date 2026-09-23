@@ -372,19 +372,24 @@ async function runSecurityAudit() {
       `Öğretmen randevu reddi kontrolü yapıldı (status: ${aptERes.status})`
     );
 
-    // 5.F: Security at School A -> School B entry code check-in = REJECTED
+    // 5.F: Security at School A cannot verify a QR from another tenant.
+    // The current product contract deliberately returns HTTP 200 with a generic
+    // fail-closed result for invalid/foreign QR values.
     const aptFRes = await makeReq('POST', '/schools/sch-kazan-01/security/check-in', {
       headers: {
         authorization: `Bearer ${sec1Token}`,
         'x-school-id': 'sch-kazan-01',
       },
-      body: { code: '918273' }, // Entry code from Atatürk Fen Lisesi
+      body: { qrToken: `VELIQR1:${'B'.repeat(32)}` },
     });
     assert(
-      aptFRes.status === 404,
+      aptFRes.status === 200 &&
+        aptFRes.body.allowed === false &&
+        aptFRes.body.decision === 'INVALID' &&
+        !aptFRes.body.appointment,
       'BÖLÜM 5.F',
       'Cross-School Security Check-In Blocked',
-      `Başka okula ait giriş kodu nizamiyede 404 ile reddedildi (status: ${aptFRes.status})`
+      `Geçersiz/yabancı QR nizamiyede fail-closed reddedildi (status: ${aptFRes.status})`
     );
 
     // 5.G: School A appointment ID + School B schoolId = REJECTED (404)

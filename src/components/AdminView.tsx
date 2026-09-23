@@ -67,6 +67,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   );
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
   const [authCodeRoster, setAuthCodeRoster] = useState<SchoolRosterRecord | null>(null);
+  const [authCodeTarget, setAuthCodeTarget] = useState<{ type: 'teacher' | 'security'; id: string; label: string } | null>(null);
   const [authCodePurpose, setAuthCodePurpose] = useState<'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET'>('ACCOUNT_ACTIVATION');
   const [generatedAuthCode, setGeneratedAuthCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [authCodeError, setAuthCodeError] = useState('');
@@ -120,11 +121,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   };
 
   const handleCreateAuthCode = async () => {
-    if (!currentSchool || !authCodeRoster) return;
+    if (!currentSchool || (!authCodeRoster && !authCodeTarget)) return;
     setAuthCodeError('');
     setIsCreatingAuthCode(true);
     try {
-      const result = await api.createAuthCode(currentSchool.id, authCodeRoster.id, authCodePurpose);
+      const result = await api.createAuthCode(currentSchool.id, authCodeRoster?.id || '', authCodePurpose, authCodeTarget || undefined);
       setGeneratedAuthCode({ code: result.code, expiresAt: result.expiresAt });
     } catch (requestError: any) {
       setAuthCodeError(requestError.message || 'Güvenlik kodu oluşturulamadı.');
@@ -509,9 +510,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                       </div>
                       <div className="text-slate-500 mt-0.5 font-mono text-[11px]">{u.phone}</div>
                     </div>
-                    <span className="px-2.5 py-1 text-slate-500 bg-slate-50 rounded-lg font-semibold text-[11px]">
-                      OTP ile sıfırlanır
-                    </span>
+                    {u.role === 'teacher' || u.role === 'security' ? (
+                      <button type="button" onClick={() => { const teacher = teachers.find((item) => item.userId === u.id); setAuthCodeTarget({ type: u.role as 'teacher' | 'security', id: teacher?.id || u.id, label: `${u.firstName} ${u.lastName}` }); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); }} className="px-2.5 py-1 text-blue-700 bg-blue-50 rounded-lg font-semibold text-[11px]">Aktivasyon Kodu Oluştur</button>
+                    ) : <span className="px-2.5 py-1 text-slate-500 bg-slate-50 rounded-lg font-semibold text-[11px]">Kod ile yönetilir</span>}
                   </div>
                 ))}
               </div>
@@ -685,23 +686,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           </div>
         )}
 
-        {authCodeRoster && (
+        {(authCodeRoster || authCodeTarget) && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60">
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
               <h4 className="font-bold text-slate-900 text-sm">Tek Kullanımlık Güvenlik Kodu</h4>
               {!generatedAuthCode ? <>
-                <p className="text-xs text-slate-600">{authCodeRoster.parentName} için kod türünü seçin. Yeni kod, aynı amaçtaki önceki kullanılmamış kodu iptal eder.</p>
+                <p className="text-xs text-slate-600">{authCodeRoster ? `${authCodeRoster.parentName} için` : `${authCodeTarget?.label} için`} kod türünü seçin. Yeni kod, aynı amaçtaki önceki kullanılmamış kodu iptal eder.</p>
                 <select value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
                   <option value="ACCOUNT_ACTIVATION">Hesap Aktivasyon Kodu</option>
                   <option value="PASSWORD_RESET">Parola Sıfırlama Kodu</option>
                 </select>
                 {authCodeError && <p className="text-xs text-red-700">{authCodeError}</p>}
-                <div className="flex gap-2"><button type="button" onClick={() => setAuthCodeRoster(null)} className="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-semibold">Vazgeç</button><button type="button" disabled={isCreatingAuthCode} onClick={handleCreateAuthCode} className="flex-1 py-2 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">Oluştur</button></div>
+                <div className="flex gap-2"><button type="button" onClick={() => { setAuthCodeRoster(null); setAuthCodeTarget(null); }} className="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-semibold">Vazgeç</button><button type="button" disabled={isCreatingAuthCode} onClick={handleCreateAuthCode} className="flex-1 py-2 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">Oluştur</button></div>
               </> : <>
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">Bu kod yalnızca şimdi gösterilir. Güvenli biçimde veliye iletin.</p>
                 <div className="text-center font-mono text-xl font-black tracking-wider text-slate-900 py-2">{generatedAuthCode.code}</div>
                 <p className="text-center text-xs text-slate-500">Geçerlilik: {new Date(generatedAuthCode.expiresAt).toLocaleString('tr-TR')}</p>
-                <button type="button" onClick={() => { setGeneratedAuthCode(null); setAuthCodeRoster(null); }} className="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Kapat</button>
+                <button type="button" onClick={() => { setGeneratedAuthCode(null); setAuthCodeRoster(null); setAuthCodeTarget(null); }} className="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Kapat</button>
               </>}
             </div>
           </div>
