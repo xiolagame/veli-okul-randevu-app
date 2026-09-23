@@ -116,12 +116,12 @@ export const schoolRepository = {
 // 2. USER REPOSITORY (Global Identities)
 // ==============================================================================
 export const userRepository = {
-  async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null }) | null> {
+  async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null; authVersion: number }) | null> {
     const lookupDigits = getTurkishPhoneLookupDigits(phone);
     if (!lookupDigits) return null;
     const canonicalPhone = `+${lookupDigits[0]}`;
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, password_hash, created_at
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, password_hash, auth_version, created_at
        FROM users
        WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
        ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
@@ -139,12 +139,13 @@ export const userRepository = {
       securityQuestion: r.security_question,
       createdAt: r.created_at,
       passwordHash: r.password_hash,
+      authVersion: Number(r.auth_version),
     };
   },
 
-  async getById(id: string, client?: TransactionClient): Promise<User | null> {
+  async getById(id: string, client?: TransactionClient): Promise<(User & { authVersion: number }) | null> {
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version, created_at
        FROM users 
        WHERE id = $1;`,
       [id],
@@ -160,15 +161,16 @@ export const userRepository = {
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
+      authVersion: Number(r.auth_version),
     };
   },
 
-  async getByPhone(phone: string, client?: TransactionClient): Promise<User | null> {
+  async getByPhone(phone: string, client?: TransactionClient): Promise<(User & { authVersion: number }) | null> {
     const lookupDigits = getTurkishPhoneLookupDigits(phone);
     if (!lookupDigits) return null;
     const canonicalPhone = `+${lookupDigits[0]}`;
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version, created_at
        FROM users 
        WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
        ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
@@ -186,6 +188,7 @@ export const userRepository = {
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
+      authVersion: Number(r.auth_version),
     };
   },
 
@@ -196,6 +199,22 @@ export const userRepository = {
       client
     );
     return res.rows.length > 0;
+  },
+
+  async updatePasswordHashAndInvalidateSessions(
+    id: string,
+    passwordHash: string,
+    client?: TransactionClient
+  ): Promise<number | null> {
+    const res = await execQuery<{ auth_version: number }>(
+      `UPDATE users
+       SET password_hash = $1, auth_version = auth_version + 1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING auth_version;`,
+      [passwordHash, id],
+      client
+    );
+    return res.rows[0] ? Number(res.rows[0].auth_version) : null;
   },
 
   async create(

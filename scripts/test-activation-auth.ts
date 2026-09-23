@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import { AuthTokenPayload, createToken } from '../server/auth';
 import { apiRouter } from '../server/api';
 import { generateActivationCode, hashActivationCode } from '../server/activation-codes';
 import { getDb, initDatabase } from '../server/database/postgres';
@@ -45,6 +46,13 @@ async function run() {
         ...(schoolId ? { 'x-school-id': schoolId } : {}),
       },
       body: JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
+  async function getProtected(path: string, token: string): Promise<HttpResult> {
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { authorization: `Bearer ${token}` },
     });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
@@ -104,28 +112,54 @@ async function run() {
       assert(activationLogin.status === 200, 'Activated password must allow normal login with every supported phone format.');
       assert(!JSON.stringify(activationLogin.body).match(/password(Hash|_hash)?/i), 'Login response must not expose password data.');
     }
+    const preResetLogin = await request('/auth/login', { phone, password: activationPassword });
+    assert(preResetLogin.status === 200 && typeof preResetLogin.body.token === 'string', 'Pre-reset password login must succeed.');
+    const preResetToken = preResetLogin.body.token as string;
+    assert((await getProtected('/user/me', preResetToken)).status === 200, 'Pre-reset token must access protected endpoints before reset.');
+
+    const legacyToken = createToken({ userId: activatedUser.id, phone: activatedUser.phone } as AuthTokenPayload);
+    assert((await getProtected('/user/me', legacyToken)).status === 401, 'Legacy tokens without auth_version must be rejected.');
+    const forgedVersionToken = createToken({ userId: activatedUser.id, phone: activatedUser.phone, auth_version: activatedUser.authVersion + 1 });
+    assert((await getProtected('/user/me', forgedVersionToken)).status === 401, 'Tokens with a mismatched auth_version must be rejected.');
     const reusedActivation = await request('/auth/activate-account', { schoolId, phone, code: activationCode, password: createTestPassword() });
     assert(reusedActivation.status === 400, 'Consumed activation code must not be reusable.');
 
     const resetResponse = await request(`/schools/${schoolId}/auth-codes`, { rosterId: rosterEntry.id, purpose: 'PASSWORD_RESET' }, adminToken, schoolId);
     assert(resetResponse.status === 200 && typeof resetResponse.body.code === 'string', 'Admin must create a reset code for an activated user.');
     const resetCode = resetResponse.body.code as string;
-    const previousHash = (await userRepository.getAuthByPhone(phone))!.passwordHash;
+    const beforeWrongReset = (await userRepository.getAuthByPhone(phone))!;
+    const previousHash = beforeWrongReset.passwordHash;
+    const weakReset = await request('/auth/reset-password-with-code', { schoolId, phone, code: resetCode, password: weakPassword });
+    assert(weakReset.status === 400, 'Weak reset password must fail.');
+    assert((await userRepository.getAuthByPhone(phone))!.authVersion === beforeWrongReset.authVersion, 'Password policy failure must not increment authVersion.');
+    const wrongTenantReset = await request('/auth/reset-password-with-code', { schoolId: otherSchoolId, phone, code: resetCode, password: replacementPassword });
+    assert(wrongTenantReset.status === 400, 'A reset code must not work in another tenant.');
+    assert((await userRepository.getAuthByPhone(phone))!.authVersion === beforeWrongReset.authVersion, 'Cross-tenant reset attempt must not increment authVersion.');
     const wrongReset = await request('/auth/reset-password-with-code', { schoolId, phone, code: 'WRONG-CODE', password: replacementPassword });
     assert(wrongReset.status === 400, 'Wrong reset code must fail.');
-    assert((await userRepository.getAuthByPhone(phone))!.passwordHash === previousHash, 'Wrong reset code must preserve the current hash.');
+    const afterWrongReset = (await userRepository.getAuthByPhone(phone))!;
+    assert(afterWrongReset.passwordHash === previousHash, 'Wrong reset code must preserve the current hash.');
+    assert(afterWrongReset.authVersion === beforeWrongReset.authVersion, 'Wrong reset code must not increment authVersion.');
     const reset = await request('/auth/reset-password-with-code', { schoolId, phone: phone.slice(1), code: resetCode, password: replacementPassword });
     assert(reset.status === 200, 'Valid reset code must update the password.');
+    const afterReset = (await userRepository.getAuthByPhone(phone))!;
+    assert(afterReset.authVersion === beforeWrongReset.authVersion + 1, 'Valid reset must increment authVersion exactly once.');
+    assert((await getProtected('/user/me', preResetToken)).status === 401, 'Pre-reset token must be invalidated immediately after reset.');
+    assert((await getProtected('/user/me', adminToken)).status === 200, 'Resetting one user must not invalidate another user token.');
     assert((await request('/auth/login', { phone, password: activationPassword })).status === 401, 'Old password must fail after reset.');
-    assert((await request('/auth/login', { phone, password: replacementPassword })).status === 200, 'New password must succeed after reset.');
+    const postResetLogin = await request('/auth/login', { phone, password: replacementPassword });
+    assert(postResetLogin.status === 200 && typeof postResetLogin.body.token === 'string', 'New password must succeed after reset.');
+    assert((await getProtected('/user/me', postResetLogin.body.token as string)).status === 200, 'Post-reset token must access protected endpoints.');
 
     const raceResponse = await request(`/schools/${schoolId}/auth-codes`, { rosterId: rosterEntry.id, purpose: 'PASSWORD_RESET' }, adminToken, schoolId);
     const raceCode = raceResponse.body.code as string;
+    const beforeConcurrentReset = (await userRepository.getAuthByPhone(phone))!.authVersion;
     const raceResults = await Promise.all([
       request('/auth/reset-password-with-code', { schoolId, phone, code: raceCode, password: racePasswordA }),
       request('/auth/reset-password-with-code', { schoolId, phone, code: raceCode, password: racePasswordB }),
     ]);
     assert(raceResults.filter((result) => result.status === 200).length === 1, 'Concurrent code consumption must allow exactly one success.');
+    assert((await userRepository.getAuthByPhone(phone))!.authVersion === beforeConcurrentReset + 1, 'Concurrent reset must increment authVersion exactly once.');
 
     const expiredCode = generateActivationCode();
     await invitationRepository.createAuthCode({
@@ -138,7 +172,17 @@ async function run() {
       expiresAt: new Date(Date.now() - 1000).toISOString(),
       token: `test-${Date.now()}`,
     });
+    const beforeExpiredReset = (await userRepository.getAuthByPhone(phone))!.authVersion;
     assert((await request('/auth/reset-password-with-code', { schoolId, phone, code: expiredCode, password: expiredPassword })).status === 400, 'Expired code must fail.');
+    assert((await userRepository.getAuthByPhone(phone))!.authVersion === beforeExpiredReset, 'Expired reset code must not increment authVersion.');
+
+    const revokedResponse = await request(`/schools/${schoolId}/auth-codes`, { rosterId: rosterEntry.id, purpose: 'PASSWORD_RESET' }, adminToken, schoolId);
+    const revokedCode = revokedResponse.body.code as string;
+    const replacementResponse = await request(`/schools/${schoolId}/auth-codes`, { rosterId: rosterEntry.id, purpose: 'PASSWORD_RESET' }, adminToken, schoolId);
+    assert(replacementResponse.status === 200, 'Replacement reset code must be created.');
+    const beforeRevokedReset = (await userRepository.getAuthByPhone(phone))!.authVersion;
+    assert((await request('/auth/reset-password-with-code', { schoolId, phone, code: revokedCode, password: createTestPassword() })).status === 400, 'Revoked reset code must fail.');
+    assert((await userRepository.getAuthByPhone(phone))!.authVersion === beforeRevokedReset, 'Revoked reset code must not increment authVersion.');
 
     const storedCodes = await db.query<{ code_hash: string }>('SELECT code_hash FROM invitations WHERE school_id = $1 AND target_phone = $2 AND code_hash IS NOT NULL;', [schoolId, phone]);
     assert(storedCodes.rows.every((storedCode) => storedCode.code_hash !== activationCode && storedCode.code_hash !== resetCode), 'Plaintext auth codes must not be stored.');

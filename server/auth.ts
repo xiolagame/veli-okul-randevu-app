@@ -20,13 +20,19 @@ export interface AuthUser {
   isPhoneVerified: boolean;
 }
 
+export interface AuthTokenPayload {
+  userId: string;
+  phone: string;
+  auth_version: number;
+}
+
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
   membership?: SchoolMembership;
 }
 
 // Token helper using base64url HMAC-SHA256
-export function createToken(payload: object, expiresInSeconds = 86400): string {
+export function createToken(payload: AuthTokenPayload, expiresInSeconds = 86400): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const body = Buffer.from(JSON.stringify({ ...payload, exp })).toString('base64url');
@@ -37,7 +43,7 @@ export function createToken(payload: object, expiresInSeconds = 86400): string {
   return `${header}.${body}.${signature}`;
 }
 
-export function verifyToken(token: string): any {
+export function verifyToken(token: string): AuthTokenPayload | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -53,7 +59,15 @@ export function verifyToken(token: string): any {
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null; // Expired
     }
-    return payload;
+    if (
+      typeof payload?.userId !== 'string' ||
+      typeof payload.phone !== 'string' ||
+      !Number.isInteger(payload.auth_version)
+    ) {
+      return null;
+    }
+
+    return payload as AuthTokenPayload;
   } catch (err) {
     return null;
   }
@@ -74,8 +88,8 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     }
 
     const user = await userRepository.getById(payload.userId);
-    if (!user) {
-      return res.status(401).json({ error: 'Kullanıcı bulunamadı' });
+    if (!user || user.authVersion !== payload.auth_version) {
+      return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş oturum anahtarı' });
     }
 
     req.user = {

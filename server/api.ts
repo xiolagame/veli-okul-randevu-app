@@ -203,7 +203,7 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
         tx
       );
       if (!consumed) throw new Error('INVALID_AUTH_CODE');
-      await userRepository.updatePasswordHash(user.id, hashPassword(password), tx);
+      await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(password), tx);
       await auditLogRepository.createAuditLog(
         { schoolId, action: 'Parola Sıfırlama', actorName: 'Sistem', details: `Veli hesabı ${user.id} için parola sıfırlandı.` },
         tx
@@ -232,7 +232,7 @@ apiRouter.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Telefon numarası veya şifre hatalı.' });
     }
 
-    const token = createToken({ userId: user.id, phone: user.phone });
+    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion });
     const memberships = await membershipRepository.getMembershipsByUserId(user.id);
 
     res.json({
@@ -266,7 +266,7 @@ apiRouter.post('/auth/quick-switch', async (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
-    const token = createToken({ userId: user.id, phone: user.phone });
+    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion });
     const memberships = await membershipRepository.getMembershipsByUserId(user.id);
 
     res.json({
