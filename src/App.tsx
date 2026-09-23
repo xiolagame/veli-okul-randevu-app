@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
@@ -15,6 +15,10 @@ export const AppContent: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+
+  useEffect(() => {
+    setShowAdminModal(currentUser?.role === 'admin');
+  }, [currentUser?.id, currentUser?.role]);
 
   // If not logged in, show the login/register screen
   if (!currentUser) {
@@ -62,11 +66,6 @@ export const AppContent: React.FC = () => {
         {currentUser.role === 'parent' && <ParentView />}
         {currentUser.role === 'teacher' && <TeacherView />}
         {currentUser.role === 'security' && <SecurityView />}
-        {currentUser.role === 'admin' && (
-          <div className="max-w-7xl mx-auto px-4 py-8">
-            <AdminView onClose={() => {}} />
-          </div>
-        )}
         {!currentUser.role && (
           <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl shadow-md border border-slate-200 text-center space-y-4">
             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
