@@ -508,11 +508,21 @@ apiRouter.get('/user/me', authMiddleware, async (req: AuthenticatedRequest, res)
 apiRouter.get('/schools/:schoolId/teachers', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
-    const teachers = await teacherRepository.getTeachers(schoolId);
+    const teachers = await teacherRepository.getTeachers(schoolId, req.membership!.role === 'admin');
     res.json({ teachers });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/teachers Error]:', err);
     res.status(500).json({ error: 'Öğretmenler listelenemedi' });
+  }
+});
+
+apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  if (req.query.role !== 'security') return res.status(400).json({ error: 'Geçersiz kullanıcı rolü.' });
+  try {
+    const users = await userRepository.getSecurityUsers(req.membership!.schoolId);
+    return res.json({ users });
+  } catch {
+    return res.status(500).json({ error: 'Güvenlik personeli listelenemedi.' });
   }
 });
 
@@ -558,7 +568,7 @@ apiRouter.post(
       const schoolId = req.membership!.schoolId;
       const { dayOfWeek, startTime, endTime, slotDurationMinutes } = req.body;
 
-      const teacher = await teacherRepository.getTeacherById(schoolId, req.user!.id);
+      const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
       if (!teacher) {
         return res.status(403).json({ error: 'Bu okulda öğretmen profiliniz bulunamadı.' });
       }
@@ -599,7 +609,7 @@ apiRouter.delete(
       // 2. If teacher, verify slot belongs to them
       let teacherProfileId: string | undefined;
       if (req.membership!.role === 'teacher') {
-        const teacher = await teacherRepository.getTeacherById(schoolId, req.user!.id);
+        const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
         if (!teacher || slot.teacherId !== teacher.id) {
           return res.status(403).json({ error: 'Yetkisiz İşlem: Yalnızca kendi uygunluk slotunuzu silebilirsiniz.' });
         }
@@ -626,7 +636,17 @@ apiRouter.get('/schools/:schoolId/appointments', authMiddleware, tenantGuard(), 
     const role = req.membership!.role;
     const userId = req.user!.id;
 
-    const appointments = await appointmentRepository.getAppointments(schoolId, { role, userId });
+    const teacher = role === 'teacher'
+      ? await teacherRepository.getTeacherByUserId(schoolId, userId)
+      : null;
+    if (role === 'teacher' && !teacher) {
+      return res.status(403).json({ error: 'Öğretmen profiliniz bulunamadı.' });
+    }
+    const appointments = await appointmentRepository.getAppointments(schoolId, {
+      role,
+      userId,
+      ...(teacher ? { teacherProfileId: teacher.id } : {}),
+    });
     res.json({ appointments });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/appointments Error]:', err);
@@ -761,7 +781,7 @@ apiRouter.post(
 
       // 2. If teacher, verify appointment belongs to them
       if (req.membership!.role === 'teacher') {
-        const teacher = await teacherRepository.getTeacherById(schoolId, req.user!.id);
+        const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
         if (!teacher || apt.teacherId !== teacher.id) {
           return res.status(403).json({ error: 'Yetkisiz İşlem: Yalnızca kendi randevularınızı onaylayabilirsiniz.' });
         }
@@ -834,7 +854,7 @@ apiRouter.post(
 
       // 2. If teacher, verify appointment belongs to them
       if (req.membership!.role === 'teacher') {
-        const teacher = await teacherRepository.getTeacherById(schoolId, req.user!.id);
+        const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
         if (!teacher || apt.teacherId !== teacher.id) {
           return res.status(403).json({ error: 'Yetkisiz İşlem: Yalnızca kendi randevularınızı reddedebilirsiniz.' });
         }
@@ -912,7 +932,7 @@ apiRouter.post(
 
       // Teacher can only cancel their own appointment
       if (req.membership!.role === 'teacher') {
-        const teacher = await teacherRepository.getTeacherById(schoolId, req.user!.id);
+        const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
         if (!teacher || apt.teacherId !== teacher.id) {
           return res.status(403).json({ error: 'Yetkisiz İşlem: Yalnızca kendi randevularınızı iptal edebilirsiniz.' });
         }
@@ -1165,13 +1185,25 @@ apiRouter.post(
         targetLabel = rosterEntry.id;
       }
       const user = await userRepository.getByPhone(targetPhone);
+      if (targetRole !== 'parent') {
+        const credentials = await userRepository.getAuthByPhone(targetPhone);
+        if (!normalizeTurkishPhone(targetPhone)) {
+          return res.status(400).json({ error: 'Geçerli bir telefon numarası gereklidir.' });
+        }
+        if (targetUserId && credentials && credentials.id !== targetUserId) {
+          return res.status(409).json({ error: 'Personel hesabı eşleştirmesi doğrulanamadı.' });
+        }
+        if (purpose === 'ACCOUNT_ACTIVATION' && credentials?.passwordHash) {
+          return res.status(409).json({ error: 'Bu hesap için parola sıfırlama kodu kullanın.' });
+        }
+      }
       if (purpose === 'PASSWORD_RESET' && !user) {
         return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });
       }
       if (purpose === 'PASSWORD_RESET' && user) {
         const memberships = await membershipRepository.getMembershipsByUserId(user.id);
         const hasParentMembership = memberships.some((membership) =>
-          membership.schoolId === schoolId && membership.role === 'parent' && membership.status === 'active'
+          membership.schoolId === schoolId && membership.role === targetRole && membership.status === 'active'
         );
         if (!hasParentMembership) {
           return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });

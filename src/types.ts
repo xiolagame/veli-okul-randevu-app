@@ -77,6 +77,7 @@ export interface User {
   isPhoneVerified?: boolean;
   disabled?: boolean;
   createdAt?: string;
+  accountStatus?: 'pending' | 'active' | 'inactive';
 }
 
 export interface TeacherProfile {
@@ -89,6 +90,7 @@ export interface TeacherProfile {
   branch: string;
   avatarUrl?: string;
   bio?: string;
+  accountStatus?: 'pending' | 'active' | 'inactive';
 }
 
 export interface AvailabilitySlot {

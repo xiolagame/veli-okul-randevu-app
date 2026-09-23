@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Shield,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { SchoolRosterRecord } from '../types';
 import { api } from '../services/api';
+import { StaffManagement, StaffCodeTarget } from './StaffManagement';
 
 interface AdminViewProps {
   onClose: () => void;
@@ -31,6 +32,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const {
     currentSchool,
     users,
+    usersLoading,
+    usersError,
     teachers,
     appointments,
     settings,
@@ -45,10 +48,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'roster' | 'isolation' | 'users' | 'appointments' | 'settings' | 'audit'
   >('dashboard');
-
-  // User Filter
-  const [userSearch, setUserSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
 
   // Roster Filter
   const [rosterSearch, setRosterSearch] = useState('');
@@ -67,11 +66,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   );
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
   const [authCodeRoster, setAuthCodeRoster] = useState<SchoolRosterRecord | null>(null);
-  const [authCodeTarget, setAuthCodeTarget] = useState<{ type: 'teacher' | 'security'; id: string; label: string } | null>(null);
+  const [authCodeTarget, setAuthCodeTarget] = useState<StaffCodeTarget | null>(null);
+  const [copyMessage, setCopyMessage] = useState('');
   const [authCodePurpose, setAuthCodePurpose] = useState<'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET'>('ACCOUNT_ACTIVATION');
   const [generatedAuthCode, setGeneratedAuthCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [authCodeError, setAuthCodeError] = useState('');
   const [isCreatingAuthCode, setIsCreatingAuthCode] = useState(false);
+  const codeRequestSequence = useRef(0);
+  useEffect(() => {
+    codeRequestSequence.current += 1;
+    setIsCreatingAuthCode(false);
+    setAuthCodeRoster(null);
+    setAuthCodeTarget(null);
+    setGeneratedAuthCode(null);
+    setAuthCodeError('');
+    setCopyMessage('');
+    return () => { codeRequestSequence.current += 1; };
+  }, [currentSchool?.id]);
 
   // Test Runner State
   const [isRunningTests, setIsRunningTests] = useState(false);
@@ -122,15 +133,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
 
   const handleCreateAuthCode = async () => {
     if (!currentSchool || (!authCodeRoster && !authCodeTarget)) return;
+    const sequence = ++codeRequestSequence.current;
     setAuthCodeError('');
     setIsCreatingAuthCode(true);
     try {
       const result = await api.createAuthCode(currentSchool.id, authCodeRoster?.id || '', authCodePurpose, authCodeTarget || undefined);
+      if (sequence !== codeRequestSequence.current) return;
       setGeneratedAuthCode({ code: result.code, expiresAt: result.expiresAt });
     } catch (requestError: any) {
+      if (sequence !== codeRequestSequence.current) return;
       setAuthCodeError(requestError.message || 'Güvenlik kodu oluşturulamadı.');
     } finally {
-      setIsCreatingAuthCode(false);
+      if (sequence === codeRequestSequence.current) setIsCreatingAuthCode(false);
     }
   };
 
@@ -143,13 +157,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const matchSearch =
-      `${u.firstName} ${u.lastName}`.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.phone.includes(userSearch);
-    const matchRole = roleFilter === 'all' || u.role === roleFilter;
-    return matchSearch && matchRole;
-  });
+  const managedCount = new Set([
+    ...teachers.map((teacher) => teacher.userId ? `user:${teacher.userId}` : `teacher:${teacher.id}`),
+    ...users.map((user) => `user:${user.id}`),
+  ]).size;
 
   const filteredRoster = roster.filter((r) => {
     return (
@@ -196,7 +207,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
             { id: 'dashboard', label: 'Genel Bakış', icon: Shield },
             { id: 'roster', label: `Kütük / Whitelist (${roster.length})`, icon: GraduationCap },
             { id: 'isolation', label: 'Tenant İzolasyon Testleri', icon: CheckCircle2 },
-            { id: 'users', label: `Kullanıcılar (${users.length})`, icon: Users },
+            { id: 'users', label: usersLoading || usersError ? 'Kullanıcılar' : `Kullanıcılar (${managedCount})`, icon: Users },
             { id: 'appointments', label: `Randevular (${appointments.length})`, icon: Calendar },
             { id: 'settings', label: 'Okul Ayarları', icon: SettingsIcon },
             { id: 'audit', label: 'İşlem Günlüğü', icon: FileText },
@@ -473,50 +484,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
 
           {/* TAB: USERS */}
           {activeTab === 'users' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="Kullanıcı ara (İsim veya telefon)..."
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  />
-                </div>
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                >
-                  <option value="all">Tüm Roller</option>
-                  <option value="parent">Veliler</option>
-                  <option value="teacher">Öğretmenler</option>
-                  <option value="security">Güvenlik</option>
-                  <option value="admin">Yöneticiler</option>
-                </select>
-              </div>
-
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
-                {filteredUsers.map((u) => (
-                  <div key={u.id} className="p-3 flex items-center justify-between hover:bg-slate-50 text-xs">
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-2">
-                        <span>{u.firstName} {u.lastName}</span>
-                        <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-semibold text-slate-600 uppercase">
-                          {u.role}
-                        </span>
-                      </div>
-                      <div className="text-slate-500 mt-0.5 font-mono text-[11px]">{u.phone}</div>
-                    </div>
-                    {u.role === 'teacher' || u.role === 'security' ? (
-                      <button type="button" onClick={() => { const teacher = teachers.find((item) => item.userId === u.id); setAuthCodeTarget({ type: u.role as 'teacher' | 'security', id: teacher?.id || u.id, label: `${u.firstName} ${u.lastName}` }); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); }} className="px-2.5 py-1 text-blue-700 bg-blue-50 rounded-lg font-semibold text-[11px]">Aktivasyon Kodu Oluştur</button>
-                    ) : <span className="px-2.5 py-1 text-slate-500 bg-slate-50 rounded-lg font-semibold text-[11px]">Kod ile yönetilir</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users}
+              loading={usersLoading} error={usersError}
+              onIssue={(target, purpose) => {
+                setAuthCodeTarget(target);
+                setAuthCodePurpose(purpose);
+                setAuthCodeRoster(null);
+                setGeneratedAuthCode(null);
+                setAuthCodeError('');
+                setCopyMessage('');
+              }} />
           )}
 
           {/* TAB: APPOINTMENTS */}
@@ -689,20 +666,32 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
         {(authCodeRoster || authCodeTarget) && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/60">
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
-              <h4 className="font-bold text-slate-900 text-sm">Tek Kullanımlık Güvenlik Kodu</h4>
+              <h4 className="font-bold text-slate-900 text-sm">{authCodeTarget ? `${authCodeTarget.type === 'teacher' ? 'Öğretmen' : 'Güvenlik'} ${authCodePurpose === 'PASSWORD_RESET' ? 'Parola Sıfırlama Kodu' : 'Aktivasyon Kodu'}` : 'Tek Kullanımlık Güvenlik Kodu'}</h4>
+              {authCodeTarget && <p className="text-sm text-slate-600">{authCodeTarget.label}<br />{authCodeTarget.phone.slice(0, 5)} *** ** {authCodeTarget.phone.slice(-2)}</p>}
               {!generatedAuthCode ? <>
-                <p className="text-xs text-slate-600">{authCodeRoster ? `${authCodeRoster.parentName} için` : `${authCodeTarget?.label} için`} kod türünü seçin. Yeni kod, aynı amaçtaki önceki kullanılmamış kodu iptal eder.</p>
-                <select value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
+                <p className="text-xs text-slate-600">{authCodeRoster ? `${authCodeRoster.parentName} için kod türünü seçin.` : 'Kod türü hesap durumuna göre belirlendi.'} Yeni kod, aynı amaçtaki önceki kullanılmamış kodu iptal eder.</p>
+                <select disabled={!!authCodeTarget} value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')} className="min-h-11 w-full px-3 py-2 border border-slate-200 rounded-xl text-xs">
                   <option value="ACCOUNT_ACTIVATION">Hesap Aktivasyon Kodu</option>
                   <option value="PASSWORD_RESET">Parola Sıfırlama Kodu</option>
                 </select>
                 {authCodeError && <p className="text-xs text-red-700">{authCodeError}</p>}
-                <div className="flex gap-2"><button type="button" onClick={() => { setAuthCodeRoster(null); setAuthCodeTarget(null); }} className="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-semibold">Vazgeç</button><button type="button" disabled={isCreatingAuthCode} onClick={handleCreateAuthCode} className="flex-1 py-2 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">Oluştur</button></div>
+                <div className="flex gap-2"><button type="button" disabled={isCreatingAuthCode} onClick={() => { setAuthCodeRoster(null); setAuthCodeTarget(null); }} className="min-h-11 flex-1 py-2 border border-slate-300 rounded-xl text-xs font-semibold">Vazgeç</button><button type="button" disabled={isCreatingAuthCode} onClick={handleCreateAuthCode} className="min-h-11 flex-1 py-2 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">Oluştur</button></div>
               </> : <>
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">Bu kod yalnızca şimdi gösterilir. Güvenli biçimde veliye iletin.</p>
+                <p role="status" className="text-sm font-semibold text-green-700">✓ Kod oluşturuldu</p>
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">Bu kod yalnızca bir kez gösterilir. İlgili kişiye güvenli bir kanaldan iletin.</p>
                 <div className="text-center font-mono text-xl font-black tracking-wider text-slate-900 py-2">{generatedAuthCode.code}</div>
+                <button type="button" className="min-h-11 w-full rounded-xl border border-indigo-200 text-sm font-semibold text-indigo-700"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(generatedAuthCode.code);
+                      setCopyMessage('Kod kopyalandı.');
+                    } catch {
+                      setCopyMessage('Kopyalanamadı. Kodu seçerek kopyalayabilirsiniz.');
+                    }
+                  }}>Kopyala</button>
+                <p role="status" className="text-xs text-slate-500">{copyMessage}</p>
                 <p className="text-center text-xs text-slate-500">Geçerlilik: {new Date(generatedAuthCode.expiresAt).toLocaleString('tr-TR')}</p>
-                <button type="button" onClick={() => { setGeneratedAuthCode(null); setAuthCodeRoster(null); setAuthCodeTarget(null); }} className="w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Kapat</button>
+                <button type="button" onClick={() => { setGeneratedAuthCode(null); setAuthCodeRoster(null); setAuthCodeTarget(null); setCopyMessage(''); }} className="min-h-11 w-full py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Kapat</button>
               </>}
             </div>
           </div>

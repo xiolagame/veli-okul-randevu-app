@@ -153,6 +153,9 @@ export const api = {
     }),
 
   // School-scoped
+  getSecurityUsers: (schoolId: string) =>
+    request<{ users: User[] }>(`/api/schools/${schoolId}/users?role=security`),
+
   getTeachers: (schoolId: string) =>
     request<{ teachers: TeacherProfile[] }>(`/api/schools/${schoolId}/teachers`),
 

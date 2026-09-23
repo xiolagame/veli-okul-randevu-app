@@ -166,6 +166,28 @@ export const schoolRepository = {
 // 2. USER REPOSITORY (Global Identities)
 // ==============================================================================
 export const userRepository = {
+  async getSecurityUsers(schoolId: string): Promise<User[]> {
+    const result = await execQuery<{
+      id: string; first_name: string; last_name: string; phone: string;
+      account_status: 'active' | 'pending';
+    }>(
+      `SELECT u.id, u.first_name, u.last_name, u.phone,
+         CASE WHEN NULLIF(u.password_hash, '') IS NOT NULL THEN 'active' ELSE 'pending' END AS account_status
+       FROM users u
+       WHERE EXISTS (
+         SELECT 1 FROM school_memberships sm
+         WHERE sm.user_id = u.id AND sm.school_id = $1
+           AND sm.role = 'security' AND sm.status = 'active'
+       )
+       ORDER BY u.first_name, u.last_name, u.id;`,
+      [schoolId]
+    );
+    return result.rows.map((row) => ({
+      id: row.id, firstName: row.first_name, lastName: row.last_name,
+      phone: row.phone, role: 'security', accountStatus: row.account_status,
+    }));
+  },
+
   async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null; authVersion: number }) | null> {
     const lookupDigits = getTurkishPhoneLookupDigits(phone);
     if (!lookupDigits) return null;
@@ -773,15 +795,28 @@ export const rosterRepository = {
 // 7. TEACHER PROFILES REPOSITORY (Strictly Tenant Scoped)
 // ==============================================================================
 export const teacherRepository = {
-  async getTeachers(schoolId: string): Promise<TeacherProfile[]> {
+  async getTeachers(schoolId: string, includeAccountStatus = false): Promise<TeacherProfile[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
-       FROM teacher_profiles
-       WHERE school_id = $1
-       ORDER BY first_name ASC, last_name ASC;`,
+      `SELECT tp.id, tp.school_id, tp.user_id, tp.first_name, tp.last_name, tp.branch, tp.email, tp.phone,
+         CASE
+           WHEN NULLIF(u.password_hash, '') IS NULL THEN 'pending'
+           WHEN EXISTS (
+             SELECT 1 FROM school_memberships sm
+             WHERE sm.user_id = tp.user_id AND sm.school_id = tp.school_id
+               AND sm.role = 'teacher' AND sm.status = 'active'
+           ) THEN 'active'
+           ELSE 'inactive'
+         END AS account_status
+       FROM teacher_profiles tp
+       LEFT JOIN users u ON u.id = tp.user_id
+       WHERE tp.school_id = $1
+       ORDER BY tp.first_name ASC, tp.last_name ASC;`,
       [schoolId]
     );
-    return res.rows.map(mapTeacherProfile);
+    return res.rows.map((row) => ({
+      ...mapTeacherProfile(row),
+      ...(includeAccountStatus ? { accountStatus: row.account_status } : {}),
+    }));
   },
 
   async getTeacherById(schoolId: string, teacherId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
@@ -937,8 +972,12 @@ export const availabilityRepository = {
 export const appointmentRepository = {
   async getAppointments(
     schoolId: string,
-    filter?: { role?: UserRole; userId?: string }
+    filter?: { role?: UserRole; userId?: string; teacherProfileId?: string }
   ): Promise<Appointment[]> {
+    if (filter?.role === 'teacher' && !filter.teacherProfileId) {
+      return [];
+    }
+
     let sql = `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                       student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
                       notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
@@ -949,9 +988,9 @@ export const appointmentRepository = {
     if (filter?.role === 'parent' && filter.userId) {
       sql += ` AND parent_id = $2`;
       params.push(filter.userId);
-    } else if (filter?.role === 'teacher' && filter.userId) {
+    } else if (filter?.role === 'teacher' && filter.teacherProfileId) {
       sql += ` AND teacher_id = $2`;
-      params.push(filter.userId);
+      params.push(filter.teacherProfileId);
     }
 
     sql += ` ORDER BY date DESC, start_time DESC;`;

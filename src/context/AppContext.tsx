@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
   Student,
@@ -20,6 +20,8 @@ import { api, setAuthToken, setActiveSchoolId, getAuthToken, getActiveSchoolId }
 interface AppContextType {
   currentUser: User | null;
   users: User[];
+  usersLoading: boolean;
+  usersError: string;
   schools: School[];
   currentSchool: School | null;
   userMemberships: SchoolMembership[];
@@ -77,6 +79,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const schoolLoadSequence = useRef(0);
   const [schools, setSchools] = useState<School[]>([]);
   const [currentSchool, setCurrentSchool] = useState<School | null>(null);
   const [userMemberships, setUserMemberships] = useState<SchoolMembership[]>([]);
@@ -95,11 +100,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null) => {
     if (!schoolId) return;
+    const sequence = ++schoolLoadSequence.current;
+    setUsers([]);
+    setUsersError('');
+    setUsersLoading(membership?.role === 'admin');
 
     try {
       // 1. Teachers
-      const teachersRes = await api.getTeachers(schoolId).catch(() => ({ teachers: [] }));
+      const teachersRes = await api.getTeachers(schoolId).catch(() => {
+        if (sequence === schoolLoadSequence.current && membership?.role === 'admin') {
+          setUsersError('Öğretmen listesi yüklenemedi. Lütfen tekrar deneyin.');
+        }
+        return { teachers: [] };
+      });
+      if (sequence !== schoolLoadSequence.current) return;
       setTeachers(teachersRes.teachers);
+      if (membership?.role === 'admin') {
+        try {
+          const result = await api.getSecurityUsers(schoolId);
+          if (sequence !== schoolLoadSequence.current) return;
+          setUsers(result.users);
+        } catch {
+          if (sequence !== schoolLoadSequence.current) return;
+          setUsersError('Güvenlik personeli yüklenemedi. Lütfen tekrar deneyin.');
+        } finally {
+          if (sequence === schoolLoadSequence.current) setUsersLoading(false);
+        }
+      }
 
       // 2. Students for current user / school
       const studentsRes = await api.getStudents(schoolId).catch(() => ({ students: [] }));
@@ -200,6 +227,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Switch Active School
   const switchSchool = async (schoolId: string) => {
+    schoolLoadSequence.current += 1;
+    setUsers([]);
+    setUsersError('');
     setActiveSchoolId(schoolId);
     const targetSchool = schools.find((s) => s.id === schoolId) || null;
     setCurrentSchool(targetSchool);
@@ -260,6 +290,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = () => {
+    schoolLoadSequence.current += 1;
+    setUsers([]);
+    setUsersError('');
+    setUsersLoading(false);
     setAuthToken(null);
     setCurrentUser(null);
     setUserMemberships([]);
@@ -444,6 +478,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         users,
+        usersLoading,
+        usersError,
         schools,
         currentSchool,
         userMemberships,

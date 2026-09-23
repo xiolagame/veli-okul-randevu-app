@@ -31,6 +31,7 @@ const DAYS_OF_WEEK = [
 export const TeacherView: React.FC = () => {
   const {
     currentUser,
+    teachers,
     appointments,
     availability,
     settings,
@@ -52,10 +53,9 @@ export const TeacherView: React.FC = () => {
   const [newEndTime, setNewEndTime] = useState<string>('11:30');
   const [newDuration, setNewDuration] = useState<number>(15);
 
-  // Teacher appointments
-  const teacherAppointments = appointments.filter(
-    (a) => a.teacherId === currentUser?.id
-  );
+  // The API already scopes teacher appointments from the authenticated user.
+  const teacherAppointments = appointments;
+  const teacherProfileId = teachers.find((teacher) => teacher.userId === currentUser?.id)?.id;
 
   const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending');
   const bookedAppointments = teacherAppointments.filter(
@@ -65,7 +65,7 @@ export const TeacherView: React.FC = () => {
     (a) => a.status === 'checked_out' || a.status === 'cancelled' || a.status === 'rejected'
   );
 
-  const teacherAvailability = availability.filter((av) => av.teacherId === currentUser?.id);
+  const teacherAvailability = availability.filter((av) => av.teacherId === teacherProfileId);
 
   const handleApprove = (id: string) => {
     approveAppointment(id);
