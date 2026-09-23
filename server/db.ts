@@ -22,6 +22,7 @@ import {
   UserRole,
 } from '../src/types';
 import { getSupabaseClient, getPgPool } from './database/client';
+import { normalizeTurkishPhone } from '../src/utils/phone';
 
 export interface DatabaseSchema {
   schools: School[];
@@ -629,8 +630,9 @@ export class Database {
   }
 
   public async getUserByPhone(phone: string): Promise<User | null> {
-    const clean = phone.replace(/\s+/g, '');
-    const u = this.data.users.find((user) => user.phone.replace(/\s+/g, '') === clean);
+    const canonicalPhone = normalizeTurkishPhone(phone);
+    if (!canonicalPhone) return null;
+    const u = this.data.users.find((user) => normalizeTurkishPhone(user.phone) === canonicalPhone);
     return u || null;
   }
 
@@ -795,9 +797,10 @@ export class Database {
   }
 
   public async checkRoster(schoolId: string, parentPhone: string): Promise<SchoolRosterRecord[]> {
-    const cleanPhone = parentPhone.replace(/\s+/g, '');
+    const cleanPhone = normalizeTurkishPhone(parentPhone);
+    if (!cleanPhone) return [];
     return this.data.schoolRoster.filter(
-      (r) => r.schoolId === schoolId && r.parentPhone.replace(/\s+/g, '') === cleanPhone
+      (r) => r.schoolId === schoolId && normalizeTurkishPhone(r.parentPhone) === cleanPhone
     );
   }
 
@@ -899,12 +902,13 @@ export class Database {
 
     for (const item of records) {
       if (!item.parentPhone || !item.studentName) continue;
-      const cleanPhone = item.parentPhone.replace(/\s+/g, '');
+      const cleanPhone = normalizeTurkishPhone(item.parentPhone);
+      if (!cleanPhone) throw new Error('Invalid Turkish phone number');
 
       const exists = this.data.schoolRoster.some(
         (r) =>
           r.schoolId === schoolId &&
-          r.parentPhone.replace(/\s+/g, '') === cleanPhone &&
+          normalizeTurkishPhone(r.parentPhone) === cleanPhone &&
           r.studentName === item.studentName
       );
 

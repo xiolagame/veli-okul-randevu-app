@@ -22,6 +22,7 @@ import {
   UserRole,
   AppointmentStatus,
 } from '../../src/types';
+import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
 
 // Helper: executes query on transaction client if provided, else on global db
 async function execQuery<T = any>(
@@ -116,12 +117,16 @@ export const schoolRepository = {
 // ==============================================================================
 export const userRepository = {
   async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null }) | null> {
-    const clean = phone.replace(/\s+/g, '');
+    const lookupDigits = getTurkishPhoneLookupDigits(phone);
+    if (!lookupDigits) return null;
+    const canonicalPhone = `+${lookupDigits[0]}`;
     const res = await execQuery<any>(
       `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, password_hash, created_at
        FROM users
-       WHERE REPLACE(phone, ' ', '') = $1;`,
-      [clean]
+       WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
+       ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
+       LIMIT 1;`,
+      [...lookupDigits, canonicalPhone]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -159,12 +164,16 @@ export const userRepository = {
   },
 
   async getByPhone(phone: string, client?: TransactionClient): Promise<User | null> {
-    const clean = phone.replace(/\s+/g, '');
+    const lookupDigits = getTurkishPhoneLookupDigits(phone);
+    if (!lookupDigits) return null;
+    const canonicalPhone = `+${lookupDigits[0]}`;
     const res = await execQuery<any>(
       `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
        FROM users 
-       WHERE REPLACE(phone, ' ', '') = $1;`,
-      [clean],
+       WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
+       ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
+       LIMIT 1;`,
+      [...lookupDigits, canonicalPhone],
       client
     );
     if (res.rows.length === 0) return null;
@@ -201,7 +210,8 @@ export const userRepository = {
     client?: TransactionClient
   ): Promise<User> {
     const id = user.id || 'usr-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const cleanPhone = user.phone.replace(/\s+/g, '');
+    const cleanPhone = normalizeTurkishPhone(user.phone);
+    if (!cleanPhone) throw new Error('Invalid Turkish phone number');
 
     const res = await execQuery<any>(
       `INSERT INTO users (id, phone, first_name, last_name, is_phone_verified, security_question)
@@ -588,12 +598,13 @@ export const rosterRepository = {
   },
 
   async checkPhone(schoolId: string, parentPhone: string, client?: TransactionClient): Promise<SchoolRosterRecord[]> {
-    const clean = parentPhone.replace(/\s+/g, '');
+    const lookupDigits = getTurkishPhoneLookupDigits(parentPhone);
+    if (!lookupDigits) return [];
     const res = await execQuery<any>(
       `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
        FROM school_roster
-       WHERE school_id = $1 AND REPLACE(parent_phone, ' ', '') = $2;`,
-      [schoolId, clean],
+       WHERE school_id = $1 AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4);`,
+      [schoolId, ...lookupDigits],
       client
     );
     return res.rows.map((r) => ({
@@ -654,14 +665,16 @@ export const rosterRepository = {
     let count = 0;
     for (const item of records) {
       if (!item.parentPhone || !item.studentName) continue;
-      const cleanPhone = item.parentPhone.replace(/\s+/g, '');
+      const cleanPhone = normalizeTurkishPhone(item.parentPhone);
+      const lookupDigits = getTurkishPhoneLookupDigits(item.parentPhone);
+      if (!cleanPhone || !lookupDigits) throw new Error('Invalid Turkish phone number');
       const id = 'rost-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
 
       // Check if already in roster
       const exists = await execQuery<any>(
         `SELECT id FROM school_roster 
-         WHERE school_id = $1 AND REPLACE(parent_phone, ' ', '') = $2 AND student_name = $3;`,
-        [schoolId, cleanPhone, item.studentName],
+         WHERE school_id = $1 AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4) AND student_name = $5;`,
+        [schoolId, ...lookupDigits, item.studentName],
         client
       );
 
@@ -1274,7 +1287,8 @@ export const invitationRepository = {
     },
     client?: TransactionClient
   ): Promise<{ id: string; expiresAt: string }> {
-    const cleanPhone = data.targetPhone.replace(/\s+/g, '');
+    const cleanPhone = normalizeTurkishPhone(data.targetPhone);
+    if (!cleanPhone) throw new Error('Invalid Turkish phone number');
     await execQuery(
       `UPDATE invitations SET is_active = FALSE, revoked_at = NOW()
        WHERE school_id = $1 AND target_phone = $2 AND purpose = $3
@@ -1306,7 +1320,8 @@ export const invitationRepository = {
     },
     client?: TransactionClient
   ): Promise<{ id: string } | null> {
-    const cleanPhone = data.targetPhone.replace(/\s+/g, '');
+    const cleanPhone = normalizeTurkishPhone(data.targetPhone);
+    if (!cleanPhone) return null;
     const res = await execQuery<any>(
       `UPDATE invitations SET consumed_at = NOW(), is_active = FALSE
        WHERE school_id = $1 AND target_phone = $2 AND purpose = $3 AND code_hash = $4
@@ -1326,7 +1341,8 @@ export const invitationRepository = {
     purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET',
     client?: TransactionClient
   ): Promise<void> {
-    const cleanPhone = targetPhone.replace(/\s+/g, '');
+    const cleanPhone = normalizeTurkishPhone(targetPhone);
+    if (!cleanPhone) return;
     await execQuery(
       `UPDATE invitations
        SET attempts = attempts + 1,

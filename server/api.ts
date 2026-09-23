@@ -7,6 +7,7 @@ import {
   createToken,
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
+import { normalizeTurkishPhone } from '../src/utils/phone';
 import { generateActivationCode, hashActivationCode } from './activation-codes';
 import {
   getDb,
@@ -116,7 +117,7 @@ async function recordFailedAuthCodeAttempt(schoolId: string, phone: string, purp
 
 apiRouter.post('/auth/activate-account', async (req, res) => {
   const { schoolId, phone, code, password } = req.body;
-  const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
+  const cleanPhone = normalizeTurkishPhone(phone);
   const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
   const passwordError = validatePassword(password);
 
@@ -184,7 +185,7 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
 
 apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
   const { schoolId, phone, code, password } = req.body;
-  const cleanPhone = typeof phone === 'string' ? phone.replace(/\s+/g, '') : '';
+  const cleanPhone = normalizeTurkishPhone(phone);
   const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
   const passwordError = validatePassword(password);
 
@@ -222,10 +223,10 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
 // Standard password/role login
 apiRouter.post('/auth/login', async (req, res) => {
   const { phone, password } = req.body;
-  const cleanPhone = (phone || '').replace(/\s+/g, '');
+  const cleanPhone = normalizeTurkishPhone(phone);
 
   try {
-    const user = await userRepository.getAuthByPhone(cleanPhone);
+    const user = cleanPhone ? await userRepository.getAuthByPhone(cleanPhone) : null;
 
     if (!user || typeof password !== 'string' || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ error: 'Telefon numarası veya şifre hatalı.' });
@@ -297,7 +298,8 @@ apiRouter.post('/onboarding/check-roster', authMiddleware, async (req: Authentic
     return res.status(400).json({ error: 'Okul ID (schoolId) gereklidir.' });
   }
 
-  const userPhone = req.user!.phone.replace(/\s+/g, '');
+  const userPhone = normalizeTurkishPhone(req.user!.phone);
+  if (!userPhone) return res.status(400).json({ error: 'Geçersiz telefon numarası.' });
 
   try {
     const school = await schoolRepository.getById(schoolId);
@@ -345,7 +347,8 @@ apiRouter.post('/onboarding/claim-students', authMiddleware, async (req: Authent
   }
 
   const userId = req.user!.id;
-  const userPhone = req.user!.phone.replace(/\s+/g, '');
+  const userPhone = normalizeTurkishPhone(req.user!.phone);
+  if (!userPhone) return res.status(400).json({ error: 'Geçersiz telefon numarası.' });
 
   try {
     const school = await schoolRepository.getById(schoolId);
@@ -666,7 +669,7 @@ apiRouter.post(
             teacherBranch: teacher.branch,
             parentId: req.user!.id,
             parentName: `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Veli',
-            parentPhone: req.user!.phone,
+            parentPhone: normalizeTurkishPhone(req.user!.phone) || req.user!.phone,
             studentName,
             className,
             date,

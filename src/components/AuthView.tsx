@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, KeyRound, Lock, Phone, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
+import { normalizeTurkishPhone } from '../utils/phone';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -44,9 +45,14 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     event.preventDefault();
     setError('');
     setSuccessMessage('');
+    const normalizedPhone = normalizeTurkishPhone(phone);
+    if (!normalizedPhone) {
+      setError('Geçerli bir Türkiye GSM numarası girin.');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const success = await login(phone, password);
+      const success = await login(normalizedPhone, password);
       if (!success) setError('Telefon numarası veya şifre hatalı.');
     } finally {
       setIsSubmitting(false);
@@ -66,12 +72,18 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       return;
     }
 
+    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    if (!normalizedPhone) {
+      setError('Geçerli bir Türkiye GSM numarası girin.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = codeFlow === 'activation'
-        ? await api.activateAccount(schoolId, codePhone, code, newPassword)
-        : await api.resetPasswordWithCode(schoolId, codePhone, code, newPassword);
-      setPhone(codePhone);
+        ? await api.activateAccount(schoolId, normalizedPhone, code, newPassword)
+        : await api.resetPasswordWithCode(schoolId, normalizedPhone, code, newPassword);
+      setPhone(normalizedPhone);
       setPassword('');
       closeCodeFlow();
       setSuccessMessage(result.message);
@@ -98,7 +110,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Telefon Numarası</label>
-              <div className="relative"><Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+90 5XX XXX XX XX" required className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" /></div>
+              <div className="relative"><Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0555 123 45 67" required className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" /></div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Parola</label>
@@ -124,7 +136,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
                 <option value="">Okulunuzu seçin</option>
                 {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
               </select>
-              <input type="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="Telefon numarası" required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
+              <input type="tel" inputMode="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
               <div className="relative"><KeyRound className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="text" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Aktivasyon / sıfırlama kodu" required className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm font-mono" /></div>
               <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Yeni parola (8-128 karakter)" minLength={8} maxLength={128} required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
               <input type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder="Yeni parola tekrar" minLength={8} maxLength={128} required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
