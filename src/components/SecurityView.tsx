@@ -14,6 +14,7 @@ import {
   LogOut,
   Calendar,
   LogIn,
+  X,
 } from 'lucide-react';
 
 export const SecurityView: React.FC = () => {
@@ -24,11 +25,14 @@ export const SecurityView: React.FC = () => {
   const [error, setError] = useState('');
   const [inputCode, setInputCode] = useState<string>('');
   const [verifyResult, setVerifyResult] = useState<SecurityQrVerification | null>(null);
+  const [checkInComplete, setCheckInComplete] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
+  const scanHandledRef = useRef(false);
+  const verificationInProgressRef = useRef(false);
 
   const [segment, setSegment] = useState<'all' | 'expected' | 'inside' | 'done'>('all');
 
@@ -72,12 +76,16 @@ export const SecurityView: React.FC = () => {
   };
 
   const verifyCode = async (code: string) => {
-    if (!code) return;
+    const cleanCode = code.trim();
+    if (!cleanCode || verificationInProgressRef.current) return;
+    verificationInProgressRef.current = true;
+    scanHandledRef.current = true;
+    setInputCode(cleanCode);
     stopCamera();
     setBusy(true);
     setError('');
     try {
-      const res = await verifySecurityQr(code);
+      const res = await verifySecurityQr(cleanCode);
       setVerifyResult(res);
     } catch {
       setVerifyResult(null);
@@ -87,9 +95,14 @@ export const SecurityView: React.FC = () => {
     }
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await verifyCode(inputCode.trim());
+  const resetResult = () => {
+    verificationInProgressRef.current = false;
+    scanHandledRef.current = false;
+    setVerifyResult(null);
+    setCheckInComplete(false);
+    setInputCode('');
+    setError('');
+    setCameraError('');
   };
 
   const startCamera = async () => {
@@ -107,8 +120,9 @@ export const SecurityView: React.FC = () => {
     setCameraActive(true);
     try {
       const scanner = new QrScanner(videoRef.current, (result) => {
-        if (scannerRef.current !== scanner) return;
+        if (scannerRef.current !== scanner || scanHandledRef.current) return;
         const code = typeof result === 'string' ? result : result.data;
+        scanHandledRef.current = true;
         void verifyCode(code.trim());
       }, { preferredCamera: 'environment', returnDetailedScanResult: true });
       scannerRef.current = scanner;
@@ -130,6 +144,7 @@ export const SecurityView: React.FC = () => {
     try {
       const res = await checkInVisitor(inputCode.trim());
       setVerifyResult(res);
+      setCheckInComplete(res.allowed);
       if (res.allowed) setInputCode('');
     } catch {
       setError('Giriş kaydedilemedi. Lütfen tekrar deneyin.');
@@ -152,38 +167,40 @@ export const SecurityView: React.FC = () => {
   };
 
   const resultTone = verifyResult?.allowed ? 'success' : verifyResult?.decision === 'TOO_EARLY' || verifyResult?.decision === 'PENDING_APPROVAL' ? 'warning' : 'danger';
+  const showAppointmentDetails = verifyResult?.appointment && ['APPROVED', 'TOO_EARLY', 'ALREADY_CHECKED_IN'].includes(verifyResult.decision);
 
   return (
     <main id="main-content" className="page-shell">
       <PageHeader eyebrow="GÜVENLİK NOKTASI" title="Güvenli bir karşılama." description={`${settings.schoolName} · ${todayStr}`} />
-      <div className="grid lg:grid-cols-[1.05fr_1fr] gap-6 items-start">
+      <div className="grid gap-6 items-start">
         <section className="security-scanner">
-          <div className="scan-frame"><QrCode size={40} strokeWidth={1.5} /></div>
-          <h2>QR kodu doğrulayın</h2>
-          <p>Velinin giriş kartındaki QR içeriğini okuyucuyla aktarın veya aşağıya yapıştırın.</p>
-          <div className={`camera-preview ${cameraActive ? 'camera-preview-active' : ''}`}>
+          {!verifyResult && !error && <>
+            <div className="scan-frame"><QrCode size={40} strokeWidth={1.5} /></div>
+            <h2>QR kodu okutun</h2>
+            <p>Randevu kartındaki QR kodu kameraya gösterin.</p>
+          </>}
+          {verifyResult || error || busy ? <div className={`camera-preview camera-preview-result ${verifyResult ? `tone-${resultTone}` : error ? 'tone-danger' : ''}`}>
+            <div className="camera-result-panel" role="status" aria-live="polite">
+              <button type="button" className="camera-result-close" aria-label="Sonucu kapat" disabled={busy} onClick={resetResult}><X size={21} /></button>
+              {busy && !verifyResult && !error ? <><QrCode className="camera-result-icon" /><h2>QR KOD DOĞRULANIYOR</h2><p>Lütfen bekleyin.</p></> : verifyResult ? <>
+                {verifyResult.allowed ? <CheckCircle2 className="camera-result-icon" /> : <AlertTriangle className="camera-result-icon" />}
+                <h2>{verifyResult.title}</h2><p>{verifyResult.message}</p>
+                {error && <p role="alert">{error}</p>}
+                {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Tarih</dt><dd>{verifyResult.appointment.date}</dd></div><div><dt>Saat</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div>{verifyResult.decision === 'ALREADY_CHECKED_IN' && verifyResult.appointment.checkedInAt && <div><dt>Giriş zamanı</dt><dd>{verifyResult.appointment.checkedInAt}</dd></div>}</dl>}
+                {verifyResult.allowed && !checkInComplete && <Button className="w-full" disabled={busy} onClick={handleCheckIn}><LogIn size={19} />Girişi Kaydet</Button>}
+                <Button variant="secondary" className="w-full" disabled={busy} onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button>
+              </> : <><AlertTriangle className="camera-result-icon" /><h2>QR DOĞRULANAMADI</h2><p>{error}</p><Button className="w-full" onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button></>}
+            </div>
+          </div> : <div className={`camera-preview ${cameraActive ? 'camera-preview-active' : ''}`}>
             <video ref={videoRef} autoPlay playsInline muted aria-label="QR kodu kamera görüntüsü" />
             {!cameraActive && <div className="camera-placeholder"><Camera size={30} /><span>Arka kamera tarama alanı</span></div>}
             {cameraActive && <div className="camera-reticle" aria-hidden="true" />}
-          </div>
+          </div>}
           {cameraError && <Alert tone="danger">{cameraError}</Alert>}
-          <Button type="button" variant={cameraActive ? 'secondary' : 'primary'} disabled={cameraStarting || busy} onClick={() => cameraActive ? stopCamera() : void startCamera()}>
+          {!verifyResult && !error && !busy && <Button type="button" variant={cameraActive ? 'secondary' : 'primary'} disabled={cameraStarting} onClick={() => cameraActive ? stopCamera() : void startCamera()}>
             <Camera size={19} />{cameraStarting ? 'Kamera açılıyor…' : cameraActive ? 'Taramayı durdur' : 'QR Kod Tara'}
-          </Button>
-          <form onSubmit={handleVerify} className="form-stack">
-            <label className="field" htmlFor="security-qr">Randevu QR içeriği<input id="security-qr" type="text" maxLength={80} placeholder="VELIQR1:…" value={inputCode} onChange={(event) => setInputCode(event.target.value.trim())} autoComplete="off" spellCheck={false} /></label>
-            <Button type="submit" disabled={busy || !inputCode.trim()}><QrCode size={20} />{busy ? 'Kontrol ediliyor…' : 'QR kodu doğrula'}</Button>
-          </form>
-          <p className="mt-5 text-xs flex gap-2 items-start"><ShieldCheck size={17} />Önce randevuyu doğrulayın. Girişi, sonuç ekranındaki ayrı butonla kaydedin.</p>
-        </section>
-        <section aria-live="polite" aria-atomic="true">
-          {error && <Alert tone="danger">{error}</Alert>}
-          {verifyResult ? <div className={`qr-result tone-${resultTone}`} role="status">
-            {verifyResult.allowed ? <CheckCircle2 /> : <AlertTriangle />}
-            <h2>{verifyResult.title}</h2><p>{verifyResult.message}</p>
-            {verifyResult.appointment && <dl className="pass-details mt-6 pt-5 border-t border-current/15"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Saat</dt><dd>{verifyResult.appointment.startTime} – {verifyResult.appointment.endTime}</dd></div></dl>}
-            {verifyResult.allowed && <Button className="w-full mt-6" disabled={busy || !inputCode.trim()} onClick={handleCheckIn}><LogIn size={20} />Girişi kaydet</Button>}
-          </div> : <div className="surface"><EmptyState icon={ShieldCheck} title="Doğrulama için hazır" description="QR kod kontrol edildiğinde randevu durumu ve giriş bilgileri burada görünecek." /></div>}
+          </Button>}
+          {!verifyResult && !error && !busy && <p className="mt-5 text-xs flex gap-2 items-start"><ShieldCheck size={17} />Giriş yalnızca geçerli ve onaylı randevu için kaydedilir.</p>}
         </section>
       </div>
       <section className="surface mt-7">
@@ -195,7 +212,7 @@ export const SecurityView: React.FC = () => {
           { id: 'done' as const, label: 'Tamamlanan' },
         ].map((item) => <button key={item.id} type="button" aria-pressed={segment === item.id} onClick={() => setSegment(item.id)}>{item.label}</button>)}</div>
         {displayedAppointments.length ? <div className="space-y-4">{displayedAppointments.map((appointment) => <article className="appointment-card" key={appointment.id}><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.parentName}</h3><p>{appointment.studentName} · {appointment.className}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">Görüşülecek öğretmen: {appointment.teacherName} · {appointment.teacherBranch}</p><p className="mt-1">{appointment.parentPhone}</p><div className="appointment-actions">
-          {appointment.status === 'booked' && <Button variant="secondary" disabled={busy} onClick={async () => { if (appointment.qrToken) { setInputCode(appointment.qrToken); setBusy(true); setError(''); try { setVerifyResult(await verifySecurityQr(appointment.qrToken)); window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { setVerifyResult(null); setError('QR kod doğrulanamadı. Lütfen tekrar deneyin.'); } finally { setBusy(false); } } }}><Search size={17} />QR doğrula</Button>}
+          {appointment.status === 'booked' && <Button variant="secondary" disabled={busy} onClick={() => { if (appointment.qrToken) { window.scrollTo({ top: 0, behavior: 'smooth' }); void verifyCode(appointment.qrToken); } }}><Search size={17} />QR doğrula</Button>}
           {appointment.status === 'checked_in' && <Button variant="secondary" disabled={busy} onClick={() => handleManualCheckOut(appointment.id)}><LogOut size={17} />Çıkışı kaydet</Button>}
         </div></div></article>)}</div> : <EmptyState icon={Calendar} title="Bu görünümde ziyaret bulunmuyor" description="Bugünün randevuları ve giriş durumları burada listelenir." />}
       </section>

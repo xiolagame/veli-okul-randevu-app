@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound } from 'lucide-react';
-import { Button, Skeleton } from './ui';
+import { Alert, Button, Dialog, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { normalizeTurkishPhone } from '../utils/phone';
 
@@ -17,11 +17,40 @@ interface StaffManagementProps {
   loading: boolean;
   error: string;
   onIssue: (target: StaffCodeTarget, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET') => void;
+  onCreateTeacher: (data: { fullName: string; branch: string; phone: string }) => Promise<unknown>;
 }
 
-export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onIssue }) => {
+export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onIssue, onCreateTeacher }) => {
   const [search, setSearch] = useState('');
+  const [showCreateTeacher, setShowCreateTeacher] = useState(false);
+  const [creatingTeacher, setCreatingTeacher] = useState(false);
+  const [createTeacherError, setCreateTeacherError] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [branch, setBranch] = useState('');
+  const [phone, setPhone] = useState('');
   const query = search.trim().toLocaleLowerCase('tr-TR');
+
+  const submitTeacher = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (creatingTeacher) return;
+    if (!normalizeTurkishPhone(phone)) {
+      setCreateTeacherError('Geçerli bir Türkiye GSM numarası girin.');
+      return;
+    }
+    setCreatingTeacher(true);
+    setCreateTeacherError('');
+    try {
+      await onCreateTeacher({ fullName, branch, phone });
+      setShowCreateTeacher(false);
+      setFullName('');
+      setBranch('');
+      setPhone('');
+    } catch (cause) {
+      setCreateTeacherError(cause instanceof Error ? cause.message : 'Öğretmen oluşturulamadı.');
+    } finally {
+      setCreatingTeacher(false);
+    }
+  };
   const sections = [
     {
       type: 'teacher' as const, title: 'Öğretmenler', Icon: GraduationCap,
@@ -54,7 +83,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         );
         return (
           <section key={type} className="space-y-3">
-            <h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <Button onClick={() => { setCreateTeacherError(''); setShowCreateTeacher(true); }}>+ Öğretmen Ekle</Button>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />
@@ -88,6 +117,15 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
           </section>
         );
       })}
+      {showCreateTeacher && <Dialog title="Yeni Öğretmen Ekle" description="Öğretmen profili oluşturulur; hesap daha sonra aktivasyon koduyla etkinleştirilir." onClose={() => { if (!creatingTeacher) setShowCreateTeacher(false); }} dismissible={!creatingTeacher}>
+        <form className="form-stack" onSubmit={submitTeacher}>
+          <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input id="staff-teacher-name" autoComplete="name" maxLength={150} required value={fullName} onChange={(event) => setFullName(event.target.value)} /></label>
+          <label className="field" htmlFor="staff-teacher-branch">Branş<input id="staff-teacher-branch" maxLength={100} required value={branch} onChange={(event) => setBranch(event.target.value)} /></label>
+          <label className="field" htmlFor="staff-teacher-phone">Telefon<input id="staff-teacher-phone" type="tel" autoComplete="tel" placeholder="0555 123 45 67" required value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+          {createTeacherError && <Alert tone="danger">{createTeacherError}</Alert>}
+          <div className="form-actions"><Button type="button" variant="secondary" disabled={creatingTeacher} onClick={() => setShowCreateTeacher(false)}>İptal</Button><Button type="submit" disabled={creatingTeacher}>{creatingTeacher ? 'Ekleniyor…' : 'Öğretmeni Ekle'}</Button></div>
+        </form>
+      </Dialog>}
     </div>
   );
 };

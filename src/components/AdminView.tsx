@@ -30,6 +30,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     usersLoading,
     usersError,
     teachers,
+    createTeacher,
     appointments,
     settings,
     updateSettings,
@@ -226,7 +227,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
             {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-semibold">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif' : 'Bekliyor'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button></td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={roster.length ? 'Eşleşen kayıt bulunamadı' : 'Kütüğünüz henüz boş'} description="Kayıt ekleyebilir veya farklı bir arama yapabilirsiniz." /></div>}
           </section>}
 
-          {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onIssue={(target, purpose) => { setAuthCodeTarget(target); setAuthCodePurpose(purpose); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); setCopyMessage(''); }} />}
+          {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} onIssue={(target, purpose) => { setAuthCodeTarget(target); setAuthCodePurpose(purpose); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); setCopyMessage(''); }} />}
 
           {activeTab === 'appointments' && <section className="space-y-5"><div className="section-heading"><div><h3>Okulunuzun tüm görüşmeleri</h3><p>{appointments.length} randevu kaydı</p></div></div>{appointments.length ? appointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.date}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title="Henüz randevu bulunmuyor" description="Okulunuzda oluşturulan görüşmeler burada listelenecek." /></div>}</section>}
 

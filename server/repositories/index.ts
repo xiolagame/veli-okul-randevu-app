@@ -819,6 +819,22 @@ export const teacherRepository = {
     }));
   },
 
+  async createPending(
+    schoolId: string,
+    teacher: { firstName: string; lastName: string; branch: string; phone: string },
+    client?: TransactionClient
+  ): Promise<TeacherProfile> {
+    const id = `tch-${crypto.randomUUID()}`;
+    const res = await execQuery<any>(
+      `INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, school_id, user_id, first_name, last_name, branch, email, phone;`,
+      [id, schoolId, teacher.firstName, teacher.lastName, teacher.branch, teacher.phone],
+      client
+    );
+    return mapTeacherProfile(res.rows[0]);
+  },
+
   async getTeacherById(schoolId: string, teacherId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone

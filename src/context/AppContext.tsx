@@ -56,6 +56,7 @@ interface AppContextType {
   checkInVisitor: (qrToken: string) => Promise<SecurityQrVerification & { appointment?: Appointment }>;
   checkOutVisitor: (appointmentId: string) => Promise<void>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
+  createTeacher: (data: { fullName: string; branch: string; phone: string }) => Promise<TeacherProfile>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
   updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<void>;
@@ -407,6 +408,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAvailability((prev) => [...prev, res.slot]);
   };
 
+  const createTeacher = async (data: { fullName: string; branch: string; phone: string }) => {
+    if (!currentSchool) throw new Error('Aktif okul bulunamadı.');
+    const result = await api.createTeacher(currentSchool.id, data);
+    setTeachers((current) => [...current.filter((teacher) => teacher.id !== result.teacher.id), result.teacher]
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'tr')));
+    return result.teacher;
+  };
+
   // Remove Availability Slot
   const removeAvailabilitySlot = async (slotId: string) => {
     if (!currentSchool) return;
@@ -506,6 +515,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         checkInVisitor,
         checkOutVisitor,
         addAvailabilitySlot,
+        createTeacher,
         removeAvailabilitySlot,
         markNotificationsAsRead,
         updateSettings,

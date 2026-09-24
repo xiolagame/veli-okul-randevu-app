@@ -159,6 +159,11 @@ export const api = {
   getTeachers: (schoolId: string) =>
     request<{ teachers: TeacherProfile[] }>(`/api/schools/${schoolId}/teachers`),
 
+  createTeacher: (schoolId: string, data: { fullName: string; branch: string; phone: string }) =>
+    request<{ teacher: TeacherProfile }>(`/api/schools/${schoolId}/teachers`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
   getStudents: (schoolId: string) =>
     request<{ students: Student[] }>(`/api/schools/${schoolId}/students`),
 

@@ -10,13 +10,13 @@ async function run() {
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
   const { createToken } = await import('../server/auth');
-  const { userRepository, membershipRepository } = await import('../server/repositories');
+  const { userRepository, membershipRepository, auditLogRepository } = await import('../server/repositories');
   const db = await getDb();
   assert.equal(db.engineType, 'PostgreSQL (Embedded Persistent Engine)');
   const suffix = crypto.randomUUID();
   const schoolId = `staff-school-${suffix}`;
   const otherSchoolId = `staff-other-${suffix}`;
-  const teacherId = `staff-profile-${suffix}`;
+  let teacherId = '';
   const phones: string[] = [];
   const app = express();
   app.use(express.json());
@@ -59,10 +59,42 @@ async function run() {
     const security = await fixture('security');
     const foreignSecurity = await fixture('security', otherSchoolId);
     const teacherPhone = phone();
-    await db.query(
-      'INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone) VALUES ($1, $2, $3, $4, $5, $6)',
-      [teacherId, schoolId, 'Local', 'Teacher', 'Türkçe', teacherPhone]
-    );
+    const createPath = `/schools/${schoolId}/teachers`;
+    const createdResponse = await request('POST', createPath, admin.token, {
+      schoolId: otherSchoolId, fullName: 'Local Teacher', branch: 'Türkçe', phone: `0${teacherPhone.slice(3)}`,
+    });
+    assert.equal(createdResponse.status, 201);
+    const createdTeacher = createdResponse.body.teacher as Record<string, unknown>;
+    teacherId = createdTeacher.id as string;
+    assert(teacherId);
+    assert.equal(createdTeacher.schoolId, schoolId);
+    assert.equal(createdTeacher.userId ?? null, null);
+    assert.equal(createdTeacher.accountStatus, 'pending');
+    assert.equal(createdTeacher.phone, teacherPhone);
+    assert.equal(await userRepository.getByPhone(teacherPhone), null);
+    assert.equal((await db.query('SELECT user_id FROM teacher_profiles WHERE school_id = $1 AND id = $2', [schoolId, teacherId])).rows[0].user_id, null);
+    assert.equal((await auditLogRepository.getAuditLogs(schoolId)).some((log) => log.action === 'teacher.created' && log.details.includes(teacherId)), true);
+    assert.equal((await request('POST', createPath, admin.token, {
+      fullName: 'Duplicate Teacher', branch: 'Matematik', phone: teacherPhone.slice(1),
+    })).status, 409);
+    assert.equal((await request('POST', createPath, admin.token, { fullName: 'Invalid Phone', branch: 'Türkçe', phone: '123' })).status, 400);
+    assert.equal((await request('POST', createPath, admin.token, { fullName: 'Missing Branch', phone: phone() })).status, 400);
+    assert.equal((await request('POST', createPath, admin.token, { branch: 'Türkçe', phone: phone() })).status, 400);
+    const concurrentPhone = phone();
+    const concurrentCreates = await Promise.all([
+      request('POST', createPath, admin.token, { fullName: 'Concurrent Teacher', branch: 'Fen', phone: concurrentPhone }),
+      request('POST', createPath, admin.token, { fullName: 'Concurrent Teacher', branch: 'Fen', phone: `0${concurrentPhone.slice(3)}` }),
+    ]);
+    assert.deepEqual(concurrentCreates.map((response) => response.status).sort(), [201, 409]);
+    for (const staffToken of [parent.token, teacher.token, security.token]) {
+      assert.equal((await request('POST', createPath, staffToken, { fullName: 'Blocked Person', branch: 'Türkçe', phone: phone() })).status, 403);
+    }
+    assert.equal((await request('POST', `/schools/${otherSchoolId}/teachers`, admin.token, {
+      fullName: 'Cross Tenant', branch: 'Türkçe', phone: phone(),
+    })).status, 403);
+    assert.equal((await request('POST', createPath, admin.token, {
+      fullName: 'Header Spoof', branch: 'Türkçe', phone: phone(),
+    }, otherSchoolId)).status, 400);
     const path = `/schools/${schoolId}/users?role=security`;
     const list = await request('GET', path, admin.token);
     assert.equal(list.status, 200);
@@ -123,7 +155,8 @@ async function run() {
     assert(linked);
     await db.query("UPDATE school_memberships SET status = 'inactive' WHERE school_id = $1 AND user_id = $2", [schoolId, linked.id]);
     const inactive = await request('GET', `/schools/${schoolId}/teachers`, admin.token);
-    assert.equal((inactive.body.teachers as Array<Record<string, unknown>>)[0].accountStatus, 'inactive');
+    const inactiveTeacher = (inactive.body.teachers as Array<Record<string, unknown>>).find((record) => record.id === teacherId);
+    assert.equal(inactiveTeacher?.accountStatus, 'inactive');
     const activeSecurity = await request('GET', path, admin.token);
     assert.equal((activeSecurity.body.users as Array<Record<string, unknown>>)[0].accountStatus, 'active');
     console.log('Admin staff management: tenant/role guards, safe response, activation and reset PASS.');

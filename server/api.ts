@@ -516,6 +516,52 @@ apiRouter.get('/schools/:schoolId/teachers', authMiddleware, tenantGuard(), asyn
   }
 });
 
+apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
+  const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  if (fullName.length < 3 || fullName.length > 150 || fullName.split(' ').length < 2) {
+    return res.status(400).json({ error: 'Ad soyad alanına geçerli bir ad ve soyad girin.' });
+  }
+  if (!branch || branch.length > 100) {
+    return res.status(400).json({ error: 'Branş alanı zorunludur.' });
+  }
+  if (!phone) {
+    return res.status(400).json({ error: 'Geçerli bir Türkiye GSM numarası girin.' });
+  }
+
+  try {
+    const db = await getDb();
+    const teacher = await db.transaction(async (tx) => {
+      const schoolLock = await tx.query('SELECT id FROM schools WHERE id = $1 FOR UPDATE', [schoolId]);
+      if (!schoolLock.rows.length) throw new Error('SCHOOL_NOT_FOUND');
+      if (await teacherRepository.getTeacherByPhone(schoolId, phone, tx)) throw new Error('TEACHER_PHONE_EXISTS');
+      const [firstName, ...lastNameParts] = fullName.split(' ');
+      const created = await teacherRepository.createPending(schoolId, {
+        firstName,
+        lastName: lastNameParts.join(' '),
+        branch,
+        phone,
+      }, tx);
+      await auditLogRepository.createAuditLog({
+        schoolId,
+        action: 'teacher.created',
+        actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(),
+        details: `Öğretmen profili ${created.id} oluşturuldu; hesap aktivasyon bekliyor.`,
+      }, tx);
+      return { ...created, accountStatus: 'pending' as const };
+    });
+    return res.status(201).json({ teacher });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'TEACHER_PHONE_EXISTS') {
+      return res.status(409).json({ error: 'Bu telefon numarasıyla okulda zaten bir öğretmen profili var.' });
+    }
+    console.error('[POST /schools/:schoolId/teachers Error]:', err);
+    return res.status(500).json({ error: 'Öğretmen oluşturulamadı.' });
+  }
+});
+
 apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
   if (req.query.role !== 'security') return res.status(400).json({ error: 'Geçersiz kullanıcı rolü.' });
   try {
