@@ -10,7 +10,7 @@ import {
 
 export const INITIAL_SETTINGS: SchoolSettings = {
   schoolName: 'Kahramankazan Şehit Ömer Takdemir Ortaokulu',
-  appName: 'VELİ',
+  appName: 'Veli Randevu',
   defaultSlotMinutes: 15,
   minSlotMinutes: 10,
   maxBookingDaysAhead: 30,

@@ -117,7 +117,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       <main className="auth-form-side">
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
-          <span className="eyebrow">VELİ'YE HOŞ GELDİNİZ</span>
+          <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
           <h2>Tekrar merhaba.</h2>
           <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}

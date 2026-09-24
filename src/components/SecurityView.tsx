@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, EmptyState, PageHeader, StatusBadge } from './ui';
 import { useApp } from '../context/AppContext';
 import { getTodayDateString } from '../data/mockData';
 import { SecurityQrVerification } from '../types';
+import QrScanner from 'qr-scanner';
 import {
   QrCode,
+  Camera,
   ShieldCheck,
   Search,
   CheckCircle2,
@@ -22,6 +24,11 @@ export const SecurityView: React.FC = () => {
   const [error, setError] = useState('');
   const [inputCode, setInputCode] = useState<string>('');
   const [verifyResult, setVerifyResult] = useState<SecurityQrVerification | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
 
   const [segment, setSegment] = useState<'all' | 'expected' | 'inside' | 'done'>('all');
 
@@ -39,19 +46,80 @@ export const SecurityView: React.FC = () => {
     return true;
   });
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputCode.trim()) return;
+  const stopCamera = () => {
+    scannerRef.current?.destroy();
+    scannerRef.current = null;
+    setCameraActive(false);
+    setCameraStarting(false);
+  };
+
+  useEffect(() => () => {
+    scannerRef.current?.destroy();
+    scannerRef.current = null;
+  }, []);
+
+  const getCameraError = (cause: unknown) => {
+    const error = typeof cause === 'object' && cause !== null
+      ? cause as { name?: unknown; message?: unknown }
+      : null;
+    const name = typeof error?.name === 'string' ? error.name : '';
+    const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.';
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || message.includes('camera not found')) return 'Bu cihazda kullanılabilir kamera bulunamadı.';
+    if (name === 'SecurityError') return 'Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.';
+    if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') return 'Kamera başka bir uygulama tarafından kullanılıyor olabilir.';
+    return 'Kamera başlatılamadı. Lütfen tekrar deneyin.';
+  };
+
+  const verifyCode = async (code: string) => {
+    if (!code) return;
+    stopCamera();
     setBusy(true);
     setError('');
     try {
-      const res = await verifySecurityQr(inputCode.trim());
+      const res = await verifySecurityQr(code);
       setVerifyResult(res);
     } catch {
       setVerifyResult(null);
       setError('QR kod doğrulanamadı. Bağlantınızı kontrol edip yeniden deneyin.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await verifyCode(inputCode.trim());
+  };
+
+  const startCamera = async () => {
+    setCameraError('');
+    if (!window.isSecureContext) {
+      setCameraError('Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !videoRef.current) {
+      setCameraError('Bu tarayıcı QR taramayı desteklemiyor.');
+      return;
+    }
+
+    setCameraStarting(true);
+    setCameraActive(true);
+    try {
+      const scanner = new QrScanner(videoRef.current, (result) => {
+        if (scannerRef.current !== scanner) return;
+        const code = typeof result === 'string' ? result : result.data;
+        void verifyCode(code.trim());
+      }, { preferredCamera: 'environment', returnDetailedScanResult: true });
+      scannerRef.current = scanner;
+      await scanner.start();
+      setCameraStarting(false);
+    } catch (cause) {
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
+      setCameraActive(false);
+      setCameraStarting(false);
+      setCameraError(getCameraError(cause));
     }
   };
 
@@ -93,6 +161,15 @@ export const SecurityView: React.FC = () => {
           <div className="scan-frame"><QrCode size={40} strokeWidth={1.5} /></div>
           <h2>QR kodu doğrulayın</h2>
           <p>Velinin giriş kartındaki QR içeriğini okuyucuyla aktarın veya aşağıya yapıştırın.</p>
+          <div className={`camera-preview ${cameraActive ? 'camera-preview-active' : ''}`}>
+            <video ref={videoRef} autoPlay playsInline muted aria-label="QR kodu kamera görüntüsü" />
+            {!cameraActive && <div className="camera-placeholder"><Camera size={30} /><span>Arka kamera tarama alanı</span></div>}
+            {cameraActive && <div className="camera-reticle" aria-hidden="true" />}
+          </div>
+          {cameraError && <Alert tone="danger">{cameraError}</Alert>}
+          <Button type="button" variant={cameraActive ? 'secondary' : 'primary'} disabled={cameraStarting || busy} onClick={() => cameraActive ? stopCamera() : void startCamera()}>
+            <Camera size={19} />{cameraStarting ? 'Kamera açılıyor…' : cameraActive ? 'Taramayı durdur' : 'QR Kod Tara'}
+          </Button>
           <form onSubmit={handleVerify} className="form-stack">
             <label className="field" htmlFor="security-qr">Randevu QR içeriği<input id="security-qr" type="text" maxLength={80} placeholder="VELIQR1:…" value={inputCode} onChange={(event) => setInputCode(event.target.value.trim())} autoComplete="off" spellCheck={false} /></label>
             <Button type="submit" disabled={busy || !inputCode.trim()}><QrCode size={20} />{busy ? 'Kontrol ediliyor…' : 'QR kodu doğrula'}</Button>
