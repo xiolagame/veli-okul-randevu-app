@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, KeyRound, Lock, Phone, ShieldCheck } from 'lucide-react';
+import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, Calendar, Users, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
+import { Alert, Brand, Button, Dialog } from './ui';
 import { normalizeTurkishPhone } from '../utils/phone';
 
 interface AuthViewProps {
@@ -12,7 +13,8 @@ interface AuthViewProps {
 type CodeFlow = 'activation' | 'reset' | null;
 
 export const AuthView: React.FC<AuthViewProps> = () => {
-  const { login, schools, settings } = useApp();
+  const { login, schools } = useApp();
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [codeFlow, setCodeFlow] = useState<CodeFlow>(null);
@@ -95,56 +97,61 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-6 text-white">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-black mb-3">V</div>
-          <h1 className="text-2xl font-black">{settings.appName} <span className="font-light text-blue-400">Randevu</span></h1>
-          <p className="mt-1 text-xs text-slate-300">{settings.schoolName}</p>
+    <div className="auth-layout">
+      <aside className="auth-story">
+        <Brand light />
+        <div>
+          <p className="eyebrow" style={{ color: '#c8dea7' }}>OKUL İLE AİLE ARASINDA</p>
+          <h1>İyi bir görüşme,<br /><em>güçlü bir bağ.</em></h1>
+          <p>Öğretmeninizle iletişim kurmanın, görüşme planlamanın ve okul ziyaretlerinizi takip etmenin kolay yolu.</p>
+          <div className="auth-illustration" aria-label="Randevu adımları">
+            <div className="flow-node"><span><Users size={19} /></span>Öğretmeninizi seçin</div>
+            <div className="flow-connector" />
+            <div className="flow-node"><span><Calendar size={19} /></span>Size uygun zamanı bulun</div>
+            <div className="flow-connector" />
+            <div className="flow-node"><span><Check size={19} /></span>Görüşmeye hazır olun</div>
+          </div>
         </div>
-
-        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
-          {successMessage && <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMessage}</div>}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Telefon Numarası</label>
-              <div className="relative"><Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0555 123 45 67" required className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" /></div>
+        <div className="auth-footnote"><ShieldCheck size={18} />Okulunuzla güvenli ve düzenli iletişim.</div>
+      </aside>
+      <main className="auth-form-side">
+        <div className="auth-form-wrap">
+          <div className="auth-mobile-brand"><Brand /></div>
+          <span className="eyebrow">VELİ'YE HOŞ GELDİNİZ</span>
+          <h2>Tekrar merhaba.</h2>
+          <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
+          {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
+          {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
+          <form onSubmit={handleLogin} className="form-stack">
+            <label className="field" htmlFor="login-phone">Telefon numaranız
+              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="login-phone" type="tel" inputMode="tel" autoComplete="username" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0555 123 45 67" required /></div>
+              <span className="field-hint">Numaranızı başında 0 veya +90 ile yazabilirsiniz.</span>
+            </label>
+            <div className="field">
+              <label htmlFor="login-password">Parolanız</label>
+              <div className="field-icon"><Lock size={18} aria-hidden="true" /><input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Parolanızı girin" required /><button type="button" className="icon-button" aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
+              <button type="button" onClick={() => openCodeFlow('reset')} className="text-sm text-blue-700 font-semibold self-end">Parolamı unuttum</button>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Parola</label>
-              <div className="relative"><Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" /></div>
-            </div>
-            <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-blue-700 to-indigo-700 disabled:opacity-60 text-white font-bold rounded-xl text-sm">Giriş Yap</button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}<ArrowRight size={18} /></Button>
           </form>
-
-          <div className="mt-5 pt-4 border-t border-slate-100 text-center space-y-2">
-            <button type="button" onClick={() => openCodeFlow('reset')} className="block w-full text-xs text-blue-700 font-semibold">Şifremi Unuttum</button>
-            <button type="button" onClick={() => openCodeFlow('activation')} className="block w-full text-xs text-slate-600 hover:text-blue-700 font-semibold">İlk kez giriş / Hesabımı etkinleştir</button>
-          </div>
+          <div className="auth-divider">İlk kez mi buradasınız?</div>
+          <Button variant="secondary" className="w-full" onClick={() => openCodeFlow('activation')}><KeyRound size={18} />Hesabımı etkinleştir</Button>
+          <p className="auth-help">Giriş için yardıma mı ihtiyacınız var?<br />Okul yönetiminizle iletişime geçebilirsiniz.</p>
         </div>
-      </div>
-
-      {codeFlow && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 flex items-start sm:items-center justify-center p-4">
-          <div className="w-full max-w-md my-auto bg-white rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-2 text-blue-700"><ShieldCheck className="w-5 h-5" /><h2 className="font-bold text-slate-900">{codeFlow === 'activation' ? 'Hesabımı Etkinleştir' : 'Parolamı Sıfırla'}</h2></div>
-            <p className="text-xs text-slate-600">Okul yönetiminizin verdiği tek kullanımlık kodu kullanın. Kod veya parola tekrar gösterilmez.</p>
-            <form onSubmit={handleCodeFlow} className="space-y-3">
-              <select value={schoolId} onChange={(event) => setSchoolId(event.target.value)} required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white">
-                <option value="">Okulunuzu seçin</option>
-                {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
-              </select>
-              <input type="tel" inputMode="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
-              <div className="relative"><KeyRound className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input type="text" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Aktivasyon / sıfırlama kodu" required className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm font-mono" /></div>
-              <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Yeni parola (8-128 karakter)" minLength={8} maxLength={128} required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
-              <input type="password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder="Yeni parola tekrar" minLength={8} maxLength={128} required className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm" />
-              <div className="flex gap-2 pt-1"><button type="button" onClick={closeCodeFlow} className="flex-1 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold">Vazgeç</button><button type="submit" disabled={isSubmitting} className="flex-1 py-2.5 bg-blue-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold">{codeFlow === 'activation' ? 'Hesabı Etkinleştir' : 'Parolayı Güncelle'}</button></div>
-            </form>
-          </div>
-        </div>
-      )}
+      </main>
+      {codeFlow && <Dialog title={codeFlow === 'activation' ? 'Birlikte başlayalım.' : 'Yeni bir parola belirleyin.'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeCodeFlow} dismissible={!isSubmitting}>
+        <form onSubmit={handleCodeFlow} className="form-stack">
+          {error && <Alert tone="danger">{error}</Alert>}
+          <label className="field" htmlFor="code-school">Okulunuz
+            <select id="code-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} required><option value="">Okulunuzu seçin</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}</select>
+          </label>
+          <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="tel" autoComplete="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required /></label>
+          <label className="field" htmlFor="activation-code">{codeFlow === 'activation' ? 'Aktivasyon kodu' : 'Parola sıfırlama kodu'}<input id="activation-code" type="text" autoComplete="one-time-code" spellCheck={false} value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Okulunuzun verdiği kod" required className="font-mono" /></label>
+          <label className="field" htmlFor="new-password">Yeni parolanız<input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} maxLength={128} required /><span className="field-hint">8–128 karakter uzunluğunda bir parola belirleyin.</span></label>
+          <label className="field" htmlFor="confirm-password">Yeni parolanız, tekrar<input id="confirm-password" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} minLength={8} maxLength={128} required /></label>
+          <div className="form-actions"><Button variant="secondary" disabled={isSubmitting} onClick={closeCodeFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Kaydediliyor…' : codeFlow === 'activation' ? 'Hesabı etkinleştir' : 'Parolayı güncelle'}</Button></div>
+        </form>
+      </Dialog>}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Shield, GraduationCap } from 'lucide-react';
+import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound } from 'lucide-react';
+import { Button, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { normalizeTurkishPhone } from '../utils/phone';
 
@@ -38,14 +39,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-bold text-slate-900">Öğretmenler ve Güvenlik</h3>
+      <div className="section-heading"><div><h3>Öğretmenler ve güvenlik</h3><p>Okulunuzun personel hesaplarını ve erişim kodlarını yönetin.</p></div></div>
       <label className="relative block">
         <span className="sr-only">Öğretmen veya güvenlik personeli ara</span>
         <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Öğretmen veya güvenlik personeli ara..."
           className="min-h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm" />
       </label>
-      {loading && <p role="status" className="text-sm text-slate-500">Personel yükleniyor…</p>}
+      {loading && <Skeleton />}
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
       {!loading && !error && sections.map(({ type, title, Icon, empty, description, records }) => {
         const filtered = records.filter((record) =>
@@ -67,19 +68,19 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                 const actionable = !!phone && (status === 'pending' || status === 'active');
                 const label = `${record.firstName} ${record.lastName}`.trim();
                 return (
-                  <article key={record.id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h5 className="font-semibold text-slate-900">{label}</h5>
+                  <article key={record.id} className="surface min-w-0">
+                    <div className="flex gap-3 items-center mb-4"><span className="avatar">{record.firstName[0]}{record.lastName[0]}</span><h5 className="font-semibold text-slate-900">{label}</h5></div>
                     <p className="text-sm text-slate-500">{type === 'teacher' ? record.branch : 'Güvenlik'}</p>
                     <p className="mt-2 break-words text-sm text-slate-700">{record.phone || 'Telefon tanımlı değil'}</p>
-                    <span className={`mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {!phone ? '! Telefon Tanımlı Değil / Geçersiz' : status === 'active' ? '✓ Aktif' : status === 'pending' ? '● Aktivasyon Bekliyor' : '● Hesap durumu doğrulanamadı / Üyelik aktif değil'}
+                    <span className={`mt-3 inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
                     </span>
                     {!phone && <p className="mt-2 text-xs text-slate-500">Aktivasyon kodu oluşturmak için geçerli telefon numarası gereklidir.</p>}
-                    <button type="button" disabled={!actionable}
+                    <Button variant={status === 'active' ? 'secondary' : 'primary'} disabled={!actionable}
                       onClick={() => onIssue({ type, id: record.id, label, phone: record.phone }, status === 'active' ? 'PASSWORD_RESET' : 'ACCOUNT_ACTIVATION')}
-                      className="mt-4 min-h-11 w-full rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      className="mt-5 w-full"><KeyRound size={17} />
                       {status === 'active' ? 'Parola Sıfırlama Kodu' : 'Aktivasyon Kodu Oluştur'}
-                    </button>
+                    </Button>
                   </article>
                 );
               })}

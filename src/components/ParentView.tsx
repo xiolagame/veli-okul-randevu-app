@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
+import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge, StepIndicator } from './ui';
 import { QRCodePass } from './QRCodePass';
 import {
   Calendar,
@@ -11,14 +12,10 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  AlertCircle,
   QrCode,
-  ShieldCheck,
   ChevronRight,
   BookOpen,
   ArrowRight,
-  Phone,
-  HelpCircle,
   Bell,
 } from 'lucide-react';
 
@@ -55,6 +52,9 @@ export const ParentView: React.FC = () => {
     currentUser?.students?.[0]?.className || '7-B'
   );
   const [bookingNotes, setBookingNotes] = useState<string>('');
+  const [bookingError, setBookingError] = useState('');
+  const [bookingBusy, setBookingBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
 
   // Teacher Filter
@@ -97,13 +97,14 @@ export const ParentView: React.FC = () => {
     setSelectedSlotTime('');
     setBookingNotes('');
     setBookingSuccess(false);
+    setBookingError('');
     if (currentUser?.students && currentUser.students.length > 0) {
       setSelectedStudent(currentUser.students[0].name);
       setStudentClass(currentUser.students[0].className);
     }
   };
 
-  const handleConfirmBooking = (e: React.FormEvent) => {
+  const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingTeacher || !selectedSlotTime || !selectedStudent) return;
 
@@ -114,7 +115,10 @@ export const ParentView: React.FC = () => {
     const endM = endMinutes % 60;
     const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 
-    bookAppointment({
+    setBookingBusy(true);
+    setBookingError('');
+    try {
+    await bookAppointment({
       teacherId: bookingTeacher.id,
       studentName: selectedStudent,
       className: studentClass,
@@ -129,6 +133,11 @@ export const ParentView: React.FC = () => {
       setBookingTeacher(null);
       setActiveTab('appointments');
     }, 1200);
+    } catch {
+      setBookingError('Randevu talebiniz gönderilemedi. Bilgilerinizi kontrol edip yeniden deneyin.');
+    } finally {
+      setBookingBusy(false);
+    }
   };
 
   // Generate slots for the selected teacher and date
@@ -174,745 +183,98 @@ export const ParentView: React.FC = () => {
     }));
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 pb-20 sm:pb-8">
-      {/* Top Header Banner */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Veli Portalı
-              </span>
-              <span className="text-xs text-slate-500 font-medium">{settings.schoolName}</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-              Hoş Geldiniz, {currentUser?.firstName} {currentUser?.lastName}
-            </h1>
-          </div>
+  const navigation = [
+    { id: 'home' as const, label: 'Ana sayfa', icon: BookOpen },
+    { id: 'teachers' as const, label: 'Öğretmenler', icon: Users },
+    { id: 'appointments' as const, label: 'Randevular', icon: Calendar, count: upcomingAppointments.length },
+    { id: 'notifications' as const, label: 'Bildirimler', icon: Bell },
+    { id: 'profile' as const, label: 'Profil', icon: User },
+  ];
 
-          {/* Desktop Tab Buttons */}
-          <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            {[
-              { id: 'home', label: 'Ana Sayfa' },
-              { id: 'teachers', label: 'Öğretmenler' },
-              { id: 'appointments', label: `Randevularım (${upcomingAppointments.length})` },
-              { id: 'notifications', label: 'Bildirimler' },
-              { id: 'profile', label: 'Profil' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === tab.id ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+  const appointmentCard = (appointment: Appointment) => (
+    <article className="appointment-card" key={appointment.id}>
+      <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
+      <div className="appointment-detail">
+        <div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch}</p></div><StatusBadge status={appointment.status} /></div>
+        <div className="detail-row"><span><Calendar size={15} />{appointment.date}</span><span><User size={15} />{appointment.studentName} · {appointment.className}</span></div>
+        {appointment.rejectionReason && <p className="mt-3 text-red-700">{appointment.rejectionReason}</p>}
+        {appointment.notes && <p className="mt-3">Notunuz: {appointment.notes}</p>}
+        <div className="appointment-actions">
+          <Button variant="secondary" onClick={() => setSelectedPassAppointment(appointment)}><QrCode size={17} />Giriş kartı</Button>
+          {settings.allowParentCancel && (appointment.status === 'booked' || appointment.status === 'pending') && <Button variant="quiet" onClick={() => { setActionError(''); void cancelAppointment(appointment.id).catch(() => setActionError('Randevu iptal edilemedi. Lütfen tekrar deneyin.')); }}>Randevuyu iptal et</Button>}
         </div>
       </div>
+    </article>
+  );
 
-      {/* Main Tab Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* TAB 1: ANA SAYFA */}
-        {activeTab === 'home' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Imminent Appointment Alert Card */}
-            {nextAppointment ? (
-              <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-xs font-bold tracking-wide uppercase">
-                        Sıradaki Randevunuz
-                      </span>
-                      {nextAppointment.status === 'booked' && (
-                        <span className="px-2 py-0.5 bg-emerald-400/30 text-emerald-200 border border-emerald-300/30 rounded-full text-xs font-semibold">
-                          Giriş İzni Onaylandı
-                        </span>
-                      )}
-                      {nextAppointment.status === 'pending' && (
-                        <span className="px-2 py-0.5 bg-amber-400/30 text-amber-200 border border-amber-300/30 rounded-full text-xs font-semibold">
-                          Öğretmen Onayı Bekleniyor
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="text-2xl font-black">
-                      {nextAppointment.teacherName} ({nextAppointment.teacherBranch})
-                    </h2>
-                    <p className="text-sm text-blue-100 flex items-center gap-3">
-                      <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {nextAppointment.date}</span>
-                      <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {nextAppointment.startTime} - {nextAppointment.endTime}</span>
-                      <span className="flex items-center gap-1.5"><User className="w-4 h-4" /> {nextAppointment.studentName}</span>
-                    </p>
-                  </div>
+  const teacherCard = (teacher: TeacherProfile) => (
+    <article key={teacher.id} className="surface teacher-card">
+      <div className="flex items-center gap-3"><span className="avatar">{teacher.firstName[0]}{teacher.lastName[0]}</span><div><h3>{teacher.firstName} {teacher.lastName}</h3><p>{teacher.branch}</p></div></div>
+      <p>{teacher.bio || 'Uygun bir gün ve saat seçerek görüşme planlayın.'}</p>
+      <Button variant="secondary" onClick={() => handleOpenBooking(teacher)}>Randevu al<ArrowRight size={16} /></Button>
+    </article>
+  );
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={() => setSelectedPassAppointment(nextAppointment)}
-                      className="inline-flex items-center gap-2 px-5 py-3 bg-white text-blue-800 hover:bg-blue-50 font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer"
-                    >
-                      <QrCode className="w-5 h-5" />
-                      Giriş Kartı & QR Kod
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold">Öğretmenlerimizle Randevu Oluşturun</h2>
-                  <p className="text-xs text-blue-100 mt-1">
-                    Öğrencinizin gelişim durumunu görüşmek için müsait gün ve saatlerde randevu talep edebilirsiniz.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('teachers')}
-                  className="px-5 py-2.5 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-xl text-sm shadow-xs transition-colors shrink-0 cursor-pointer"
-                >
-                  Öğretmen Listesini Gör
-                </button>
-              </div>
-            )}
+  return (
+    <main id="main-content" className="page-shell">
+      <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={activeTab !== 'teachers' && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
+      <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
+      {actionError && <div className="mb-5"><Alert tone="danger">{actionError}</Alert></div>}
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Aktif Randevular</span>
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="text-3xl font-extrabold text-slate-900">{upcomingAppointments.length}</div>
-                <p className="text-xs text-slate-400 mt-1">Görüşme planlanan randevular</p>
-              </div>
+      {activeTab === 'home' && <div className="space-y-7">
+        {nextAppointment ? <section className="hero-card">
+          <div><p className="eyebrow">SIRADAKİ GÖRÜŞMENİZ</p><StatusBadge status={nextAppointment.status} /><h2>{nextAppointment.teacherName}</h2><p>{nextAppointment.teacherBranch} · {nextAppointment.studentName}</p><div className="detail-row"><span><Calendar size={16} />{nextAppointment.date}</span><span><Clock size={16} />{nextAppointment.startTime} – {nextAppointment.endTime}</span></div></div>
+          <Button onClick={() => setSelectedPassAppointment(nextAppointment)}><QrCode size={19} />Giriş kartını aç</Button>
+        </section> : <section className="hero-card"><div><p className="eyebrow">BİR GÖRÜŞMEYLE BAŞLAR</p><h2>Gelişimini birlikte destekleyin.</h2><p>Öğretmeninizle görüşmek için size uygun bir zaman seçin.</p><Button className="mt-6" onClick={() => setActiveTab('teachers')}>İlk randevunuzu planlayın<ArrowRight size={18} /></Button></div><span className="hero-symbol"><Calendar size={40} strokeWidth={1.5} /></span></section>}
+        <div className="metric-grid"><Metric label="Aktif randevu" value={upcomingAppointments.length} icon={Calendar} /><Metric label="Öğrencilerim" value={currentUser?.students?.length || 0} icon={Users} /><Metric label="Geçmiş randevu" value={pastAppointments.length} icon={CheckCircle2} /></div>
+        <section><div className="section-heading"><div><h2>Öğretmenlerinizle tanışın</h2><p>Görüşmek istediğiniz öğretmeni seçin.</p></div><Button variant="quiet" onClick={() => setActiveTab('teachers')}>Tüm öğretmenler<ChevronRight size={17} /></Button></div>
+          {teachers.length ? <div className="teacher-grid">{teachers.slice(0, 3).map(teacherCard)}</div> : <div className="surface"><EmptyState icon={Users} title="Öğretmen listesi henüz hazır değil" description="Okulunuzun öğretmenleri burada listelenecek." /></div>}
+        </section>
+      </div>}
 
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Kayıtlı Öğrencilerim</span>
-                  <Users className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div className="text-3xl font-extrabold text-slate-900">{currentUser?.students?.length || 0}</div>
-                <p className="text-xs text-slate-400 mt-1">
-                  {currentUser?.students?.map((s) => `${s.name} (${s.className})`).join(', ') || 'Öğrenci eklenmedi'}
-                </p>
-              </div>
-
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Tamamlanan Görüşmeler</span>
-                  <CheckCircle2 className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="text-3xl font-extrabold text-slate-900">{pastAppointments.length}</div>
-                <p className="text-xs text-slate-400 mt-1">Geçmiş okul ziyaretleri</p>
-              </div>
-            </div>
-
-            {/* Featured Teachers Quick Section */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Öğretmenler</h3>
-                  <p className="text-xs text-slate-500">Görüşmek istediğiniz öğretmeni seçin</p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('teachers')}
-                  className="text-xs font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1"
-                >
-                  Tümünü İncele <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {teachers.slice(0, 3).map((teacher) => (
-                  <div
-                    key={teacher.id}
-                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/30 hover:border-blue-300 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-sm">
-                          {teacher.firstName[0]}{teacher.lastName[0]}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-sm">
-                            {teacher.firstName} {teacher.lastName}
-                          </h4>
-                          <span className="text-xs text-blue-700 font-semibold">{teacher.branch}</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">{teacher.bio}</p>
-                    </div>
-                    <button
-                      onClick={() => handleOpenBooking(teacher)}
-                      className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <Calendar className="w-3.5 h-3.5" /> Randevu Al
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: ÖĞRETMENLER LİSTESİ */}
-        {activeTab === 'teachers' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Search & Branch Filter Header */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-              <div className="relative w-full md:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  placeholder="Öğretmen veya branş ara..."
-                  value={teacherSearch}
-                  onChange={(e) => setTeacherSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-                {branches.map((b) => (
-                  <button
-                    key={b}
-                    onClick={() => setSelectedBranch(b)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                      selectedBranch === b ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Teachers Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredTeachers.map((teacher) => (
-                <div
-                  key={teacher.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black flex items-center justify-center text-lg shadow-xs">
-                          {teacher.firstName[0]}{teacher.lastName[0]}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-base">
-                            {teacher.firstName} {teacher.lastName}
-                          </h3>
-                          <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-md">
-                            {teacher.branch}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-slate-600 mb-4 min-h-[36px]">
-                      {teacher.bio || 'Randevu takvimi üzerinden uygun saat seçerek görüşme talep edebilirsiniz.'}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500 font-medium">15 dk seans</span>
-                    <button
-                      onClick={() => handleOpenBooking(teacher)}
-                      className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Calendar className="w-3.5 h-3.5" /> Randevu Al
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: RANDEVULARIM */}
-        {activeTab === 'appointments' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Upcoming Appointments Section */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-blue-700" />
-                  Yaklaşan Randevular ({upcomingAppointments.length})
-                </h3>
-              </div>
-
-              {upcomingAppointments.length === 0 ? (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-500">
-                  <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                  <p className="font-semibold text-slate-700">Aktif randevunuz bulunmuyor</p>
-                  <p className="text-xs text-slate-400 mt-1">Öğretmenler sekmesinden yeni bir randevu alabilirsiniz.</p>
-                  <button
-                    onClick={() => setActiveTab('teachers')}
-                    className="mt-4 px-4 py-2 bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer"
-                  >
-                    Öğretmen Seç ve Randevu Al
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {upcomingAppointments.map((apt) => (
-                    <div
-                      key={apt.id}
-                      className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
-                              {apt.teacherBranch}
-                            </span>
-                            <h4 className="font-bold text-slate-900 text-base">{apt.teacherName}</h4>
-                          </div>
-                          <div>
-                            {apt.status === 'booked' && (
-                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-full">
-                                Onaylandı
-                              </span>
-                            )}
-                            {apt.status === 'pending' && (
-                              <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold rounded-full">
-                                Onay Bekliyor
-                              </span>
-                            )}
-                            {apt.status === 'checked_in' && (
-                              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold rounded-full">
-                                Okula Giriş Yapıldı
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Tarih</span>
-                            <span className="font-semibold text-slate-800">{apt.date}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Saat</span>
-                            <span className="font-bold text-slate-900">{apt.startTime} - {apt.endTime}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Öğrenci</span>
-                            <span className="font-semibold text-slate-800">{apt.studentName} ({apt.className})</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Giriş Kodu</span>
-                            <span className="font-mono font-bold text-blue-700">{apt.entryCode}</span>
-                          </div>
-                        </div>
-
-                        {apt.notes && (
-                          <p className="text-xs text-slate-600 bg-blue-50/40 p-2.5 rounded-lg border border-blue-100/60">
-                            <span className="font-semibold text-slate-700">Not:</span> {apt.notes}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <button
-                          onClick={() => setSelectedPassAppointment(apt)}
-                          className="flex-1 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                        >
-                          <QrCode className="w-4 h-4" /> Giriş Belgesi (QR)
-                        </button>
-                        {settings.allowParentCancel && apt.status !== 'checked_in' && (
-                          <button
-                            onClick={() => cancelAppointment(apt.id)}
-                            className="px-3 py-2 text-slate-500 hover:text-red-600 hover:bg-red-50 text-xs font-semibold rounded-xl transition-colors cursor-pointer border border-transparent hover:border-red-200"
-                          >
-                            İptal Et
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Past Appointments */}
-            {pastAppointments.length > 0 && (
-              <div className="pt-4 border-t border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-3 text-slate-600">
-                  Geçmiş ve Tamamlanan Randevular ({pastAppointments.length})
-                </h3>
-                <div className="space-y-3">
-                  {pastAppointments.map((apt) => (
-                    <div
-                      key={apt.id}
-                      className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-slate-900 text-sm">{apt.teacherName} ({apt.teacherBranch})</div>
-                        <div className="text-slate-500 mt-0.5">
-                          {apt.date} • {apt.startTime} - {apt.endTime} • {apt.studentName} ({apt.className})
-                        </div>
-                      </div>
-                      <div>
-                        {apt.status === 'checked_out' && (
-                          <span className="px-2.5 py-1 bg-slate-100 text-slate-700 font-semibold rounded-full">
-                            Tamamlandı (Çıkış: {apt.checkedOutAt})
-                          </span>
-                        )}
-                        {apt.status === 'cancelled' && (
-                          <span className="px-2.5 py-1 bg-red-50 text-red-700 font-semibold rounded-full">
-                            İptal Edildi
-                          </span>
-                        )}
-                        {apt.status === 'rejected' && (
-                          <span className="px-2.5 py-1 bg-red-50 text-red-700 font-semibold rounded-full">
-                            Reddedildi {apt.rejectionReason ? `(${apt.rejectionReason})` : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 4: BİLDİRİMLER */}
-        {activeTab === 'notifications' && (
-          <div className="max-w-2xl mx-auto space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">Bildirimleriniz</h3>
-              <button
-                onClick={markNotificationsAsRead}
-                className="text-xs font-semibold text-blue-700 hover:text-blue-800"
-              >
-                Tümünü Okundu İşaretle
-              </button>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden shadow-xs">
-              {notifications.filter((n) => n.userId === currentUser?.id).length === 0 ? (
-                <div className="p-8 text-center text-slate-400">
-                  <Bell className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                  <p className="font-medium text-slate-600">Henüz bildiriminiz bulunmuyor.</p>
-                </div>
-              ) : (
-                notifications
-                  .filter((n) => n.userId === currentUser?.id)
-                  .map((notif) => (
-                    <div key={notif.id} className={`p-4 ${notif.read ? 'bg-white' : 'bg-blue-50/40'}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-900">{notif.title}</h4>
-                          <p className="text-xs text-slate-600 mt-0.5">{notif.message}</p>
-                          <span className="text-[10px] text-slate-400 mt-1 block">{notif.date}</span>
-                        </div>
-                        {notif.appointmentId && (
-                          <button
-                            onClick={() => {
-                              const apt = appointments.find((a) => a.id === notif.appointmentId);
-                              if (apt) setSelectedPassAppointment(apt);
-                            }}
-                            className="text-xs font-bold text-blue-700 bg-white border border-blue-200 px-2.5 py-1 rounded-lg shrink-0"
-                          >
-                            QR Kod
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: PROFİL */}
-        {activeTab === 'profile' && (
-          <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-200">
-            {/* Profile Info */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black text-2xl flex items-center justify-center">
-                  {currentUser?.firstName[0]}{currentUser?.lastName[0]}
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    {currentUser?.firstName} {currentUser?.lastName}
-                  </h3>
-                  <span className="text-xs text-slate-500 flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5" /> {currentUser?.phone}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Students List */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Kayıtlı Öğrencilerim</h3>
-                  <p className="text-xs text-slate-500">Randevu alırken bu listeden seçim yapabilirsiniz</p>
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                {currentUser?.students?.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
-                        {s.name[0]}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900">{s.name}</div>
-                        <div className="text-[11px] text-slate-500">Sınıf: {s.className}</div>
-                      </div>
-                    </div>
-                    {currentUser.students && currentUser.students.length > 1 && (
-                      <button
-                        onClick={() => removeStudentFromProfile(s.id)}
-                        className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                        title="Öğrenciyi Sil"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Student Form */}
-              <div className="pt-3 border-t border-slate-100">
-                <span className="text-xs font-bold text-slate-700 block mb-2">Yeni Öğrenci Ekle:</span>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    placeholder="Öğrenci Adı Soyadı"
-                    value={newStudentName}
-                    onChange={(e) => setNewStudentName(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Sınıf (Örn: 6-C)"
-                    value={newStudentClass}
-                    onChange={(e) => setNewStudentClass(e.target.value)}
-                    className="w-full sm:w-28 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  />
-                  <button
-                    onClick={() => {
-                      if (newStudentName && newStudentClass) {
-                        addStudentToProfile({ name: newStudentName, className: newStudentClass });
-                        setNewStudentName('');
-                        setNewStudentClass('');
-                      }
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1 shrink-0"
-                  >
-                    <Plus className="w-4 h-4" /> Ekle
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Booking Modal */}
-      {bookingTeacher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-5 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-blue-200 font-semibold uppercase tracking-wider block">
-                  Randevu Talebi Oluştur
-                </span>
-                <h3 className="font-bold text-lg leading-tight">
-                  {bookingTeacher.firstName} {bookingTeacher.lastName} ({bookingTeacher.branch})
-                </h3>
-              </div>
-              <button
-                onClick={() => setBookingTeacher(null)}
-                className="text-white/80 hover:text-white p-1 rounded-full"
-              >
-                ✕
-              </button>
-            </div>
-
-            {bookingSuccess ? (
-              <div className="p-8 text-center space-y-3">
-                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h4 className="font-bold text-slate-900 text-lg">Randevu Talebiniz Alındı!</h4>
-                <p className="text-xs text-slate-600">
-                  Öğretmenimiz onayladığında onaylı giriş belgeniz ve 6 haneli QR kodunuz oluşturulacaktır.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleConfirmBooking} className="p-6 space-y-4">
-                {/* Select Child */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Hangi Öğrenciniz İçin?
-                  </label>
-                  {currentUser?.students && currentUser.students.length > 0 ? (
-                    <select
-                      value={selectedStudent}
-                      onChange={(e) => {
-                        setSelectedStudent(e.target.value);
-                        const match = currentUser.students?.find((s) => s.name === e.target.value);
-                        if (match) setStudentClass(match.className);
-                      }}
-                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
-                    >
-                      {currentUser.students.map((s) => (
-                        <option key={s.id} value={s.name}>
-                          {s.name} ({s.className})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder="Öğrenci Adı Soyadı"
-                      value={selectedStudent}
-                      onChange={(e) => setSelectedStudent(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    />
-                  )}
-                </div>
-
-                {/* Date Picker */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Görüşme Tarihi
-                  </label>
-                  <input
-                    type="date"
-                    value={bookingDate}
-                    onChange={(e) => {
-                      setBookingDate(e.target.value);
-                      setSelectedSlotTime('');
-                    }}
-                    min={new Date().toISOString().split('T')[0]}
-                    required
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
-                  />
-                </div>
-
-                {/* Available Slots */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Müsait Saat Seçimi (15 dk)
-                  </label>
-                  <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1">
-                    {getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        disabled={slot.isBooked}
-                        onClick={() => setSelectedSlotTime(slot.time)}
-                        className={`py-2 text-xs font-bold rounded-lg border transition-all ${
-                          slot.isBooked
-                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed line-through'
-                            : selectedSlotTime === slot.time
-                            ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-500'
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
-                  </div>
-                  {!selectedSlotTime && (
-                    <p className="text-[11px] text-amber-600 mt-1">Lütfen yukarıdan müsait bir saat seçiniz.</p>
-                  )}
-                </div>
-
-                {/* Meeting Subject / Note */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Görüşme Konusu / Not (İsteğe Bağlı)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={bookingNotes}
-                    onChange={(e) => setBookingNotes(e.target.value)}
-                    placeholder="Örn: Sınav sonuçları, ders içi katılım veya genel rehberlik değerlendirmesi..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-none"
-                  />
-                </div>
-
-                <div className="pt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBookingTeacher(null)}
-                    className="flex-1 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50"
-                  >
-                    Vazgeç
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!selectedSlotTime}
-                    className="flex-1 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-md shadow-blue-500/20"
-                  >
-                    Randevu Talebi Gönder
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+      {activeTab === 'teachers' && <section>
+        <div className="filter-bar">
+          <label className="field" htmlFor="teacher-search">Öğretmen veya branş ara<div className="field-icon"><Search size={18} /><input id="teacher-search" value={teacherSearch} onChange={(event) => setTeacherSearch(event.target.value)} placeholder="İsim veya branş yazın" /></div></label>
+          <label className="field" htmlFor="teacher-branch">Branş<select id="teacher-branch" value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}>{branches.map((branch) => <option key={branch}>{branch}</option>)}</select></label>
         </div>
-      )}
+        {filteredTeachers.length ? <div className="teacher-grid">{filteredTeachers.map(teacherCard)}</div> : <div className="surface"><EmptyState icon={Search} title="Öğretmen bulunamadı" description="Farklı bir isim veya branş ile aramayı deneyin." /></div>}
+      </section>}
 
-      {/* Entry Pass Modal with QR */}
-      {selectedPassAppointment && (
-        <QRCodePass
-          appointment={selectedPassAppointment}
-          schoolName={settings.schoolName}
-          onClose={() => setSelectedPassAppointment(null)}
-        />
-      )}
+      {activeTab === 'appointments' && <div className="space-y-8">
+        <section><div className="section-heading"><h2>Yaklaşan görüşmeler <span className="text-slate-500">({upcomingAppointments.length})</span></h2></div>
+          {upcomingAppointments.length ? <div className="space-y-4">{upcomingAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Henüz randevunuz yok" description="Öğretmeninizle görüşme planlamak için yeni bir randevu oluşturabilirsiniz." action={<Button onClick={() => setActiveTab('teachers')}>Randevu oluştur<ArrowRight size={17} /></Button>} /></div>}
+        </section>
+        {pastAppointments.length > 0 && <section><div className="section-heading"><h2>Geçmiş randevular</h2></div><div className="space-y-4">{pastAppointments.map(appointmentCard)}</div></section>}
+      </div>}
 
-      {/* Mobile Bottom Navigation Bar (5 tabs matching PRD) */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around py-2 z-40 shadow-lg">
-        {[
-          { id: 'home', label: 'Ana Sayfa', icon: BookOpen },
-          { id: 'teachers', label: 'Öğretmenler', icon: Users },
-          { id: 'appointments', label: 'Randevular', icon: Calendar, badge: upcomingAppointments.length },
-          { id: 'notifications', label: 'Bildirimler', icon: Bell },
-          { id: 'profile', label: 'Profil', icon: User },
-        ].map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
-              className={`flex flex-col items-center justify-center p-1 relative text-[10px] font-semibold transition-colors ${
-                isActive ? 'text-blue-700' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <Icon className="w-5 h-5 mb-0.5" />
-              <span>{item.label}</span>
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className="absolute top-0 right-2 w-4 h-4 bg-blue-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-    </div>
+      {activeTab === 'notifications' && <section className="surface">
+        <div className="section-heading"><h2>Okulunuzdan haberler</h2><Button variant="quiet" onClick={markNotificationsAsRead}>Tümünü okundu işaretle</Button></div>
+        {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><h3 className="font-bold text-sm">{notification.title}{!notification.read && <span className="ml-2 text-blue-700 text-xs">Yeni</span>}</h3><p className="text-sm text-slate-600 mt-2">{notification.message}</p><p className="text-xs text-slate-500 mt-2">{notification.date}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
+      </section>}
+
+      {activeTab === 'profile' && <div className="max-w-2xl space-y-6">
+        <section className="surface flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="text-xl font-bold">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-sm text-slate-500 mt-1">{currentUser?.phone}</p></div></section>
+        <section className="surface"><div className="section-heading"><div><h2>Öğrencilerim</h2><p>Görüşmelerinizde bu öğrencilerden seçim yapabilirsiniz.</p></div></div>
+          <div className="space-y-3">{currentUser?.students?.map((student) => <div key={student.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50"><div><h3 className="font-semibold text-sm">{student.name}</h3><p className="text-xs text-slate-500">{student.className}</p></div>{currentUser.students && currentUser.students.length > 1 && <button type="button" className="icon-button" onClick={() => removeStudentFromProfile(student.id)} aria-label={`${student.name} öğrencisini kaldır`}><Trash2 size={18} /></button>}</div>)}</div>
+          <div className="form-stack mt-6 pt-6 border-t border-slate-200"><h3 className="font-semibold">Öğrenci ekle</h3><label className="field" htmlFor="student-name">Öğrenci adı soyadı<input id="student-name" value={newStudentName} onChange={(event) => setNewStudentName(event.target.value)} placeholder="Adı soyadı" /></label><label className="field" htmlFor="student-class">Sınıf<input id="student-class" value={newStudentClass} onChange={(event) => setNewStudentClass(event.target.value)} placeholder="Örn. 5-A" /></label><Button onClick={() => { if (newStudentName && newStudentClass) { addStudentToProfile({ name: newStudentName, className: newStudentClass }); setNewStudentName(''); setNewStudentClass(''); } }}><Plus size={17} />Öğrenci ekle</Button></div>
+        </section>
+      </div>}
+
+      {bookingTeacher && <Dialog wide title="Görüşmenizi planlayın" description={`${bookingTeacher.firstName} ${bookingTeacher.lastName} · ${bookingTeacher.branch}`} onClose={() => setBookingTeacher(null)} dismissible={!bookingBusy}>
+        {bookingSuccess ? <EmptyState icon={CheckCircle2} title="Randevu talebiniz alındı" description="Öğretmeninizin yanıtını Randevularım ekranından takip edebilirsiniz." /> : <form onSubmit={handleConfirmBooking} className="form-stack">
+          <StepIndicator active={selectedSlotTime ? 2 : 1} labels={['Öğretmen', 'Tarih ve saat', 'Onay']} />
+          {bookingError && <Alert tone="danger">{bookingError}</Alert>}
+          <label className="field" htmlFor="booking-student">Hangi öğrenciniz için?
+            {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <input id="booking-student" value={selectedStudent} onChange={(event) => setSelectedStudent(event.target.value)} required />}
+          </label>
+          <label className="field" htmlFor="booking-date">Görüşme tarihi<input id="booking-date" type="date" value={bookingDate} onChange={(event) => { setBookingDate(event.target.value); setSelectedSlotTime(''); }} min={new Date().toISOString().split('T')[0]} required /></label>
+          <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend><div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" disabled={slot.isBooked} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>
+          <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
+          {selectedSlotTime && <Alert>{bookingDate} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
+          <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
+        </form>}
+      </Dialog>}
+      {selectedPassAppointment && <QRCodePass appointment={selectedPassAppointment} schoolName={settings.schoolName} onClose={() => setSelectedPassAppointment(null)} />}
+    </main>
   );
 };
