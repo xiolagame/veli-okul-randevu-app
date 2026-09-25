@@ -101,7 +101,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                 const label = `${record.firstName} ${record.lastName}`.trim();
                 return (
                   <article key={record.id} className="surface min-w-0">
-                    <div className="flex gap-3 items-center mb-4"><span className="avatar">{record.firstName[0]}{record.lastName[0]}</span><h5 className="font-semibold text-slate-900">{label}</h5></div>
+                    <div className="flex gap-3 items-center mb-4"><h5 className="font-semibold text-slate-900">{label}</h5></div>
                     <p className="text-sm text-slate-500">{type === 'teacher' ? record.branch : 'Güvenlik'}</p>
                     <p className="mt-2 break-words text-sm text-slate-700">{record.phone || 'Telefon tanımlı değil'}</p>
                     <span className={`mt-3 inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>

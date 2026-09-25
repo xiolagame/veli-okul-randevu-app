@@ -9,7 +9,8 @@ async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('Local DB required');
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
-  const { userRepository, membershipRepository, notificationRepository } = await import('../server/repositories');
+  const { requireSchoolMembership, requireSchoolRole } = await import('../server/auth');
+  const { userRepository, membershipRepository, notificationRepository, auditLogRepository } = await import('../server/repositories');
   const { hashPassword } = await import('../server/passwords');
   const { generateActivationCode } = await import('../server/activation-codes');
   const db = await getDb();
@@ -17,6 +18,9 @@ async function run() {
   const schoolId = 'hardening-' + crypto.randomUUID();
   const otherSchool = 'hardening-' + crypto.randomUUID();
   const userIds: string[] = [];
+  const createdSchoolIds: string[] = [];
+  const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
+  delete process.env.PLATFORM_ADMIN_USER_IDS;
   const password = crypto.randomBytes(24).toString('base64url');
   const phone = () => '+905' + crypto.randomInt(100000000, 999999999);
   const app = express();
@@ -157,10 +161,43 @@ async function run() {
     await membershipRepository.createOrActivate({ schoolId: otherSchool, userId: parent.id, role: 'parent' });
     assert.equal((await request('PATCH', manage + '/parent/' + parent.id, admin.token, { fullName: 'Unsafe Change', phone: parentPhone })).status, 409);
     stage = 'safe removal and history';
+    const preserved: Array<{ id: string; status: string }> = [];
+    for (const [status, fixtureDate] of [['pending','2000-01-01'], ['booked','2091-01-01'], ['checked_in','2000-01-02'], ['checked_out','2091-01-03'], ['completed','2000-01-04'], ['cancelled','2091-01-05']]) {
+      const id = 'history-' + crypto.randomUUID();
+      await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
+        FROM appointments a WHERE a.id=$1`, [appointment.id, JSON.stringify({ id,status,date: fixtureDate, qr_token: null })]);
+      preserved.push({ id, status: status === 'booked' || status === 'checked_in' ? 'cancelled' : status });
+    }
+    const otherTeacher = await request('POST', schoolPath + '/teachers', admin.token, { fullName: 'Other Teacher', branch: 'Türkçe', phone: phone() });
+    assert.equal(otherTeacher.status, 201);
+    const otherAppointment = 'other-' + crypto.randomUUID();
+    await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
+      FROM appointments a WHERE a.id=$1`, [appointment.id, JSON.stringify({ id: otherAppointment, teacher_id: (otherTeacher.body.teacher as TeacherProfile).id, qr_token: null })]);
+    const foreignTeacher = await request('POST', '/schools/' + otherSchool + '/teachers', otherAdmin.token, { fullName: 'Foreign Teacher', branch: 'Türkçe', phone: phone() });
+    assert.equal(foreignTeacher.status, 201);
+    const foreignAppointment = 'foreign-' + crypto.randomUUID();
+    await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
+      FROM appointments a WHERE a.id=$1`, [appointment.id, JSON.stringify({ id: foreignAppointment, school_id: otherSchool,
+        teacher_id: (foreignTeacher.body.teacher as TeacherProfile).id, parent_id: otherParent.id, student_id: null, qr_token: null })]);
     await db.query('UPDATE appointments SET checked_in_by=$2 WHERE school_id=$3 AND id=$1', [appointment.id,security.id,schoolId]);
-    assert.equal((await request('DELETE', manage + '/teacher/' + teacher.id, admin.token)).status, 409);
-    assert.equal((await request('POST', schoolPath + '/appointments/' + appointment.id + '/reject', teacherToken, { reason: 'Local test' })).status, 200);
+    const createAuditLog = auditLogRepository.createAuditLog;
+    auditLogRepository.createAuditLog = async (log, tx) => {
+      if (log.action === 'teacher.removed') throw new Error('Local rollback fixture');
+      return createAuditLog(log, tx);
+    };
+    try {
+      assert.equal((await request('DELETE', manage + '/teacher/' + teacher.id, admin.token)).status, 500);
+      assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [appointment.id])).rows[0].status, 'pending');
+      assert.equal((await membershipRepository.getActiveMembership(activated.id, schoolId))?.role, 'teacher');
+    } finally { auditLogRepository.createAuditLog = createAuditLog; }
     assert.equal((await request('DELETE', manage + '/teacher/' + teacher.id, admin.token)).status, 200);
+    const cancelled = (await db.query('SELECT status,notes FROM appointments WHERE id=$1', [appointment.id])).rows[0];
+    assert.equal(cancelled.status, 'cancelled');
+    assert.match(cancelled.notes, /okul erişimi/);
+    for (const entry of preserved) assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [entry.id])).rows[0].status, entry.status);
+    for (const id of [otherAppointment, foreignAppointment]) assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [id])).rows[0].status, 'pending');
+    const removalLog = (await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='teacher.removed'", [schoolId])).rows;
+    assert(removalLog.some((entry) => JSON.parse(entry.details).cancelledAppointments === 3));
     assert.equal((await request('DELETE', manage + '/parent/' + parent.id, admin.token)).status, 200);
     assert.equal((await request('DELETE', manage + '/security/' + security.id, admin.token)).status, 200);
     assert.equal((await request('GET', schoolPath + '/appointments', securityToken)).status, 403);
@@ -170,6 +207,68 @@ async function run() {
     assert.equal((await db.query('SELECT teacher_id,parent_id FROM appointments WHERE id=$1', [appointment.id])).rows[0].teacher_id, teacher.id);
     assert.equal((await db.query('SELECT checked_in_by FROM appointments WHERE id=$1', [appointment.id])).rows[0].checked_in_by, security.id);
     for (const userId of [activated.id, parent.id, security.id]) assert(await userRepository.getById(userId));
+    stage = 'platform school authorization and disable';
+    for (const token of [admin.token, otherAdmin.token, teacherToken, securityToken, await login(parentPhone)]) {
+      assert.equal((await request('GET', '/platform/capabilities', token)).body.manageSchools, false);
+      assert.equal((await request('GET', '/platform/schools', token)).status, 403);
+      assert.equal((await request('POST', '/platform/schools', token, { name: 'Forbidden', code: 'FORBIDDEN', city: 'Test', district: 'Test' })).status, 403);
+      assert.equal((await request('PATCH', '/platform/schools/' + otherSchool + '/status', token, { active: false, platformAdmin: true })).status, 403);
+    }
+    assert.equal((await request('GET', '/platform/schools')).status, 401);
+    process.env.PLATFORM_ADMIN_USER_IDS = admin.id;
+    assert.equal((await request('GET', '/platform/capabilities', admin.token)).body.manageSchools, true);
+    assert.equal((await request('POST', '/platform/schools', admin.token, { name: '', code: 'ABC', city: 'Test', district: 'Test' })).status, 400);
+    const schoolData = { name: 'Created School', code: 'T-' + crypto.randomUUID(), city: 'Test', district: 'Test' };
+    const newSchool = await request('POST', '/platform/schools', admin.token, schoolData);
+    assert.equal(newSchool.status, 201);
+    const newSchoolId = (newSchool.body.school as { id: string }).id;
+    createdSchoolIds.push(newSchoolId);
+    assert.equal((await membershipRepository.getActiveMembership(admin.id, newSchoolId))?.role, 'admin');
+    const newSettings = (await request('GET', '/schools/' + newSchoolId + '/settings', admin.token)).body.settings as Record<string, unknown>;
+    assert.equal(newSettings.schoolName, schoolData.name);
+    assert.equal(newSettings.defaultSlotMinutes, 15);
+    assert.equal((await request('POST', '/platform/schools', admin.token, { ...schoolData, code: schoolData.code.toLowerCase() })).status, 409);
+    const membershipsBefore = (await db.query('SELECT * FROM school_memberships WHERE school_id=$1 ORDER BY id', [otherSchool])).rows;
+    const foreignProfile = foreignTeacher.body.teacher as TeacherProfile;
+    const foreignActivation = await request('POST', '/schools/' + otherSchool + '/auth-codes', otherAdmin.token,
+      { targetType: 'teacher', targetId: foreignProfile.id, purpose: 'ACCOUNT_ACTIVATION' });
+    assert.equal(foreignActivation.status, 200);
+    const foreignRosterId = 'roster-' + crypto.randomUUID();
+    await db.query(`INSERT INTO school_roster(id,school_id,parent_phone,parent_name,student_name,class_name,is_claimed)
+      VALUES($1,$2,$3,$4,$5,$6,TRUE)`, [foreignRosterId,otherSchool,otherParent.phone,'Fixture Parent','Fixture Student','5-A']);
+    const foreignReset = await request('POST', '/schools/' + otherSchool + '/auth-codes', otherAdmin.token,
+      { rosterId: foreignRosterId, purpose: 'PASSWORD_RESET' });
+    assert.equal(foreignReset.status, 200);
+    const authBefore = await userRepository.getAuthByPhone(otherParent.phone);
+    assert.equal((await request('PATCH', '/platform/schools/' + otherSchool + '/status', admin.token, { active: false })).status, 200);
+    assert.equal((await db.query("SELECT status FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='admin'", [otherSchool,otherAdmin.id])).rows[0].status, 'active');
+    assert.equal(await requireSchoolMembership(otherAdmin.id, otherSchool), null);
+    await assert.rejects(requireSchoolRole(otherAdmin.id, otherSchool, ['admin']), /aktif üyeliğiniz bulunmamaktadır/);
+    assert.equal((await request('GET', '/schools/' + otherSchool + '/appointments', otherAdmin.token)).status, 403);
+    assert.equal(await membershipRepository.getActiveMembership(otherParent.id, otherSchool), null);
+    const schools = (await request('GET', '/public/schools')).body.schools as Array<{ id: string }>;
+    assert(!schools.some((entry) => entry.id === otherSchool));
+    assert.equal((await request('GET', '/public/school-context?code=' + otherSchool)).status, 404);
+    assert.equal((await request('POST', '/auth/activate-account', undefined, { schoolId: otherSchool, phone: foreignProfile.phone, password, code: foreignActivation.body.code })).status, 400);
+    assert.equal(await userRepository.getByPhone(foreignProfile.phone), null);
+    assert.equal((await request('POST', '/auth/reset-password-with-code', undefined, { schoolId: otherSchool, phone: otherParent.phone, password, code: foreignReset.body.code })).status, 400);
+    const authAfter = await userRepository.getAuthByPhone(otherParent.phone);
+    assert(authBefore?.passwordHash === authAfter?.passwordHash && authBefore?.authVersion === authAfter?.authVersion);
+    const foreignCodes = (await db.query('SELECT consumed_at FROM invitations WHERE school_id=$1', [otherSchool])).rows;
+    assert(foreignCodes.length >= 2 && foreignCodes.every((entry) => entry.consumed_at === null));
+    assert.equal((await request('POST', '/onboarding/check-roster', otherParent.token, { schoolId: otherSchool })).status, 404);
+    assert.equal((await request('POST', '/onboarding/claim-students', otherParent.token, { schoolId: otherSchool })).status, 404);
+    assert.deepEqual((await db.query('SELECT * FROM school_memberships WHERE school_id=$1 ORDER BY id', [otherSchool])).rows, membershipsBefore);
+    assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [foreignAppointment])).rows[0].status, 'pending');
+    assert.equal((await request('GET', schoolPath + '/appointments', admin.token)).status, 200);
+    assert.equal((await request('PATCH', '/platform/schools/' + otherSchool + '/status', admin.token, { active: true })).status, 200);
+    assert.equal((await requireSchoolMembership(otherAdmin.id, otherSchool))?.role, 'admin');
+    assert.equal((await request('GET', '/schools/' + otherSchool + '/appointments', otherAdmin.token)).status, 200);
+    assert.equal((await request('PATCH', '/platform/schools/' + schoolId + '/status', admin.token, { active: false })).status, 200);
+    assert.equal((await request('GET', '/platform/schools', admin.token)).status, 200);
+    assert.equal((await request('PATCH', '/platform/schools/' + schoolId + '/status', admin.token, { active: true })).status, 200);
+    delete process.env.PLATFORM_ADMIN_USER_IDS;
+    assert.equal((await request('GET', '/platform/schools', admin.token)).status, 403);
     stage = 'tenant audit clear';
     const pendingId = 'roster-' + crypto.randomUUID();
     await db.query(`INSERT INTO school_roster(id,school_id,parent_phone,parent_name,student_name,class_name)
@@ -188,9 +287,12 @@ async function run() {
     assert.equal((await request('DELETE', manage + '/audit-logs', admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM audit_logs WHERE school_id=$1', [schoolId])).rows.length, 0);
     assert.deepEqual((await db.query('SELECT id FROM audit_logs WHERE school_id=$1', [otherSchool])).rows, foreignBefore.rows);
-    console.log('Admin hardening: lifecycle, 5-digit codes, edits, removals, history, tenant guards, audit clear PASS.');
+    console.log('Admin hardening: lifecycle, 5-digit codes, edits, removal rollback/auto-cancel, history, platform school authorization/disable, tenant guards and audit clear PASS.');
   } finally {
+    if (previousPlatformAdmins === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS;
+    else process.env.PLATFORM_ADMIN_USER_IDS = previousPlatformAdmins;
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    for (const id of createdSchoolIds) await db.query('DELETE FROM schools WHERE id=$1', [id]);
     await db.query('DELETE FROM schools WHERE id IN ($1,$2)', [schoolId, otherSchool]);
     for (const id of userIds) await db.query('DELETE FROM users WHERE id=$1', [id]);
   }

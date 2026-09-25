@@ -1,3 +1,4 @@
+import { formatDate, getIstanbulDate } from '../utils/dates';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
@@ -105,14 +106,14 @@ export const TeacherView: React.FC = () => {
     { id: 'availability' as const, label: 'Müsaitlik', icon: Clock },
     { id: 'profile' as const, label: 'Profil', icon: User },
   ];
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getIstanbulDate();
   const todayAppointments = bookedAppointments.filter((appointment) => appointment.date === today);
   const appointmentCard = (appointment: Appointment) => (
     <article key={appointment.id} className="appointment-card">
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{appointment.studentName}</h3><p>{appointment.className} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div>
-        <div className="detail-row"><span><Calendar size={15} />{appointment.date}</span><span><Phone size={15} />{appointment.parentPhone}</span></div>
+        <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><span><Phone size={15} />{appointment.parentPhone}</span></div>
         {appointment.notes && <p className="mt-4 p-3 bg-slate-50 rounded-xl">Veli notu: {appointment.notes}</p>}
         {appointment.rejectionReason && <p className="mt-3">Ret gerekçesi: {appointment.rejectionReason}</p>}
         {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : (appointment.status === 'booked' || appointment.status === 'checked_in') && <div className="appointment-actions"><Button variant="secondary" onClick={() => setSelectedPass(appointment)}><QrCode size={17} />Giriş kartı</Button>{appointment.status === 'booked' && <Button variant="quiet" disabled={busy} onClick={() => { void perform(() => cancelAppointment(appointment.id), 'Randevu iptal edildi.'); }}>İptal et</Button>}</div>}
@@ -128,7 +129,7 @@ export const TeacherView: React.FC = () => {
       {activeTab === 'home' && <div className="space-y-7">
         <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => setActiveTab(pendingAppointments.length ? 'appointments' : 'availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>
         <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü görüşme" value={todayAppointments.length} /><Metric icon={Clock} label="Onay bekleyen" value={pendingAppointments.length} /><Metric icon={CheckCircle2} label="Onaylanan" value={bookedAppointments.length} /></div>
-        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p>{new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}</p></div><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Tüm randevular</Button></div>
+        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p>{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Tüm randevular</Button></div>
           {todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşmeniz yok" description="Yaklaşan görüşmelerinizi Randevular ekranında bulabilirsiniz." /></div>}
         </section>
       </div>}

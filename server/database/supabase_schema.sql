@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS schools (
 );
 
 -- 3. SCHOOL MEMBERSHIPS (Scoped Role per School for Global Users)
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS school_memberships (
     id TEXT PRIMARY KEY DEFAULT ('mem-' || substr(md5(random()::text), 1, 16)),
     school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,

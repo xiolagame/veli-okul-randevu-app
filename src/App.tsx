@@ -6,6 +6,8 @@ import { ParentView } from './components/ParentView';
 import { TeacherView } from './components/TeacherView';
 import { SecurityView } from './components/SecurityView';
 import { AdminView } from './components/AdminView';
+import { SchoolManagement } from './components/SchoolManagement';
+import { api } from './services/api';
 import { NotificationsModal } from './components/NotificationsModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
@@ -16,6 +18,22 @@ export const AppContent: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [platformUserId, setPlatformUserId] = useState<string | null>(null);
+  const [showSchoolManagement, setShowSchoolManagement] = useState(false);
+  const canManageSchools = !!currentUser && platformUserId === currentUser.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    setPlatformUserId(null);
+    setShowSchoolManagement(false);
+    if (currentUser?.id) {
+      const userId = currentUser.id;
+      api.getPlatformCapabilities().then((result) => {
+        if (!cancelled && result.manageSchools) setPlatformUserId(userId);
+      }).catch(() => undefined);
+    }
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     setShowAdminModal(currentUser?.role === 'admin');
@@ -43,6 +61,7 @@ export const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900"><a href="#main-content" className="skip-link">İçeriğe geç</a>
       <Navbar
+        onManageSchools={canManageSchools ? () => setShowSchoolManagement(true) : undefined}
         onOpenNotifications={() => setShowNotifications(true)}
         onOpenAdmin={() => setShowAdminModal(true)}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
@@ -98,7 +117,7 @@ export const AppContent: React.FC = () => {
       )}
 
       {showAdminModal && (
-        <AdminView onClose={() => setShowAdminModal(false)} />
+        <AdminView onClose={() => setShowAdminModal(false)} onManageSchools={canManageSchools ? () => setShowSchoolManagement(true) : undefined} />
       )}
 
       {showOnboardingModal && (
@@ -107,6 +126,7 @@ export const AppContent: React.FC = () => {
           onClose={() => setShowOnboardingModal(false)}
         />
       )}
+      {canManageSchools && showSchoolManagement && <SchoolManagement onClose={() => setShowSchoolManagement(false)} />}
     </div>
   );
 };

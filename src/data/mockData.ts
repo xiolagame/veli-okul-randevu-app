@@ -1,3 +1,4 @@
+import { getIstanbulDate } from '../utils/dates';
 import {
   User,
   TeacherProfile,
@@ -153,8 +154,8 @@ export const INITIAL_AVAILABILITY: AvailabilitySlot[] = [
 ];
 
 // Helper to get formatted today date
-const todayObj = new Date();
-export const getTodayDateString = () => todayObj.toISOString().split('T')[0];
+
+export const getTodayDateString = () => getIstanbulDate();
 
 const getFutureDateString = (daysAhead: number) => {
   const d = new Date();

@@ -74,6 +74,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),
+  getManagedSchools: () => request<{ schools: import('../types/platform').ManagedSchool[] }>('/api/platform/schools'),
+  createSchool: (data: { name: string; code: string; city: string; district: string }) =>
+    request<{ school: import('../types/platform').ManagedSchool }>('/api/platform/schools', { method: 'POST', body: JSON.stringify(data) }),
+  setSchoolStatus: (id: string, active: boolean) =>
+    request<{ success: boolean }>(`/api/platform/schools/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
   updateManagedRecord: (schoolId: string, kind: string, id: string, data: Record<string, string>) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),

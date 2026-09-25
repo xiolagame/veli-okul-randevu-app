@@ -44,7 +44,7 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged }: Pro
     {success && <p role="status" className="text-sm mt-2">{success}</p>}
     {mode && <Dialog title={`${titles[kind]} — ${mode === 'edit' ? 'Bilgileri düzenle' : 'Okuldan kaldır'}`} onClose={() => { if (!busy) setMode(null); }} dismissible={!busy}>
       <form onSubmit={submit} className="form-stack">
-        {mode === 'remove' ? <Alert tone="warning">Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. Devam etmek istiyor musunuz?</Alert> :
+        {mode === 'remove' ? <Alert tone="warning">Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. {kind === 'teacher' && 'Bu öğretmene ait aktif randevular otomatik olarak iptal edilecektir. '}Devam etmek istiyor musunuz?</Alert> :
           Object.entries(draft).map(([key, value]) => <label className="field" key={key}>{labels[key]}
             <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : 'text'} required={key !== 'studentNumber'} value={value}
               maxLength={key === 'phone' || key === 'parentPhone' ? 30 : key === 'className' || key === 'studentNumber' ? 50 : key === 'branch' ? 100 : 150}

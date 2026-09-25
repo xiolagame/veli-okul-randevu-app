@@ -5,9 +5,11 @@ import { ManagementActions } from './ManagementActions';
 import { Alert, Button, Skeleton } from './ui';
 import { SchoolRosterRecord } from '../types';
 import { normalizeTurkishPhone } from '../utils/phone';
+import { parentsInClass } from '../utils/admin-filters';
 
-export function ParentManagement({ schoolId, roster, search, onIssue, onChanged }: {
+export function ParentManagement({ schoolId, roster, search, selectedClass, onClassesChange, onIssue, onChanged }: {
   schoolId: string; roster: SchoolRosterRecord[]; search: string;
+  selectedClass: string; onClassesChange: (classes: string[]) => void;
   onIssue: (record: SchoolRosterRecord) => void; onChanged: () => Promise<void>;
 }) {
   const [parents, setParents] = useState<ManagedParent[]>([]);
@@ -19,6 +21,9 @@ export function ParentManagement({ schoolId, roster, search, onIssue, onChanged 
     setParents(result.parents);
   }, [schoolId]);
   useEffect(() => {
+    onClassesChange([...new Set(parents.flatMap((parent) => parent.students.map((student) => student.className)))]);
+  }, [parents, onClassesChange]);
+  useEffect(() => {
     let cancelled = false;
     api.getManagedParents(schoolId).then((result) => { if (!cancelled) setParents(result.parents); })
       .catch(() => { if (!cancelled) setError('Veli bilgileri yüklenemedi.'); })
@@ -29,10 +34,13 @@ export function ParentManagement({ schoolId, roster, search, onIssue, onChanged 
   if (error) return <Alert tone="danger">{error}<Button onClick={() => { void load().catch(() => setError('Veli bilgileri yüklenemedi.')); }}>Tekrar dene</Button></Alert>;
   const refresh = async () => { await load(); await onChanged(); };
   const query = search.trim().toLocaleLowerCase('tr-TR');
-  return <div className="grid gap-4 lg:grid-cols-2">{parents.filter((parent) =>
+  if (!selectedClass) return <Alert>Öğrenci ve veli kayıtlarını görmek için önce sınıf seçin.</Alert>;
+  const visibleParents = parentsInClass(parents, selectedClass).filter((parent) =>
     [parent.fullName, parent.phone, ...parent.students.flatMap((student) => [student.name, student.className, student.studentNumber])]
       .join(' ').toLocaleLowerCase('tr-TR').includes(query)
-  ).map((parent) => <article className="surface" key={parent.id}>
+  );
+  if (!visibleParents.length) return <Alert>Bu sınıfta aramanıza uygun aktif hesap kaydı bulunamadı. Bekleyen kütük kayıtları aşağıdadır.</Alert>;
+  return <div className="grid gap-4 lg:grid-cols-2">{visibleParents.map((parent) => <article className="surface" key={parent.id}>
     <h3>{parent.fullName}</h3><p>{parent.phone}</p><p>{parent.status === 'active' ? 'Aktif veli' : 'Okul erişimi kapalı'}</p>
     <ManagementActions schoolId={schoolId} kind="parent" id={parent.id} values={{ fullName: parent.fullName, phone: parent.phone }} onChanged={refresh} />
     {parent.status === 'active' && roster.some((record) => normalizeTurkishPhone(record.parentPhone) === normalizeTurkishPhone(parent.phone)) &&

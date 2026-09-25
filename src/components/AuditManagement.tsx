@@ -1,3 +1,4 @@
+import { formatDateTime, formatDatesInText } from '../utils/dates';
 import React, { useRef, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { Alert, Button, Dialog, EmptyState } from './ui';
@@ -16,6 +17,10 @@ const events: Record<string, { label: string; tone: string }> = {
   'student.updated': { label: 'Öğrenci güncellendi', tone: 'info' },
   'security.updated': { label: 'Personel güncellendi', tone: 'info' },
   'roster.updated': { label: 'Kütük güncellendi', tone: 'info' },
+  'teacher.removed': { label: 'Öğretmen erişimi kaldırıldı', tone: 'rose' },
+  'school.created': { label: 'Okul oluşturuldu', tone: 'success' },
+  'school.disabled': { label: 'Okul devre dışı', tone: 'warning' },
+  'school.enabled': { label: 'Okul etkinleştirildi', tone: 'success' },
 };
 
 export function AuditManagement({ schoolId, logs, onChanged }: { schoolId: string; logs: AuditLogItem[]; onChanged: () => Promise<void> }) {
@@ -37,7 +42,7 @@ export function AuditManagement({ schoolId, logs, onChanged }: { schoolId: strin
     {logs.length ? logs.map((log) => {
       const event = events[log.action] || { label: log.action, tone: 'neutral' };
       return <article key={log.id} className="py-5 border-b"><span className={`status-badge tone-${event.tone}`}>{event.label}</span>
-        <p className="mt-2">{log.details}</p><p className="text-xs text-slate-500">{log.actorName} · {log.timestamp}</p></article>;
+        <p className="mt-2">{formatDatesInText(log.details)}</p><p className="text-xs text-slate-500">{log.actorName} · {formatDateTime(log.timestamp)}</p></article>;
     }) : <EmptyState icon={FileText} title="Henüz bir işlem kaydı yok" />}
     {confirm && <Dialog title="İşlem günlüğünü temizle" onClose={() => { if (!busy) setConfirm(false); }} dismissible={!busy}>
       <Alert tone="warning">Yalnızca bu okulun işlem günlüğü kalıcı olarak temizlenecek. Bu işlem geri alınamaz.</Alert>

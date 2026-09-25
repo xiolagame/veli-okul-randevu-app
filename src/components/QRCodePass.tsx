@@ -1,3 +1,4 @@
+import { formatDate, formatDateTime } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
 import { Appointment } from '../types';
 import QRCode from 'qrcode';
@@ -27,7 +28,7 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
   const statusMessage = {
     pending: 'Öğretmen onayı bekleniyor. Bu kart henüz giriş izni vermez.',
     booked: 'Randevunuz onaylandı. Girişte bu QR kodu güvenlik görevlisine gösterin.',
-    checked_in: `Okula girişiniz kaydedildi${appointment.checkedInAt ? ` · ${appointment.checkedInAt}` : ''}.`,
+    checked_in: `Okula girişiniz kaydedildi${appointment.checkedInAt ? ` · ${formatDateTime(appointment.checkedInAt)}` : ''}.`,
     checked_out: 'Ziyaretiniz tamamlandı. İyi günler dileriz.',
     cancelled: 'Bu randevu iptal edildi. Giriş için kullanılamaz.',
     rejected: 'Öğretmeniniz bu randevuyu onaylamadı. Giriş için kullanılamaz.',
@@ -44,7 +45,7 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
       <div><dt>Öğretmen</dt><dd>{appointment.teacherName}<span className="block font-normal text-xs text-slate-500">{appointment.teacherBranch}</span></dd></div>
       <div><dt>Öğrenci</dt><dd>{appointment.studentName} · {appointment.className}</dd></div>
       <div><dt>Veli</dt><dd>{appointment.parentName}</dd></div>
-      <div><dt>Tarih</dt><dd>{appointment.date}</dd></div>
+      <div><dt>Tarih</dt><dd>{formatDate(appointment.date)}</dd></div>
       <div><dt>Saat</dt><dd>{appointment.startTime} – {appointment.endTime}</dd></div>
     </dl>
     <p className="field-hint text-center mt-6">Girişte randevu durumunuz ve saatiniz yeniden kontrol edilir.</p>

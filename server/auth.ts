@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { userRepository, membershipRepository } from './repositories';
+import { userRepository, membershipRepository, schoolRepository } from './repositories';
 import { UserRole, SchoolMembership } from '../src/types';
 
 const configuredSecret = process.env.JWT_SECRET?.trim();
@@ -132,7 +132,7 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
         return res.status(400).json({ error: 'Okul bağlamı (X-School-Id) eksik veya geçersiz' });
       }
 
-      const membership = await membershipRepository.getActiveMembership(req.user.id, schoolId);
+      const membership = await requireSchoolMembership(req.user.id, schoolId);
 
       if (!membership) {
         return res.status(403).json({
@@ -174,6 +174,7 @@ export function getAuthorizedSchool(req: AuthenticatedRequest): string {
  * Ensures user has an active membership in the school.
  */
 export async function requireSchoolMembership(userId: string, schoolId: string): Promise<SchoolMembership | null> {
+  if (!await schoolRepository.getById(schoolId)) return null;
   return membershipRepository.getActiveMembership(userId, schoolId);
 }
 

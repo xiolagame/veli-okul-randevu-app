@@ -64,6 +64,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
   try {
     const db = await getDb();
     await db.transaction(async (tx) => {
+      let cancelledAppointments = 0;
       await tx.query('SELECT id FROM schools WHERE id = $1 FOR UPDATE', [schoolId]);
       if (kind === 'roster') {
         const parentName = textField(req.body.parentName, 150);
@@ -138,18 +139,21 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         }
         if (removing) {
           if (kind === 'teacher') {
-            const future = await tx.query<{ id: string }>(
-              `SELECT id FROM appointments WHERE school_id=$1 AND teacher_id=$2
-               AND (status='checked_in' OR (status IN ('pending','booked') AND date >= CURRENT_DATE::text)) LIMIT 1`, [schoolId, id]);
-            if (future.rows.length) throw new ManagementError(409, 'Önce açık veya yaklaşan randevuları sonuçlandırın.');
+            const cancelled = await tx.query<{ id: string }>(
+              `UPDATE appointments SET status='cancelled', updated_at=NOW(),
+                 notes=concat_ws(E'\n', NULLIF(notes,''), 'Sistem: Öğretmenin okul erişimi kaldırıldığı için iptal edildi.')
+               WHERE school_id=$1 AND teacher_id=$2
+                 AND (status='checked_in' OR (status IN ('pending','booked')
+                   AND date >= to_char(NOW() AT TIME ZONE 'Europe/Istanbul','YYYY-MM-DD')))
+               RETURNING id`, [schoolId, id]);
+            cancelledAppointments = cancelled.rows.length;
           }
           if (userId) {
             await tx.query(`UPDATE school_memberships SET status='inactive', updated_at=NOW()
               WHERE school_id=$1 AND user_id=$2 AND role=$3`, [schoolId, userId, kind]);
           } else {
             const history = await tx.query('SELECT id FROM appointments WHERE school_id=$1 AND teacher_id=$2 LIMIT 1', [schoolId, id]);
-            if (history.rows.length) throw new ManagementError(409, 'Geçmişi bulunan bağlantısız profil kaldırılamaz.');
-            await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2 AND user_id IS NULL', [schoolId, id]);
+            if (!history.rows.length) await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2 AND user_id IS NULL', [schoolId, id]);
           }
           await revokeCodes(tx, schoolId, oldPhone, kind);
         } else {
@@ -210,7 +214,8 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
       }
       await auditLogRepository.createAuditLog({
         schoolId, action: `${kind}.${removing ? 'removed' : 'updated'}`,
-        actorName: 'Okul yönetimi', details: JSON.stringify({ id }),
+        actorName: 'Okul yönetimi', details: JSON.stringify({ id, ...(kind === 'teacher' && removing
+          ? { cancelledAppointments, reason: 'Öğretmenin okul erişimi kaldırıldı.' } : {}) }),
       }, tx);
     });
     return res.json({ success: true });

@@ -93,7 +93,7 @@ export type AuthCodePurpose =
 export const schoolRepository = {
   async getAll(): Promise<School[]> {
     const res = await execQuery<any>(
-      `SELECT id, name, code, city, district, settings, created_at FROM schools ORDER BY name ASC;`
+      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE disabled_at IS NULL ORDER BY name ASC;`
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -108,7 +108,7 @@ export const schoolRepository = {
 
   async getById(id: string): Promise<School | null> {
     const res = await execQuery<any>(
-      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE id = $1;`,
+      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE id = $1 AND disabled_at IS NULL;`,
       [id]
     );
     if (res.rows.length === 0) return null;
@@ -129,7 +129,7 @@ export const schoolRepository = {
     const res = await execQuery<any>(
       `SELECT id, name, code, city, district, settings, created_at 
        FROM schools 
-       WHERE UPPER(code) = $1 OR id = $2;`,
+       WHERE (UPPER(code) = $1 OR id = $2) AND disabled_at IS NULL;`,
       [clean, code.toLowerCase()]
     );
     if (res.rows.length === 0) return null;
@@ -383,7 +383,7 @@ export const membershipRepository = {
               s.name as school_name, s.code as school_code, s.city, s.district
        FROM school_memberships sm
        JOIN schools s ON s.id = sm.school_id
-       WHERE sm.user_id = $1 AND sm.status = 'active'
+       WHERE sm.user_id = $1 AND sm.status = 'active' AND s.disabled_at IS NULL
        ORDER BY sm.joined_at DESC;`,
       [userId]
     );
@@ -408,7 +408,7 @@ export const membershipRepository = {
               s.name as school_name, s.code as school_code, s.city, s.district
        FROM school_memberships sm
        JOIN schools s ON s.id = sm.school_id
-       WHERE sm.user_id = $1 AND sm.school_id = $2 AND sm.status = 'active'
+       WHERE sm.user_id = $1 AND sm.school_id = $2 AND sm.status = 'active' AND s.disabled_at IS NULL
        LIMIT 1;`,
       [userId, schoolId],
       client
@@ -435,6 +435,7 @@ export const membershipRepository = {
       `SELECT id, school_id, user_id, role, branch, status, joined_at
        FROM school_memberships
        WHERE role = $1 AND status = 'active'
+         AND EXISTS (SELECT 1 FROM schools s WHERE s.id=school_memberships.school_id AND s.disabled_at IS NULL)
        LIMIT 1;`,
       [role]
     );
@@ -1319,7 +1320,7 @@ export const notificationRepository = {
       userId: r.user_id,
       title: r.title,
       message: r.message,
-      date: r.date,
+      date: new Date(r.created_at).toISOString(),
       read: r.read,
       appointmentId: r.appointment_id || undefined,
     }));
@@ -1348,7 +1349,7 @@ export const notificationRepository = {
     client?: TransactionClient
   ): Promise<NotificationItem> {
     const id = notif.id || 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const dateStr = notif.date || 'Şimdi';
+    const dateStr = notif.date || new Date().toISOString();
 
     const res = await execQuery<any>(
       `INSERT INTO notifications (id, school_id, user_id, title, message, date, read, appointment_id)
@@ -1386,7 +1387,7 @@ export const auditLogRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      timestamp: r.timestamp,
+      timestamp: new Date(r.created_at).toISOString(),
       action: r.action,
       actorName: r.actor_name,
       details: r.details,
@@ -1407,7 +1408,7 @@ export const auditLogRepository = {
     const id = log.id || 'log-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const time =
       log.timestamp ||
-      new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      new Date().toISOString();
 
     const res = await execQuery<any>(
       `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, details)

@@ -1,0 +1,1 @@
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMPTZ;

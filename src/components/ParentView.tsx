@@ -1,3 +1,4 @@
+import { formatDate, formatDateTime, formatDatesInText, getIstanbulDate } from '../utils/dates';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
@@ -42,7 +43,7 @@ export const ParentView: React.FC = () => {
   const [bookingDate, setBookingDate] = useState<string>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return getIstanbulDate(tomorrow);
   });
   const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<string>(
@@ -196,7 +197,7 @@ export const ParentView: React.FC = () => {
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch}</p></div><StatusBadge status={appointment.status} /></div>
-        <div className="detail-row"><span><Calendar size={15} />{appointment.date}</span><span><User size={15} />{appointment.studentName} · {appointment.className}</span></div>
+        <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><span><User size={15} />{appointment.studentName} · {appointment.className}</span></div>
         {appointment.rejectionReason && <p className="mt-3 text-red-700">{appointment.rejectionReason}</p>}
         {appointment.notes && <p className="mt-3">Notunuz: {appointment.notes}</p>}
         <div className="appointment-actions">
@@ -223,7 +224,7 @@ export const ParentView: React.FC = () => {
 
       {activeTab === 'home' && <div className="space-y-7">
         {nextAppointment ? <section className="hero-card">
-          <div><p className="eyebrow">SIRADAKİ GÖRÜŞMENİZ</p><StatusBadge status={nextAppointment.status} /><h2>{nextAppointment.teacherName}</h2><p>{nextAppointment.teacherBranch} · {nextAppointment.studentName}</p><div className="detail-row"><span><Calendar size={16} />{nextAppointment.date}</span><span><Clock size={16} />{nextAppointment.startTime} – {nextAppointment.endTime}</span></div></div>
+          <div><p className="eyebrow">SIRADAKİ GÖRÜŞMENİZ</p><StatusBadge status={nextAppointment.status} /><h2>{nextAppointment.teacherName}</h2><p>{nextAppointment.teacherBranch} · {nextAppointment.studentName}</p><div className="detail-row"><span><Calendar size={16} />{formatDate(nextAppointment.date)}</span><span><Clock size={16} />{nextAppointment.startTime} – {nextAppointment.endTime}</span></div></div>
           <Button onClick={() => setSelectedPassAppointment(nextAppointment)}><QrCode size={19} />Giriş kartını aç</Button>
         </section> : <section className="hero-card"><div><p className="eyebrow">BİR GÖRÜŞMEYLE BAŞLAR</p><h2>Gelişimini birlikte destekleyin.</h2><p>Öğretmeninizle görüşmek için size uygun bir zaman seçin.</p><Button className="mt-6" onClick={() => setActiveTab('teachers')}>İlk randevunuzu planlayın<ArrowRight size={18} /></Button></div><span className="hero-symbol"><Calendar size={40} strokeWidth={1.5} /></span></section>}
         <div className="metric-grid"><Metric label="Aktif randevu" value={upcomingAppointments.length} icon={Calendar} /><Metric label="Öğrencilerim" value={currentUser?.students?.length || 0} icon={Users} /><Metric label="Geçmiş randevu" value={pastAppointments.length} icon={CheckCircle2} /></div>
@@ -249,7 +250,7 @@ export const ParentView: React.FC = () => {
 
       {activeTab === 'notifications' && <section className="surface">
         <div className="section-heading"><h2>Okulunuzdan haberler</h2><Button variant="quiet" onClick={markNotificationsAsRead}>Tümünü okundu işaretle</Button></div>
-        {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><h3 className="font-bold text-sm">{notification.title}{!notification.read && <span className="ml-2 text-blue-700 text-xs">Yeni</span>}</h3><p className="text-sm text-slate-600 mt-2">{notification.message}</p><p className="text-xs text-slate-500 mt-2">{notification.date}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
+        {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><h3 className="font-bold text-sm">{notification.title}{!notification.read && <span className="ml-2 text-blue-700 text-xs">Yeni</span>}</h3><p className="text-sm text-slate-600 mt-2">{formatDatesInText(notification.message)}</p><p className="text-xs text-slate-500 mt-2">{formatDateTime(notification.date)}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
       </section>}
 
       {activeTab === 'profile' && <div className="max-w-2xl space-y-6">
@@ -267,10 +268,10 @@ export const ParentView: React.FC = () => {
           <label className="field" htmlFor="booking-student">Hangi öğrenciniz için?
             {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <input id="booking-student" value={selectedStudent} onChange={(event) => setSelectedStudent(event.target.value)} required />}
           </label>
-          <label className="field" htmlFor="booking-date">Görüşme tarihi<input id="booking-date" type="date" value={bookingDate} onChange={(event) => { setBookingDate(event.target.value); setSelectedSlotTime(''); }} min={new Date().toISOString().split('T')[0]} required /></label>
+          <label className="field" htmlFor="booking-date">Görüşme tarihi<input id="booking-date" type="date" value={bookingDate} onChange={(event) => { setBookingDate(event.target.value); setSelectedSlotTime(''); }} min={getIstanbulDate()} required /></label>
           <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend><div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" disabled={slot.isBooked} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>
           <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
-          {selectedSlotTime && <Alert>{bookingDate} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
+          {selectedSlotTime && <Alert>{formatDate(bookingDate)} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
           <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
         </form>}
       </Dialog>}

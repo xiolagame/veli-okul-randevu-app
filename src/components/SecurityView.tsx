@@ -1,3 +1,4 @@
+import { formatDate, formatDateTime, formatDatesInText } from '../utils/dates';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, EmptyState, PageHeader, StatusBadge } from './ui';
 import { useApp } from '../context/AppContext';
@@ -191,7 +192,7 @@ export const SecurityView: React.FC = () => {
 
   return (
     <main id="main-content" className="page-shell">
-      <PageHeader eyebrow="GÜVENLİK NOKTASI" title="Güvenli bir karşılama." description={`${settings.schoolName} · ${todayStr}`} />
+      <PageHeader eyebrow="GÜVENLİK NOKTASI" title="Güvenli bir karşılama." description={`${settings.schoolName} · ${formatDate(todayStr)}`} />
       <div className="grid gap-6 items-start">
         <section className="security-scanner">
           {!verifyResult && !error && <>
@@ -206,9 +207,9 @@ export const SecurityView: React.FC = () => {
               <button type="button" className="camera-result-close" aria-label="Sonucu kapat" disabled={busy} onClick={resetResult}><X size={21} /></button>
               {busy && !verifyResult && !error ? <><QrCode className="camera-result-icon" /><h2>QR KOD DOĞRULANIYOR</h2><p>Lütfen bekleyin.</p></> : verifyResult ? <>
                 {verifyResult.allowed ? <CheckCircle2 className="camera-result-icon" /> : <AlertTriangle className="camera-result-icon" />}
-                <h2>{verifyResult.title}</h2><p>{verifyResult.message}</p>
+                <h2>{verifyResult.title}</h2><p>{formatDatesInText(verifyResult.message)}</p>
                 {error && <p role="alert">{error}</p>}
-                {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Tarih</dt><dd>{verifyResult.appointment.date}</dd></div><div><dt>Saat</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div>{verifyResult.decision === 'ALREADY_CHECKED_IN' && verifyResult.appointment.checkedInAt && <div><dt>Giriş zamanı</dt><dd>{verifyResult.appointment.checkedInAt}</dd></div>}</dl>}
+                {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Tarih</dt><dd>{formatDate(verifyResult.appointment.date)}</dd></div><div><dt>Saat</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div>{verifyResult.decision === 'ALREADY_CHECKED_IN' && verifyResult.appointment.checkedInAt && <div><dt>Giriş zamanı</dt><dd>{formatDateTime(verifyResult.appointment.checkedInAt)}</dd></div>}</dl>}
                 {verifyResult.allowed && !checkInComplete && <Button className="w-full" disabled={busy} onClick={handleCheckIn}><LogIn size={19} />Girişi Kaydet</Button>}
                 <Button variant="secondary" className="w-full" disabled={busy} onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button>
               </> : <><AlertTriangle className="camera-result-icon" /><h2>QR DOĞRULANAMADI</h2><p>{error}</p><Button className="w-full" onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button></>}

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { adminManagementRouter } from './admin-management';
+import { platformManagementRouter } from './platform-management';
 import crypto from 'crypto';
 import {
   AuthenticatedRequest,
@@ -37,6 +38,7 @@ import {
 
 export const apiRouter = Router();
 apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
+apiRouter.use('/platform', platformManagementRouter);
 
 // ==========================================
 // PRODUCTION HEALTH CHECK (PostgreSQL Status)
@@ -132,6 +134,8 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
     const db = await getDb();
     await db.transaction(async (tx) => {
       const rosterEntries = await rosterRepository.checkPhone(schoolId, cleanPhone, tx);
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_AUTH_CODE');
       const existingUser = await userRepository.getByPhone(cleanPhone, tx);
 
       const consumed = await invitationRepository.consumeAuthCode(
@@ -220,6 +224,8 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
     const db = await getDb();
     await db.transaction(async (tx) => {
       const user = await userRepository.getByPhone(cleanPhone, tx);
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_AUTH_CODE');
       if (!user) throw new Error('INVALID_AUTH_CODE');
       const consumed = await invitationRepository.consumeAuthCode(
         { schoolId, targetPhone: cleanPhone, targetUserId: user.id, purpose: 'PASSWORD_RESET', codeHash },

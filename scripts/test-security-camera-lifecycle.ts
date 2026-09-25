@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as dates from '../src/utils/dates';
 
 interface ElementNode { type: unknown; props: Record<string, unknown>; children: unknown[] }
 const hooks: unknown[] = [];
@@ -52,6 +53,7 @@ vm.runInNewContext(javascript, {
     if (name === 'qr-scanner') return FakeScanner;
     if (name.includes('AppContext')) return { useApp: () => context };
     if (name.includes('mockData')) return { getTodayDateString: () => '2090-01-02' };
+    if (name === '../utils/dates') return dates;
     if (name === './ui' || name === 'lucide-react') return new Proxy({}, { get: (_, key) => String(key) });
     throw new Error('Unexpected dependency');
   },

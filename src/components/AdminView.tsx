@@ -1,3 +1,5 @@
+import { formatDate, formatDateTime, getIstanbulDate } from '../utils/dates';
+import { appointmentsOnDate } from '../utils/admin-filters';
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
@@ -7,7 +9,6 @@ import {
   Settings as SettingsIcon,
   FileText,
   X,
-  Search,
   CheckCircle2,
   Clock,
   GraduationCap,
@@ -23,10 +24,11 @@ import { AuditManagement } from './AuditManagement';
 import { ManagementActions } from './ManagementActions';
 
 interface AdminViewProps {
+  onManageSchools?: () => void;
   onClose: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }) => {
   const {
     currentSchool,
     refreshSchoolData,
@@ -48,6 +50,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'roster' | 'isolation' | 'users' | 'appointments' | 'settings' | 'audit'
   >('dashboard');
+
+  const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
+  const [selectedClass, setSelectedClass] = useState('');
+  const [parentClasses, setParentClasses] = useState<string[]>([]);
+  const classOptions = [...new Set([...parentClasses, ...roster.map((record) => record.className)])].sort((left, right) => left.localeCompare(right, 'tr', { numeric: true }));
+  const datedAppointments = appointmentsOnDate(appointments, selectedDate);
 
   // Roster Filter
   const [rosterSearch, setRosterSearch] = useState('');
@@ -83,6 +91,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     setGeneratedAuthCode(null);
     setAuthCodeError('');
     setCopyMessage('');
+    setSelectedClass('');
+    setParentClasses([]);
+    setSelectedDate(getIstanbulDate());
     return () => { codeRequestSequence.current += 1; };
   }, [currentSchool?.id]);
 
@@ -176,7 +187,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   };
 
   const filteredRoster = roster.filter((r) => {
-    if (r.isClaimed) return false;
+    if (r.isClaimed || !selectedClass || r.className !== selectedClass) return false;
     return (
       r.studentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
       r.parentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
@@ -217,9 +228,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">OKUL YÖNETİMİ</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <label className="admin-mobile-nav" htmlFor="admin-section"><span className="sr-only">Yönetim bölümü</span><select id="admin-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}>{navigation.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <main id="main-content" className="admin-content">
+          {onManageSchools && <Button variant="secondary" className="mb-5" onClick={onManageSchools}>Okul Yönetimi (Platform)</Button>}
           {activeTab === 'dashboard' && <div className="space-y-7">
             <section className="hero-card"><div><p className="eyebrow">OKULUNUZ BİR BAKIŞTA</p><h2>İletişim güçlü, işler düzenli.</h2><p>Görüşmeleri ve okulunuzun hesaplarını tek yerden yönetin.</p></div><Button onClick={() => setActiveTab('users')}><Users size={18} />Personeli yönet</Button></section>
-            <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü randevu" value={appointments.filter((appointment) => appointment.date === new Date().toLocaleDateString('en-CA')).length} /><Metric icon={Clock} label="Onay bekleyen" value={appointments.filter((appointment) => appointment.status === 'pending').length} /><Metric icon={GraduationCap} label="Öğretmen" value={teachers.length} /></div>
+            <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü randevu" value={appointments.filter((appointment) => appointment.date === getIstanbulDate()).length} /><Metric icon={Clock} label="Onay bekleyen" value={appointments.filter((appointment) => appointment.status === 'pending').length} /><Metric icon={GraduationCap} label="Öğretmen" value={teachers.length} /></div>
             <div className="grid lg:grid-cols-2 gap-6">
               <section className="surface"><div className="section-heading"><div><h3>Hesap yönetimi</h3><p>Okulunuzdaki mevcut kayıtlar</p></div><Users size={21} className="text-blue-700" /></div><dl className="pass-details"><div><dt>Aktif öğretmen hesabı</dt><dd>{teachers.filter((teacher) => teacher.accountStatus === 'active').length}</dd></div><div><dt>Aktivasyon bekleyen personel</dt><dd>{usersLoading || usersError ? '—' : [...teachers, ...users].filter((record) => record.accountStatus === 'pending').length}</dd></div><div><dt>Güvenlik personeli</dt><dd>{usersLoading || usersError ? '—' : users.length}</dd></div><div><dt>Öğrenci–veli kütüğü</dt><dd>{roster.length}</dd></div></dl><Button variant="quiet" className="mt-5" onClick={() => setActiveTab('roster')}>Öğrenci ve veli kayıtlarını aç</Button></section>
               <section className="surface"><div className="section-heading"><h3>Görüşmelerin durumu</h3></div><div className="space-y-4">{(['pending', 'booked', 'checked_in', 'checked_out'] as const).map((status) => <div key={status} className="flex items-center justify-between gap-4"><StatusBadge status={status} /><strong className="text-xl">{appointments.filter((appointment) => appointment.status === status).length}</strong></div>)}</div><Button variant="quiet" className="mt-5" onClick={() => setActiveTab('appointments')}>Tüm randevuları aç</Button></section>
@@ -227,16 +239,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           </div>}
 
           {activeTab === 'roster' && <section className="space-y-5">
-            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} roster={roster} search={rosterSearch}
+            <label className="field" htmlFor="parent-class">Sınıf seçin<select id="parent-class" value={selectedClass} onChange={(event) => setSelectedClass(event.target.value)}>
+              <option value="">Önce sınıf seçin</option>{classOptions.map((className) => <option key={className} value={className}>{className}</option>)}
+            </select></label>
+            <label className="field" htmlFor="parent-search">Seçili sınıfta ara<input id="parent-search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="Öğrenci, veli veya telefon" /></label>
+            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} roster={roster} search={rosterSearch} selectedClass={selectedClass} onClassesChange={setParentClasses}
               onChanged={refreshSchoolData} onIssue={(record) => { setAuthCodeRoster(record); setAuthCodePurpose('PASSWORD_RESET'); setGeneratedAuthCode(null); setAuthCodeError(''); }} />}
             <div className="section-heading"><div><h3>Öğrenci ve veli kütüğü</h3><p>Okul kayıtlarını ve velilerin hesap aktivasyonlarını yönetin.</p></div><Button onClick={() => { setFormError(''); setShowUploadModal(true); }}><Upload size={17} />Toplu kayıt ekle</Button></div>
-            <label className="field" htmlFor="roster-search">Kayıtlarda ara<div className="field-icon"><Search size={18} /><input id="roster-search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="Öğrenci, veli, telefon veya sınıf" /></div></label>
-            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-semibold">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif' : 'Bekliyor'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button>{currentSchool && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={roster.length ? 'Eşleşen kayıt bulunamadı' : 'Kütüğünüz henüz boş'} description="Kayıt ekleyebilir veya farklı bir arama yapabilirsiniz." /></div>}
+            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-semibold">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif' : 'Bekliyor'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button>{currentSchool && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={!selectedClass ? 'Önce sınıf seçin' : 'Bu sınıfta eşleşen bekleyen kayıt bulunamadı'} description="Kayıt ekleyebilir veya farklı bir arama yapabilirsiniz." /></div>}
           </section>}
 
           {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} onIssue={(target, purpose) => { setAuthCodeTarget(target); setAuthCodePurpose(purpose); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); setCopyMessage(''); }} />}
 
-          {activeTab === 'appointments' && <section className="space-y-5"><div className="section-heading"><div><h3>Okulunuzun tüm görüşmeleri</h3><p>{appointments.length} randevu kaydı</p></div></div>{appointments.length ? appointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.date}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title="Henüz randevu bulunmuyor" description="Okulunuzda oluşturulan görüşmeler burada listelenecek." /></div>}</section>}
+          {activeTab === 'appointments' && <section className="space-y-5">
+            <div className="section-heading"><div><h3>Okulunuzun görüşmeleri</h3><p>{formatDate(selectedDate)} · {datedAppointments.length} randevu</p></div></div>
+            <div className="flex flex-wrap items-end gap-3"><label className="field" htmlFor="admin-appointment-date">Görüşme tarihi<input id="admin-appointment-date" type="date" required value={selectedDate} onChange={(event) => setSelectedDate(event.target.value || getIstanbulDate())} /></label><Button variant="secondary" onClick={() => setSelectedDate(getIstanbulDate())}>Bugün</Button></div>
+            {datedAppointments.length ? datedAppointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{formatDate(appointment.date)}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title="Seçili günde randevu bulunmuyor" description="Başka bir tarih seçerek o günün görüşmelerini görebilirsiniz." /></div>}
+          </section>}
 
           {activeTab === 'settings' && <section className="surface max-w-2xl"><div className="section-heading"><div><h3>Okul ve görüşme ayarları</h3><p>Okulunuzun randevu tercihlerini düzenleyin.</p></div></div><form onSubmit={handleSaveSettings} className="form-stack">
             <label className="field" htmlFor="settings-school">Okul adı<input id="settings-school" value={schoolNameInput} onChange={(event) => setSchoolNameInput(event.target.value)} /></label>
@@ -258,7 +277,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           {!generatedAuthCode ? <div className="form-stack"><p className="text-sm text-slate-600">Yeni kod oluşturulduğunda aynı amaçla verilen önceki kullanılmamış kod iptal edilir.</p><label className="field" htmlFor="code-purpose">Kod türü<select id="code-purpose" disabled={!!authCodeTarget} value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')}><option value="ACCOUNT_ACTIVATION">Hesap aktivasyonu</option><option value="PASSWORD_RESET">Parola sıfırlama</option></select></label>{authCodeError && <Alert tone="danger">{authCodeError}</Alert>}<div className="form-actions"><Button variant="secondary" disabled={isCreatingAuthCode} onClick={closeCode}>Vazgeç</Button><Button disabled={isCreatingAuthCode} onClick={handleCreateAuthCode}>{isCreatingAuthCode ? 'Oluşturuluyor…' : 'Kod oluştur'}</Button></div></div> : <>
             <Alert tone="success">Kod oluşturuldu.</Alert><div className="code-display">{generatedAuthCode.code}</div>
             <Button variant="secondary" className="w-full" onClick={async () => { try { await navigator.clipboard.writeText(generatedAuthCode.code); setCopyMessage('Kod kopyalandı.'); } catch { setCopyMessage('Kopyalanamadı. Kodu seçerek kopyalayabilirsiniz.'); } }}>Kodu kopyala</Button>
-            <p role="status" className="text-sm text-center text-blue-700 my-3">{copyMessage}</p><Alert tone="warning">Bu kod tek kullanımlıktır ve yalnızca burada gösterilir. İlgili kişiye güvenli bir kanaldan iletin.</Alert><p className="text-xs text-center text-slate-500 my-5">Son kullanım: {new Date(generatedAuthCode.expiresAt).toLocaleString('tr-TR')}</p><Button className="w-full" onClick={closeCode}>Tamam</Button>
+            <p role="status" className="text-sm text-center text-blue-700 my-3">{copyMessage}</p><Alert tone="warning">Bu kod tek kullanımlıktır ve yalnızca burada gösterilir. İlgili kişiye güvenli bir kanaldan iletin.</Alert><p className="text-xs text-center text-slate-500 my-5">Son kullanım: {formatDateTime(generatedAuthCode.expiresAt)}</p><Button className="w-full" onClick={closeCode}>Tamam</Button>
           </>}
         </Dialog>}
       </section>
