@@ -74,6 +74,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
+  importRoster: (schoolId: string, className: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
+    request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ className, records, preview }) }),
   getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),
   getManagedSchools: () => request<{ schools: import('../types/platform').ManagedSchool[] }>('/api/platform/schools'),
   createSchool: (data: { name: string; code: string; city: string; district: string }) =>
@@ -113,7 +116,7 @@ export const api = {
   parentResetComplete: (schoolId: string, phone: string, birthDate: string, challenge: string, password: string) =>
     request<{ success: boolean; message: string }>('/api/auth/parent/reset-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, birthDate, challenge, password }) }),
   verifyStaffActivation: (schoolCode: string, phone: string, code: string) =>
-    request<{success:boolean;setupToken:string;role:'teacher'|'security'}>('/api/auth/staff/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+    request<{success:boolean;setupToken:string;schoolId:string;role:'teacher'|'security'}>('/api/auth/staff/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
   completeStaffActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
     request<{success:boolean;message:string}>('/api/auth/staff/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
   requestStaffReset: (schoolCode:string,phone:string) =>
@@ -299,12 +302,6 @@ export const api = {
 
   getRoster: (schoolId: string) =>
     request<{ roster: SchoolRosterRecord[] }>(`/api/schools/${schoolId}/roster`),
-
-  uploadRoster: (schoolId: string, records: Partial<SchoolRosterRecord>[]) =>
-    request<{ success: boolean; addedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, {
-      method: 'POST',
-      body: JSON.stringify({ records }),
-    }),
 
   createAuthCode: (schoolId: string, rosterId: string, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET', target?: { type: 'teacher' | 'security'; id: string }) =>
     request<{ success: boolean; code: string; purpose: string; expiresAt: string }>(`/api/schools/${schoolId}/auth-codes`, {

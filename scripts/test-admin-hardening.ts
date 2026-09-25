@@ -290,7 +290,8 @@ async function run() {
     await assert.rejects(requireSchoolRole(otherAdmin.id, otherSchool, ['admin']), /aktif üyeliğiniz bulunmamaktadır/);
     assert.equal((await request('GET', '/schools/' + otherSchool + '/appointments', otherAdmin.token)).status, 403);
     assert.equal(await membershipRepository.getActiveMembership(otherParent.id, otherSchool), null);
-    const schools = (await request('GET', '/public/schools')).body.schools as Array<{ id: string }>;
+    assert.equal((await request('GET', '/public/schools')).status, 401);
+    const schools = (await request('GET', '/public/schools', otherAdmin.token)).body.schools as Array<{ id: string }>;
     assert(!schools.some((entry) => entry.id === otherSchool));
     assert.equal((await request('GET', '/public/school-context?code=' + otherSchool)).status, 404);
     assert.equal((await request('POST', '/auth/staff/activation-verify', undefined, { schoolCode: otherSchool, phone: foreignProfile.phone, code: foreignActivationCode })).status, 400);

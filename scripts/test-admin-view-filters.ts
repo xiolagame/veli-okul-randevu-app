@@ -53,7 +53,7 @@ function harness(file: string, context: object, api: object = {}) {
       if (name === '../utils/dates') return dates;
       if (name === '../utils/admin-filters') return filters;
       if (name === '../utils/phone') return phone;
-      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions'].includes(name)) {
+      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo'].includes(name)) {
         return new Proxy({}, { get: (_, key) => String(key) });
       }
       throw new Error('Unexpected component dependency');

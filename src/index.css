@@ -139,6 +139,7 @@
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; background: #10271f7a; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .dialog-panel { width: min(100%, 480px); max-height: calc(100dvh - 48px); overflow: auto; background: white; border-radius: 24px; box-shadow: 0 24px 80px #10271f30; outline: none; }
 .dialog-wide { width: min(100%, 600px); }
+.dialog-panel.roster-import-dialog { width: min(100%, 1120px); }
 .dialog-heading { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px; background: white; border-bottom: 1px solid var(--line); }
 .dialog-heading h2 { font-weight: 750; font-size: 21px; }
 .dialog-heading p { margin-top: 6px; color: var(--muted); font-size: 13px; }

@@ -45,9 +45,9 @@ export function SchoolManagement({ onClose }: { onClose: () => void }) {
       <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { await api.createSchool(draft); setDraft({ name: '', code: '', city: '', district: '' }); }); }}>
         <h3>Yeni okul ekle</h3>
         {(['name', 'code', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', city: 'İl', district: 'İlçe' })[key]}
-          <input required disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Za-z0-9_-]{3,50}' : undefined}
+          <input required={key !== 'code'} placeholder={key === 'code' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Za-z0-9_-]{3,50}' : undefined}
             onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /></label>)}
-        <p className="field-hint">Kod: 3–50 harf, rakam, tire veya alt çizgi. Yeni okulda hesabınıza okul yöneticisi üyeliği eklenir.</p>
+        <p className="field-hint">Kod boş bırakılırsa benzersiz bir kod üretilir. Elle giriş: 3–50 harf, rakam, tire veya alt çizgi. Yeni okulda hesabınıza okul yöneticisi üyeliği eklenir.</p>
         <Button type="submit" disabled={busy}>Okul oluştur</Button>
       </form>
       {loading ? <Skeleton /> : schools.map((school) => <article className="surface" key={school.id}>

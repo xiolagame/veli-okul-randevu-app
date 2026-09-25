@@ -63,7 +63,6 @@ interface AppContextType {
   updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<void>;
   addStudentToProfile: (student: { name: string; className: string }) => void;
   removeStudentFromProfile: (studentId: string) => void;
-  uploadRoster: (records: Partial<SchoolRosterRecord>[]) => Promise<number>;
   runIsolationTests: () => Promise<TenantIsolationTestResult[]>;
 }
 
@@ -180,8 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async function init() {
       setIsLoading(true);
       try {
-        // Fetch all public schools
-        const schoolsRes = await api.getPublicSchools().catch(() => ({ schools: [] }));
+        const schoolsRes = getAuthToken() ? await api.getPublicSchools().catch(() => ({ schools: [] })) : { schools: [] };
         setSchools(schoolsRes.schools);
 
         const token = getAuthToken();
@@ -229,6 +227,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Switch Active School
   const switchSchool = async (schoolId: string) => {
+    if (!userMemberships.some((membership) => membership.schoolId === schoolId && membership.status === 'active') ||
+        ((currentUser?.role === 'teacher' || currentUser?.role === 'security') && schoolId !== currentSchool?.id)) return;
     schoolLoadSequence.current += 1;
     setUsers([]);
     setUsersError('');
@@ -266,10 +266,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAuthToken(res.token);
       setUserMemberships(res.memberships);
 
+      const ownSchools = (await api.getPublicSchools()).schools;
+      setSchools(ownSchools);
+
       let targetSchoolId = res.memberships[0]?.schoolId || schools[0]?.id || 'sch-kazan-01';
       setActiveSchoolId(targetSchoolId);
 
-      const activeSchool = schools.find((s) => s.id === targetSchoolId) || null;
+      const activeSchool = ownSchools.find((s) => s.id === targetSchoolId) || null;
       setCurrentSchool(activeSchool);
 
       const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId) || null;
@@ -298,6 +301,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsersLoading(false);
     setAuthToken(null);
     setCurrentUser(null);
+    setSchools([]);
+    setCurrentSchool(null);
     setUserMemberships([]);
     setCurrentMembership(null);
     setAppointments([]);
@@ -312,11 +317,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await api.quickSwitch(userId);
       setAuthToken(res.token);
       setUserMemberships(res.memberships);
+      const ownSchools = (await api.getPublicSchools()).schools;
+      setSchools(ownSchools);
 
       let targetSchoolId = res.memberships[0]?.schoolId || schools[0]?.id || 'sch-kazan-01';
       setActiveSchoolId(targetSchoolId);
 
-      const activeSchool = schools.find((s) => s.id === targetSchoolId) || null;
+      const activeSchool = ownSchools.find((s) => s.id === targetSchoolId) || null;
       setCurrentSchool(activeSchool);
 
       const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId) || null;
@@ -461,15 +468,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser({ ...currentUser, students: updated });
   };
 
-  // Admin: Upload Roster
-  const uploadRoster = async (records: Partial<SchoolRosterRecord>[]): Promise<number> => {
-    if (!currentSchool) return 0;
-    const res = await api.uploadRoster(currentSchool.id, records);
-    const updatedRoster = await api.getRoster(currentSchool.id).catch(() => ({ roster: [] }));
-    setRoster(updatedRoster.roster);
-    return res.addedCount;
-  };
-
   // Automated Tenant Isolation Test Suite
   const runIsolationTests = async (): Promise<TenantIsolationTestResult[]> => {
     if (!currentSchool) return [];
@@ -538,7 +536,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSettings,
         addStudentToProfile,
         removeStudentFromProfile,
-        uploadRoster,
         runIsolationTests,
       }}
     >

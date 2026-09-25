@@ -81,10 +81,8 @@ async function runApiIntegrationTests() {
     // TEST 2: Public School List & Context
     console.log('\n[3/10] Public School API testleri...');
     const schoolsRes = await makeRequest('GET', '/public/schools');
-    if (schoolsRes.status !== 200 || !Array.isArray(schoolsRes.body.schools) || schoolsRes.body.schools.length === 0) {
-      throw new Error(`GET /public/schools failed: ${JSON.stringify(schoolsRes.body)}`);
-    }
-    console.log(`✅ Okul listesi alındı: ${schoolsRes.body.schools.length} okul bulundu.`);
+    if (schoolsRes.status !== 401) throw new Error('Anonymous school enumeration must be denied.');
+    console.log('✅ Anonim okul kataloğu erişimi engellendi.');
 
     const contextRes = await makeRequest('GET', '/public/school-context', { query: { code: 'KAZAN2025' } });
     if (contextRes.status !== 200 || contextRes.body.school?.id !== 'sch-kazan-01') {

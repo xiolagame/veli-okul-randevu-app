@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
 import crypto from 'crypto';
@@ -79,10 +80,11 @@ apiRouter.get('/health', async (req, res) => {
 // PUBLIC ENDPOINTS
 // ==========================================
 
-// List all registered schools (public directory)
-apiRouter.get('/public/schools', async (req, res) => {
+apiRouter.get('/public/schools', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const list = await schoolRepository.getAll();
+    const memberships = await membershipRepository.getMembershipsByUserId(req.user!.id);
+    const list = (await Promise.all(memberships.filter((entry) => entry.status === 'active')
+      .map((entry) => schoolRepository.getById(entry.schoolId)))).filter(Boolean);
     res.json({ schools: list });
   } catch (err: any) {
     console.error('[GET /public/schools Error]:', err);
@@ -178,6 +180,14 @@ apiRouter.post('/auth/parent/registration-challenge', async (req, res) => {
   } catch {
     return res.status(400).json({ error: PARENT_AUTH_ERROR });
   }
+});
+
+apiRouter.get('/schools/:schoolId/info', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  try {
+    const school = await schoolRepository.getById(req.membership!.schoolId);
+    if (!school) return res.status(403).json({ error: 'Okul bilgilerine erişilemiyor.' });
+    return res.json({ school: { id: school.id, name: school.name, code: school.code } });
+  } catch { return res.status(500).json({ error: 'Okul bilgileri alınamadı.' }); }
 });
 
 apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
@@ -300,7 +310,7 @@ apiRouter.post('/auth/staff/activation-verify', async (req, res) => {
       await invitationRepository.createAuthCode({ schoolId:school.id,targetPhone:phone,targetUserId:teacher?.userId,targetRole:role,purpose:'staff_activation_setup',codeHash:hashSetupToken(token),expiresAt:new Date(Date.now()+10*60*1000).toISOString(),token:crypto.randomUUID() },tx);
       return { token, role };
     });
-    return res.json({ success:true, setupToken:challenge.token, role:challenge.role });
+    return res.json({ success:true, setupToken:challenge.token, role:challenge.role, schoolId:school.id });
   } catch {
     const failedSchool = await schoolRepository.getByCode(schoolCode);
     if (failedSchool) await recordFailedAuthCodeAttempt(failedSchool.id,phone,'staff_activation');
@@ -1732,25 +1742,18 @@ apiRouter.post(
   tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const { records } = req.body;
+    const { records, className, preview } = req.body;
 
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Yüklenecek kayıt listesi boş olamaz.' });
     }
 
     try {
-      const addedCount = await rosterRepository.bulkUpload(schoolId, records);
-
-      await auditLogRepository.createAuditLog({
-        schoolId,
-        action: 'Kütük Yükleme (CSV/Excel)',
-        actorName: `${req.user!.firstName} ${req.user!.lastName} (Yönetici)`.trim(),
-        details: `${addedCount} yeni öğrenci-veli kütük kaydı veritabanına aktarıldı.`,
-      });
-
-      res.json({ success: true, addedCount });
+      const result = await processRosterImport(schoolId, className, records, preview === true,
+        `${req.user!.firstName} ${req.user!.lastName}`.trim());
+      res.json(result);
     } catch (err: any) {
-      console.error('[POST /schools/:schoolId/roster/bulk-upload Error]:', err);
+      if (err instanceof RosterImportError) return res.status(400).json({ error: err.message });
       res.status(500).json({ error: 'Kütük kaydı aktarılırken hata oluştu' });
     }
   }

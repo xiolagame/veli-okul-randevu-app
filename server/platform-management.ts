@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { authMiddleware, AuthenticatedRequest } from './auth';
 import { getDb } from './database/postgres';
 import { auditLogRepository, membershipRepository } from './repositories';
@@ -27,9 +27,11 @@ platformManagementRouter.get('/schools', async (_req, res) => {
 });
 
 platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res) => {
-  const { name, code, city, district } = req.body;
-  if (typeof name !== 'string' || !name.trim() || name.trim().length > 255 ||
-      typeof code !== 'string' || !/^[A-Za-z0-9_-]{3,50}$/.test(code) ||
+  const { name, city, district } = req.body;
+  let code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
+  const automatic = !code;
+  if ((req.body.code !== undefined && typeof req.body.code !== 'string') || typeof name !== 'string' || !name.trim() || name.trim().length > 255 ||
+      (!automatic && !/^[A-Za-z0-9_-]{3,50}$/.test(code)) ||
       typeof city !== 'string' || !city.trim() || city.trim().length > 100 ||
       typeof district !== 'string' || !district.trim() || district.trim().length > 100) {
     return res.status(400).json({ error: 'Okul adı, kodu, il ve ilçeyi kontrol edin.' });
@@ -38,6 +40,10 @@ platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res)
     const db = await getDb();
     const school = await db.transaction(async (tx) => {
       await tx.query('LOCK TABLE schools IN SHARE ROW EXCLUSIVE MODE');
+      if (automatic) {
+        do { code = randomBytes(5).toString('hex').toUpperCase(); }
+        while ((await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code])).rows.length);
+      }
       const duplicate = await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code.toUpperCase()]);
       if (duplicate.rows.length) return null;
       const id = 'sch-' + randomUUID();

@@ -6,6 +6,7 @@ import { normalizeTurkishPhone } from '../utils/phone';
 import { ManagementActions } from './ManagementActions';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
+import { StaffDraft, validateStaffForm } from '../utils/staff-form';
 
 export interface StaffCodeTarget {
   type: 'teacher' | 'security';
@@ -33,29 +34,31 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
   const [branch, setBranch] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [staffRole, setStaffRole] = useState<'teacher' | 'security'>('teacher');
+  const [staffRole, setStaffRole] = useState<StaffDraft['role']>('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof StaffDraft, string>>>({});
+  const fieldError = (key: keyof StaffDraft) => fieldErrors[key] ? <span id={'staff-error-' + key} role="alert" className="text-sm text-red-700">{fieldErrors[key]}</span> : null;
   const [resendMessage, setResendMessage] = useState('');
   const query = search.trim().toLocaleLowerCase('tr-TR');
 
   const submitTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
     if (creatingTeacher) return;
-    if (!normalizeTurkishPhone(phone)) {
-      setCreateTeacherError('Geçerli bir Türkiye GSM numarası girin.');
-      return;
-    }
+    const errors = validateStaffForm({ role: staffRole, fullName, phone, email, branch });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length || !staffRole) return;
     setCreatingTeacher(true);
     setCreateTeacherError('');
     try {
-      await onCreateTeacher({ fullName, role: staffRole, ...(staffRole === 'teacher' ? { branch } : {}), phone, email });
+      await onCreateTeacher({ fullName: fullName.trim(), role: staffRole, ...(staffRole === 'teacher' ? { branch: branch.trim() } : {}), phone: normalizeTurkishPhone(phone)!, email: email.trim().toLowerCase() });
       setResendMessage('Personel kaydı oluşturuldu. Aktivasyon e-postası gönderildi.');
       setShowCreateTeacher(false);
       setFullName('');
       setBranch('');
       setPhone('');
       setEmail('');
+      setStaffRole('');
     } catch (cause) {
-      setCreateTeacherError(cause instanceof Error ? cause.message : 'Öğretmen oluşturulamadı.');
+      setCreateTeacherError(cause instanceof Error ? cause.message : 'Personel oluşturulamadı.');
     } finally {
       setCreatingTeacher(false);
     }
@@ -93,7 +96,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         );
         return (
           <section key={type} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <Button onClick={() => { setCreateTeacherError(''); setShowCreateTeacher(true); }}>+ Personel Ekle</Button>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />
@@ -129,14 +132,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         );
       })}
       {showCreateTeacher && <Dialog title="Yeni Personel Ekle" description="Aktivasyon kodu yalnızca kayıtlı e-posta adresine gönderilir." onClose={() => { if (!creatingTeacher) setShowCreateTeacher(false); }} dismissible={!creatingTeacher}>
-        <form className="form-stack" onSubmit={submitTeacher}>
-          <label className="field">Rol<select value={staffRole} onChange={(event) => setStaffRole(event.target.value as 'teacher' | 'security')}><option value="teacher">Öğretmen</option><option value="security">Güvenlik</option></select></label>
-          <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input id="staff-teacher-name" autoComplete="name" maxLength={150} required value={fullName} onChange={(event) => setFullName(event.target.value)} /></label>
-          {staffRole === 'teacher' && <label className="field" htmlFor="staff-teacher-branch">Branş<input id="staff-teacher-branch" maxLength={100} required value={branch} onChange={(event) => setBranch(event.target.value)} /></label>}
-          <label className="field" htmlFor="staff-teacher-phone">Telefon<input id="staff-teacher-phone" type="tel" autoComplete="tel" placeholder="0555 123 45 67" required value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-          <label className="field" htmlFor="staff-email">E-posta<input id="staff-email" type="email" autoComplete="email" maxLength={150} required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <form className="form-stack" noValidate onSubmit={submitTeacher}>
+          <label className="field">Görevi<select aria-label="Görevi" value={staffRole} required aria-invalid={!!fieldErrors.role} aria-describedby="staff-error-role" onChange={(event) => { setStaffRole(event.target.value as StaffDraft['role']); setFieldErrors({}); }}><option value="">Görev seçin</option><option value="teacher">Öğretmen</option><option value="security">Güvenlik</option></select>{fieldError('role')}</label>
+          <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input aria-label="Ad Soyad" id="staff-teacher-name" autoComplete="name" maxLength={150} required aria-invalid={!!fieldErrors.fullName} aria-describedby="staff-error-fullName" value={fullName} onChange={(event) => { setFullName(event.target.value); setFieldErrors((previous) => ({ ...previous, fullName: undefined })); }} />{fieldError('fullName')}</label>
+          {staffRole === 'teacher' && <label className="field" htmlFor="staff-teacher-branch">Branş<input aria-label="Branş" id="staff-teacher-branch" maxLength={100} required aria-invalid={!!fieldErrors.branch} aria-describedby="staff-error-branch" value={branch} onChange={(event) => { setBranch(event.target.value); setFieldErrors((previous) => ({ ...previous, branch: undefined })); }} />{fieldError('branch')}</label>}
+          <label className="field" htmlFor="staff-teacher-phone">Telefon<input aria-label="Telefon" id="staff-teacher-phone" type="tel" autoComplete="tel" placeholder="0555 123 45 67" required aria-invalid={!!fieldErrors.phone} aria-describedby="staff-error-phone" value={phone} onChange={(event) => { setPhone(event.target.value); setFieldErrors((previous) => ({ ...previous, phone: undefined })); }} />{fieldError('phone')}</label>
+          <label className="field" htmlFor="staff-email">E-posta<input aria-label="E-posta" id="staff-email" type="email" autoComplete="email" maxLength={150} required aria-invalid={!!fieldErrors.email} aria-describedby="staff-error-email" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })); }} />{fieldError('email')}</label>
           {createTeacherError && <Alert tone="danger">{createTeacherError}</Alert>}
-          <div className="form-actions"><Button type="button" variant="secondary" disabled={creatingTeacher} onClick={() => setShowCreateTeacher(false)}>İptal</Button><Button type="submit" disabled={creatingTeacher}>{creatingTeacher ? 'Ekleniyor…' : 'Personeli Ekle'}</Button></div>
+          <div className="form-actions"><Button type="button" variant="secondary" disabled={creatingTeacher} onClick={() => setShowCreateTeacher(false)}>İptal</Button><Button type="submit" disabled={creatingTeacher}>{creatingTeacher ? 'Ekleniyor…' : 'Personel Ekle'}</Button></div>
         </form>
       </Dialog>}
     </div>

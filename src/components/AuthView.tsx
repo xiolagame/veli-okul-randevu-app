@@ -15,7 +15,7 @@ type ParentFlow = 'registration' | 'reset' | null;
 type StaffResetStep = 'request' | 'verify' | 'password' | null;
 
 export const AuthView: React.FC<AuthViewProps> = () => {
-  const { login, schools } = useApp();
+  const { login } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +34,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   const [parentBirthDate, setParentBirthDate] = useState('');
   const [parentSchoolId, setParentSchoolId] = useState('');
   const [staffSetupToken, setStaffSetupToken] = useState('');
+  const [resolvedStaffSchoolId, setResolvedStaffSchoolId] = useState('');
   const [showResetChoices, setShowResetChoices] = useState(false);
   const [staffResetStep, setStaffResetStep] = useState<StaffResetStep>(null);
   const [staffResetSchoolCode, setStaffResetSchoolCode] = useState('');
@@ -154,6 +155,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       try {
         const result = await api.verifyStaffActivation(schoolId, normalizedPhone, code);
         setStaffSetupToken(result.setupToken);
+        setResolvedStaffSchoolId(result.schoolId);
         setSuccessMessage('Kod doğrulandı. Şimdi yeni parolanızı belirleyin.');
       } catch (cause) { setError(cause instanceof Error ? cause.message : 'Kod doğrulanamadı.'); }
       finally { setIsSubmitting(false); }
@@ -177,7 +179,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     setIsSubmitting(true);
     try {
       const result = codeFlow === 'activation'
-        ? await api.completeStaffActivation(schoolId, normalizedPhone, staffSetupToken, newPassword)
+        ? await api.completeStaffActivation(resolvedStaffSchoolId, normalizedPhone, staffSetupToken, newPassword)
         : await api.resetPasswordWithCode(schoolId, normalizedPhone, code, newPassword);
       setPhone(normalizedPhone);
       setPassword('');
@@ -195,8 +197,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       <aside className="auth-story">
         <Brand light />
         <div>
-          <p className="eyebrow" style={{ color: '#c8dea7' }}>OKUL İLE AİLE ARASINDA</p>
-          <h1>İyi bir görüşme,<br /><em>güçlü bir bağ.</em></h1>
+          <h1>Eğitim, okul ve aileyle güçlenir.</h1>
           <p>Öğretmeninizle iletişim kurmanın, görüşme planlamanın ve okul ziyaretlerinizi takip etmenin kolay yolu.</p>
           <div className="auth-illustration" aria-label="Randevu adımları">
             <div className="flow-node"><span><Users size={19} /></span>Öğretmeninizi seçin</div>
@@ -239,7 +240,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={handleCodeFlow} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field" htmlFor="code-school">Okulunuz
-            <select id="code-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} required><option value="">Okulunuzu seçin</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}</select>
+            <input id="code-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} placeholder="Okul kodu" disabled={!!staffSetupToken} required />
           </label>
           <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="tel" autoComplete="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required /></label>
           {codeFlow === 'activation' && !staffSetupToken && <label className="field" htmlFor="activation-code">6 haneli aktivasyon kodu<input id="activation-code" type="text" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" autoComplete="one-time-code" spellCheck={false} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" required className="font-mono" /></label>}

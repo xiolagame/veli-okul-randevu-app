@@ -1,0 +1,58 @@
+import { MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, ROSTER_HEADERS, parseDelimited, rowsToDrafts } from './roster-import';
+
+function checkArchive(buffer: ArrayBuffer) {
+  const view = new DataView(buffer);
+  let total = 0, entries = 0;
+  for (let offset = 0; offset + 46 <= view.byteLength; offset++) {
+    if (view.getUint32(offset, true) !== 0x02014b50) continue;
+    total += view.getUint32(offset + 24, true);
+    entries++;
+    if (total > 20 * 1024 * 1024 || entries > 100) throw new Error('Excel dosyası çok büyük veya karmaşık.');
+  }
+  if (!entries) throw new Error('Geçerli bir XLSX dosyası seçin.');
+}
+
+export async function readRosterFile(buffer: ArrayBuffer, name: string) {
+  if (buffer.byteLength > MAX_ROSTER_FILE_BYTES) throw new Error('Dosya en fazla 2 MB olabilir.');
+  if (/\.csv$/i.test(name)) {
+    let text: string;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
+    catch { throw new Error('CSV dosyasını UTF-8 olarak kaydedin.'); }
+    const delimiter = text.split(/\r?\n/)[0].includes(';') ? ';' : ',';
+    return rowsToDrafts(parseDelimited(text, delimiter));
+  }
+  if (!/\.xlsx$/i.test(name)) throw new Error('Yalnız XLSX veya UTF-8 CSV dosyaları desteklenir.');
+  checkArchive(buffer);
+  const { readSheet } = await import('read-excel-file/universal');
+  let sheet: import('read-excel-file/universal').SheetData;
+  try { sheet = await readSheet(buffer, 'Kayıtlar'); }
+  catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
+  if (sheet.length > MAX_ROSTER_ROWS + 1 || sheet[0]?.length !== 5 || sheet.some(row => row.length > 5)) throw new Error('Kayıtlar sayfasında 5 sütun ve en fazla 500 kayıt olmalı.');
+  const rows: string[][] = [];
+  sheet.forEach((row) => {
+    const cells: string[] = [];
+    for (let index = 1; index <= 5; index++) {
+      const value = row[index - 1];
+      if (value instanceof Date) {
+        if (index !== 5 || Number.isNaN(value.getTime())) throw new Error('Tarih yalnız Doğum Tarihi sütununda kullanılabilir.');
+        cells.push(value.toISOString().slice(0,10));
+      } else if (value == null || typeof value === 'string' || typeof value === 'number') cells.push(String(value ?? ''));
+      else throw new Error('Özel hücre yerine düz metin, sayı veya tarih kullanın.');
+    }
+    rows.push(cells);
+  });
+  return rowsToDrafts(rows);
+}
+
+export async function rosterTemplate() {
+  const { default: writeXlsxFile } = await import('write-excel-file/universal');
+  const blob = await writeXlsxFile([
+    { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 ? 16 : 26 })) },
+    { sheet: 'Açıklamalar', columns: [{ width: 100 }], data: [
+      ['Önce uygulamada sınıf seçin. En fazla 500 kayıt ekleyin.'],
+      ['Doğum tarihi: GG.AA.YYYY veya YYYY-MM-DD. Telefon ve öğrenci numarasını metin olarak girin.'],
+      ['Yalnız Kayıtlar sayfası içe aktarılır. Başlıkları değiştirmeyin.'],
+    ] },
+  ]).toBlob();
+  return blob.arrayBuffer();
+}

@@ -12,6 +12,7 @@
     "test:auth": "tsx scripts/test-activation-auth.ts",
     "test:activation": "tsx scripts/test-activation-auth.ts",
     "test:parent-auth": "tsx scripts/test-parent-self-service-auth.ts",
+    "test:school-roster-ui": "tsx scripts/test-school-roster-ui.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
   },
@@ -30,8 +31,10 @@
     "qr-scanner": "^1.4.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "read-excel-file": "^9.3.10",
     "serverless-http": "^4.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwind-merge": "^3.0.2",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

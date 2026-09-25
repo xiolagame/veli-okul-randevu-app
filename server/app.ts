@@ -38,6 +38,14 @@ export function createExpressApp() {
     })
   );
 
+  app.use(
+    ['/api/schools/:schoolId/roster/bulk-upload', '/.netlify/functions/api/schools/:schoolId/roster/bulk-upload'],
+    express.json({ limit: '1mb' }),
+    (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      const tooLarge = typeof error === 'object' && error !== null && 'status' in error && error.status === 413;
+      res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? 'Kayıt listesi çok büyük. Daha küçük bir liste gönderin.' : 'Kayıt listesi okunamadı.' });
+    },
+  );
   app.use(express.json());
 
   // Ensure database is initialized before handling API requests

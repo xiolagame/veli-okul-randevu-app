@@ -14,6 +14,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const { currentUser, currentSchool, schools, userMemberships, switchSchool, switchUser, logout, unreadNotificationCount } = useApp();
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
+  const canSwitchSchool = currentUser?.role === 'parent' || currentUser?.role === 'admin';
+  const ownSchools = schools.filter((school) => userMemberships.some((membership) => membership.schoolId === school.id && membership.status === 'active'));
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!headerRef.current) return;
@@ -40,9 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
       <div className="topbar-inner">
         <Brand />
         <div className="school-switch">
-          <button type="button" className="school-trigger" onClick={() => setShowSchoolMenu(true)} aria-haspopup="dialog" aria-label="Aktif okulunuzu değiştirin">
+          <button type="button" className="school-trigger" disabled={!canSwitchSchool} onClick={() => setShowSchoolMenu(true)} aria-haspopup={canSwitchSchool ? 'dialog' : undefined} aria-label={canSwitchSchool ? 'Aktif okulunuzu değiştirin' : 'Okulunuz'}>
             <Building2 size={18} className="text-slate-500" />
-            <div><strong>{currentSchool?.name || 'Okulunuzu seçin'}</strong><small>{currentSchool?.city} · {currentUser?.role ? roleLabel[currentUser.role] : 'Okul üyeliği'}</small></div><ChevronDown size={15} />
+            <div><strong>{currentSchool?.name || 'Okulunuzu seçin'}</strong><small>{currentSchool?.city} · {currentUser?.role ? roleLabel[currentUser.role] : 'Okul üyeliği'}</small></div>{canSwitchSchool && <ChevronDown size={15} />}
           </button>
         </div>
         <div className="topbar-actions">
@@ -51,8 +53,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
           <button type="button" className="profile-trigger" onClick={() => setShowPersonaMenu(true)} aria-haspopup="dialog" aria-label="Hesap menüsü"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><span className="profile-label"><strong>{currentUser?.firstName} {currentUser?.lastName}</strong><small>{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'}</small></span></button>
         </div>
       </div>
-      {showSchoolMenu && <Dialog title="Okulunuz" description="Görüntülemek istediğiniz okulu seçin." onClose={() => setShowSchoolMenu(false)}>
-        <div className="space-y-2">{schools.map((school) => <button type="button" key={school.id} className="w-full text-left flex gap-3 items-center p-3 rounded-xl hover:bg-slate-50 border border-slate-200" onClick={() => { void switchSchool(school.id); setShowSchoolMenu(false); }}><Building2 size={20} className="text-blue-700" /><span className="flex-1"><strong className="block text-sm">{school.name}</strong><span className="text-xs text-slate-500">{school.city} · {userMemberships.some((membership) => membership.schoolId === school.id) ? 'Kayıtlı olduğunuz okul' : 'Üyeliğiniz bulunmuyor'}</span></span>{currentSchool?.id === school.id && <Check size={18} className="text-blue-700" />}</button>)}</div>
+      {showSchoolMenu && canSwitchSchool && <Dialog title="Okulunuz" description="Görüntülemek istediğiniz okulu seçin." onClose={() => setShowSchoolMenu(false)}>
+        <div className="space-y-2">{ownSchools.map((school) => <button type="button" key={school.id} className="w-full text-left flex gap-3 items-center p-3 rounded-xl hover:bg-slate-50 border border-slate-200" onClick={() => { void switchSchool(school.id); setShowSchoolMenu(false); }}><Building2 size={20} className="text-blue-700" /><span className="flex-1"><strong className="block text-sm">{school.name}</strong><span className="text-xs text-slate-500">{school.city} · {userMemberships.some((membership) => membership.schoolId === school.id) ? 'Kayıtlı olduğunuz okul' : 'Üyeliğiniz bulunmuyor'}</span></span>{currentSchool?.id === school.id && <Check size={18} className="text-blue-700" />}</button>)}</div>
         {onOpenOnboarding && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onOpenOnboarding(); }}><KeyRound size={18} />Yeni okula katılma hakkında</Button>}
       </Dialog>}
       {showPersonaMenu && <Dialog title="Hesabım" onClose={() => setShowPersonaMenu(false)}>

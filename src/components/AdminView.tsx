@@ -22,6 +22,8 @@ import { StaffManagement, StaffCodeTarget } from './StaffManagement';
 import { ParentManagement } from './ParentManagement';
 import { AuditManagement } from './AuditManagement';
 import { ManagementActions } from './ManagementActions';
+import { BulkRosterImport } from './BulkRosterImport';
+import { SchoolInfo } from './SchoolInfo';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
@@ -42,7 +44,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
     updateSettings,
     auditLogs,
     roster,
-    uploadRoster,
     runIsolationTests,
     isolationTestResults,
   } = useApp();
@@ -71,10 +72,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
   // Bulk Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadText, setUploadText] = useState(
-    `+905557778899, Merve Doğan, Ece Doğan, 7-A, 612\n+905556665544, Hasan Yurt, Ali Yurt, 8-B, 804`
-  );
-  const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
   const [authCodeRoster, setAuthCodeRoster] = useState<SchoolRosterRecord | null>(null);
   const [authCodeTarget, setAuthCodeTarget] = useState<StaffCodeTarget | null>(null);
   const [copyMessage, setCopyMessage] = useState('');
@@ -122,41 +119,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
       setFormError('Ayarlar kaydedilemedi. Lütfen tekrar deneyin.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleExecuteBulkUpload = async () => {
-    const lines = uploadText.trim().split('\n');
-    const records: Partial<SchoolRosterRecord>[] = [];
-
-    for (const line of lines) {
-      const parts = line.split(',').map((p) => p.trim());
-      if (parts.length >= 3) {
-        records.push({
-          parentPhone: parts[0],
-          parentName: parts[1],
-          studentName: parts[2],
-          className: parts[3] || 'Genel',
-          studentNumber: parts[4] || '',
-        });
-      }
-    }
-
-    if (records.length > 0) {
-      setSaving(true);
-      setFormError('');
-      try {
-      const added = await uploadRoster(records);
-      setUploadSuccessMsg(`${added} yeni kütük kaydı sisteme aktarıldı.`);
-      setTimeout(() => {
-        setUploadSuccessMsg('');
-        setShowUploadModal(false);
-      }, 1500);
-      } catch {
-        setFormError('Kayıtlar aktarılamadı. Biçimi kontrol edip yeniden deneyin.');
-      } finally {
-        setSaving(false);
-      }
     }
   };
 
@@ -228,6 +190,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">OKUL YÖNETİMİ</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <label className="admin-mobile-nav" htmlFor="admin-section"><span className="sr-only">Yönetim bölümü</span><select id="admin-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}>{navigation.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <main id="main-content" className="admin-content">
+          {activeTab === 'dashboard' && currentSchool && <SchoolInfo key={currentSchool.id} schoolId={currentSchool.id} />}
           {onManageSchools && <Button variant="secondary" className="mb-5" onClick={onManageSchools}>Okul Yönetimi (Platform)</Button>}
           {activeTab === 'dashboard' && <div className="space-y-7">
             <section className="hero-card"><div><p className="eyebrow">OKULUNUZ BİR BAKIŞTA</p><h2>İletişim güçlü, işler düzenli.</h2><p>Görüşmeleri ve okulunuzun hesaplarını tek yerden yönetin.</p></div><Button onClick={() => setActiveTab('users')}><Users size={18} />Personeli yönet</Button></section>
@@ -270,7 +233,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
           {activeTab === 'isolation' && <section className="space-y-5"><div className="surface"><div className="section-heading"><div><h3>Okul verilerinin güvenliği</h3><p>Mevcut okul ayrımı kontrollerini çalıştırın.</p></div><Button disabled={isRunningTests} onClick={handleRunIsolationTests}><Shield size={18} />{isRunningTests ? 'Kontrol ediliyor…' : 'Kontrolleri çalıştır'}</Button></div></div>{isolationTestResults.length ? isolationTestResults.map((test, index) => <Alert key={index} tone={test.passed ? 'success' : 'danger'}><strong>{test.title}</strong><p className="mt-2">{test.description}</p><p className="text-xs mt-2">{test.details}</p></Alert>) : <div className="surface"><EmptyState icon={Shield} title="Henüz kontrol çalıştırılmadı" description="Sonuçlar, kontrol tamamlandığında burada gösterilir." /></div>}</section>}
         </main>
 
-        {showUploadModal && <Dialog wide title="Öğrenci ve veli kayıtlarını aktarın" description="Her satırda bir kayıt olacak şekilde virgülle ayrılmış verilerinizi yapıştırın." onClose={() => setShowUploadModal(false)} dismissible={!saving}><div className="form-stack"><Alert>Telefon, Veli adı, Öğrenci adı, Sınıf, Okul numarası</Alert><label className="field" htmlFor="roster-upload">Kayıtlar<textarea id="roster-upload" rows={7} value={uploadText} onChange={(event) => setUploadText(event.target.value)} className="font-mono" /></label>{formError && <Alert tone="danger">{formError}</Alert>}{uploadSuccessMsg && <Alert tone="success">{uploadSuccessMsg}</Alert>}<div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setShowUploadModal(false)}>Vazgeç</Button><Button disabled={saving} onClick={handleExecuteBulkUpload}>{saving ? 'Aktarılıyor…' : 'Kütüğe aktar'}</Button></div></div></Dialog>}
+        {showUploadModal && currentSchool && <BulkRosterImport key={currentSchool.id} schoolId={currentSchool.id} initialClass={selectedClass} classes={classOptions} onClose={() => setShowUploadModal(false)} onChanged={refreshSchoolData} />}
 
         {(authCodeRoster || authCodeTarget) && <Dialog title={authCodePurpose === 'PASSWORD_RESET' ? 'Parola sıfırlama kodu' : 'Hesap aktivasyonu'} onClose={closeCode} dismissible={!isCreatingAuthCode}>
           <div className="flex gap-3 items-center mb-6"><span className="avatar"><Shield size={22} /></span><div><h3 className="font-bold text-sm">{authCodeTarget?.label || authCodeRoster?.parentName}</h3><p className="text-sm text-slate-500">{(authCodeTarget?.phone || authCodeRoster?.parentPhone || '').slice(0, 5)} *** ** {(authCodeTarget?.phone || authCodeRoster?.parentPhone || '').slice(-2)}</p></div></div>
