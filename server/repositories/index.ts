@@ -85,7 +85,13 @@ export type AuthCodePurpose =
   | 'ACCOUNT_ACTIVATION'
   | 'TEACHER_ACTIVATION'
   | 'SECURITY_ACTIVATION'
-  | 'PASSWORD_RESET';
+  | 'PASSWORD_RESET'
+  | 'parent_self_registration'
+  | 'parent_password_reset'
+  | 'staff_activation'
+  | 'staff_password_reset'
+  | 'staff_activation_setup'
+  | 'staff_password_setup';
 
 // ==============================================================================
 // 1. SCHOOL REPOSITORY
@@ -297,6 +303,7 @@ export const userRepository = {
       lastName?: string;
       isPhoneVerified?: boolean;
       securityQuestion?: string;
+      email?: string;
     },
     client?: TransactionClient
   ): Promise<User> {
@@ -305,8 +312,8 @@ export const userRepository = {
     if (!cleanPhone) throw new Error('Invalid Turkish phone number');
 
     const res = await execQuery<any>(
-      `INSERT INTO users (id, phone, first_name, last_name, is_phone_verified, security_question)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (id, phone, first_name, last_name, is_phone_verified, security_question, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (phone) DO UPDATE SET
          is_phone_verified = EXCLUDED.is_phone_verified,
          updated_at = NOW()
@@ -318,6 +325,7 @@ export const userRepository = {
         user.lastName || '',
         user.isPhoneVerified ?? false,
         user.securityQuestion || null,
+        user.email || null,
       ],
       client
     );
@@ -377,7 +385,7 @@ export const userRepository = {
 // 3. SCHOOL MEMBERSHIP REPOSITORY (Multi-tenant Role Scoping)
 // ==============================================================================
 export const membershipRepository = {
-  async getMembershipsByUserId(userId: string): Promise<SchoolMembership[]> {
+  async getMembershipsByUserId(userId: string, client?: TransactionClient): Promise<SchoolMembership[]> {
     const res = await execQuery<any>(
       `SELECT sm.id, sm.school_id, sm.user_id, sm.role, sm.branch, sm.status, sm.joined_at,
               s.name as school_name, s.code as school_code, s.city, s.district
@@ -385,7 +393,8 @@ export const membershipRepository = {
        JOIN schools s ON s.id = sm.school_id
        WHERE sm.user_id = $1 AND sm.status = 'active' AND s.disabled_at IS NULL
        ORDER BY sm.joined_at DESC;`,
-      [userId]
+      [userId],
+      client
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -512,7 +521,7 @@ export const membershipRepository = {
 export const studentRepository = {
   async getStudentsBySchool(schoolId: string): Promise<Student[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number
+      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
        FROM students
        WHERE school_id = $1
        ORDER BY class_name ASC, name ASC;`,
@@ -524,12 +533,13 @@ export const studentRepository = {
       name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     }));
   },
 
   async getStudentById(schoolId: string, studentId: string, client?: TransactionClient): Promise<Student | null> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number
+      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
        FROM students
        WHERE school_id = $1 AND id = $2;`,
       [schoolId, studentId],
@@ -543,12 +553,13 @@ export const studentRepository = {
       name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     };
   },
 
   async getStudentsByParent(schoolId: string, parentUserId: string): Promise<Student[]> {
     const res = await execQuery<any>(
-      `SELECT s.id, s.school_id, s.name, s.class_name, s.student_number
+      `SELECT s.id, s.school_id, s.name, s.class_name, s.student_number, s.birth_date::text AS birth_date
        FROM students s
        JOIN student_parent_relations rel ON rel.student_id = s.id AND rel.school_id = s.school_id
        WHERE rel.school_id = $1 AND rel.parent_user_id = $2
@@ -561,17 +572,18 @@ export const studentRepository = {
       name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     }));
   },
 
   async findOrCreateStudent(
     schoolId: string,
-    data: { id?: string; name: string; className: string; studentNumber?: string },
+    data: { id?: string; name: string; className: string; studentNumber?: string; birthDate?: string },
     client?: TransactionClient
   ): Promise<Student> {
     // Check if matching student exists in this school
     const existing = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number
+      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
        FROM students
        WHERE school_id = $1 AND name = $2 AND class_name = $3
        LIMIT 1;`,
@@ -586,15 +598,16 @@ export const studentRepository = {
         name: r.name,
         className: r.class_name,
         studentNumber: r.student_number || undefined,
+        birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
       };
     }
 
     const id = data.id || 'stu-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const res = await execQuery<any>(
-      `INSERT INTO students (id, school_id, name, class_name, student_number)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, school_id, name, class_name, student_number;`,
-      [id, schoolId, data.name, data.className, data.studentNumber || null],
+      `INSERT INTO students (id, school_id, name, class_name, student_number, birth_date)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, school_id, name, class_name, student_number, birth_date::text AS birth_date;`,
+      [id, schoolId, data.name, data.className, data.studentNumber || null, data.birthDate || null],
       client
     );
     const r = res.rows[0];
@@ -604,6 +617,7 @@ export const studentRepository = {
       name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     };
   },
 };
@@ -671,7 +685,7 @@ export const relationRepository = {
 export const rosterRepository = {
   async getRoster(schoolId: string): Promise<SchoolRosterRecord[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
        FROM school_roster
        WHERE school_id = $1
        ORDER BY class_name ASC, student_name ASC;`,
@@ -685,6 +699,7 @@ export const rosterRepository = {
       studentName: r.student_name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
     }));
   },
@@ -693,7 +708,7 @@ export const rosterRepository = {
     const lookupDigits = getTurkishPhoneLookupDigits(parentPhone);
     if (!lookupDigits) return [];
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
        FROM school_roster
        WHERE school_id = $1 AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4);`,
       [schoolId, ...lookupDigits],
@@ -707,13 +722,14 @@ export const rosterRepository = {
       studentName: r.student_name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
+      birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
     }));
   },
 
   async getById(schoolId: string, rosterId: string, client?: TransactionClient): Promise<SchoolRosterRecord | null> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
        FROM school_roster WHERE school_id = $1 AND id = $2;`,
       [schoolId, rosterId],
       client
@@ -728,6 +744,7 @@ export const rosterRepository = {
       studentName: roster.student_name,
       className: roster.class_name,
       studentNumber: roster.student_number || undefined,
+      birthDate: roster.birth_date ? String(roster.birth_date).slice(0,10) : undefined,
       isClaimed: roster.is_claimed,
     };
   },
@@ -814,7 +831,7 @@ export const teacherRepository = {
        ORDER BY tp.first_name ASC, tp.last_name ASC;`,
       [schoolId]
     );
-    return res.rows.filter((row) => includeAccountStatus || row.account_status === 'active').map((row) => ({
+    return res.rows.filter((row) => row.account_status !== 'inactive' && (includeAccountStatus || row.account_status === 'active')).map((row) => ({
       ...mapTeacherProfile(row),
       ...(includeAccountStatus ? { accountStatus: row.account_status } : {}),
     }));
@@ -822,15 +839,15 @@ export const teacherRepository = {
 
   async createPending(
     schoolId: string,
-    teacher: { firstName: string; lastName: string; branch: string; phone: string },
+    teacher: { firstName: string; lastName: string; branch: string; phone: string; email?: string },
     client?: TransactionClient
   ): Promise<TeacherProfile> {
     const id = `tch-${crypto.randomUUID()}`;
     const res = await execQuery<any>(
-      `INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, school_id, user_id, first_name, last_name, branch, email, phone;`,
-      [id, schoolId, teacher.firstName, teacher.lastName, teacher.branch, teacher.phone],
+      [id, schoolId, teacher.firstName, teacher.lastName, teacher.branch, teacher.phone, teacher.email || null],
       client
     );
     return mapTeacherProfile(res.rows[0]);
@@ -1459,7 +1476,7 @@ export const invitationRepository = {
       targetRole?: UserRole;
       purpose: AuthCodePurpose;
       codeHash: string;
-      createdBy: string;
+      createdBy?: string;
       expiresAt: string;
       token: string;
     },
@@ -1482,7 +1499,7 @@ export const invitationRepository = {
          target_user_id, target_role, code_hash, created_by, attempts
        ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, 0)
        RETURNING id, expires_at;`,
-      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.targetRole || null, data.codeHash, data.createdBy],
+      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.targetRole || null, data.codeHash, data.createdBy || null],
       client
     );
     return { id: res.rows[0].id, expiresAt: res.rows[0].expires_at };
@@ -1506,9 +1523,10 @@ export const invitationRepository = {
        WHERE school_id = $1 AND target_phone = $2 AND purpose = $3 AND code_hash = $4
          AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL
          AND attempts < 5 AND expires_at > NOW()
+         AND ($6::varchar IS NULL OR target_role = $6)
          AND (target_user_id IS NULL OR target_user_id = $5)
        RETURNING id, target_role, target_user_id;`,
-      [data.schoolId, cleanPhone, data.purpose, data.codeHash, data.targetUserId || null],
+      [data.schoolId, cleanPhone, data.purpose, data.codeHash, data.targetUserId || null, data.targetRole || null],
       client
     );
     return res.rows[0] ? { id: res.rows[0].id, targetRole: res.rows[0].target_role || undefined, targetUserId: res.rows[0].target_user_id || undefined } : null;
@@ -1517,7 +1535,7 @@ export const invitationRepository = {
   async recordFailedAuthCodeAttempt(
     schoolId: string,
     targetPhone: string,
-    purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET',
+    purpose: AuthCodePurpose,
     client?: TransactionClient
   ): Promise<void> {
     const cleanPhone = normalizeTurkishPhone(targetPhone);

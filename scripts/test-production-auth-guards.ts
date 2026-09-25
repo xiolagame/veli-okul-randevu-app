@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import http from 'http';
 
@@ -7,7 +8,8 @@ function assert(condition: unknown, message: string): asserts condition {
 
 async function run() {
   process.env.NODE_ENV = 'production';
-  process.env.JWT_SECRET = 'production-test-secret-that-is-long-enough';
+  process.env.JWT_SECRET = crypto.randomBytes(48).toString('base64url');
+  process.env.AUTH_CODE_SECRET = crypto.randomBytes(48).toString('base64url');
 
   const { apiRouter } = await import('../server/api');
   const app = express();

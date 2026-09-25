@@ -34,9 +34,9 @@ adminManagementRouter.get('/parents', async (req: AuthenticatedRequest, res) => 
       `SELECT u.id, concat_ws(' ',u.first_name,u.last_name) AS "fullName", u.phone, sm.status
        FROM users u JOIN school_memberships sm ON sm.user_id = u.id
        WHERE sm.school_id = $1 AND sm.role = 'parent' ORDER BY u.id`, [req.membership!.schoolId]);
-    const students = await db.query<{ id: string; parentId: string; name: string; className: string; studentNumber: string }>(
+    const students = await db.query<{ id: string; parentId: string; name: string; className: string; studentNumber: string; birthDate?: string }>(
       `SELECT s.id, r.parent_user_id AS "parentId", s.name, s.class_name AS "className",
-         COALESCE(s.student_number,'') AS "studentNumber"
+         COALESCE(s.student_number,'') AS "studentNumber", s.birth_date::text AS "birthDate"
        FROM students s JOIN student_parent_relations r ON r.school_id = s.school_id AND r.student_id = s.id
        WHERE s.school_id = $1 ORDER BY s.id`, [req.membership!.schoolId]);
     res.json({ parents: result.rows.map((parent) => ({ ...parent, students: students.rows.filter((student) => student.parentId === parent.id) })) });
@@ -66,11 +66,14 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
     await db.transaction(async (tx) => {
       let cancelledAppointments = 0;
       await tx.query('SELECT id FROM schools WHERE id = $1 FOR UPDATE', [schoolId]);
+      if (kind === 'teacher') await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
       if (kind === 'roster') {
         const parentName = textField(req.body.parentName, 150);
         const studentName = textField(req.body.studentName, 150);
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
+        const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
+        if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
         const phone = normalizeTurkishPhone(req.body.parentPhone);
         if (!phone || number.length > 50) throw new ManagementError(400, 'Telefon veya okul numarası geçersiz.');
         const found = await tx.query<{ parent_phone: string; is_claimed: boolean }>(
@@ -87,13 +90,15 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         await tx.query(`UPDATE school_roster SET parent_name=$2,parent_phone=$3,updated_at=NOW()
           WHERE school_id=$1 AND is_claimed=FALSE AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($4,$5,$6)`,
           [schoolId,parentName,phone,...oldDigits]);
-        await tx.query(`UPDATE school_roster SET student_name=$3,class_name=$4,student_number=$5,updated_at=NOW()
-          WHERE school_id=$1 AND id=$2 AND is_claimed=FALSE`, [schoolId,id,studentName,className,number || null]);
+        await tx.query(`UPDATE school_roster SET student_name=$3,class_name=$4,student_number=$5,birth_date=$6::date,updated_at=NOW()
+          WHERE school_id=$1 AND id=$2 AND is_claimed=FALSE`, [schoolId,id,studentName,className,number || null,birthDate]);
         if (normalizeTurkishPhone(record.parent_phone) !== phone) await revokeCodes(tx,schoolId,record.parent_phone,'parent');
       } else if (kind === 'student') {
         const name = textField(req.body.name, 150);
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
+        const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
+        if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
         if (number.length > 50) throw new ManagementError(400, 'Okul numarası çok uzun.');
         const previous = await tx.query<{ name: string; class_name: string; student_number: string | null }>(
           'SELECT name,class_name,student_number FROM students WHERE school_id=$1 AND id=$2 FOR UPDATE', [schoolId, id]);
@@ -102,7 +107,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         const ambiguous = await tx.query(`SELECT id FROM students WHERE school_id=$1 AND id<>$2 AND name=$3
           AND class_name=$4 AND student_number IS NOT DISTINCT FROM $5 LIMIT 1`, [schoolId, id, old.name, old.class_name, old.student_number]);
         if (ambiguous.rows.length) throw new ManagementError(409, 'Kütük eşleştirmesi belirsiz. Okul kayıtlarını kontrol edin.');
-        await tx.query(`UPDATE school_roster sr SET student_name=$6,class_name=$7,student_number=$8,updated_at=NOW()
+        await tx.query(`UPDATE school_roster sr SET student_name=$6,class_name=$7,student_number=$8,birth_date=$9::date,updated_at=NOW()
           WHERE sr.school_id=$1 AND sr.student_name=$3 AND sr.class_name=$4
             AND sr.student_number IS NOT DISTINCT FROM $5
             AND EXISTS (SELECT 1 FROM student_parent_relations rel JOIN users u ON u.id=rel.parent_user_id
@@ -110,10 +115,10 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
                 AND regexp_replace(sr.parent_phone,'[^0-9]','','g') IN
                   (regexp_replace(u.phone,'[^0-9]','','g'), '0' || right(regexp_replace(u.phone,'[^0-9]','','g'),10),
                    right(regexp_replace(u.phone,'[^0-9]','','g'),10)))`,
-          [schoolId, id, old.name, old.class_name, old.student_number, name, className, number || null]);
+          [schoolId, id, old.name, old.class_name, old.student_number, name, className, number || null,birthDate]);
         const result = await tx.query<{ id: string }>(
-          `UPDATE students SET name=$3, class_name=$4, student_number=$5, updated_at=NOW()
-           WHERE school_id=$1 AND id=$2 RETURNING id`, [schoolId, id, name, className, number || null]);
+          `UPDATE students SET name=$3, class_name=$4, student_number=$5, birth_date=$6::date, updated_at=NOW()
+           WHERE school_id=$1 AND id=$2 RETURNING id`, [schoolId, id, name, className, number || null,birthDate]);
         if (!result.rows.length) throw new ManagementError(404, 'Kayıt bulunamadı.');
       } else {
         let userId: string | null = id;
@@ -139,21 +144,38 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         }
         if (removing) {
           if (kind === 'teacher') {
-            const cancelled = await tx.query<{ id: string }>(
-              `UPDATE appointments SET status='cancelled', updated_at=NOW(),
-                 notes=concat_ws(E'\n', NULLIF(notes,''), 'Sistem: Öğretmenin okul erişimi kaldırıldığı için iptal edildi.')
-               WHERE school_id=$1 AND teacher_id=$2
-                 AND (status='checked_in' OR (status IN ('pending','booked')
-                   AND date >= to_char(NOW() AT TIME ZONE 'Europe/Istanbul','YYYY-MM-DD')))
-               RETURNING id`, [schoolId, id]);
-            cancelledAppointments = cancelled.rows.length;
-          }
-          if (userId) {
-            await tx.query(`UPDATE school_memberships SET status='inactive', updated_at=NOW()
-              WHERE school_id=$1 AND user_id=$2 AND role=$3`, [schoolId, userId, kind]);
+            const appointments = await tx.query<{id:string}>(`SELECT id FROM appointments WHERE school_id=$1 AND teacher_id=$2`,[schoolId,id]);
+            cancelledAppointments = appointments.rows.length;
+            const appointmentIds = appointments.rows.map((row) => row.id);
+            if (appointmentIds.length) await tx.query('DELETE FROM notifications WHERE school_id=$1 AND appointment_id = ANY($2::text[])',[schoolId,appointmentIds]);
+            await tx.query('DELETE FROM appointments WHERE school_id=$1 AND teacher_id=$2',[schoolId,id]);
+            await tx.query('DELETE FROM availability_slots WHERE school_id=$1 AND teacher_id=$2',[schoolId,id]);
+            await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=COALESCE(revoked_at,NOW()),target_user_id=NULL
+              WHERE school_id=$1 AND target_role='teacher' AND (target_user_id=$2 OR regexp_replace(target_phone,'[^0-9]','','g') IN ($3,$4,$5))
+                AND consumed_at IS NULL`,[schoolId,userId,...(getTurkishPhoneLookupDigits(oldPhone) || ['', '', ''])]);
+            if (userId) {
+              await tx.query('DELETE FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role=\'teacher\'',[schoolId,userId]);
+              await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2',[schoolId,id]);
+              const independent = await tx.query(`SELECT
+                  EXISTS(SELECT 1 FROM school_memberships WHERE user_id=$1) OR
+                  EXISTS(SELECT 1 FROM student_parent_relations WHERE parent_user_id=$1) OR
+                  EXISTS(SELECT 1 FROM appointments WHERE parent_id=$1) OR
+                  EXISTS(SELECT 1 FROM teacher_profiles WHERE user_id=$1) OR
+                  EXISTS(SELECT 1 FROM pending_staff ps JOIN users u ON u.phone=ps.phone WHERE u.id=$1) AS has_refs`,[userId]);
+              if (!independent.rows[0]?.has_refs) {
+                await tx.query('DELETE FROM notifications WHERE user_id=$1',[userId]);
+                await tx.query('UPDATE invitations SET target_user_id=NULL WHERE target_user_id=$1',[userId]);
+                await tx.query('UPDATE invitations SET created_by=NULL WHERE created_by=$1',[userId]);
+                await tx.query('UPDATE appointments SET approved_by=NULL WHERE approved_by=$1',[userId]);
+                await tx.query('UPDATE appointments SET checked_in_by=NULL WHERE checked_in_by=$1',[userId]);
+                await tx.query('DELETE FROM users WHERE id=$1',[userId]);
+              }
+            } else {
+              await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2 AND user_id IS NULL',[schoolId,id]);
+            }
           } else {
-            const history = await tx.query('SELECT id FROM appointments WHERE school_id=$1 AND teacher_id=$2 LIMIT 1', [schoolId, id]);
-            if (!history.rows.length) await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2 AND user_id IS NULL', [schoolId, id]);
+            if (userId) await tx.query(`UPDATE school_memberships SET status='inactive', updated_at=NOW()
+              WHERE school_id=$1 AND user_id=$2 AND role=$3`, [schoolId, userId, kind]);
           }
           await revokeCodes(tx, schoolId, oldPhone, kind);
         } else {
@@ -194,10 +216,22 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
             if (duplicate.rows.length) throw new ManagementError(409, 'Telefon başka bir hesaba bağlı.');
           }
           if (kind === 'teacher') {
-            const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id=$1 AND id<>$2
-              AND regexp_replace(phone,'[^0-9]','','g') IN ($3,$4,$5) LIMIT 1`,
-              [schoolId, id, ...getTurkishPhoneLookupDigits(phone)!]);
-            if (duplicate.rows.length) throw new ManagementError(409, 'Bu telefon okulda başka bir öğretmene bağlı.');
+            if (phoneChanged) {
+              const phoneDigits = getTurkishPhoneLookupDigits(phone)!;
+              const duplicateAcrossSchools = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id<>$1 AND id<>$2
+                AND regexp_replace(phone,'[^0-9]','','g') IN ($3,$4,$5) LIMIT 1`, [schoolId, id, ...phoneDigits]);
+              const activeTeacherAccount = await tx.query(`SELECT sm.user_id FROM school_memberships sm
+                JOIN users u ON u.id=sm.user_id
+                WHERE sm.role='teacher' AND sm.status='active' AND sm.school_id<>$1
+                  AND sm.user_id IS DISTINCT FROM $2
+                  AND regexp_replace(u.phone,'[^0-9]','','g') IN ($3,$4,$5) LIMIT 1`, [schoolId, userId, ...phoneDigits]);
+              if (duplicateAcrossSchools.rows.length || activeTeacherAccount.rows.length) {
+                throw new ManagementError(409, 'Bu öğretmen başka bir okulda kayıtlı.');
+              }
+              const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id=$1 AND id<>$2
+                AND regexp_replace(phone,'[^0-9]','','g') IN ($3,$4,$5) LIMIT 1`, [schoolId, id, ...phoneDigits]);
+              if (duplicate.rows.length) throw new ManagementError(409, 'Bu telefon okulda başka bir öğretmene bağlı.');
+            }
             await tx.query(`UPDATE teacher_profiles SET first_name=$3,last_name=$4,phone=$5,branch=$6,updated_at=NOW()
               WHERE school_id=$1 AND id=$2`, [schoolId, id, firstName, lastName, phone, branch]);
             if (userId) await tx.query(`UPDATE school_memberships SET branch=$3,updated_at=NOW()
@@ -213,9 +247,9 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         }
       }
       await auditLogRepository.createAuditLog({
-        schoolId, action: `${kind}.${removing ? 'removed' : 'updated'}`,
+        schoolId, action: kind === 'teacher' && removing ? 'teacher_deleted' : `${kind}.${removing ? 'removed' : 'updated'}`,
         actorName: 'Okul yönetimi', details: JSON.stringify({ id, ...(kind === 'teacher' && removing
-          ? { cancelledAppointments, reason: 'Öğretmenin okul erişimi kaldırıldı.' } : {}) }),
+          ? { deletedAppointments: cancelledAppointments, reason: 'Öğretmen ve ilişkili kayıtlar silindi.' } : {}) }),
       }, tx);
     });
     return res.json({ success: true });

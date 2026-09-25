@@ -11,7 +11,8 @@ import {
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone } from '../src/utils/phone';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
-import { generateActivationCode, hashActivationCode } from './activation-codes';
+import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
+import { sendEmail } from './email';
 import {
   getDb,
   checkDatabaseHealth,
@@ -29,6 +30,7 @@ import {
   notificationRepository,
   auditLogRepository,
   invitationRepository,
+  AuthCodePurpose,
 } from './repositories';
 import {
   Appointment,
@@ -108,7 +110,6 @@ apiRouter.get('/public/school-context', async (req, res) => {
   }
 });
 
-type AuthCodePurpose = 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET';
 const AUTH_CODE_ERROR = 'Bilgiler doğrulanamadı veya kodun süresi dolmuş olabilir.';
 
 function splitParentName(name: string): { firstName: string; lastName: string } {
@@ -119,6 +120,328 @@ function splitParentName(name: string): { firstName: string; lastName: string } 
 async function recordFailedAuthCodeAttempt(schoolId: string, phone: string, purpose: AuthCodePurpose): Promise<void> {
   await invitationRepository.recordFailedAuthCodeAttempt(schoolId, phone, purpose).catch(() => undefined);
 }
+
+const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
+
+async function withinAuthRateLimit(scope: string, maximum: number, windowMinutes: number): Promise<boolean> {
+  const key = hashSetupToken(scope);
+  const result = await (await getDb()).query<{ attempts: number; blocked_until: string | null }>(
+    `INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at,blocked_until) VALUES($1,1,NOW(),NULL)
+     ON CONFLICT(scope_hash) DO UPDATE SET
+       attempts=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN 1 ELSE auth_rate_limits.attempts + 1 END,
+       window_started_at=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NOW() ELSE auth_rate_limits.window_started_at END,
+       blocked_until=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NULL
+         WHEN auth_rate_limits.attempts + 1 >= $2 THEN NOW() + make_interval(mins => $3) ELSE auth_rate_limits.blocked_until END
+     RETURNING attempts,blocked_until`, [key,maximum,windowMinutes]);
+  const row = result.rows[0];
+  return !!row && Number(row.attempts) < maximum && (!row.blocked_until || new Date(row.blocked_until).getTime() <= Date.now());
+}
+
+async function createParentChallenge(schoolId: string, phone: string, birthDate: string, purpose: 'parent_self_registration' | 'parent_password_reset', userId?: string) {
+  const token = generateSetupToken();
+  await invitationRepository.createAuthCode({
+    schoolId,
+    targetPhone: phone,
+    targetUserId: userId,
+    targetRole: 'parent',
+    purpose,
+    codeHash: hashSetupToken(`${token}:${birthDate}`),
+    createdBy: userId,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    token: crypto.randomUUID(),
+  });
+  return token;
+}
+
+apiRouter.post('/auth/parent/registration-challenge', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
+  if (!schoolCode || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  if (!await withinAuthRateLimit(`parent-register:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (!school) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+    const db = await getDb();
+    const matches = await db.query<{ id: string }>(
+      `SELECT sr.id FROM school_roster sr
+       WHERE sr.school_id=$1 AND sr.birth_date=$2::date AND sr.is_claimed=FALSE
+         AND regexp_replace(sr.parent_phone,'[^0-9]','','g') IN ($3,$4,$5)
+       LIMIT 2`,
+      [school.id, birthDate, ...((await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone) || [])]
+    );
+    const existing = await userRepository.getByPhone(phone);
+    const existingMembership = existing ? await membershipRepository.getActiveMembership(existing.id, school.id) : null;
+    if (matches.rows.length === 0 || existingMembership?.role === 'parent') return res.status(400).json({ error: PARENT_AUTH_ERROR });
+    const challenge = await createParentChallenge(school.id, phone, birthDate, 'parent_self_registration', existing?.id);
+    return res.json({ success: true, schoolId: school.id, challenge });
+  } catch {
+    return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  }
+});
+
+apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
+  const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
+  const password = req.body?.password;
+  const passwordError = validatePassword(password);
+  if (!schoolId || !phone || !challenge || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
+  if (!await withinAuthRateLimit(`parent-register-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_PARENT_CHALLENGE');
+      const existing = await userRepository.getByPhone(phone, tx);
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: existing?.id, targetRole: 'parent', purpose: 'parent_self_registration', codeHash: hashSetupToken(`${challenge}:${birthDate}`) }, tx);
+      if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone);
+      if (!digits) throw new Error('INVALID_PARENT_CHALLENGE');
+      const roster = await tx.query<{ id: string; parent_name: string; student_name: string; class_name: string; student_number: string | null; birth_date: string }>(
+        `SELECT id,parent_name,student_name,class_name,student_number,birth_date::text AS birth_date FROM school_roster
+         WHERE school_id=$1 AND is_claimed=FALSE AND birth_date=$5::date
+           AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`, [schoolId, ...digits, birthDate]);
+      if (!roster.rows.length) throw new Error('INVALID_PARENT_CHALLENGE');
+      const user = existing || await userRepository.create({ phone, firstName: splitParentName(roster.rows[0].parent_name).firstName, lastName: splitParentName(roster.rows[0].parent_name).lastName }, tx);
+      const active = await membershipRepository.getActiveMembership(user.id, schoolId, tx);
+      if (active?.role === 'parent') throw new Error('INVALID_PARENT_CHALLENGE');
+      if (existing) await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(password as string), tx);
+      else await userRepository.updatePasswordHash(user.id, hashPassword(password as string), tx);
+      await membershipRepository.createOrActivate({ schoolId, userId: user.id, role: 'parent' }, tx);
+      let claimed = 0;
+      for (const entry of roster.rows) {
+        const student = await studentRepository.findOrCreateStudent(schoolId, { name: entry.student_name, className: entry.class_name, studentNumber: entry.student_number || undefined, birthDate: String(entry.birth_date).slice(0,10) }, tx);
+        if (student.birthDate && student.birthDate !== String(entry.birth_date).slice(0,10)) continue;
+        await tx.query('UPDATE students SET birth_date=$3::date WHERE school_id=$1 AND id=$2 AND birth_date IS NULL', [schoolId, student.id, entry.birth_date]);
+        await relationRepository.createRelation({ schoolId, studentId: student.id, parentUserId: user.id }, tx);
+        await rosterRepository.claimRosterRecord(schoolId, entry.id, tx);
+        claimed++;
+      }
+      if (!claimed) throw new Error('INVALID_PARENT_CHALLENGE');
+      await auditLogRepository.createAuditLog({ schoolId, action: 'parent_self_registration_completed', actorName: 'Sistem', details: `Veli hesabı ${user.id} oluşturuldu.` }, tx);
+    });
+    return res.json({ success: true, message: 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.' });
+  } catch {
+    return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  }
+});
+
+apiRouter.post('/auth/parent/reset-challenge', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
+  if (!schoolCode || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  if (!await withinAuthRateLimit(`parent-reset:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    const user = await userRepository.getByPhone(phone);
+    if (!school || !user || !(await membershipRepository.getActiveMembership(user.id, school.id))?.role ||
+        (await membershipRepository.getActiveMembership(user.id, school.id))?.role !== 'parent') return res.status(400).json({ error: PARENT_AUTH_ERROR });
+    const db = await getDb();
+    const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+    const matches = await db.query(
+      `SELECT 1 FROM student_parent_relations rel JOIN students s ON s.school_id=rel.school_id AND s.id=rel.student_id
+       JOIN users u ON u.id=rel.parent_user_id
+       WHERE rel.school_id=$1 AND rel.parent_user_id=$2 AND s.birth_date=$3::date
+         AND regexp_replace(u.phone,'[^0-9]','','g') IN ($4,$5,$6) LIMIT 1`,
+      [school.id,user.id,birthDate,...digits]);
+    if (!matches.rows.length) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+    const token = await createParentChallenge(school.id, phone, birthDate, 'parent_password_reset', user.id);
+    return res.json({ success: true, schoolId: school.id, challenge: token });
+  } catch { return res.status(400).json({ error: PARENT_AUTH_ERROR }); }
+});
+
+apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
+  const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
+  const passwordError = validatePassword(req.body?.password);
+  if (!schoolId || !phone || !challenge || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
+  if (!await withinAuthRateLimit(`parent-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      const user = await userRepository.getByPhone(phone, tx);
+      if (!user) throw new Error('INVALID_PARENT_CHALLENGE');
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_PARENT_CHALLENGE');
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId,targetPhone:phone,targetUserId:user.id,targetRole:'parent',purpose:'parent_password_reset',codeHash:hashSetupToken(`${challenge}:${birthDate}`) },tx);
+      if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
+      await userRepository.updatePasswordHashAndInvalidateSessions(user.id,hashPassword(req.body.password as string),tx);
+      await auditLogRepository.createAuditLog({ schoolId,action:'parent_password_reset_completed',actorName:'Sistem',details:`Veli hesabı ${user.id} için parola sıfırlandı.` },tx);
+    });
+    return res.json({ success:true,message:'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
+  } catch { return res.status(400).json({ error:PARENT_AUTH_ERROR }); }
+});
+
+apiRouter.post('/auth/staff/activation-verify', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const code = typeof req.body?.code === 'string' ? req.body.code : '';
+  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`staff-activate:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:AUTH_CODE_ERROR});
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (!school) return res.status(400).json({ error: AUTH_CODE_ERROR });
+    const db = await getDb();
+    const challenge = await db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+      const teacher = await teacherRepository.getTeacherByPhone(school.id, phone, tx);
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const security = await tx.query<{ id: string; first_name: string; last_name: string; phone: string; email: string }>(
+        `SELECT id,first_name,last_name,phone,email FROM pending_staff WHERE school_id=$1 AND role='security'
+         AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`, [school.id,...digits]);
+      const role = teacher?.userId === undefined && teacher ? 'teacher' : security.rows.length === 1 && !teacher ? 'security' : null;
+      if (!role) throw new Error('INVALID_STAFF_CODE');
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id,targetPhone:phone,targetUserId:teacher?.userId,targetRole:role,purpose:'staff_activation',codeHash:hashActivationCode(code) },tx);
+      if (!consumed) throw new Error('INVALID_STAFF_CODE');
+      const token = generateSetupToken();
+      await invitationRepository.createAuthCode({ schoolId:school.id,targetPhone:phone,targetUserId:teacher?.userId,targetRole:role,purpose:'staff_activation_setup',codeHash:hashSetupToken(token),expiresAt:new Date(Date.now()+10*60*1000).toISOString(),token:crypto.randomUUID() },tx);
+      return { token, role };
+    });
+    return res.json({ success:true, setupToken:challenge.token, role:challenge.role });
+  } catch {
+    const failedSchool = await schoolRepository.getByCode(schoolCode);
+    if (failedSchool) await recordFailedAuthCodeAttempt(failedSchool.id,phone,'staff_activation');
+    return res.status(400).json({ error:AUTH_CODE_ERROR });
+  }
+});
+
+apiRouter.post('/auth/staff/activation-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
+  const passwordError = validatePassword(req.body?.password);
+  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({ error:passwordError || AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`staff-activate-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:AUTH_CODE_ERROR});
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
+      const setup = await invitationRepository.consumeAuthCode({ schoolId,targetPhone:phone,purpose:'staff_activation_setup',codeHash:hashSetupToken(setupToken) },tx);
+      if (!setup || (setup.targetRole !== 'teacher' && setup.targetRole !== 'security')) throw new Error('INVALID_STAFF_CODE');
+      await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
+      const teacher = setup.targetRole === 'teacher' ? await teacherRepository.getTeacherByPhone(schoolId,phone,tx) : null;
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const pendingSecurity = setup.targetRole === 'security' ? await tx.query<{ id:string; first_name:string; last_name:string; email:string }>(
+        `SELECT id,first_name,last_name,email FROM pending_staff WHERE school_id=$1 AND role='security'
+         AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`,[schoolId,...digits]) : { rows: [] };
+      if ((setup.targetRole === 'teacher' && (!teacher || teacher.userId)) || (setup.targetRole === 'security' && pendingSecurity.rows.length !== 1)) throw new Error('INVALID_STAFF_CODE');
+      const existingUser = await userRepository.getByPhone(phone,tx);
+      if (setup.targetRole === 'teacher') {
+        const occupied = existingUser ? await tx.query(`SELECT 1 FROM teacher_profiles WHERE user_id=$1 AND school_id<>$2
+          UNION ALL SELECT 1 FROM school_memberships WHERE user_id=$1 AND school_id<>$2 AND role='teacher' AND status='active' LIMIT 1`,[existingUser.id,schoolId]) : {rows:[]};
+        if (existingUser && occupied.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
+      }
+      const email = setup.targetRole === 'teacher' ? teacher!.email : pendingSecurity.rows[0].email;
+      const createdUser = existingUser || await userRepository.create({ phone,firstName:setup.targetRole === 'teacher' ? teacher!.firstName : pendingSecurity.rows[0].first_name,lastName:setup.targetRole === 'teacher' ? teacher!.lastName : pendingSecurity.rows[0].last_name,email },tx);
+      const user = await userRepository.getById(createdUser.id,tx);
+      if (!user) throw new Error('INVALID_STAFF_CODE');
+      if (setup.targetRole === 'teacher') {
+        if (!await teacherRepository.linkUser(schoolId,teacher!.id,user.id,tx)) throw new Error('INVALID_STAFF_CODE');
+        await membershipRepository.createOrActivate({schoolId,userId:user.id,role:'teacher',branch:teacher!.branch},tx);
+      } else {
+        await tx.query('UPDATE users SET email=$2,updated_at=NOW() WHERE id=$1',[user.id,email]);
+        await membershipRepository.createOrActivate({schoolId,userId:user.id,role:'security'},tx);
+        await tx.query('DELETE FROM pending_staff WHERE school_id=$1 AND id=$2',[schoolId,pendingSecurity.rows[0].id]);
+      }
+      if (existingUser) await userRepository.updatePasswordHashAndInvalidateSessions(user.id,hashPassword(req.body.password as string),tx);
+      else await userRepository.updatePasswordHash(user.id,hashPassword(req.body.password as string),tx);
+      await auditLogRepository.createAuditLog({schoolId,action:'staff_activation_completed',actorName:'Sistem',details:`${setup.targetRole} hesabı ${user.id} etkinleştirildi.`},tx);
+    });
+    return res.json({success:true,message:'Hesabınız etkinleştirildi. Yeni şifrenizle giriş yapabilirsiniz.'});
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({error:'Bu öğretmen başka bir okulda kayıtlı.'});
+    return res.status(400).json({error:AUTH_CODE_ERROR});
+  }
+});
+
+const STAFF_RESET_GENERIC = 'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.';
+
+apiRouter.post('/auth/staff/reset-request', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  try {
+    if (!phone || !await withinAuthRateLimit(`staff-reset-request:${req.ip}:${phone}`, 3, 60)) return res.json({success:true,message:STAFF_RESET_GENERIC});
+    const school = schoolCode ? await schoolRepository.getByCode(schoolCode) : null;
+    if (school && phone) {
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const db = await getDb();
+      const staff = await db.query<{ id:string; email:string; role:'teacher'|'security'; full_name:string }>(
+        `SELECT u.id, COALESCE(tp.email,u.email) AS email, sm.role, concat_ws(' ',u.first_name,u.last_name) AS full_name
+         FROM users u JOIN school_memberships sm ON sm.user_id=u.id AND sm.school_id=$1 AND sm.status='active'
+         LEFT JOIN teacher_profiles tp ON tp.school_id=sm.school_id AND tp.user_id=u.id
+         WHERE sm.role IN ('teacher','security') AND regexp_replace(u.phone,'[^0-9]','','g') IN ($2,$3,$4)
+           AND COALESCE(tp.email,u.email) IS NOT NULL LIMIT 1`,[school.id,...digits]);
+      const found = staff.rows[0];
+      if (found) {
+        const cooldown = await db.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2 AND purpose='staff_password_reset'
+          AND created_at > NOW() - INTERVAL '60 seconds' LIMIT 1`,[school.id,found.id]);
+        if (!cooldown.rows.length) {
+          const code = generateStaffCode();
+          await invitationRepository.createAuthCode({schoolId:school.id,targetPhone:phone,targetUserId:found.id,targetRole:found.role,purpose:'staff_password_reset',codeHash:hashActivationCode(code),expiresAt:new Date(Date.now()+15*60*1000).toISOString(),token:crypto.randomUUID()});
+          await sendEmail({to:found.email,subject:'Veli Randevu Parola Sıfırlama',html:`<p>Merhaba ${escapeHtml(found.full_name)},</p><p>Parola sıfırlama kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>Kod 15 dakika içinde sona erer ve tek kullanımlıdır.</p><p>Veli Randevu</p>`});
+          await auditLogRepository.createAuditLog({schoolId:school.id,action:'staff_password_reset_email_sent',actorName:'Sistem',details:`${found.role} hesabı ${found.id} için sıfırlama e-postası gönderildi.`});
+        }
+      }
+    }
+  } catch {
+    // Keep the public response independent of account and provider state.
+  }
+  return res.json({success:true,message:STAFF_RESET_GENERIC});
+});
+
+apiRouter.post('/auth/staff/reset-verify', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const code = typeof req.body?.code === 'string' ? req.body.code : '';
+  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({error:AUTH_CODE_ERROR});
+  if (!await withinAuthRateLimit(`staff-reset-verify:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:AUTH_CODE_ERROR});
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (!school) return res.status(400).json({error:AUTH_CODE_ERROR});
+    const user = await userRepository.getByPhone(phone);
+    if (!user) throw new Error('INVALID_STAFF_RESET');
+    const memberships = await membershipRepository.getMembershipsByUserId(user.id);
+    const membership = memberships.find((item) => item.schoolId === school.id && item.status === 'active' && (item.role === 'teacher' || item.role === 'security'));
+    if (!membership) throw new Error('INVALID_STAFF_RESET');
+    const setupToken = generateSetupToken();
+    await (await getDb()).transaction(async (tx) => {
+      const consumed = await invitationRepository.consumeAuthCode({schoolId:school.id,targetPhone:phone,targetUserId:user.id,targetRole:membership.role,purpose:'staff_password_reset',codeHash:hashActivationCode(code)},tx);
+      if (!consumed) throw new Error('INVALID_STAFF_RESET');
+      await invitationRepository.createAuthCode({schoolId:school.id,targetPhone:phone,targetUserId:user.id,targetRole:membership.role,purpose:'staff_password_setup',codeHash:hashSetupToken(setupToken),expiresAt:new Date(Date.now()+10*60*1000).toISOString(),token:crypto.randomUUID()},tx);
+    });
+    return res.json({success:true,setupToken,schoolId:school.id});
+  } catch {
+    await invitationRepository.recordFailedAuthCodeAttempt((await schoolRepository.getByCode(schoolCode))?.id || '',phone,'staff_password_reset');
+    return res.status(400).json({error:AUTH_CODE_ERROR});
+  }
+});
+
+apiRouter.post('/auth/staff/reset-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
+  const passwordError = validatePassword(req.body?.password);
+  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({error:passwordError || AUTH_CODE_ERROR});
+  if (!await withinAuthRateLimit(`staff-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:AUTH_CODE_ERROR});
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_STAFF_RESET');
+      const user = await userRepository.getByPhone(phone,tx);
+      if (!user) throw new Error('INVALID_STAFF_RESET');
+      const memberships = await membershipRepository.getMembershipsByUserId(user.id, tx);
+      const membership = memberships.find((item) => item.schoolId === schoolId && item.status === 'active' && (item.role === 'teacher' || item.role === 'security'));
+      if (!membership) throw new Error('INVALID_STAFF_RESET');
+      const consumed = await invitationRepository.consumeAuthCode({schoolId,targetPhone:phone,targetUserId:user.id,targetRole:membership.role,purpose:'staff_password_setup',codeHash:hashSetupToken(setupToken)},tx);
+      if (!consumed) throw new Error('INVALID_STAFF_RESET');
+      await userRepository.updatePasswordHashAndInvalidateSessions(user.id,hashPassword(req.body.password as string),tx);
+      await auditLogRepository.createAuditLog({schoolId,action:'staff_password_reset_completed',actorName:'Sistem',details:`${membership.role} hesabı ${user.id} için parola sıfırlandı.`},tx);
+    });
+    return res.json({success:true,message:'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.'});
+  } catch { return res.status(400).json({error:AUTH_CODE_ERROR}); }
+});
 
 apiRouter.post('/auth/activate-account', async (req, res) => {
   const { schoolId, phone, code, password } = req.body;
@@ -155,6 +478,11 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
         if (consumed.targetRole === 'teacher') {
           const teacher = await teacherRepository.getTeacherByPhone(schoolId, cleanPhone, tx);
           if (!teacher || (consumed.targetUserId && teacher.userId !== consumed.targetUserId)) throw new Error('INVALID_AUTH_CODE');
+          await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
+          const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(cleanPhone)!;
+          const crossSchool = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id<>$1 AND
+            (regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) OR ($5::text IS NOT NULL AND user_id=$5)) LIMIT 1`,[schoolId,...digits,targetUser?.id || existingUser?.id || null]);
+          if (crossSchool.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
           const user = targetUser || await userRepository.create({ phone: cleanPhone, firstName: teacher.firstName, lastName: teacher.lastName }, tx);
           if (!await teacherRepository.linkUser(schoolId, teacher.id, user.id, tx)) throw new Error('INVALID_AUTH_CODE');
           await userRepository.updatePasswordHash(user.id, hashPassword(password), tx);
@@ -183,9 +511,10 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
         await rosterRepository.claimRosterRecord(schoolId, rosterEntry.id, tx);
         const student = await studentRepository.findOrCreateStudent(
           schoolId,
-          { name: rosterEntry.studentName, className: rosterEntry.className, studentNumber: rosterEntry.studentNumber },
+          { name: rosterEntry.studentName, className: rosterEntry.className, studentNumber: rosterEntry.studentNumber, birthDate: rosterEntry.birthDate },
           tx
         );
+        if (rosterEntry.birthDate) await tx.query('UPDATE students SET birth_date=$3::date WHERE school_id=$1 AND id=$2 AND birth_date IS NULL',[schoolId,student.id,rosterEntry.birthDate]);
         await relationRepository.createRelation({ schoolId, studentId: student.id, parentUserId: user.id }, tx);
       }
 
@@ -205,6 +534,7 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
       await recordFailedAuthCodeAttempt(schoolId, cleanPhone, 'ACCOUNT_ACTIVATION');
       return res.status(400).json({ error: AUTH_CODE_ERROR });
     }
+    if (err?.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({error:'Bu öğretmen başka bir okulda kayıtlı.'});
     console.error('[POST /auth/activate-account Error]:', err);
     return res.status(500).json({ error: 'Hesap etkinleştirilemedi.' });
   }
@@ -247,6 +577,106 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
     console.error('[POST /auth/reset-password-with-code Error]:', err);
     return res.status(500).json({ error: 'Şifre güncellenemedi.' });
   }
+});
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+}
+
+async function emailStaffActivation(data: { schoolId: string; role: 'teacher' | 'security'; phone: string; email: string; firstName: string; lastName: string; userId?: string; adminId: string }) {
+  const code = generateStaffCode();
+  const db = await getDb();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  try {
+    await db.transaction(async (tx) => {
+      await invitationRepository.createAuthCode({
+        schoolId: data.schoolId, targetPhone: data.phone, targetUserId: data.userId, targetRole: data.role,
+        purpose: 'staff_activation', codeHash: hashActivationCode(code), createdBy: data.adminId, expiresAt, token: crypto.randomUUID(),
+      }, tx);
+    });
+  } catch { throw new Error('STAFF_ACTIVATION_CODE_STORAGE_FAILED'); }
+  const school = await schoolRepository.getById(data.schoolId);
+  if (!school) throw new Error('SCHOOL_NOT_AVAILABLE');
+  try { await sendEmail({
+    to: data.email,
+    subject: 'Veli Randevu Hesap Aktivasyonu',
+    html: `<p>Merhaba ${escapeHtml(`${data.firstName} ${data.lastName}`.trim())},</p><p>${escapeHtml(school.name)} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.</p><p>Aktivasyon kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>İlk girişte cep telefonu numaranız ve bu kod ile hesabınızı aktifleştirerek kendi şifrenizi oluşturabilirsiniz.</p><p>Kodun geçerlilik süresi: 24 saat. Bu kod tek kullanımlıktır.</p><p>Veli Randevu</p>`,
+  }); } catch (cause) { throw new Error(cause instanceof Error ? cause.message : 'Email delivery failed.'); }
+}
+
+apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const role = req.body?.role;
+  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
+  if (!['teacher', 'security'].includes(role) || fullName.split(' ').length < 2 || fullName.length > 150 || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150 || (role === 'teacher' && (!branch || branch.length > 100))) {
+    return res.status(400).json({ error: 'Personel bilgilerini kontrol edin.' });
+  }
+  const [firstName, ...last] = fullName.split(' ');
+  let staff: { id: string; email: string; firstName: string; lastName: string; phone: string; userId?: string };
+  try {
+    const db = await getDb();
+    staff = await db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`, digits);
+      if (role === 'teacher' && duplicate.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
+      if (role === 'teacher') {
+        const existingTeacherMembership = await tx.query(`SELECT sm.id FROM school_memberships sm JOIN users u ON u.id=sm.user_id
+          WHERE sm.role='teacher' AND sm.status='active' AND regexp_replace(u.phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`,digits);
+        if (existingTeacherMembership.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
+      }
+      const sameSchool = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)
+        UNION ALL SELECT id FROM pending_staff WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`, [schoolId,...digits]);
+      if (sameSchool.rows.length) throw new Error('STAFF_PHONE_EXISTS');
+      if (role === 'teacher') {
+        const created = await teacherRepository.createPending(schoolId, { firstName, lastName: last.join(' '), branch, phone, email }, tx);
+        return { id: created.id, email, firstName, lastName: last.join(' '), phone, userId: created.userId };
+      }
+      const id = `pending-sec-${crypto.randomUUID()}`;
+      await tx.query(`INSERT INTO pending_staff(id,school_id,role,first_name,last_name,phone,email,created_by) VALUES($1,$2,'security',$3,$4,$5,$6,$7)`, [id,schoolId,firstName,last.join(' '),phone,email,req.user!.id]);
+      return { id,email,firstName,lastName:last.join(' '),phone };
+    });
+    await emailStaffActivation({ ...staff, schoolId, role, adminId: req.user!.id });
+    await auditLogRepository.createAuditLog({ schoolId, action: 'admin_staff_created', actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(), details: `${role} ${staff.id} için aktivasyon e-postası gönderildi.` });
+    return res.status(201).json({ success: true, message: 'Personel eklendi. Aktivasyon e-postası gönderildi.' });
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu öğretmen başka bir okulda kayıtlı.' });
+    if (cause instanceof Error && cause.message === 'STAFF_PHONE_EXISTS') return res.status(409).json({ error: 'Bu telefon okulda kayıtlı.' });
+    if (staff!) {
+      if (cause instanceof Error) console.error('[staff activation delivery]', cause.message);
+      return res.status(503).json({ error: 'Personel kaydı oluşturuldu ancak e-posta gönderilemedi. Yeniden göndermeyi deneyin.' });
+    }
+    return res.status(500).json({ error: 'Personel eklenemedi.' });
+  }
+});
+
+apiRouter.post('/schools/:schoolId/staff/:role/:id/resend-activation', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const role = Array.isArray(req.params.role) ? req.params.role[0] : req.params.role;
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (role !== 'teacher' && role !== 'security') return res.status(404).json({error:'Personel bulunamadı.'});
+  try {
+    const db = await getDb();
+    let staff: {id:string;firstName:string;lastName:string;phone:string;email:string;userId?:string}|undefined;
+    if (role === 'teacher') {
+      const teacher = await teacherRepository.getTeacherById(schoolId,id);
+      if (!teacher || teacher.userId || !teacher.email || !normalizeTurkishPhone(teacher.phone)) return res.status(404).json({error:'Bekleyen personel bulunamadı.'});
+      staff = {id,firstName:teacher.firstName,lastName:teacher.lastName,phone:teacher.phone,email:teacher.email};
+    } else {
+      const row = await db.query<{first_name:string;last_name:string;phone:string;email:string}>("SELECT first_name,last_name,phone,email FROM pending_staff WHERE school_id=$1 AND id=$2 AND role='security'",[schoolId,id]);
+      if (!row.rows[0]) return res.status(404).json({error:'Bekleyen personel bulunamadı.'});
+      staff = {id,firstName:row.rows[0].first_name,lastName:row.rows[0].last_name,phone:row.rows[0].phone,email:row.rows[0].email};
+    }
+    const recent = await db.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation' AND created_at > NOW()-INTERVAL '60 seconds' LIMIT 1`,[schoolId,normalizeTurkishPhone(staff.phone)]);
+    if (recent.rows.length) return res.status(429).json({error:'Yeni aktivasyon e-postası göndermeden önce kısa süre bekleyin.'});
+    await emailStaffActivation({...staff,schoolId,role,adminId:req.user!.id});
+    await auditLogRepository.createAuditLog({schoolId,action:'staff_activation_email_resent',actorName:`${req.user!.firstName} ${req.user!.lastName}`.trim(),details:`${role} ${id} için aktivasyon e-postası yeniden gönderildi.`});
+    return res.json({success:true,message:'Aktivasyon e-postası gönderildi.'});
+  } catch { return res.status(503).json({error:'Aktivasyon e-postası gönderilemedi.'}); }
 });
 
 // Standard password/role login
@@ -434,9 +864,11 @@ apiRouter.post('/onboarding/claim-students', authMiddleware, async (req: Authent
             name: match.studentName,
             className: match.className,
             studentNumber: match.studentNumber,
+            birthDate: match.birthDate,
           },
           tx
         );
+        if (match.birthDate) await tx.query('UPDATE students SET birth_date=$3::date WHERE school_id=$1 AND id=$2 AND birth_date IS NULL',[schoolId,student.id,match.birthDate]);
 
         addedStudents.push(student);
 
@@ -529,6 +961,7 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
   const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
   const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (fullName.length < 3 || fullName.length > 150 || fullName.split(' ').length < 2) {
     return res.status(400).json({ error: 'Ad soyad alanına geçerli bir ad ve soyad girin.' });
   }
@@ -538,19 +971,25 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
   if (!phone) {
     return res.status(400).json({ error: 'Geçerli bir Türkiye GSM numarası girin.' });
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150) return res.status(400).json({error:'Geçerli e-posta adresi girin.'});
 
   try {
     const db = await getDb();
     const teacher = await db.transaction(async (tx) => {
       const schoolLock = await tx.query('SELECT id FROM schools WHERE id = $1 FOR UPDATE', [schoolId]);
       if (!schoolLock.rows.length) throw new Error('SCHOOL_NOT_FOUND');
+      await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
       if (await teacherRepository.getTeacherByPhone(schoolId, phone, tx)) throw new Error('TEACHER_PHONE_EXISTS');
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const elsewhere = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id<>$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`,[schoolId,...digits]);
+      if (elsewhere.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
       const [firstName, ...lastNameParts] = fullName.split(' ');
       const created = await teacherRepository.createPending(schoolId, {
         firstName,
         lastName: lastNameParts.join(' '),
         branch,
         phone,
+        email,
       }, tx);
       await auditLogRepository.createAuditLog({
         schoolId,
@@ -560,11 +999,13 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
       }, tx);
       return { ...created, accountStatus: 'pending' as const };
     });
+    await emailStaffActivation({schoolId,role:'teacher',phone:teacher.phone,email,firstName:teacher.firstName,lastName:teacher.lastName,userId:teacher.userId,adminId:req.user!.id});
     return res.status(201).json({ teacher });
   } catch (err) {
     if (err instanceof Error && err.message === 'TEACHER_PHONE_EXISTS') {
       return res.status(409).json({ error: 'Bu telefon numarasıyla okulda zaten bir öğretmen profili var.' });
     }
+    if (err instanceof Error && err.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({error:'Bu öğretmen başka bir okulda kayıtlı.'});
     console.error('[POST /schools/:schoolId/teachers Error]:', err);
     return res.status(500).json({ error: 'Öğretmen oluşturulamadı.' });
   }
@@ -573,7 +1014,11 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
 apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
   if (req.query.role !== 'security') return res.status(400).json({ error: 'Geçersiz kullanıcı rolü.' });
   try {
-    const users = await userRepository.getSecurityUsers(req.membership!.schoolId);
+    const schoolId = req.membership!.schoolId;
+    const users = await userRepository.getSecurityUsers(schoolId);
+    const pending = await (await getDb()).query<{id:string;first_name:string;last_name:string;phone:string}>(
+      "SELECT id,first_name,last_name,phone FROM pending_staff WHERE school_id=$1 AND role='security' ORDER BY created_at DESC",[schoolId]);
+    users.push(...pending.rows.map((row) => ({id:row.id,firstName:row.first_name,lastName:row.last_name,phone:row.phone,accountStatus:'pending' as const})));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: 'Güvenlik personeli listelenemedi.' });
@@ -613,7 +1058,7 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
 });
 
 // Add availability slot (Teachers only)
-apiRouter.post(
+  apiRouter.post(
   '/schools/:schoolId/availability',
   authMiddleware,
   tenantGuard(['teacher']),
@@ -1223,50 +1668,22 @@ apiRouter.post(
   tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const { rosterId, purpose, targetType, targetId } = req.body as { rosterId?: string; purpose?: AuthCodePurpose; targetType?: 'parent' | 'teacher' | 'security'; targetId?: string };
-    if ((!rosterId && !targetId) || (purpose !== 'ACCOUNT_ACTIVATION' && purpose !== 'PASSWORD_RESET')) {
+    const { rosterId, purpose, targetType } = req.body as { rosterId?: string; purpose?: AuthCodePurpose; targetType?: 'parent' | 'teacher' | 'security' };
+    if (targetType === 'teacher' || targetType === 'security') return res.status(410).json({error:'Personel kodları e-posta ile gönderilir.'});
+    if (!rosterId || (purpose !== 'ACCOUNT_ACTIVATION' && purpose !== 'PASSWORD_RESET')) {
       return res.status(400).json({ error: 'Geçersiz kod oluşturma isteği.' });
     }
 
     try {
       let targetPhone: string;
       let targetUserId: string | undefined;
-      let targetRole: 'parent' | 'teacher' | 'security' = 'parent';
-      let targetLabel = rosterId || targetId || 'hedef';
-      if (targetType === 'teacher' && targetId) {
-        const teacher = await teacherRepository.getTeacherById(schoolId, targetId);
-        if (!teacher) return res.status(404).json({ error: 'Öğretmen bulunamadı.' });
-        targetPhone = teacher.phone;
-        targetUserId = teacher.userId;
-        targetRole = 'teacher';
-      } else if (targetType === 'security' && targetId) {
-        const securityUser = await userRepository.getById(targetId);
-        const membership = securityUser ? await membershipRepository.getActiveMembership(securityUser.id, schoolId) : null;
-        if (!securityUser || !membership || membership.role !== 'security') return res.status(404).json({ error: 'Güvenlik personeli bulunamadı.' });
-        targetPhone = securityUser.phone;
-        targetUserId = securityUser.id;
-        targetRole = 'security';
-      } else {
-        const rosterEntry = await rosterRepository.getById(schoolId, rosterId!);
-        if (!rosterEntry) return res.status(404).json({ error: 'Kütük kaydı bulunamadı.' });
-        targetPhone = rosterEntry.parentPhone;
-        const user = await userRepository.getByPhone(targetPhone);
-        targetUserId = user?.id;
-        targetLabel = rosterEntry.id;
-      }
+      const targetRole = 'parent' as const;
+      const rosterEntry = await rosterRepository.getById(schoolId, rosterId);
+      if (!rosterEntry) return res.status(404).json({ error: 'Kütük kaydı bulunamadı.' });
+      targetPhone = rosterEntry.parentPhone;
+      const targetLabel = rosterEntry.id;
       const user = await userRepository.getByPhone(targetPhone);
-      if (targetRole !== 'parent') {
-        const credentials = await userRepository.getAuthByPhone(targetPhone);
-        if (!normalizeTurkishPhone(targetPhone)) {
-          return res.status(400).json({ error: 'Geçerli bir telefon numarası gereklidir.' });
-        }
-        if (targetUserId && credentials && credentials.id !== targetUserId) {
-          return res.status(409).json({ error: 'Personel hesabı eşleştirmesi doğrulanamadı.' });
-        }
-        if (purpose === 'ACCOUNT_ACTIVATION' && credentials?.passwordHash) {
-          return res.status(409).json({ error: 'Bu hesap için parola sıfırlama kodu kullanın.' });
-        }
-      }
+      targetUserId = user?.id;
       if (purpose === 'PASSWORD_RESET' && !user) {
         return res.status(400).json({ error: 'Bu kullanıcı için parola sıfırlama kodu oluşturulamadı.' });
       }

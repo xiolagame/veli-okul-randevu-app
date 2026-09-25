@@ -20,9 +20,21 @@ export function generateActivationCode(): string {
   return crypto.randomInt(10000, 100000).toString();
 }
 
+export function generateStaffCode(): string {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
 export function hashActivationCode(code: string): string {
   return crypto
     .createHmac('sha256', codeSecret)
     .update(code.replace(/[^A-Z0-9]/gi, '').toUpperCase())
     .digest('hex');
+}
+
+export function generateSetupToken(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+export function hashSetupToken(token: string): string {
+  return crypto.createHmac('sha256', codeSecret).update(token).digest('hex');
 }

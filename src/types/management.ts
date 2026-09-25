@@ -3,6 +3,7 @@ export interface ManagedStudent {
   name: string;
   className: string;
   studentNumber: string;
+  birthDate?: string;
 }
 
 export interface ManagedParent {

@@ -11,11 +11,12 @@ interface Props {
 }
 
 const titles = { teacher: 'Öğretmen', parent: 'Veli', student: 'Öğrenci', security: 'Güvenlik personeli', roster: 'Veli ve öğrenci kütüğü' };
-const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No' };
+const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No', birthDate: 'Doğum Tarihi' };
 
 export function ManagementActions({ schoolId, kind, id, values, onChanged }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
-  const [draft, setDraft] = useState(values);
+  const initialDraft = kind === 'roster' ? { ...values, birthDate: values.birthDate || '' } : values;
+  const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState('');
@@ -31,22 +32,22 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged }: Pro
       else await api.updateManagedRecord(schoolId, kind, id, draft);
       await onChanged();
       setMode(null);
-      setSuccess(mode === 'remove' ? 'Okul erişimi kaldırıldı.' : 'Bilgiler güncellendi.');
+      setSuccess(mode === 'remove' ? kind === 'teacher' ? 'Öğretmen ve ilişkili kayıtlar sistemden silindi.' : 'Okul erişimi kaldırıldı.' : 'Bilgiler güncellendi.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.');
     } finally { pending.current = false; setBusy(false); }
   };
   return <div className="mt-3">
     <div className="flex flex-wrap gap-2">
-      <Button variant="secondary" onClick={() => { setDraft(values); setError(''); setSuccess(''); setMode('edit'); }}>Düzenle</Button>
+      <Button variant="secondary" onClick={() => { setDraft(initialDraft); setError(''); setSuccess(''); setMode('edit'); }}>Düzenle</Button>
       {kind !== 'student' && kind !== 'roster' && <Button variant="quiet" onClick={() => { setError(''); setSuccess(''); setMode('remove'); }}>Okuldan Kaldır</Button>}
     </div>
     {success && <p role="status" className="text-sm mt-2">{success}</p>}
     {mode && <Dialog title={`${titles[kind]} — ${mode === 'edit' ? 'Bilgileri düzenle' : 'Okuldan kaldır'}`} onClose={() => { if (!busy) setMode(null); }} dismissible={!busy}>
       <form onSubmit={submit} className="form-stack">
-        {mode === 'remove' ? <Alert tone="warning">Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. {kind === 'teacher' && 'Bu öğretmene ait aktif randevular otomatik olarak iptal edilecektir. '}Devam etmek istiyor musunuz?</Alert> :
+        {mode === 'remove' ? <Alert tone="warning">{kind === 'teacher' ? 'Bu öğretmen sistemden kaldırılacaktır. Öğretmene ait randevular, müsaitlik bilgileri ve personel kayıtları silinecektir. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?' : 'Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. Devam etmek istiyor musunuz?'}</Alert> :
           Object.entries(draft).map(([key, value]) => <label className="field" key={key}>{labels[key]}
-            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : 'text'} required={key !== 'studentNumber'} value={value}
+            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : key === 'birthDate' ? 'date' : 'text'} required={key !== 'studentNumber' && key !== 'birthDate'} value={value}
               maxLength={key === 'phone' || key === 'parentPhone' ? 30 : key === 'className' || key === 'studentNumber' ? 50 : key === 'branch' ? 100 : 150}
               onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
           </label>)}

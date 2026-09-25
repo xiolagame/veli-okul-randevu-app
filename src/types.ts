@@ -46,6 +46,7 @@ export interface SchoolRosterRecord {
   studentName: string;
   className: string;
   studentNumber?: string;
+  birthDate?: string;
   isClaimed: boolean;
 }
 
@@ -55,6 +56,7 @@ export interface Student {
   name: string;
   className: string;
   studentNumber?: string;
+  birthDate?: string;
 }
 
 export interface StudentParentRelation {
@@ -87,6 +89,7 @@ export interface TeacherProfile {
   firstName: string;
   lastName: string;
   phone: string;
+  email?: string;
   branch: string;
   avatarUrl?: string;
   bio?: string;

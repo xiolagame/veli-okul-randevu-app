@@ -104,6 +104,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ schoolId, phone, code, password }),
     }),
+  parentRegistrationChallenge: (schoolCode: string, phone: string, birthDate: string) =>
+    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/registration-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, birthDate }) }),
+  parentRegistrationComplete: (schoolId: string, phone: string, birthDate: string, challenge: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/parent/registration-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, birthDate, challenge, password }) }),
+  parentResetChallenge: (schoolCode: string, phone: string, birthDate: string) =>
+    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/reset-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, birthDate }) }),
+  parentResetComplete: (schoolId: string, phone: string, birthDate: string, challenge: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/parent/reset-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, birthDate, challenge, password }) }),
+  verifyStaffActivation: (schoolCode: string, phone: string, code: string) =>
+    request<{success:boolean;setupToken:string;role:'teacher'|'security'}>('/api/auth/staff/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+  completeStaffActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
+    request<{success:boolean;message:string}>('/api/auth/staff/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
+  requestStaffReset: (schoolCode:string,phone:string) =>
+    request<{success:boolean;message:string}>('/api/auth/staff/reset-request',{method:'POST',body:JSON.stringify({schoolCode,phone})}),
+  verifyStaffReset: (schoolCode:string,phone:string,code:string) =>
+    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/staff/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+  completeStaffReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
+    request<{success:boolean;message:string}>('/api/auth/staff/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
 
   login: (phone: string, password: string, role?: string) =>
     request<{
@@ -179,6 +197,10 @@ export const api = {
     request<{ teacher: TeacherProfile }>(`/api/schools/${schoolId}/teachers`, {
       method: 'POST', body: JSON.stringify(data),
     }),
+  createStaff: (schoolId: string, data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) =>
+    request<{ success: boolean; message: string }>(`/api/schools/${schoolId}/staff`, { method: 'POST', body: JSON.stringify(data) }),
+  resendStaffActivation: (schoolId: string, role: 'teacher' | 'security', id: string) =>
+    request<{ success: boolean; message: string }>(`/api/schools/${schoolId}/staff/${role}/${encodeURIComponent(id)}/resend-activation`, { method: 'POST' }),
 
   getStudents: (schoolId: string) =>
     request<{ students: Student[] }>(`/api/schools/${schoolId}/students`),

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(150);
 
 -- 2. SCHOOLS (Multi-tenant Tenants)
 CREATE TABLE IF NOT EXISTS schools (
@@ -61,11 +62,14 @@ CREATE TABLE IF NOT EXISTS school_roster (
     student_name VARCHAR(150) NOT NULL,
     class_name VARCHAR(50) NOT NULL,
     student_number VARCHAR(50),
+    birth_date DATE,
     is_claimed BOOLEAN DEFAULT FALSE NOT NULL,
     claimed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE school_roster ADD COLUMN IF NOT EXISTS birth_date DATE;
 
 -- 5. STUDENTS (Students officially enrolled in a school)
 CREATE TABLE IF NOT EXISTS students (
@@ -74,6 +78,7 @@ CREATE TABLE IF NOT EXISTS students (
     name VARCHAR(150) NOT NULL,
     class_name VARCHAR(50) NOT NULL,
     student_number VARCHAR(50),
+    birth_date DATE,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT uq_students_school_id UNIQUE (school_id, id)
@@ -221,6 +226,27 @@ CREATE TABLE IF NOT EXISTS invitations (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS pending_staff (
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('security')),
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    created_by TEXT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    CONSTRAINT uq_pending_staff_school_id UNIQUE (school_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+    scope_hash TEXT PRIMARY KEY,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    blocked_until TIMESTAMPTZ
+);
+
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS qr_token TEXT;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_by TEXT REFERENCES users(id);
@@ -309,6 +335,8 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
 
 -- Note on invitations: Direct public SELECT policy is REMOVED to prevent unauthorized token enumeration.
 -- Resolving invitations is handled strictly through the backend Express API using service_role context.
@@ -355,3 +383,9 @@ ON invitations FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access otp_verifications" 
 ON otp_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access pending_staff"
+ON pending_staff FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access auth_rate_limits"
+ON auth_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);

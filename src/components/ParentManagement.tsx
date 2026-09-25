@@ -50,7 +50,7 @@ export function ParentManagement({ schoolId, roster, search, selectedClass, onCl
       }}>Parola sıfırlama kodu</Button>}
     {parent.students.map((student) => <section key={student.id} className="border-t mt-4 pt-4">
       <h4>{student.name}</h4><p>{student.className} · No {student.studentNumber || '—'}</p>
-      <ManagementActions schoolId={schoolId} kind="student" id={student.id} values={{ name: student.name, className: student.className, studentNumber: student.studentNumber }} onChanged={refresh} />
+      <ManagementActions schoolId={schoolId} kind="student" id={student.id} values={{ name: student.name, className: student.className, studentNumber: student.studentNumber || '', birthDate: student.birthDate || '' }} onChanged={refresh} />
     </section>)}
   </article>)}</div>;
 }

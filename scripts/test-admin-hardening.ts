@@ -7,6 +7,19 @@ import type { TeacherProfile, Appointment } from '../src/types';
 let stage = 'setup';
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('Local DB required');
+  process.env.NODE_ENV = 'test';
+  process.env.RESEND_API_KEY = 'local-test-key';
+  process.env.EMAIL_FROM = 'test@example.test';
+  const sentEmails: Array<{ html: string }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    if (String(input).startsWith('https://api.resend.com/emails')) {
+      const payload = JSON.parse(String(init?.body || '{}')) as { html: string };
+      sentEmails.push({ html: payload.html });
+      return new Response(JSON.stringify({ id: 'local-test-email' }), { status: 200 });
+    }
+    return originalFetch(input, init);
+  };
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
   const { requireSchoolMembership, requireSchoolRole } = await import('../server/auth');
@@ -71,7 +84,7 @@ async function run() {
 
     stage = 'pending teacher hidden';
     const teacherPhone = phone();
-    const created = await request('POST', schoolPath + '/teachers', admin.token, { fullName: 'New Teacher', branch: 'Türkçe', phone: teacherPhone });
+    const created = await request('POST', schoolPath + '/teachers', admin.token, { fullName: 'New Teacher', branch: 'Türkçe', phone: teacherPhone, email: 'new-teacher@example.test' });
     assert.equal(created.status, 201);
     const teacher = created.body.teacher as TeacherProfile;
     assert.equal(teacher.userId ?? null, null);
@@ -82,10 +95,11 @@ async function run() {
     assert.equal((await request('POST', schoolPath + '/appointments', parent.token, booking)).status, 409);
     stage = 'five digit activation';
     for (let attempt = 0; attempt < 100; attempt++) assert.match(generateActivationCode(), /^\d{5}$/);
-    const issued = await request('POST', schoolPath + '/auth-codes', admin.token, { targetType: 'teacher', targetId: teacher.id, purpose: 'ACCOUNT_ACTIVATION' });
-    assert.equal(issued.status, 200);
-    assert.match(issued.body.code as string, /^\d{5}$/);
-    assert.equal((await request('POST', '/auth/activate-account', undefined, { schoolId, phone: teacherPhone, password, code: issued.body.code })).status, 200);
+    const activationCode = sentEmails[0]?.html.match(/>(\d{6})</)?.[1];
+    assert.match(activationCode || '', /^\d{6}$/);
+    const activation = await request('POST', '/auth/staff/activation-verify', undefined, { schoolCode: schoolId, phone: teacherPhone, code: activationCode });
+    assert.equal(activation.status, 200);
+    assert.equal((await request('POST', '/auth/staff/activation-complete', undefined, { schoolId, phone: teacherPhone, password, setupToken: activation.body.setupToken })).status, 200);
     const activated = await userRepository.getByPhone(teacherPhone);
     assert(activated);
     userIds.push(activated.id);
@@ -140,6 +154,39 @@ async function run() {
     assert.equal((await request('GET', '/user/me', teacherToken)).status, 401);
     assert.equal((await request('POST', '/auth/login', undefined, { phone: teacherPhone, password })).status, 401);
     teacherToken = await login(newTeacherPhone);
+    stage = 'teacher single-school phone invariant';
+    const pendingPhoneA = phone();
+    const pendingPhoneB = phone();
+    const pendingAResponse = await request('POST', schoolPath + '/teachers', admin.token,
+      { fullName: 'Pending Teacher A', branch: 'Türkçe', phone: pendingPhoneA, email: 'pending-a-' + crypto.randomUUID() + '@example.test' });
+    const pendingBResponse = await request('POST', '/schools/' + otherSchool + '/teachers', otherAdmin.token,
+      { fullName: 'Pending Teacher B', branch: 'Fen', phone: pendingPhoneB, email: 'pending-b-' + crypto.randomUUID() + '@example.test' });
+    assert.equal(pendingAResponse.status, 201);
+    assert.equal(pendingBResponse.status, 201);
+    const pendingA = pendingAResponse.body.teacher as TeacherProfile;
+    const pendingB = pendingBResponse.body.teacher as TeacherProfile;
+    const pendingTeacherEdit = { fullName: 'Pending Teacher A Renamed', branch: 'Matematik', phone: pendingPhoneA };
+    assert.equal((await request('PATCH', manage + '/teacher/' + pendingA.id, admin.token, pendingTeacherEdit)).status, 200);
+    const pendingConflict = await request('PATCH', manage + '/teacher/' + pendingA.id, admin.token,
+      { ...pendingTeacherEdit, phone: pendingPhoneB });
+    assert.equal(pendingConflict.status, 409);
+    assert.equal(pendingConflict.body.error, 'Bu öğretmen başka bir okulda kayıtlı.');
+    assert.equal((await db.query('SELECT phone FROM teacher_profiles WHERE id=$1', [pendingA.id])).rows[0].phone, pendingPhoneA);
+    assert.equal((await db.query('SELECT phone FROM teacher_profiles WHERE id=$1', [pendingB.id])).rows[0].phone, pendingPhoneB);
+    const sameSchoolPhone = phone();
+    const sameSchoolResponse = await request('POST', schoolPath + '/teachers', admin.token,
+      { fullName: 'Same School Teacher', branch: 'Fen', phone: sameSchoolPhone, email: 'same-school-' + crypto.randomUUID() + '@example.test' });
+    assert.equal(sameSchoolResponse.status, 201);
+    const sameSchoolTeacher = sameSchoolResponse.body.teacher as TeacherProfile;
+    assert.equal((await request('PATCH', manage + '/teacher/' + pendingA.id, admin.token,
+      { ...pendingTeacherEdit, phone: sameSchoolPhone })).status, 409);
+    const activeConflict = await request('PATCH', manage + '/teacher/' + teacher.id, admin.token,
+      { ...edit, phone: pendingPhoneB });
+    assert.equal(activeConflict.status, 409);
+    assert.equal(activeConflict.body.error, 'Bu öğretmen başka bir okulda kayıtlı.');
+    assert.equal((await db.query('SELECT phone FROM teacher_profiles WHERE id=$1', [teacher.id])).rows[0].phone, newTeacherPhone);
+    assert.equal((await db.query('SELECT phone FROM teacher_profiles WHERE id=$1', [pendingB.id])).rows[0].phone, pendingPhoneB);
+    assert.equal((await db.query('SELECT id FROM teacher_profiles WHERE id=$1', [sameSchoolTeacher.id])).rows.length, 1);
     stage = 'parent student security edit';
     const parentPhone = phone();
     assert.equal((await request('PATCH', manage + '/parent/' + parent.id, admin.token, { fullName: 'Updated Parent', phone: parentPhone })).status, 200);
@@ -161,19 +208,19 @@ async function run() {
     await membershipRepository.createOrActivate({ schoolId: otherSchool, userId: parent.id, role: 'parent' });
     assert.equal((await request('PATCH', manage + '/parent/' + parent.id, admin.token, { fullName: 'Unsafe Change', phone: parentPhone })).status, 409);
     stage = 'safe removal and history';
-    const preserved: Array<{ id: string; status: string }> = [];
+    const preserved: string[] = [];
     for (const [status, fixtureDate] of [['pending','2000-01-01'], ['booked','2091-01-01'], ['checked_in','2000-01-02'], ['checked_out','2091-01-03'], ['completed','2000-01-04'], ['cancelled','2091-01-05']]) {
       const id = 'history-' + crypto.randomUUID();
       await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
         FROM appointments a WHERE a.id=$1`, [appointment.id, JSON.stringify({ id,status,date: fixtureDate, qr_token: null })]);
-      preserved.push({ id, status: status === 'booked' || status === 'checked_in' ? 'cancelled' : status });
+      preserved.push(id);
     }
-    const otherTeacher = await request('POST', schoolPath + '/teachers', admin.token, { fullName: 'Other Teacher', branch: 'Türkçe', phone: phone() });
+    const otherTeacher = await request('POST', schoolPath + '/teachers', admin.token, { fullName: 'Other Teacher', branch: 'Türkçe', phone: phone(), email: 'other-teacher@example.test' });
     assert.equal(otherTeacher.status, 201);
     const otherAppointment = 'other-' + crypto.randomUUID();
     await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
       FROM appointments a WHERE a.id=$1`, [appointment.id, JSON.stringify({ id: otherAppointment, teacher_id: (otherTeacher.body.teacher as TeacherProfile).id, qr_token: null })]);
-    const foreignTeacher = await request('POST', '/schools/' + otherSchool + '/teachers', otherAdmin.token, { fullName: 'Foreign Teacher', branch: 'Türkçe', phone: phone() });
+    const foreignTeacher = await request('POST', '/schools/' + otherSchool + '/teachers', otherAdmin.token, { fullName: 'Foreign Teacher', branch: 'Türkçe', phone: phone(), email: 'foreign-teacher@example.test' });
     assert.equal(foreignTeacher.status, 201);
     const foreignAppointment = 'foreign-' + crypto.randomUUID();
     await db.query(`INSERT INTO appointments SELECT (jsonb_populate_record(NULL::appointments, to_jsonb(a) || $2::jsonb)).*
@@ -182,7 +229,7 @@ async function run() {
     await db.query('UPDATE appointments SET checked_in_by=$2 WHERE school_id=$3 AND id=$1', [appointment.id,security.id,schoolId]);
     const createAuditLog = auditLogRepository.createAuditLog;
     auditLogRepository.createAuditLog = async (log, tx) => {
-      if (log.action === 'teacher.removed') throw new Error('Local rollback fixture');
+      if (log.action === 'teacher_deleted') throw new Error('Local rollback fixture');
       return createAuditLog(log, tx);
     };
     try {
@@ -191,24 +238,22 @@ async function run() {
       assert.equal((await membershipRepository.getActiveMembership(activated.id, schoolId))?.role, 'teacher');
     } finally { auditLogRepository.createAuditLog = createAuditLog; }
     assert.equal((await request('DELETE', manage + '/teacher/' + teacher.id, admin.token)).status, 200);
-    const cancelled = (await db.query('SELECT status,notes FROM appointments WHERE id=$1', [appointment.id])).rows[0];
-    assert.equal(cancelled.status, 'cancelled');
-    assert.match(cancelled.notes, /okul erişimi/);
-    for (const entry of preserved) assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [entry.id])).rows[0].status, entry.status);
+    assert.equal((await db.query('SELECT id FROM appointments WHERE id=$1', [appointment.id])).rows.length, 0);
+    for (const id of preserved) assert.equal((await db.query('SELECT id FROM appointments WHERE id=$1', [id])).rows.length, 0);
     for (const id of [otherAppointment, foreignAppointment]) assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [id])).rows[0].status, 'pending');
-    const removalLog = (await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='teacher.removed'", [schoolId])).rows;
-    assert(removalLog.some((entry) => JSON.parse(entry.details).cancelledAppointments === 3));
+    const removalLog = (await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='teacher_deleted'", [schoolId])).rows;
+    assert(removalLog.some((entry) => JSON.parse(entry.details).deletedAppointments >= 7));
     assert.equal((await request('DELETE', manage + '/parent/' + parent.id, admin.token)).status, 200);
     assert.equal((await request('DELETE', manage + '/security/' + security.id, admin.token)).status, 200);
     assert.equal((await request('GET', schoolPath + '/appointments', securityToken)).status, 403);
     assert.equal((await request('POST', schoolPath + '/security/check-in', securityToken, { qrToken: 'VELIQR1:' + 'A'.repeat(32) })).status, 403);
-    assert.equal((await request('GET', schoolPath + '/appointments', teacherToken)).status, 403);
+    assert.equal((await request('GET', schoolPath + '/appointments', teacherToken)).status, 401);
     assert.equal((await membershipRepository.getActiveMembership(parent.id, otherSchool))?.role, 'parent');
-    assert.equal((await db.query('SELECT teacher_id,parent_id FROM appointments WHERE id=$1', [appointment.id])).rows[0].teacher_id, teacher.id);
-    assert.equal((await db.query('SELECT checked_in_by FROM appointments WHERE id=$1', [appointment.id])).rows[0].checked_in_by, security.id);
-    for (const userId of [activated.id, parent.id, security.id]) assert(await userRepository.getById(userId));
+    assert.equal((await db.query('SELECT teacher_id,parent_id FROM appointments WHERE id=$1', [appointment.id])).rows.length, 0);
+    for (const userId of [parent.id, security.id]) assert(await userRepository.getById(userId));
+    assert.equal(await userRepository.getById(activated.id), null);
     stage = 'platform school authorization and disable';
-    for (const token of [admin.token, otherAdmin.token, teacherToken, securityToken, await login(parentPhone)]) {
+    for (const token of [admin.token, otherAdmin.token]) {
       assert.equal((await request('GET', '/platform/capabilities', token)).body.manageSchools, false);
       assert.equal((await request('GET', '/platform/schools', token)).status, 403);
       assert.equal((await request('POST', '/platform/schools', token, { name: 'Forbidden', code: 'FORBIDDEN', city: 'Test', district: 'Test' })).status, 403);
@@ -230,9 +275,8 @@ async function run() {
     assert.equal((await request('POST', '/platform/schools', admin.token, { ...schoolData, code: schoolData.code.toLowerCase() })).status, 409);
     const membershipsBefore = (await db.query('SELECT * FROM school_memberships WHERE school_id=$1 ORDER BY id', [otherSchool])).rows;
     const foreignProfile = foreignTeacher.body.teacher as TeacherProfile;
-    const foreignActivation = await request('POST', '/schools/' + otherSchool + '/auth-codes', otherAdmin.token,
-      { targetType: 'teacher', targetId: foreignProfile.id, purpose: 'ACCOUNT_ACTIVATION' });
-    assert.equal(foreignActivation.status, 200);
+    const foreignActivationCode = sentEmails.at(-1)?.html.match(/>(\d{6})</)?.[1];
+    assert.match(foreignActivationCode || '', /^\d{6}$/);
     const foreignRosterId = 'roster-' + crypto.randomUUID();
     await db.query(`INSERT INTO school_roster(id,school_id,parent_phone,parent_name,student_name,class_name,is_claimed)
       VALUES($1,$2,$3,$4,$5,$6,TRUE)`, [foreignRosterId,otherSchool,otherParent.phone,'Fixture Parent','Fixture Student','5-A']);
@@ -249,7 +293,7 @@ async function run() {
     const schools = (await request('GET', '/public/schools')).body.schools as Array<{ id: string }>;
     assert(!schools.some((entry) => entry.id === otherSchool));
     assert.equal((await request('GET', '/public/school-context?code=' + otherSchool)).status, 404);
-    assert.equal((await request('POST', '/auth/activate-account', undefined, { schoolId: otherSchool, phone: foreignProfile.phone, password, code: foreignActivation.body.code })).status, 400);
+    assert.equal((await request('POST', '/auth/staff/activation-verify', undefined, { schoolCode: otherSchool, phone: foreignProfile.phone, code: foreignActivationCode })).status, 400);
     assert.equal(await userRepository.getByPhone(foreignProfile.phone), null);
     assert.equal((await request('POST', '/auth/reset-password-with-code', undefined, { schoolId: otherSchool, phone: otherParent.phone, password, code: foreignReset.body.code })).status, 400);
     const authAfter = await userRepository.getAuthByPhone(otherParent.phone);
@@ -287,11 +331,12 @@ async function run() {
     assert.equal((await request('DELETE', manage + '/audit-logs', admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM audit_logs WHERE school_id=$1', [schoolId])).rows.length, 0);
     assert.deepEqual((await db.query('SELECT id FROM audit_logs WHERE school_id=$1', [otherSchool])).rows, foreignBefore.rows);
-    console.log('Admin hardening: lifecycle, 5-digit codes, edits, removal rollback/auto-cancel, history, platform school authorization/disable, tenant guards and audit clear PASS.');
+    console.log('Admin hardening: staff lifecycle, edits, teacher hard-delete rollback/cleanup, platform school authorization/disable, tenant guards and audit clear PASS.');
   } finally {
     if (previousPlatformAdmins === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS;
     else process.env.PLATFORM_ADMIN_USER_IDS = previousPlatformAdmins;
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    globalThis.fetch = originalFetch;
     for (const id of createdSchoolIds) await db.query('DELETE FROM schools WHERE id=$1', [id]);
     await db.query('DELETE FROM schools WHERE id IN ($1,$2)', [schoolId, otherSchool]);
     for (const id of userIds) await db.query('DELETE FROM users WHERE id=$1', [id]);

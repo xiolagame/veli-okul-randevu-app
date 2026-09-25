@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "test:auth": "tsx scripts/test-activation-auth.ts",
     "test:activation": "tsx scripts/test-activation-auth.ts",
+    "test:parent-auth": "tsx scripts/test-parent-self-service-auth.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
   },
