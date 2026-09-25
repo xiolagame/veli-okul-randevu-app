@@ -18,6 +18,9 @@ import { Alert, Button, Dialog, EmptyState, Metric, StatusBadge } from './ui';
 import { SchoolRosterRecord } from '../types';
 import { api } from '../services/api';
 import { StaffManagement, StaffCodeTarget } from './StaffManagement';
+import { ParentManagement } from './ParentManagement';
+import { AuditManagement } from './AuditManagement';
+import { ManagementActions } from './ManagementActions';
 
 interface AdminViewProps {
   onClose: () => void;
@@ -26,6 +29,7 @@ interface AdminViewProps {
 export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const {
     currentSchool,
+    refreshSchoolData,
     users,
     usersLoading,
     usersError,
@@ -172,6 +176,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   };
 
   const filteredRoster = roster.filter((r) => {
+    if (r.isClaimed) return false;
     return (
       r.studentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
       r.parentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
@@ -222,9 +227,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           </div>}
 
           {activeTab === 'roster' && <section className="space-y-5">
+            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} roster={roster} search={rosterSearch}
+              onChanged={refreshSchoolData} onIssue={(record) => { setAuthCodeRoster(record); setAuthCodePurpose('PASSWORD_RESET'); setGeneratedAuthCode(null); setAuthCodeError(''); }} />}
             <div className="section-heading"><div><h3>Öğrenci ve veli kütüğü</h3><p>Okul kayıtlarını ve velilerin hesap aktivasyonlarını yönetin.</p></div><Button onClick={() => { setFormError(''); setShowUploadModal(true); }}><Upload size={17} />Toplu kayıt ekle</Button></div>
             <label className="field" htmlFor="roster-search">Kayıtlarda ara<div className="field-icon"><Search size={18} /><input id="roster-search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="Öğrenci, veli, telefon veya sınıf" /></div></label>
-            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-semibold">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif' : 'Bekliyor'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button></td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={roster.length ? 'Eşleşen kayıt bulunamadı' : 'Kütüğünüz henüz boş'} description="Kayıt ekleyebilir veya farklı bir arama yapabilirsiniz." /></div>}
+            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-semibold">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif' : 'Bekliyor'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button>{currentSchool && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={roster.length ? 'Eşleşen kayıt bulunamadı' : 'Kütüğünüz henüz boş'} description="Kayıt ekleyebilir veya farklı bir arama yapabilirsiniz." /></div>}
           </section>}
 
           {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} onIssue={(target, purpose) => { setAuthCodeTarget(target); setAuthCodePurpose(purpose); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); setCopyMessage(''); }} />}
@@ -239,7 +246,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
             <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}</Button>
           </form></section>}
 
-          {activeTab === 'audit' && <section className="surface"><div className="section-heading"><div><h3>İşlem günlüğü</h3><p>Okulunuzdaki son işlemler</p></div></div>{auditLogs.length ? <div className="divide-y divide-slate-200">{auditLogs.map((log) => <article key={log.id} className="py-5"><div className="flex flex-wrap justify-between gap-2"><h3 className="text-sm font-bold">{log.action}</h3><time className="text-xs text-slate-500">{log.timestamp}</time></div><p className="text-sm text-slate-600 mt-2">{log.details}</p><p className="text-xs text-slate-500 mt-2">{log.actorName}</p></article>)}</div> : <EmptyState icon={FileText} title="Henüz bir işlem kaydı yok" />}</section>}
+          {activeTab === 'audit' && currentSchool && <AuditManagement key={currentSchool.id} schoolId={currentSchool.id} logs={auditLogs} onChanged={refreshSchoolData} />}
 
           {activeTab === 'isolation' && <section className="space-y-5"><div className="surface"><div className="section-heading"><div><h3>Okul verilerinin güvenliği</h3><p>Mevcut okul ayrımı kontrollerini çalıştırın.</p></div><Button disabled={isRunningTests} onClick={handleRunIsolationTests}><Shield size={18} />{isRunningTests ? 'Kontrol ediliyor…' : 'Kontrolleri çalıştır'}</Button></div></div>{isolationTestResults.length ? isolationTestResults.map((test, index) => <Alert key={index} tone={test.passed ? 'success' : 'danger'}><strong>{test.title}</strong><p className="mt-2">{test.description}</p><p className="text-xs mt-2">{test.details}</p></Alert>) : <div className="surface"><EmptyState icon={Shield} title="Henüz kontrol çalıştırılmadı" description="Sonuçlar, kontrol tamamlandığında burada gösterilir." /></div>}</section>}
         </main>

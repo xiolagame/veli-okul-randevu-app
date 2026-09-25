@@ -813,7 +813,7 @@ export const teacherRepository = {
        ORDER BY tp.first_name ASC, tp.last_name ASC;`,
       [schoolId]
     );
-    return res.rows.map((row) => ({
+    return res.rows.filter((row) => includeAccountStatus || row.account_status === 'active').map((row) => ({
       ...mapTeacherProfile(row),
       ...(includeAccountStatus ? { accountStatus: row.account_status } : {}),
     }));

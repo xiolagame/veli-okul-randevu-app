@@ -18,6 +18,7 @@ import {
 import { api, setAuthToken, setActiveSchoolId, getAuthToken, getActiveSchoolId } from '../services/api';
 
 interface AppContextType {
+  refreshSchoolData: () => Promise<void>;
   currentUser: User | null;
   users: User[];
   usersLoading: boolean;
@@ -485,6 +486,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        refreshSchoolData: async () => {
+          const schoolId = currentSchool?.id;
+          if (!schoolId || getActiveSchoolId() !== schoolId || currentMembership?.role !== 'admin') return;
+          const [teacherData, userData, rosterData, logData] = await Promise.all([
+            api.getTeachers(schoolId), api.getSecurityUsers(schoolId), api.getRoster(schoolId), api.getAuditLogs(schoolId),
+          ]);
+          if (getActiveSchoolId() !== schoolId) return;
+          setTeachers(teacherData.teachers);
+          setUsers(userData.users);
+          setRoster(rosterData.roster);
+          setAuditLogs(logData.auditLogs);
+        },
         currentUser,
         users,
         usersLoading,

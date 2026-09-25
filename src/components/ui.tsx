@@ -4,7 +4,7 @@ import { AlertCircle, Check, CheckCircle2, Clock, LogIn, LogOut, X, XCircle, typ
 import type { AppointmentStatus } from '../types';
 
 export function Brand({ light = false }: { light?: boolean }) {
-  return <div className={`brand ${light ? 'brand-light' : ''}`}><span className="brand-mark" aria-hidden="true">v<span>·</span></span><span className="brand-name">Veli Randevu</span></div>;
+  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span></div>;
 }
 
 export function Button({ variant = 'primary', className = '', type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'quiet' | 'danger' }) {

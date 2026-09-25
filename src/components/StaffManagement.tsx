@@ -3,6 +3,8 @@ import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRou
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { normalizeTurkishPhone } from '../utils/phone';
+import { ManagementActions } from './ManagementActions';
+import { useApp } from '../context/AppContext';
 
 export interface StaffCodeTarget {
   type: 'teacher' | 'security';
@@ -21,6 +23,7 @@ interface StaffManagementProps {
 }
 
 export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onIssue, onCreateTeacher }) => {
+  const { currentSchool, refreshSchoolData } = useApp();
   const [search, setSearch] = useState('');
   const [showCreateTeacher, setShowCreateTeacher] = useState(false);
   const [creatingTeacher, setCreatingTeacher] = useState(false);
@@ -105,6 +108,8 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                       {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
                     </span>
                     {!phone && <p className="mt-2 text-xs text-slate-500">Aktivasyon kodu oluşturmak için geçerli telefon numarası gereklidir.</p>}
+                    {currentSchool && <ManagementActions schoolId={currentSchool.id} kind={type} id={record.id}
+                      values={{ fullName: label, phone: record.phone || '', ...(type === 'teacher' ? { branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
                     <Button variant={status === 'active' ? 'secondary' : 'primary'} disabled={!actionable}
                       onClick={() => onIssue({ type, id: record.id, label, phone: record.phone }, status === 'active' ? 'PASSWORD_RESET' : 'ACCOUNT_ACTIVATION')}
                       className="mt-5 w-full"><KeyRound size={17} />

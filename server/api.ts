@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { adminManagementRouter } from './admin-management';
 import crypto from 'crypto';
 import {
   AuthenticatedRequest,
@@ -35,6 +36,7 @@ import {
 } from '../src/types';
 
 export const apiRouter = Router();
+apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
 
 // ==========================================
 // PRODUCTION HEALTH CHECK (PostgreSQL Status)
@@ -715,6 +717,10 @@ apiRouter.post(
       if (!teacher) {
         return res.status(404).json({ error: 'Seçilen öğretmen bu okulda bulunamadı.' });
       }
+      const bookableTeachers = await teacherRepository.getTeachers(schoolId);
+      if (!teacher.userId || !bookableTeachers.some((record) => record.id === teacher.id)) {
+        return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
+      }
 
       // 2. Parent-Student Data Integrity (Requirement 9)
       if (req.membership!.role === 'parent') {
@@ -733,10 +739,21 @@ apiRouter.post(
       // 3. Atomically book with transaction and double-booking guard
       const db = await getDb();
       const newApt = await db.transaction(async (tx) => {
+        await tx.query('SELECT id FROM schools WHERE id=$1 FOR UPDATE', [schoolId]);
+        const activeTeacher = await tx.query(
+          `SELECT tp.id FROM teacher_profiles tp JOIN users u ON u.id=tp.user_id
+           JOIN school_memberships sm ON sm.user_id=u.id AND sm.school_id=tp.school_id
+           WHERE tp.school_id=$1 AND tp.id=$2 AND sm.role='teacher' AND sm.status='active'
+             AND NULLIF(u.password_hash,'') IS NOT NULL`, [schoolId, teacher.id]);
+        if (!activeTeacher.rows.length) {
+          const unavailable = new Error('Bu öğretmen şu anda randevu kabul etmiyor.');
+          Object.assign(unavailable, { code: 'TEACHER_UNAVAILABLE' });
+          throw unavailable;
+        }
         // Fast conflict check
         const conflict = await appointmentRepository.findConflictingAppointment(
           schoolId,
-          teacherId,
+          teacher.id,
           date,
           startTime,
           tx
@@ -751,7 +768,7 @@ apiRouter.post(
           {
             id: 'apt-' + Date.now(),
             schoolId,
-            teacherId,
+            teacherId: teacher.id,
             teacherName: `${teacher.firstName} ${teacher.lastName}`,
             teacherBranch: teacher.branch,
             parentId: req.user!.id,
@@ -770,7 +787,7 @@ apiRouter.post(
         );
 
         // Notification to teacher
-        const teacherUserId = teacher.phone ? teacher.id : teacher.id;
+        const teacherUserId = teacher.userId!;
         await notificationRepository.createNotification(
           {
             schoolId,
@@ -798,13 +815,14 @@ apiRouter.post(
 
       res.json({ success: true, appointment: newApt });
     } catch (err: any) {
+      if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
       if (err.code === '23505' || err.code === 'DOUBLE_BOOKING' || (err.message && err.message.includes('idx_appointments_no_double_booking'))) {
         return res.status(409).json({
           error: 'ÇAKIŞMA HATASI (Double-Booking Engellendi): Bu öğretmenin seçilen tarih ve saatteki slotu başka bir veli tarafından zaten rezerve edilmiştir.',
         });
       }
-      console.error('[POST /schools/:schoolId/appointments Error]:', err);
-      res.status(500).json({ error: 'Randevu oluşturulurken hata oluştu: ' + err.message });
+      console.error('[POST /schools/:schoolId/appointments Error]: İşlem tamamlanamadı.');
+      res.status(500).json({ error: 'Randevu oluşturulurken hata oluştu. Lütfen tekrar deneyin.' });
     }
   }
 );

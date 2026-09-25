@@ -69,6 +69,7 @@ async function runSecurityAudit() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const createdAppointmentIds: string[] = [];
 
   async function makeReq(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -95,6 +96,9 @@ async function runSecurityAudit() {
     });
 
     const data = await res.json().catch(() => ({}));
+    if (method === 'POST' && path === '/schools/sch-kazan-01/appointments' && res.status === 200 && data.appointment?.id) {
+      createdAppointmentIds.push(data.appointment.id);
+    }
     return { status: res.status, body: data };
   }
 
@@ -264,11 +268,18 @@ async function runSecurityAudit() {
     // =========================================================================
     console.log('\n--- BÖLÜM 5: RANDEVU BÜTÜNLÜĞÜ (APPOINTMENT INTEGRITY) ---');
 
-    const runId = Date.now();
-    const testAptDate = `2027-01-${String((runId % 25) + 1).padStart(2, '0')}`;
     const testAptTime = '11:00';
     const kazanTeachers = await teacherRepository.getTeachers('sch-kazan-01');
-    const teacherKazan = kazanTeachers[0];
+    const teacherKazan = kazanTeachers.find((teacher) => teacher.userId === t1TokenRes.body.user.id);
+    if (!teacherKazan) throw new Error('Active audit teacher fixture missing.');
+    const freeDate = async (month: string, time: string) => {
+      for (let day = 1; day <= 28; day++) {
+        const date = `2090-${month}-${String(day).padStart(2, '0')}`;
+        if (!await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherKazan.id, date, time)) return date;
+      }
+      throw new Error('No isolated audit slot available.');
+    };
+    const testAptDate = await freeDate('01', testAptTime);
 
     const aptARes = await makeReq('POST', '/schools/sch-kazan-01/appointments', {
       headers: {
@@ -289,7 +300,7 @@ async function runSecurityAudit() {
       aptARes.status === 200 && aptARes.body.success,
       'BÖLÜM 5.A',
       'School A Appointment to School A Teacher',
-      `Okul A içi randevu başarıyla oluşturuldu (ID: ${aptARes.body.appointment?.id})`
+      `Okul A içi randevu oluşturma (HTTP: ${aptARes.status}, ID mevcut: ${!!aptARes.body.appointment?.id})`
     );
     const createdAptId = aptARes.body.appointment.id;
     const entryCode = aptARes.body.appointment.entryCode;
@@ -366,7 +377,7 @@ async function runSecurityAudit() {
     });
     // teacher1 is teacherKazan, so this succeeds or verifies ownership
     assert(
-      aptERes.status === 200 || aptERes.status === 403,
+      aptERes.status === 200,
       'BÖLÜM 5.E',
       'Teacher Appointment Ownership Check',
       `Öğretmen randevu reddi kontrolü yapıldı (status: ${aptERes.status})`
@@ -409,7 +420,7 @@ async function runSecurityAudit() {
 
     // 5.H & 5.I: Slot cancellation and re-booking behavior
     // First, let's create a fresh appointment, cancel it, and verify slot can be re-booked!
-    const slotDate = `2027-02-${String((runId % 25) + 1).padStart(2, '0')}`;
+    const slotDate = await freeDate('02', '09:00');
     const slotTime = '09:00';
     const aptH1 = await makeReq('POST', '/schools/sch-kazan-01/appointments', {
       headers: {
@@ -536,7 +547,7 @@ async function runSecurityAudit() {
     // =========================================================================
     console.log('\n--- BÖLÜM 7: CONCURRENCY DOUBLE-BOOKING TESTİ (idx_appointments_no_double_booking) ---');
 
-    const concurrentDate = `2027-03-${String((runId % 25) + 1).padStart(2, '0')}`;
+    const concurrentDate = await freeDate('03', '15:00');
     const concurrentTime = '15:00';
 
     // Ahmet Yılmaz (Parent 2) and Fatma Kaya (Parent 1) book identical slot
@@ -657,6 +668,9 @@ async function runSecurityAudit() {
     console.log('🎉 AUDIT RAPORU: TÜM 8 BÖLÜM VE GÜVENLİK TESTLERİ %100 BAŞARIYLA TAMAMLANDI!');
     console.log('========================================================================\n');
   } finally {
+    for (const id of createdAppointmentIds) {
+      await db.query('DELETE FROM appointments WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
+    }
     try {
       (server as any).closeAllConnections?.();
     } catch {}

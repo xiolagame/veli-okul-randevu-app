@@ -11,6 +11,7 @@ import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
 import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
+import { appointmentRepository } from '../server/repositories';
 
 async function runApiIntegrationTests() {
   console.log('===============================================================');
@@ -33,6 +34,7 @@ async function runApiIntegrationTests() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const createdAppointmentIds: string[] = [];
   console.log(`✅ Test HTTP sunucusu ${baseUrl} adresinde dinliyor.`);
 
   // Helper for real HTTP requests
@@ -61,6 +63,9 @@ async function runApiIntegrationTests() {
     });
 
     const data = await res.json().catch(() => ({}));
+    if (method === 'POST' && path === '/schools/sch-kazan-01/appointments' && res.status === 200 && data.appointment?.id) {
+      createdAppointmentIds.push(data.appointment.id);
+    }
     return { status: res.status, body: data };
   }
 
@@ -98,7 +103,7 @@ async function runApiIntegrationTests() {
       throw new Error('Password login did not return the expected parent membership.');
     }
     const userToken = loginRes.body.token;
-    console.log(`✅ Parola doğrulandı. Token üretildi. Kullanıcı: ${loginRes.body.user.phone}`);
+    console.log('✅ Parola doğrulandı. Token üretildi.');
 
     // TEST 4: Profile /user/me
     console.log('\n[5/10] GET /user/me testi...');
@@ -108,7 +113,7 @@ async function runApiIntegrationTests() {
     if (meRes.status !== 200 || !meRes.body.user) {
       throw new Error(`GET /user/me failed: ${JSON.stringify(meRes.body)}`);
     }
-    console.log(`✅ Profil sorgulandı: ${meRes.body.user.firstName} ${meRes.body.user.lastName} (${meRes.body.memberships.length} okul üyeliği)`);
+    console.log('✅ Profil ve okul üyelikleri sorgulandı.');
 
     // TEST 5: School Protected Endpoints (Teachers & Students)
     console.log('\n[6/10] Okul İçi Korumalı Endpointler (TenantGuard)...');
@@ -151,9 +156,26 @@ async function runApiIntegrationTests() {
     console.log('\n[8/10] PostgreSQL Randevu Rezervasyonu ve Double-Booking Engeli...');
     const teacherId = teachersRes.body.teachers[0].id;
     const student = studentsRes.body.students[0];
-    const testDate = `2026-10-${Math.floor(10 + Math.random() * 18)}`;
-    const randomMinute = Math.floor(Math.random() * 4) * 15;
-    const testTime = `11:${randomMinute.toString().padStart(2, '0')}`;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date());
+    const part = (type: string) => parts.find((value) => value.type === type)!.value;
+    const testDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const minutes = Number(part('hour')) * 60 + Number(part('minute'));
+    const formatTime = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+    let testTime = '';
+    let testEndTime = '';
+    for (let offset = 0; offset < 20; offset++) {
+      const candidate = Math.max(0, Math.min(1424, minutes - offset));
+      const time = formatTime(candidate);
+      if (!await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherId, testDate, time)) {
+        testTime = time;
+        testEndTime = formatTime(candidate + 15);
+        break;
+      }
+    }
+    if (!testTime) throw new Error('No isolated local test slot available.');
 
     // First booking: Should SUCCEED
     const bookRes1 = await makeRequest('POST', '/schools/sch-kazan-01/appointments', {
@@ -167,7 +189,7 @@ async function runApiIntegrationTests() {
         className: student.className,
         date: testDate,
         startTime: testTime,
-        endTime: '10:15',
+        endTime: testEndTime,
         notes: 'Test Randevusu 1',
       },
     });
@@ -176,7 +198,7 @@ async function runApiIntegrationTests() {
       throw new Error(`First appointment booking failed: ${JSON.stringify(bookRes1.body)}`);
     }
     const createdAppointment = bookRes1.body.appointment;
-    console.log(`✅ 1. Randevu oluşturuldu (ID: ${createdAppointment.id}, Kod: ${createdAppointment.entryCode})`);
+    console.log('✅ 1. Randevu oluşturuldu.');
 
     // Second booking (Exact same teacher, date, time): MUST BE REJECTED with 409 Conflict
     const bookRes2 = await makeRequest('POST', '/schools/sch-kazan-01/appointments', {
@@ -190,7 +212,7 @@ async function runApiIntegrationTests() {
         className: student.className,
         date: testDate,
         startTime: testTime,
-        endTime: '10:15',
+        endTime: testEndTime,
         notes: 'Çakışan Randevu 2',
       },
     });
@@ -232,12 +254,14 @@ async function runApiIntegrationTests() {
         authorization: `Bearer ${secToken}`,
         'x-school-id': 'sch-kazan-01',
       },
-      body: { code: createdAppointment.entryCode },
+      body: { qrToken: approveRes.body.appointment.qrToken },
     });
-    if (checkInRes.status !== 200 || !checkInRes.body.success) {
-      throw new Error(`Security check-in failed: ${JSON.stringify(checkInRes.body)}`);
+    if (checkInRes.status !== 200 || checkInRes.body.allowed !== true) {
+      throw new Error(`Security check-in failed: HTTP ${checkInRes.status}, decision ${checkInRes.body.decision}`);
     }
-    console.log(`✅ Güvenlik nizamiyesi giriş onayı verildi: ${checkInRes.body.message}`);
+    const checkedIn = await appointmentRepository.getAppointmentById('sch-kazan-01', createdAppointment.id);
+    if (checkedIn?.status !== 'checked_in') throw new Error('Check-in did not persist.');
+    console.log('✅ QR doğrulandı ve giriş kaydı veritabanında doğrulandı.');
 
     // TEST 9: Test Isolation Runner
     console.log('\n[10/10] PostgreSQL Çoklu Okul İzolasyon Testleri Çalıştırılıyor (/schools/:id/security/test-isolation)...');
@@ -262,6 +286,9 @@ async function runApiIntegrationTests() {
     console.log('🎉 TEBRİKLER! TÜM EXPRESS API & POSTGRESQL ENTEGRASYON TESTLERİ BAŞARIYLA GEÇTİ!');
     console.log('===============================================================');
   } finally {
+    for (const id of createdAppointmentIds) {
+      await db.query('DELETE FROM appointments WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
+    }
     server.close();
     if (db && typeof db.close === 'function') {
       await db.close();

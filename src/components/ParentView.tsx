@@ -133,8 +133,8 @@ export const ParentView: React.FC = () => {
       setBookingTeacher(null);
       setActiveTab('appointments');
     }, 1200);
-    } catch {
-      setBookingError('Randevu talebiniz gönderilemedi. Bilgilerinizi kontrol edip yeniden deneyin.');
+    } catch (cause) {
+      setBookingError(cause instanceof Error ? cause.message : 'Randevu talebiniz gönderilemedi. Bilgilerinizi kontrol edip yeniden deneyin.');
     } finally {
       setBookingBusy(false);
     }

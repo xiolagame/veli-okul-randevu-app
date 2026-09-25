@@ -1,7 +1,5 @@
 import crypto from 'crypto';
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 10;
 const MIN_SECRET_LENGTH = 32;
 
 function getCodeSecret(): string {
@@ -19,8 +17,7 @@ function getCodeSecret(): string {
 const codeSecret = getCodeSecret();
 
 export function generateActivationCode(): string {
-  const characters = Array.from({ length: CODE_LENGTH }, () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]);
-  return `${characters.slice(0, 5).join('')}-${characters.slice(5).join('')}`;
+  return crypto.randomInt(10000, 100000).toString();
 }
 
 export function hashActivationCode(code: string): string {

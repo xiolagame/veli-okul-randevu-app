@@ -64,6 +64,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401 && endpoint !== '/api/auth/login') {
+      throw new Error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
+    }
     throw new Error(data.error || data.message || `İşlem başarısız (HTTP ${res.status})`);
   }
 
@@ -71,6 +74,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
+  updateManagedRecord: (schoolId: string, kind: string, id: string, data: Record<string, string>) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  removeManagedRecord: (schoolId: string, kind: string, id: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  clearAuditLogs: (schoolId: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/management/audit-logs`, { method: 'DELETE' }),
   // Public
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
   getSchoolContext: (code: string) =>

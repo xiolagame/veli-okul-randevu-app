@@ -41,7 +41,7 @@ export const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900"><a href="#main-content" className="skip-link">İçeriğe geç</a>
+    <div className="min-h-screen flex flex-col font-sans text-slate-900"><a href="#main-content" className="skip-link">İçeriğe geç</a>
       <Navbar
         onOpenNotifications={() => setShowNotifications(true)}
         onOpenAdmin={() => setShowAdminModal(true)}
@@ -71,7 +71,7 @@ export const AppContent: React.FC = () => {
         {currentUser.role === 'admin' && !showAdminModal && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Shield} title="Okulunuzun yönetim alanı" description="Personeli, veli kayıtlarını ve okul görüşmelerini buradan yönetin." action={<Button onClick={() => setShowAdminModal(true)}>Yönetim panelini aç</Button>} /></div></main>}
         {currentUser.role === 'parent' && <ParentView />}
         {currentUser.role === 'teacher' && <TeacherView />}
-        {currentUser.role === 'security' && <SecurityView />}
+        {currentUser.role === 'security' && <SecurityView key={currentSchool?.id} />}
         {!currentUser.role && (
           <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl shadow-md border border-slate-200 text-center space-y-4">
             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
