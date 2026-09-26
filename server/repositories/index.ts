@@ -1013,6 +1013,16 @@ export const availabilityRepository = {
 // 9. APPOINTMENTS REPOSITORY (Concurreny & Partial Unique Index Guarded)
 // ==============================================================================
 export const appointmentRepository = {
+  async getOccupiedIntervals(schoolId: string, teacherId: string, date: string): Promise<{ startTime: string; endTime: string }[]> {
+    const result = await execQuery<{ start_time: string; end_time: string }>(
+      `SELECT start_time, end_time FROM appointments
+       WHERE school_id=$1 AND teacher_id=$2 AND date=$3
+         AND status NOT IN ('cancelled', 'rejected')`,
+      [schoolId, teacherId, date]
+    );
+    return result.rows.map((row) => ({ startTime: row.start_time, endTime: row.end_time }));
+  },
+
   async getAppointments(
     schoolId: string,
     filter?: { role?: UserRole; userId?: string; teacherProfileId?: string }
@@ -1187,15 +1197,17 @@ export const appointmentRepository = {
     teacherId: string,
     date: string,
     startTime: string,
-    client?: TransactionClient
+    client?: TransactionClient,
+    endTime?: string
   ): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `SELECT id, status
        FROM appointments
-       WHERE school_id = $1 AND teacher_id = $2 AND date = $3 AND start_time = $4
+       WHERE school_id = $1 AND teacher_id = $2 AND date = $3
+         AND ($5::text IS NULL AND start_time = $4 OR $5::text IS NOT NULL AND start_time < $5 AND end_time > $4)
          AND status NOT IN ('cancelled', 'rejected')
        LIMIT 1;`,
-      [schoolId, teacherId, date, startTime],
+      [schoolId, teacherId, date, startTime, endTime || null],
       client
     );
     if (res.rows.length === 0) return null;

@@ -128,6 +128,9 @@
 .metric-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
 .parent-metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .metric-card { border: 1px solid var(--line); background: white; border-radius: 16px; padding: 22px; min-width: 0; }
+.metric-card-button { text-align: left; cursor: pointer; width: 100%; font: inherit; }
+.metric-card-button:hover { border-color: var(--primary); }
+.metric-card-button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 .metric-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 600; }
 .metric-top svg { color: var(--primary); }
 .metric-card strong { display: block; font-size: 32px; line-height: 1.2; margin-top: 14px; letter-spacing: -.05em; font-weight: 700; }
@@ -190,7 +193,8 @@
 .slot-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
 .slot-grid button { padding: 11px 4px; border: 1px solid var(--line); border-radius: 10px; background: white; font-size: 14px; }
 .slot-grid button[aria-pressed="true"] { background: var(--primary); color: white; border-color: var(--primary); }
-.slot-grid button:disabled { background: #edf2ef; text-decoration: line-through; }
+.slot-grid button:disabled { background: #edf2ef; cursor: not-allowed; }
+.slot-grid button[data-booked="true"] { text-decoration: line-through; }
 .skeleton-list { display: grid; gap: 14px; }
 .skeleton-card { display: flex; gap: 16px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: white; }
 .skeleton-card > span { width: 44px; height: 44px; border-radius: 12px; }

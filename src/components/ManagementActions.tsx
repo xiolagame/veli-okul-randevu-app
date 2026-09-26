@@ -8,12 +8,13 @@ interface Props {
   id: string;
   values: Record<string, string>;
   onChanged: () => Promise<void>;
+  showRemove?: boolean;
 }
 
 const titles = { teacher: 'Öğretmen', parent: 'Veli', student: 'Öğrenci', security: 'Güvenlik personeli', roster: 'Veli ve öğrenci kütüğü' };
 const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No', birthDate: 'Doğum Tarihi' };
 
-export function ManagementActions({ schoolId, kind, id, values, onChanged }: Props) {
+export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
   const initialDraft = kind === 'roster' ? { ...values, birthDate: values.birthDate || '' } : values;
   const [draft, setDraft] = useState(initialDraft);
@@ -49,7 +50,7 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged }: Pro
   return <div className="mt-3">
     <div className="flex flex-wrap gap-2">
       <Button variant="secondary" onClick={() => { setDraft(initialDraft); setError(''); setSuccess(''); setMode('edit'); }}>Düzenle</Button>
-      {kind !== 'roster' && <Button variant="danger" onClick={() => { void openRemoval(); }}>{kind === 'student' ? 'Öğrenciyi okuldan kaldır' : 'Okuldan Kaldır'}</Button>}
+      {showRemove && kind !== 'roster' && <Button variant="danger" onClick={() => { void openRemoval(); }}>{kind === 'student' ? 'Öğrenciyi okuldan kaldır' : 'Okuldan Kaldır'}</Button>}
     </div>
     {success && <p role="status" className="text-sm mt-2">{success}</p>}
     {mode && <Dialog title={`${titles[kind]} — ${mode === 'edit' ? 'Bilgileri düzenle' : 'Okuldan kaldır'}`} onClose={() => { if (!busy) setMode(null); }} dismissible={!busy}>

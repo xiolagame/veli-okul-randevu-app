@@ -38,8 +38,9 @@ export function StatusBadge({ status }: { status: AppointmentStatus }) {
   return <span className={`status-badge tone-${tone}`}><Icon size={14} aria-hidden="true" />{label}</span>;
 }
 
-export function Metric({ label, value, icon: Icon, detail }: { label: string; value: React.ReactNode; icon: LucideIcon; detail?: string }) {
-  return <div className="metric-card"><div className="metric-top"><span>{label}</span><Icon size={19} aria-hidden="true" /></div><strong>{value}</strong>{detail && <p>{detail}</p>}</div>;
+export function Metric({ label, value, icon: Icon, detail, onClick }: { label: string; value: React.ReactNode; icon: LucideIcon; detail?: string; onClick?: () => void }) {
+  const content = <><div className="metric-top"><span>{label}</span><Icon size={19} aria-hidden="true" /></div><strong>{value}</strong>{detail && <p>{detail}</p>}</>;
+  return onClick ? <button type="button" className="metric-card metric-card-button" onClick={onClick} aria-label={`${label}: ${value} — randevuları göster`}>{content}</button> : <div className="metric-card">{content}</div>;
 }
 
 export function RoleNavigation<Tab extends string>({ items, active, onChange }: { items: { id: Tab; label: string; icon: LucideIcon; count?: number }[]; active: Tab; onChange: (tab: Tab) => void }) {

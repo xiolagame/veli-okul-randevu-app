@@ -254,6 +254,11 @@ export const api = {
   getAvailability: (schoolId: string) =>
     request<{ availability: AvailabilitySlot[] }>(`/api/schools/${schoolId}/availability`),
 
+  getOccupiedSlots: (schoolId: string, teacherId: string, date: string) =>
+    request<{ occupied: { startTime: string; endTime: string }[] }>(
+      `/api/schools/${encodeURIComponent(schoolId)}/teachers/${encodeURIComponent(teacherId)}/occupied-slots?date=${encodeURIComponent(date)}`
+    ),
+
   addAvailabilitySlot: (
     schoolId: string,
     slot: { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number }

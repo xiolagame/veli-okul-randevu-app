@@ -5,6 +5,8 @@ import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge, StepIndicator } from './ui';
 import { QRCodePass } from './QRCodePass';
+import { api } from '../services/api';
+import { intervalsOverlap } from '../utils/appointment-slots';
 import {
   Calendar,
   Clock,
@@ -61,6 +63,9 @@ export const ParentView: React.FC = () => {
   const [bookingBusy, setBookingBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
+  const [occupiedSlots, setOccupiedSlots] = useState<{ key: string; intervals: { startTime: string; endTime: string }[] } | null>(null);
+  const [slotsError, setSlotsError] = useState('');
+  const [slotsRefresh, setSlotsRefresh] = useState(0);
 
   // Teacher Filter
   const [teacherSearch, setTeacherSearch] = useState<string>('');
@@ -109,6 +114,7 @@ export const ParentView: React.FC = () => {
 
   const handleOpenBooking = (teacher: TeacherProfile) => {
     setBookingTeacher(teacher);
+    setOccupiedSlots(null);
     setSelectedSlotTime('');
     setBookingNotes('');
     setBookingSuccess(false);
@@ -122,16 +128,24 @@ export const ParentView: React.FC = () => {
     }
   };
 
+  const occupiedKey = `${currentSchool?.id || ''}:${bookingTeacher?.id || ''}:${bookingDate}`;
+  useEffect(() => {
+    if (!bookingTeacher || !currentSchool || !bookingDate) return;
+    let active = true;
+    setOccupiedSlots(null);
+    setSlotsError('');
+    api.getOccupiedSlots(currentSchool.id, bookingTeacher.id, bookingDate)
+      .then(({ occupied }) => { if (active) setOccupiedSlots({ key: occupiedKey, intervals: occupied }); })
+      .catch(() => { if (active) setSlotsError('Dolu saatler alınamadı. Lütfen tekrar deneyin.'); });
+    return () => { active = false; };
+  }, [bookingTeacher?.id, bookingDate, currentSchool?.id, slotsRefresh]);
+
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingTeacher || !selectedSlotTime || !selectedStudent) return;
 
-    // slot duration 15 min default
-    const [h, m] = selectedSlotTime.split(':').map(Number);
-    const endMinutes = m + settings.defaultSlotMinutes;
-    const endH = endMinutes >= 60 ? h + 1 : h;
-    const endM = endMinutes % 60;
-    const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+    const selectedSlot = getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).find((slot) => slot.time === selectedSlotTime);
+    if (!selectedSlot || selectedSlot.isBooked || !occupiedSlots || occupiedSlots.key !== occupiedKey) return;
 
     setBookingBusy(true);
     setBookingError('');
@@ -142,7 +156,7 @@ export const ParentView: React.FC = () => {
       className: studentClass,
       date: bookingDate,
       startTime: selectedSlotTime,
-      endTime: endTimeStr,
+      endTime: selectedSlot.endTime,
       notes: bookingNotes,
     });
 
@@ -153,6 +167,8 @@ export const ParentView: React.FC = () => {
     }, 1200);
     } catch (cause) {
       setBookingError(cause instanceof Error ? cause.message : 'Randevu talebiniz gönderilemedi. Bilgilerinizi kontrol edip yeniden deneyin.');
+      setSelectedSlotTime('');
+      setSlotsRefresh((value) => value + 1);
     } finally {
       setBookingBusy(false);
     }
@@ -168,7 +184,7 @@ export const ParentView: React.FC = () => {
     );
 
     // If teacher has defined hours for this day
-    const slots: string[] = [];
+    const slots: { time: string; endTime: string }[] = [];
     if (teacherAvail.length > 0) {
       teacherAvail.forEach((av) => {
         const [startH, startM] = av.startTime.split(':').map(Number);
@@ -178,26 +194,25 @@ export const ParentView: React.FC = () => {
         while (curr < end) {
           const hh = Math.floor(curr / 60);
           const mm = curr % 60;
-          slots.push(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
-          curr += av.slotDurationMinutes || 15;
+          const duration = av.slotDurationMinutes || settings.defaultSlotMinutes;
+          const next = curr + duration;
+          if (next > end || next > 1440) break;
+          slots.push({ time: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, endTime: `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}` });
+          curr = next;
         }
       });
     } else {
       // Default slots if not specifically restricted
-      slots.push('09:30', '10:00', '10:30', '11:00', '13:30', '14:00', '14:30');
+      for (const time of ['09:30', '10:00', '10:30', '11:00', '13:30', '14:00', '14:30']) {
+        const minutes = Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) + settings.defaultSlotMinutes;
+        slots.push({ time, endTime: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}` });
+      }
     }
 
-    // Filter out already booked slots
-    const bookedForDay = appointments.filter(
-      (a) =>
-        a.teacherId === teacherId &&
-        a.date === dateStr &&
-        (a.status === 'booked' || a.status === 'pending' || a.status === 'checked_in')
-    );
-
-    return slots.map((s) => ({
-      time: s,
-      isBooked: bookedForDay.some((b) => b.startTime === s),
+    const intervals = occupiedSlots?.key === occupiedKey ? occupiedSlots.intervals : [];
+    return [...new Map(slots.map((slot) => [slot.time, slot])).values()].map((slot) => ({
+      ...slot,
+      isBooked: intervals.some((occupied) => intervalsOverlap({ startTime: slot.time, endTime: slot.endTime }, occupied)),
     }));
   };
 
@@ -286,10 +301,10 @@ export const ParentView: React.FC = () => {
             {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <select id="booking-student" disabled><option>Önce profilinize öğrenci ekleyin</option></select>}
           </label>
           <label className="field" htmlFor="booking-date">Görüşme tarihi<input id="booking-date" type="date" value={bookingDate} onChange={(event) => { setBookingDate(event.target.value); setSelectedSlotTime(''); }} min={getIstanbulDate()} required /></label>
-          <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend><div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" disabled={slot.isBooked} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>
+          <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}<div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>
           <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
           {selectedSlotTime && <Alert>{formatDate(bookingDate)} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
-          <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
+          <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy || occupiedSlots?.key !== occupiedKey || !!slotsError}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
         </form>}
       </Dialog>}
       {selectedPassAppointment && <QRCodePass appointment={selectedPassAppointment} schoolName={settings.schoolName} onClose={() => setSelectedPassAppointment(null)} />}

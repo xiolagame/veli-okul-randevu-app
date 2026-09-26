@@ -153,26 +153,26 @@ async function run() {
     assert.equal((await request('GET', reviewPath, teacherA.token, undefined, expired.token)).status, 404);
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, expired.token)).status, 404);
     stage = 'revoked link';
-    const revoked = await reviewFixture('12:05', '12:20');
+    const revoked = await reviewFixture('12:15', '12:30');
     await db.query('UPDATE invitations SET revoked_at=NOW(),is_active=FALSE WHERE token=$1', [hashSetupToken(revoked.token)]);
     assert.equal((await request('GET', reviewPath, teacherA.token, undefined, revoked.token)).status, 404);
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, revoked.token)).status, 404);
     stage = 'cancelled and rejected links';
-    for (const [startTime, endTime, status] of [['12:15', '12:30', 'cancelled'], ['12:30', '12:45', 'rejected']]) {
+    for (const [startTime, endTime, status] of [['12:30', '12:45', 'cancelled'], ['12:45', '13:00', 'rejected']]) {
       const fixture = await reviewFixture(startTime, endTime);
       await db.query('UPDATE appointments SET status=$2 WHERE id=$1', [fixture.appointmentId, status]);
       assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, fixture.token)).status, 409);
       assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [fixture.appointmentId])).rows[0].status, status);
     }
     stage = 'appointment binding';
-    const wrongBinding = await reviewFixture('12:45', '13:00');
+    const wrongBinding = await reviewFixture('13:00', '13:15');
     await db.query('UPDATE invitations SET description=$2 WHERE token=$1',
       [hashSetupToken(wrongBinding.token), JSON.stringify({ a: wrongBinding.appointmentId, t: teacherProfileA, d: '2090-01-02', s: '10:00', e: '10:15' })]);
     assert.equal((await request('GET', reviewPath, teacherA.token, undefined, wrongBinding.token)).status, 404);
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, wrongBinding.token)).status, 404);
     assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [wrongBinding.appointmentId])).rows[0].status, 'pending');
     stage = 'already approved link';
-    const alreadyApproved = await reviewFixture('13:00', '13:15');
+    const alreadyApproved = await reviewFixture('13:15', '13:30');
     assert.equal((await request('POST', `${schoolPath}/appointments/${alreadyApproved.appointmentId}/approve`, teacherA.token)).status, 200);
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, alreadyApproved.token)).status, 409);
 

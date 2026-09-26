@@ -1351,6 +1351,23 @@ apiRouter.post('/schools/:schoolId/appointments/history/clear', authMiddleware, 
   } catch { res.status(500).json({ error: 'Görünüm temizlenemedi.' }); }
 });
 
+apiRouter.get('/schools/:schoolId/teachers/:teacherId/occupied-slots', authMiddleware, tenantGuard(['parent', 'admin']), async (req: AuthenticatedRequest, res) => {
+  try {
+    const schoolId = req.membership!.schoolId;
+    const { date } = req.query;
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) {
+      return res.status(400).json({ error: 'Geçerli bir tarih seçin.' });
+    }
+    const teacher = await teacherRepository.getTeacherById(schoolId, req.params.teacherId);
+    if (!teacher) return res.status(404).json({ error: 'Öğretmen bulunamadı.' });
+    const occupied = await appointmentRepository.getOccupiedIntervals(schoolId, teacher.id, date);
+    res.json({ occupied });
+  } catch {
+    res.status(500).json({ error: 'Dolu saatler alınamadı.' });
+  }
+});
+
 apiRouter.get('/schools/:schoolId/appointments', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
@@ -1385,6 +1402,13 @@ apiRouter.post(
     const { teacherId, studentName, className, date, startTime, endTime, notes } = req.body;
 
     try {
+      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date ||
+          typeof startTime !== 'string' || typeof endTime !== 'string' ||
+          !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) ||
+          !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) || endTime <= startTime) {
+        return res.status(400).json({ error: 'Geçerli tarih ve saat seçin.' });
+      }
       // 1. Teacher must exist in this school
       const teacher = await teacherRepository.getTeacherById(schoolId, teacherId);
       if (!teacher) {
@@ -1440,7 +1464,8 @@ apiRouter.post(
           teacher.id,
           date,
           startTime,
-          tx
+          tx,
+          endTime
         );
         if (conflict) {
           const err: any = new Error('ÇAKIŞMA HATASI (Double-Booking Engellendi): Bu öğretmenin seçilen tarih ve saatteki slotu başka bir veli tarafından zaten rezerve edilmiştir.');
@@ -1518,7 +1543,7 @@ apiRouter.post(
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
       if (err.code === '23505' || err.code === 'DOUBLE_BOOKING' || (err.message && err.message.includes('idx_appointments_no_double_booking'))) {
         return res.status(409).json({
-          error: 'ÇAKIŞMA HATASI (Double-Booking Engellendi): Bu öğretmenin seçilen tarih ve saatteki slotu başka bir veli tarafından zaten rezerve edilmiştir.',
+          error: 'Bu saat az önce başka bir randevu için alındı. Lütfen başka bir saat seçin.',
         });
       }
       console.error('[POST /schools/:schoolId/appointments Error]: İşlem tamamlanamadı.');

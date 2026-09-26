@@ -42,6 +42,7 @@ export const TeacherView: React.FC = () => {
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'availability' | 'profile'>('home');
+  const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'today' | 'pending' | 'approved'>('all');
   const [rejectingAptId, setRejectingAptId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [selectedPass, setSelectedPass] = useState<Appointment | null>(null);
@@ -108,6 +109,10 @@ export const TeacherView: React.FC = () => {
   ];
   const today = getIstanbulDate();
   const todayAppointments = bookedAppointments.filter((appointment) => appointment.date === today);
+  const showAppointments = (filter: typeof appointmentFilter) => {
+    setAppointmentFilter(filter);
+    setActiveTab('appointments');
+  };
   const appointmentCard = (appointment: Appointment) => (
     <article key={appointment.id} className="appointment-card">
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
@@ -124,19 +129,21 @@ export const TeacherView: React.FC = () => {
   return (
     <main id="main-content" className="page-shell">
       <PageHeader eyebrow={`ÖĞRETMEN ALANI · ${currentUser?.branch || 'GÖRÜŞME PROGRAMI'}`} title={activeTab === 'home' ? `İyi günler, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description="Görüşmelerinizi planlayın. Velilerinizle bağınızı güçlendirin." />
-      <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
+      <RoleNavigation items={navigation} active={activeTab} onChange={(tab) => { if (tab === 'appointments') setAppointmentFilter('all'); setActiveTab(tab); }} />
       {feedback && <div className="mb-6"><Alert tone={feedback.failed ? 'danger' : 'success'}>{feedback.message}</Alert></div>}
       {activeTab === 'home' && <div className="space-y-7">
-        <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => setActiveTab(pendingAppointments.length ? 'appointments' : 'availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>
-        <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü görüşme" value={todayAppointments.length} /><Metric icon={Clock} label="Onay bekleyen" value={pendingAppointments.length} /><Metric icon={CheckCircle2} label="Onaylanan" value={bookedAppointments.length} /></div>
-        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p>{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Tüm randevular</Button></div>
+        <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => pendingAppointments.length ? showAppointments('pending') : setActiveTab('availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>
+        <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü görüşme" value={todayAppointments.length} onClick={() => showAppointments('today')} /><Metric icon={Clock} label="Onay bekleyen" value={pendingAppointments.length} onClick={() => showAppointments('pending')} /><Metric icon={CheckCircle2} label="Onaylanan" value={bookedAppointments.length} onClick={() => showAppointments('approved')} /></div>
+        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p>{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => showAppointments('all')}>Tüm randevular</Button></div>
           {todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşmeniz yok" description="Yaklaşan görüşmelerinizi Randevular ekranında bulabilirsiniz." /></div>}
         </section>
       </div>}
       {activeTab === 'appointments' && <div className="space-y-8">
-        <section><div className="section-heading"><h2>Onay bekleyenler ({pendingAppointments.length})</h2></div>{pendingAppointments.length ? <div className="space-y-4">{pendingAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={CheckCircle2} title="Bekleyen talep bulunmuyor" description="Yeni görüşme talepleri burada görünecek." /></div>}</section>
-        <section><div className="section-heading"><h2>Onaylanan görüşmeler ({bookedAppointments.length})</h2></div><div className="space-y-4">{bookedAppointments.map(appointmentCard)}</div></section>
-        {completedAppointments.length > 0 && <section><div className="section-heading"><h2>Geçmiş randevular</h2></div><div className="space-y-4">{completedAppointments.map(appointmentCard)}</div></section>}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Randevu filtresi">{([['all', 'Tümü'], ['today', 'Bugün'], ['pending', 'Onay bekleyen'], ['approved', 'Onaylanan']] as const).map(([filter, label]) => <Button key={filter} variant={appointmentFilter === filter ? 'primary' : 'secondary'} aria-pressed={appointmentFilter === filter} onClick={() => setAppointmentFilter(filter)}>{label}</Button>)}</div>
+        {appointmentFilter === 'today' && <section><div className="section-heading"><h2>Bugünkü görüşmeler ({todayAppointments.length})</h2></div>{todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşme yok" /></div>}</section>}
+        {(appointmentFilter === 'all' || appointmentFilter === 'pending') && <section><div className="section-heading"><h2>Onay bekleyenler ({pendingAppointments.length})</h2></div>{pendingAppointments.length ? <div className="space-y-4">{pendingAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={CheckCircle2} title="Bekleyen talep bulunmuyor" description="Yeni görüşme talepleri burada görünecek." /></div>}</section>}
+        {(appointmentFilter === 'all' || appointmentFilter === 'approved') && <section><div className="section-heading"><h2>Onaylanan görüşmeler ({bookedAppointments.length})</h2></div>{bookedAppointments.length ? <div className="space-y-4">{bookedAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Onaylanan görüşme bulunmuyor" /></div>}</section>}
+        {appointmentFilter === 'all' && completedAppointments.length > 0 && <section><div className="section-heading"><h2>Geçmiş randevular</h2></div><div className="space-y-4">{completedAppointments.map(appointmentCard)}</div></section>}
       </div>}
       {activeTab === 'availability' && <div className="space-y-6">
         <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından randevu seçebilir.</p></div></div>

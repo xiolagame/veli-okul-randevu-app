@@ -42,7 +42,7 @@ export function ParentManagement({ schoolId, roster, search, selectedClass, onCl
   if (!visibleParents.length) return <Alert>Bu sınıfta aramanıza uygun aktif hesap kaydı bulunamadı. Bekleyen kütük kayıtları aşağıdadır.</Alert>;
   return <div className="grid gap-4 lg:grid-cols-2">{visibleParents.map((parent) => <article className="surface" key={parent.id}>
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-900">{parent.fullName}</h3><p className="mt-1 text-sm text-slate-600">{parent.phone}</p></div><span className={`status-badge tone-${parent.status === 'active' ? 'success' : 'neutral'}`}>{parent.status === 'active' ? 'Aktif' : 'Devre dışı'}</span></header>
-    <ManagementActions schoolId={schoolId} kind="parent" id={parent.id} values={{ fullName: parent.fullName, phone: parent.phone }} onChanged={refresh} />
+    <ManagementActions schoolId={schoolId} kind="parent" id={parent.id} values={{ fullName: parent.fullName, phone: parent.phone }} onChanged={refresh} showRemove={false} />
     {parent.status === 'active' && roster.some((record) => normalizeTurkishPhone(record.parentPhone) === normalizeTurkishPhone(parent.phone)) &&
       <Button variant="secondary" className="mt-3" onClick={() => {
         const record = roster.find((entry) => normalizeTurkishPhone(entry.parentPhone) === normalizeTurkishPhone(parent.phone));
