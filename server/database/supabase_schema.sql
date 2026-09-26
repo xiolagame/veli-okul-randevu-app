@@ -190,6 +190,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_no_double_booking
 ON appointments (school_id, teacher_id, date, start_time) 
 WHERE status NOT IN ('cancelled', 'rejected');
 
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hidden_for_parent_at TIMESTAMPTZ;
+
 -- 10. NOTIFICATIONS (User-targeted in-app notifications)
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY DEFAULT ('notif-' || substr(md5(random()::text), 1, 16)),
@@ -203,6 +205,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT fk_notifications_appointment FOREIGN KEY (school_id, appointment_id) REFERENCES appointments(school_id, id) ON DELETE SET NULL (appointment_id)
 );
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ;
 
 -- 11. AUDIT LOGS (Security and administrative audit trail)
 CREATE TABLE IF NOT EXISTS audit_logs (

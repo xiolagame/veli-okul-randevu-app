@@ -6,6 +6,7 @@ import { auditLogRepository, invitationRepository, membershipRepository, schoolR
 import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { sendEmail } from './email';
 import { normalizeTurkishPhone } from '../src/utils/phone';
+import { normalizePersonName } from '../src/utils/person-name';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
@@ -67,7 +68,7 @@ platformManagementRouter.get('/schools', async (_req, res) => {
         ORDER BY i.created_at DESC,i.id DESC LIMIT 1
       ) pending_admin ON active_admin.user_id IS NULL
       ORDER BY s.name,s.id`, [(process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean)]);
-    res.json({ schools: result.rows });
+    res.json({ schools: result.rows.map((school) => ({ ...school, adminName: school.adminName ? normalizePersonName(school.adminName) : null })) });
   } catch { res.status(500).json({ error: 'Okullar yüklenemedi.' }); }
 });
 
@@ -149,7 +150,7 @@ platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res)
 
 platformManagementRouter.post('/schools/:id/admin-invitation', async (req: AuthenticatedRequest, res) => {
   const schoolId = String(req.params.id);
-  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
+  const fullName = typeof req.body?.fullName === 'string' ? normalizePersonName(req.body.fullName) : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (fullName.split(' ').length < 2 || fullName.length > 150 || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150) {

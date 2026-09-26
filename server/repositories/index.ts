@@ -24,6 +24,7 @@ import {
   AppointmentStatus,
 } from '../../src/types';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
+import { normalizePersonName } from '../../src/utils/person-name';
 
 // Helper: executes query on transaction client if provided, else on global db
 async function execQuery<T = any>(
@@ -43,8 +44,8 @@ function mapTeacherProfile(row: any): TeacherProfile {
     id: row.id,
     schoolId: row.school_id,
     userId: row.user_id || undefined,
-    firstName: row.first_name,
-    lastName: row.last_name,
+    firstName: normalizePersonName(row.first_name),
+    lastName: normalizePersonName(row.last_name),
     branch: row.branch,
     email: row.email || undefined,
     phone: row.phone || '',
@@ -56,13 +57,13 @@ function mapAppointment(row: any): Appointment {
     id: row.id ?? row.appointment_id,
     schoolId: row.school_id,
     teacherId: row.teacher_id,
-    teacherName: row.teacher_name,
+    teacherName: normalizePersonName(row.teacher_name),
     teacherBranch: row.teacher_branch,
     parentId: row.parent_id,
-    parentName: row.parent_name,
+    parentName: normalizePersonName(row.parent_name),
     parentPhone: row.parent_phone,
     studentId: row.student_id || undefined,
-    studentName: row.student_name,
+    studentName: normalizePersonName(row.student_name),
     className: row.class_name,
     date: row.date,
     startTime: row.start_time,
@@ -193,7 +194,7 @@ export const userRepository = {
       [schoolId]
     );
     return result.rows.map((row) => ({
-      id: row.id, firstName: row.first_name, lastName: row.last_name,
+      id: row.id, firstName: normalizePersonName(row.first_name), lastName: normalizePersonName(row.last_name),
       phone: row.phone, role: 'security', accountStatus: row.account_status,
     }));
   },
@@ -215,8 +216,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: r.first_name || '',
-      lastName: r.last_name || '',
+      firstName: normalizePersonName(r.first_name || ''),
+      lastName: normalizePersonName(r.last_name || ''),
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -238,8 +239,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: r.first_name || '',
-      lastName: r.last_name || '',
+      firstName: normalizePersonName(r.first_name || ''),
+      lastName: normalizePersonName(r.last_name || ''),
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -265,8 +266,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: r.first_name || '',
-      lastName: r.last_name || '',
+      firstName: normalizePersonName(r.first_name || ''),
+      lastName: normalizePersonName(r.last_name || ''),
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -325,8 +326,8 @@ export const userRepository = {
       [
         id,
         cleanPhone,
-        user.firstName || '',
-        user.lastName || '',
+        normalizePersonName(user.firstName || ''),
+        normalizePersonName(user.lastName || ''),
         user.isPhoneVerified ?? false,
         user.securityQuestion || null,
         user.email || null,
@@ -337,8 +338,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: r.first_name || '',
-      lastName: r.last_name || '',
+      firstName: normalizePersonName(r.first_name || ''),
+      lastName: normalizePersonName(r.last_name || ''),
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -359,7 +360,7 @@ export const userRepository = {
        SET first_name = $1, last_name = $2, is_phone_verified = $3, security_question = $4, updated_at = NOW()
        WHERE id = $5
        RETURNING id, phone, first_name, last_name, is_phone_verified, security_question, created_at;`,
-      [firstName, lastName, isVerified, securityQuestion, id],
+      [normalizePersonName(firstName), normalizePersonName(lastName), isVerified, securityQuestion, id],
       client
     );
     if (res.rows.length === 0) return null;
@@ -367,8 +368,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: r.first_name || '',
-      lastName: r.last_name || '',
+      firstName: normalizePersonName(r.first_name || ''),
+      lastName: normalizePersonName(r.last_name || ''),
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -534,7 +535,7 @@ export const studentRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      name: r.name,
+      name: normalizePersonName(r.name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
@@ -554,7 +555,7 @@ export const studentRepository = {
     return {
       id: r.id,
       schoolId: r.school_id,
-      name: r.name,
+      name: normalizePersonName(r.name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
@@ -573,7 +574,7 @@ export const studentRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      name: r.name,
+      name: normalizePersonName(r.name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
@@ -585,21 +586,25 @@ export const studentRepository = {
     data: { id?: string; name: string; className: string; studentNumber?: string; birthDate?: string },
     client?: TransactionClient
   ): Promise<Student> {
-    // Check if matching student exists in this school
+    const cleanName = normalizePersonName(data.name);
     const existing = await execQuery<any>(
       `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
        FROM students
-       WHERE school_id = $1 AND name = $2 AND class_name = $3
-       LIMIT 1;`,
-      [schoolId, data.name, data.className],
+       WHERE school_id = $1 AND class_name = $2 AND name = $3
+         AND student_number IS NOT DISTINCT FROM $4 LIMIT 1;`,
+      [schoolId, data.className, cleanName, data.studentNumber || null],
       client
     );
-    if (existing.rows.length > 0) {
-      const r = existing.rows[0];
+    const legacy = existing.rows.length ? [] : (await execQuery<any>(
+      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
+       FROM students WHERE school_id = $1 AND class_name = $2;`, [schoolId, data.className], client)).rows;
+    const existingStudent = existing.rows[0] || legacy.find((row) => normalizePersonName(row.name) === cleanName && (row.student_number || null) === (data.studentNumber || null));
+    if (existingStudent) {
+      const r = existingStudent;
       return {
         id: r.id,
         schoolId: r.school_id,
-        name: r.name,
+        name: normalizePersonName(r.name),
         className: r.class_name,
         studentNumber: r.student_number || undefined,
         birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
@@ -611,14 +616,14 @@ export const studentRepository = {
       `INSERT INTO students (id, school_id, name, class_name, student_number, birth_date)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, school_id, name, class_name, student_number, birth_date::text AS birth_date;`,
-      [id, schoolId, data.name, data.className, data.studentNumber || null, data.birthDate || null],
+      [id, schoolId, cleanName, data.className, data.studentNumber || null, data.birthDate || null],
       client
     );
     const r = res.rows[0];
     return {
       id: r.id,
       schoolId: r.school_id,
-      name: r.name,
+      name: normalizePersonName(r.name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
@@ -699,8 +704,8 @@ export const rosterRepository = {
       id: r.id,
       schoolId: r.school_id,
       parentPhone: r.parent_phone,
-      parentName: r.parent_name,
-      studentName: r.student_name,
+      parentName: normalizePersonName(r.parent_name),
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
@@ -722,8 +727,8 @@ export const rosterRepository = {
       id: r.id,
       schoolId: r.school_id,
       parentPhone: r.parent_phone,
-      parentName: r.parent_name,
-      studentName: r.student_name,
+      parentName: normalizePersonName(r.parent_name),
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
@@ -744,8 +749,8 @@ export const rosterRepository = {
       id: roster.id,
       schoolId: roster.school_id,
       parentPhone: roster.parent_phone,
-      parentName: roster.parent_name,
-      studentName: roster.student_name,
+      parentName: normalizePersonName(roster.parent_name),
+      studentName: normalizePersonName(roster.student_name),
       className: roster.class_name,
       studentNumber: roster.student_number || undefined,
       birthDate: roster.birth_date ? String(roster.birth_date).slice(0,10) : undefined,
@@ -799,8 +804,8 @@ export const rosterRepository = {
             id,
             schoolId,
             cleanPhone,
-            item.parentName || 'Veli',
-            item.studentName,
+            normalizePersonName(item.parentName || 'Veli'),
+            normalizePersonName(item.studentName),
             item.className || 'Genel',
             item.studentNumber || null,
           ],
@@ -851,7 +856,7 @@ export const teacherRepository = {
       `INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone, email)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, school_id, user_id, first_name, last_name, branch, email, phone;`,
-      [id, schoolId, teacher.firstName, teacher.lastName, teacher.branch, teacher.phone, teacher.email || null],
+      [id, schoolId, normalizePersonName(teacher.firstName), normalizePersonName(teacher.lastName), teacher.branch, teacher.phone, teacher.email || null],
       client
     );
     return mapTeacherProfile(res.rows[0]);
@@ -1024,7 +1029,7 @@ export const appointmentRepository = {
     const params: any[] = [schoolId];
 
     if (filter?.role === 'parent' && filter.userId) {
-      sql += ` AND parent_id = $2`;
+      sql += ` AND parent_id = $2 AND hidden_for_parent_at IS NULL`;
       params.push(filter.userId);
     } else if (filter?.role === 'teacher' && filter.teacherProfileId) {
       sql += ` AND teacher_id = $2`;
@@ -1038,13 +1043,13 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
+      teacherName: normalizePersonName(r.teacher_name),
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: r.parent_name,
+      parentName: normalizePersonName(r.parent_name),
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: r.student_name,
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
@@ -1075,13 +1080,13 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
+      teacherName: normalizePersonName(r.teacher_name),
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: r.parent_name,
+      parentName: normalizePersonName(r.parent_name),
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: r.student_name,
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
@@ -1113,13 +1118,13 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
+      teacherName: normalizePersonName(r.teacher_name),
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: r.parent_name,
+      parentName: normalizePersonName(r.parent_name),
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: r.student_name,
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
@@ -1161,7 +1166,7 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: '',
-      teacherName: r.teacher_name,
+      teacherName: normalizePersonName(r.teacher_name),
       teacherBranch: '',
       parentId: '',
       parentName: '',
@@ -1213,13 +1218,13 @@ export const appointmentRepository = {
         id,
         apt.schoolId,
         apt.teacherId,
-        apt.teacherName,
+        normalizePersonName(apt.teacherName),
         apt.teacherBranch,
         apt.parentId,
-        apt.parentName,
+        normalizePersonName(apt.parentName),
         apt.parentPhone,
         apt.studentId || null,
-        apt.studentName,
+        normalizePersonName(apt.studentName),
         apt.className,
         apt.date,
         apt.startTime,
@@ -1268,13 +1273,13 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: r.teacher_name,
+      teacherName: normalizePersonName(r.teacher_name),
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: r.parent_name,
+      parentName: normalizePersonName(r.parent_name),
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: r.student_name,
+      studentName: normalizePersonName(r.student_name),
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
@@ -1331,7 +1336,7 @@ export const notificationRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, title, message, date, read, appointment_id, created_at
        FROM notifications
-       WHERE school_id = $1 AND user_id = $2
+        WHERE school_id = $1 AND user_id = $2 AND hidden_at IS NULL
        ORDER BY created_at DESC;`,
       [schoolId, userId]
     );
@@ -1355,6 +1360,10 @@ export const notificationRepository = {
       [schoolId, userId]
     );
     return true;
+  },
+
+  async hideAllForParent(schoolId: string, userId: string): Promise<void> {
+    await execQuery(`UPDATE notifications SET hidden_at=NOW() WHERE school_id=$1 AND user_id=$2 AND hidden_at IS NULL`, [schoolId, userId]);
   },
 
   async createNotification(

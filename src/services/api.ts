@@ -256,6 +256,15 @@ export const api = {
   getAppointments: (schoolId: string) =>
     request<{ appointments: Appointment[] }>(`/api/schools/${schoolId}/appointments`),
 
+  clearParentHistory: (schoolId: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/appointments/history/clear`, { method: 'POST' }),
+
+  getParentClasses: (schoolId: string) =>
+    request<{ classes: string[] }>(`/api/schools/${schoolId}/classes`),
+
+  claimParentStudent: (schoolId: string, student: { name: string; className: string }) =>
+    request<{ student: Student }>(`/api/schools/${schoolId}/students/claim`, { method: 'POST', body: JSON.stringify(student) }),
+
   bookAppointment: (
     schoolId: string,
     data: {
@@ -315,6 +324,9 @@ export const api = {
     request<{ success: boolean }>(`/api/schools/${schoolId}/notifications/read`, {
       method: 'POST',
     }),
+
+  clearParentNotifications: (schoolId: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/notifications/clear`, { method: 'POST' }),
 
   getAuditLogs: (schoolId: string) =>
     request<{ auditLogs: AuditLogItem[] }>(`/api/schools/${schoolId}/audit-logs`),

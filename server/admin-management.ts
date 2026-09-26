@@ -3,6 +3,7 @@ import { authMiddleware, tenantGuard, AuthenticatedRequest } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
 import { auditLogRepository } from './repositories';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
+import { normalizePersonName } from '../src/utils/person-name';
 
 class ManagementError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -39,7 +40,7 @@ adminManagementRouter.get('/parents', async (req: AuthenticatedRequest, res) => 
          COALESCE(s.student_number,'') AS "studentNumber", s.birth_date::text AS "birthDate"
        FROM students s JOIN student_parent_relations r ON r.school_id = s.school_id AND r.student_id = s.id
        WHERE s.school_id = $1 ORDER BY s.id`, [req.membership!.schoolId]);
-    res.json({ parents: result.rows.map((parent) => ({ ...parent, students: students.rows.filter((student) => student.parentId === parent.id) })) });
+    res.json({ parents: result.rows.map((parent) => ({ ...parent, fullName: normalizePersonName(parent.fullName), students: students.rows.filter((student) => student.parentId === parent.id).map((student) => ({ ...student, name: normalizePersonName(student.name) })) })) });
   } catch { res.status(500).json({ error: 'Veli bilgileri alınamadı.' }); }
 });
 
@@ -68,8 +69,8 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
       await tx.query('SELECT id FROM schools WHERE id = $1 FOR UPDATE', [schoolId]);
       if (kind === 'teacher') await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
       if (kind === 'roster') {
-        const parentName = textField(req.body.parentName, 150);
-        const studentName = textField(req.body.studentName, 150);
+        const parentName = normalizePersonName(textField(req.body.parentName, 150));
+        const studentName = normalizePersonName(textField(req.body.studentName, 150));
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
         const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
@@ -94,7 +95,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           WHERE school_id=$1 AND id=$2 AND is_claimed=FALSE`, [schoolId,id,studentName,className,number || null,birthDate]);
         if (normalizeTurkishPhone(record.parent_phone) !== phone) await revokeCodes(tx,schoolId,record.parent_phone,'parent');
       } else if (kind === 'student') {
-        const name = textField(req.body.name, 150);
+        const name = normalizePersonName(textField(req.body.name, 150));
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
         const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
@@ -179,7 +180,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           }
           await revokeCodes(tx, schoolId, oldPhone, kind);
         } else {
-          const fullName = textField(req.body.fullName, 150);
+          const fullName = normalizePersonName(textField(req.body.fullName, 150));
           const phone = normalizeTurkishPhone(req.body.phone);
           if (!phone) throw new ManagementError(400, 'Geçerli bir Türkiye GSM numarası girin.');
           const names = fullName.split(' ');
@@ -194,7 +195,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               "SELECT phone, concat_ws(' ',first_name,last_name) AS full_name FROM users WHERE id=$1 FOR UPDATE", [userId]);
             const otherSchools = await tx.query(
               'SELECT id FROM school_memberships WHERE user_id=$1 AND school_id<>$2 LIMIT 1', [userId, schoolId]);
-            if (otherSchools.rows.length && (identity.rows[0]?.phone !== phone || identity.rows[0]?.full_name !== fullName)) {
+            if (otherSchools.rows.length && (identity.rows[0]?.phone !== phone || normalizePersonName(identity.rows[0]?.full_name || '') !== fullName)) {
               throw new ManagementError(409, 'Birden fazla okula bağlı hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
             const duplicate = await tx.query(
@@ -203,7 +204,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
             if (duplicate.rows.length) throw new ManagementError(409, 'Telefon başka bir hesaba bağlı.');
             const otherRoles = await tx.query(
               'SELECT id FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role<>$3 LIMIT 1', [schoolId, userId, kind]);
-            if (otherRoles.rows.length && (phoneChanged || fullName !== oldName)) {
+            if (otherRoles.rows.length && (phoneChanged || fullName !== normalizePersonName(oldName))) {
               throw new ManagementError(409, 'Birden fazla rolü olan hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
             await tx.query(`UPDATE users SET first_name=$2,last_name=$3,phone=$4::varchar(20),

@@ -66,8 +66,11 @@ interface AppContextType {
   createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
+  clearParentNotifications: () => Promise<void>;
+  clearParentHistory: () => Promise<void>;
+  getParentClasses: () => Promise<string[]>;
   updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<void>;
-  addStudentToProfile: (student: { name: string; className: string }) => void;
+  addStudentToProfile: (student: { name: string; className: string }) => Promise<void>;
   removeStudentFromProfile: (studentId: string) => void;
   runIsolationTests: () => Promise<TenantIsolationTestResult[]>;
 }
@@ -452,6 +455,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  const clearParentNotifications = async () => {
+    if (!currentSchool || currentMembership?.role !== 'parent') return;
+    await api.clearParentNotifications(currentSchool.id);
+    setNotifications((previous) => previous.filter((notification) => notification.userId !== currentUser?.id));
+  };
+
+  const clearParentHistory = async () => {
+    if (!currentSchool || currentMembership?.role !== 'parent') return;
+    await api.clearParentHistory(currentSchool.id);
+    const result = await api.getAppointments(currentSchool.id);
+    setAppointments(result.appointments);
+  };
+
+  const getParentClasses = async () => {
+    if (!currentSchool || currentMembership?.role !== 'parent') return [];
+    return (await api.getParentClasses(currentSchool.id)).classes;
+  };
+
   // Update Settings
   const updateSettings = async (newSettings: Partial<SchoolSettings>) => {
     if (!currentSchool) return;
@@ -460,16 +481,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Add / Remove Student Profile (Local helpers)
-  const addStudentToProfile = (student: { name: string; className: string }) => {
-    if (!currentUser) return;
-    const newStudent: Student = {
-      id: 's-' + Date.now(),
-      schoolId: currentSchool?.id,
-      name: student.name,
-      className: student.className,
-    };
-    const updated = [...(currentUser.students || []), newStudent];
-    setCurrentUser({ ...currentUser, students: updated });
+  const addStudentToProfile = async (student: { name: string; className: string }) => {
+    if (!currentUser || !currentSchool || currentMembership?.role !== 'parent') throw new Error('Aktif veli hesabı bulunamadı.');
+    await api.claimParentStudent(currentSchool.id, student);
+    const result = await api.getStudents(currentSchool.id);
+    setCurrentUser((previous) => previous ? { ...previous, students: result.students } : previous);
   };
 
   const removeStudentFromProfile = (studentId: string) => {
@@ -560,6 +576,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createTeacher,
         removeAvailabilitySlot,
         markNotificationsAsRead,
+        clearParentNotifications,
+        clearParentHistory,
+        getParentClasses,
         updateSettings,
         addStudentToProfile,
         removeStudentFromProfile,

@@ -12,6 +12,7 @@ import {
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone } from '../src/utils/phone';
+import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
 import { sendEmail } from './email';
@@ -786,7 +787,7 @@ apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']
   if (!['teacher', 'security'].includes(role) || fullName.split(' ').length < 2 || fullName.length > 150 || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150 || (role === 'teacher' && (!branch || branch.length > 100))) {
     return res.status(400).json({ error: 'Personel bilgilerini kontrol edin.' });
   }
-  const [firstName, ...last] = fullName.split(' ');
+  const [firstName, ...last] = normalizePersonName(fullName).split(' ');
   let staff: { id: string; email: string; firstName: string; lastName: string; phone: string; userId?: string };
   try {
     const db = await getDb();
@@ -1155,7 +1156,7 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
       const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
       const elsewhere = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id<>$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`,[schoolId,...digits]);
       if (elsewhere.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
-      const [firstName, ...lastNameParts] = fullName.split(' ');
+      const [firstName, ...lastNameParts] = normalizePersonName(fullName).split(' ');
       const created = await teacherRepository.createPending(schoolId, {
         firstName,
         lastName: lastNameParts.join(' '),
@@ -1190,7 +1191,7 @@ apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin'])
     const users = await userRepository.getSecurityUsers(schoolId);
     const pending = await (await getDb()).query<{id:string;first_name:string;last_name:string;phone:string}>(
       "SELECT id,first_name,last_name,phone FROM pending_staff WHERE school_id=$1 AND role='security' ORDER BY created_at DESC",[schoolId]);
-    users.push(...pending.rows.map((row) => ({id:row.id,firstName:row.first_name,lastName:row.last_name,phone:row.phone,accountStatus:'pending' as const})));
+    users.push(...pending.rows.map((row) => ({id:row.id,firstName:normalizePersonName(row.first_name),lastName:normalizePersonName(row.last_name),phone:row.phone,accountStatus:'pending' as const})));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: 'Güvenlik personeli listelenemedi.' });
@@ -1198,6 +1199,42 @@ apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin'])
 });
 
 // Students in active school
+apiRouter.get('/schools/:schoolId/classes', authMiddleware, tenantGuard(['parent']), async (req: AuthenticatedRequest, res) => {
+  try {
+    const classes = await (await getDb()).query<{ class_name: string }>(`SELECT DISTINCT class_name FROM (
+      SELECT class_name FROM students WHERE school_id=$1
+      UNION SELECT class_name FROM school_roster WHERE school_id=$1
+    ) school_classes WHERE NULLIF(TRIM(class_name),'') IS NOT NULL`, [req.membership!.schoolId]);
+    res.json({ classes: classes.rows.map((row) => row.class_name).sort((left, right) => left.localeCompare(right, 'tr-TR', { numeric: true })) });
+  } catch { res.status(500).json({ error: 'Sınıflar yüklenemedi.' }); }
+});
+
+apiRouter.post('/schools/:schoolId/students/claim', authMiddleware, tenantGuard(['parent']), async (req: AuthenticatedRequest, res) => {
+  const name = typeof req.body?.name === 'string' ? normalizePersonName(req.body.name) : '';
+  const className = typeof req.body?.className === 'string' ? req.body.className.trim() : '';
+  if (!name || name.length > 150 || !className || className.length > 50) return res.status(400).json({ error: 'Öğrenci ve sınıf seçimini kontrol edin.' });
+  try {
+    const schoolId = req.membership!.schoolId;
+    const userId = req.user!.id;
+    const student = await (await getDb()).transaction(async (tx) => {
+      const classes = await tx.query(`SELECT 1 FROM (SELECT class_name FROM students WHERE school_id=$1
+        UNION SELECT class_name FROM school_roster WHERE school_id=$1) school_classes WHERE class_name=$2 LIMIT 1`, [schoolId, className]);
+      if (!classes.rows.length) return null;
+      const roster = (await rosterRepository.checkPhone(schoolId, req.user!.phone, tx))
+        .find((row) => normalizePersonName(row.studentName) === name && row.className === className);
+      if (!roster) return null;
+      const claimed = await studentRepository.findOrCreateStudent(schoolId, {
+        name, className, studentNumber: roster.studentNumber, birthDate: roster.birthDate,
+      }, tx);
+      await relationRepository.createRelation({ schoolId, studentId: claimed.id, parentUserId: userId }, tx);
+      await rosterRepository.claimRosterRecord(schoolId, roster.id, tx);
+      return claimed;
+    });
+    if (!student) return res.status(403).json({ error: 'Bu öğrenci okul kütüğünde hesabınızla eşleşmiyor.' });
+    res.json({ student });
+  } catch { res.status(500).json({ error: 'Öğrenci eklenemedi.' }); }
+});
+
 apiRouter.get('/schools/:schoolId/students', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
@@ -1301,6 +1338,17 @@ apiRouter.delete(
 );
 
 // Appointments in active school (Filtered by role)
+apiRouter.post('/schools/:schoolId/appointments/history/clear', authMiddleware, tenantGuard(['parent']), async (req: AuthenticatedRequest, res) => {
+  try {
+    await (await getDb()).query(`UPDATE appointments SET hidden_for_parent_at=NOW()
+      WHERE school_id=$1 AND parent_id=$2
+        AND (status IN ('completed','checked_out','cancelled','rejected')
+          OR date < TO_CHAR(NOW() AT TIME ZONE 'Europe/Istanbul','YYYY-MM-DD'))
+        AND hidden_for_parent_at IS NULL`, [req.membership!.schoolId, req.user!.id]);
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'Görünüm temizlenemedi.' }); }
+});
+
 apiRouter.get('/schools/:schoolId/appointments', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
@@ -1349,7 +1397,7 @@ apiRouter.post(
       if (req.membership!.role === 'parent') {
         const parentStudents = await studentRepository.getStudentsByParent(schoolId, req.user!.id);
         const isStudentValid = parentStudents.some(
-          (s) => s.name.trim().toLowerCase() === (studentName || '').trim().toLowerCase()
+          (student) => typeof studentName === 'string' && normalizePersonName(student.name) === normalizePersonName(studentName) && student.className === className
         );
 
         if (!isStudentValid) {
@@ -1769,6 +1817,13 @@ apiRouter.post('/schools/:schoolId/notifications/read', authMiddleware, tenantGu
     console.error('[POST /schools/:schoolId/notifications/read Error]:', err);
     res.status(500).json({ error: 'Bildirimler okundu olarak işaretlenemedi' });
   }
+});
+
+apiRouter.post('/schools/:schoolId/notifications/clear', authMiddleware, tenantGuard(['parent']), async (req: AuthenticatedRequest, res) => {
+  try {
+    await notificationRepository.hideAllForParent(req.membership!.schoolId, req.user!.id);
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'Bildirim görünümü temizlenemedi.' }); }
 });
 
 // Audit Logs

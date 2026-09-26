@@ -12,9 +12,11 @@
     "test:auth": "tsx scripts/test-activation-auth.ts",
     "test:activation": "tsx scripts/test-activation-auth.ts",
     "test:parent-auth": "tsx scripts/test-parent-self-service-auth.ts",
+    "test:parent-ux": "tsx scripts/test-parent-ux.ts",
     "test:school-roster-ui": "tsx scripts/test-school-roster-ui.ts",
     "test:school-admin-provisioning": "tsx scripts/test-school-admin-provisioning.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
+    "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
   },
   "dependencies": {

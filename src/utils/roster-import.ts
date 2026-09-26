@@ -1,4 +1,5 @@
 import { normalizeTurkishPhone } from './phone';
+import { normalizePersonName } from './person-name';
 
 export const ROSTER_HEADERS = ['Öğrenci Ad Soyad', 'Öğrenci No', 'Veli Ad Soyad', 'Veli Telefonu', 'Doğum Tarihi'];
 export const MAX_ROSTER_ROWS = 500;
@@ -22,7 +23,7 @@ export function normalizeBirthDate(value: unknown): string | null {
 export function validateRosterRow(value: unknown): RosterPreview {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const read = (key: string) => typeof source[key] === 'string' ? source[key].trim().replace(/\s+/g, ' ') : '';
-  const record: RosterDraft = { studentName: read('studentName'), studentNumber: read('studentNumber'), parentName: read('parentName'), parentPhone: normalizeTurkishPhone(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
+  const record: RosterDraft = { studentName: normalizePersonName(read('studentName')), studentNumber: read('studentNumber'), parentName: normalizePersonName(read('parentName')), parentPhone: normalizeTurkishPhone(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
   const errors: string[] = [];
   if (!record.studentName || record.studentName.length > 150) errors.push('Öğrenci adı eksik veya çok uzun.');
   if (!record.parentName || record.parentName.length > 150) errors.push('Veli adı eksik veya çok uzun.');

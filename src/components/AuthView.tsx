@@ -299,7 +299,6 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
               <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="login-phone" type="tel" inputMode="tel" autoComplete="username" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0555 123 45 67" required /></div>
-              <span className="field-hint">Numaranızı başında 0 veya +90 ile yazabilirsiniz.</span>
             </label>
             <div className="field">
               <label htmlFor="login-password">Parolanız</label>

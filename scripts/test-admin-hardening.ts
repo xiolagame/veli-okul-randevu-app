@@ -151,7 +151,7 @@ async function run() {
     const changedTeacher = (await db.query('SELECT * FROM teacher_profiles WHERE id=$1', [teacher.id])).rows[0];
     assert.equal(changedTeacher.user_id, activated.id);
     assert.equal(changedTeacher.phone, newTeacherPhone);
-    assert.equal(changedTeacher.first_name, 'Updated');
+    assert.equal(changedTeacher.first_name, 'UPDATED');
     assert.equal(changedTeacher.branch, 'Matematik');
     assert.equal((await request('GET', '/user/me', teacherToken)).status, 401);
     assert.equal((await request('POST', '/auth/login', undefined, { phone: teacherPhone, password })).status, 401);
@@ -195,11 +195,11 @@ async function run() {
     assert.equal((await userRepository.getByPhone(parentPhone))?.id, parent.id);
     assert.equal((await request('PATCH', manage + '/student/' + studentId, admin.token, { name: 'Updated Student', className: '6-A', studentNumber: '42' })).status, 200);
     const student = (await db.query('SELECT * FROM students WHERE id=$1', [studentId])).rows[0];
-    assert.equal(student.name, 'Updated Student');
+    assert.equal(student.name, 'UPDATED STUDENT');
     assert.equal(student.class_name, '6-A');
     assert.equal(student.student_number, '42');
     const rosterRecord = (await db.query('SELECT * FROM school_roster WHERE school_id=$1', [schoolId])).rows[0];
-    assert.equal(rosterRecord.student_name, 'Updated Student');
+    assert.equal(rosterRecord.student_name, 'UPDATED STUDENT');
     assert.equal(rosterRecord.parent_phone, parentPhone);
     assert.equal((await db.query('SELECT * FROM student_parent_relations WHERE student_id=$1 AND parent_user_id=$2', [studentId, parent.id])).rows.length, 1);
     const securityPhone = phone();

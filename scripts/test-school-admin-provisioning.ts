@@ -110,7 +110,7 @@ async function run() {
     const listed = await request('GET', '/platform/schools', platformToken);
     const managedSchool = (listed.body.schools as Array<Record<string, unknown>>).find((entry) => entry.id === createdSchoolId);
     assert.equal(managedSchool?.adminStatus, 'pending');
-    assert.equal(managedSchool?.adminName, 'Ada Yönetici');
+    assert.equal(managedSchool?.adminName, 'ADA YÖNETİCİ');
     const secondPendingInvite = await request('POST', `/platform/schools/${createdSchoolId}/admin-invitation`, platformToken,
       { fullName: 'İkinci Yönetici', phone: otherPhone, email: 'second@example.test' });
     assert.equal(secondPendingInvite.status, 409, 'another pending school manager must be rejected');
