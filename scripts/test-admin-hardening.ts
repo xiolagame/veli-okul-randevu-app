@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
 import type { TeacherProfile, Appointment } from '../src/types';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
 
 let stage = 'setup';
 async function run() {
@@ -45,10 +46,12 @@ async function run() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + (server.address() as import('node:net').AddressInfo).port + '/api';
   async function request(method: string, path: string, token?: string, body?: object, schoolHeader?: string) {
+    const input = body as Record<string, unknown> | undefined;
+    const payload = input ? { ...input, ...Object.fromEntries(['phone', 'parentPhone'].filter((key) => typeof input[key] === 'string' && /^\+905\d{9}$/.test(input[key] as string)).map((key) => [key, displayStoredTurkishPhone(input[key] as string)])) } : undefined;
     const response = await fetch(base + path, { method, headers: {
       'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}),
       ...(schoolHeader ? { 'x-school-id': schoolHeader } : {}),
-    }, body: body ? JSON.stringify(body) : undefined });
+    }, body: payload ? JSON.stringify(payload) : undefined });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
   async function login(value: string) {

@@ -17,6 +17,8 @@ import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
 import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
+import { calendarWeekday } from '../src/utils/appointment-slots';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
 import {
   appointmentRepository,
   availabilityRepository,
@@ -70,6 +72,7 @@ async function runSecurityAudit() {
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
   const createdAppointmentIds: string[] = [];
+  const createdSlotIds: string[] = [];
 
   async function makeReq(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -92,7 +95,9 @@ async function runSecurityAudit() {
         'content-type': 'application/json',
         ...(options?.headers || {}),
       },
-      body: options?.body ? JSON.stringify(options.body) : undefined,
+      body: options?.body ? JSON.stringify({ ...options.body,
+        ...(typeof options.body.phone === 'string' && /^\+905\d{9}$/.test(options.body.phone)
+          ? { phone: displayStoredTurkishPhone(options.body.phone) } : {}) }) : undefined,
     });
 
     const data = await res.json().catch(() => ({}));
@@ -275,7 +280,13 @@ async function runSecurityAudit() {
     const freeDate = async (month: string, time: string) => {
       for (let day = 1; day <= 28; day++) {
         const date = `2090-${month}-${String(day).padStart(2, '0')}`;
-        if (!await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherKazan.id, date, time)) return date;
+        const weekday = calendarWeekday(date);
+        if (weekday && !await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherKazan.id, date, time)) {
+          const slot = await availabilityRepository.createSlot({ schoolId: 'sch-kazan-01', teacherId: teacherKazan.id,
+            dayOfWeek: weekday, startTime: time, endTime: `${time.slice(0, 3)}15`, slotDurationMinutes: 15 });
+          createdSlotIds.push(slot.id);
+          return date;
+        }
       }
       throw new Error('No isolated audit slot available.');
     };
@@ -594,7 +605,7 @@ async function runSecurityAudit() {
         'x-school-id': 'sch-kazan-01',
       },
       body: {
-        dayOfWeek: 2, // Tuesday
+        dayOfWeek: 6,
         startTime: '13:00',
         endTime: '14:00',
         slotDurationMinutes: 15,
@@ -607,6 +618,17 @@ async function runSecurityAudit() {
       `Öğretmen kendi okulunda slot oluşturdu (Slot ID: ${createSlotRes.body.slot?.id})`
     );
     const newSlotId = createSlotRes.body.slot.id;
+    assert(createSlotRes.body.slot.dayOfWeek === 6, 'BÖLÜM 8.1', 'Saturday Slot Persisted', 'Cumartesi günü repository ve API üzerinden korundu');
+    const secondSaturdaySlot = await makeReq('POST', '/schools/sch-kazan-01/availability', {
+      headers: { authorization: `Bearer ${teacher1Token}`, 'x-school-id': 'sch-kazan-01' },
+      body: { dayOfWeek: 6, startTime: '14:30', endTime: '15:30', slotDurationMinutes: 15 },
+    });
+    assert(secondSaturdaySlot.status === 200, 'BÖLÜM 8.1', 'Multiple Saturday Slots', 'Aynı Cumartesi için ikinci müsaitlik eklendi');
+    createdSlotIds.push(secondSaturdaySlot.body.slot.id);
+    assert((await makeReq('POST', '/schools/sch-kazan-01/availability', {
+      headers: { authorization: `Bearer ${teacher1Token}`, 'x-school-id': 'sch-kazan-01' },
+      body: { dayOfWeek: 0, startTime: '13:00', endTime: '14:00', slotDurationMinutes: 15 },
+    })).status === 400, 'BÖLÜM 8.1', 'Sunday Slot Rejected', 'Pazar günü ekleme engellendi');
 
     // 8.2: School A User attempts to see School B availability
     const crossAvailRes = await makeReq('GET', '/schools/sch-ataturk-02/availability', {
@@ -671,6 +693,7 @@ async function runSecurityAudit() {
     for (const id of createdAppointmentIds) {
       await db.query('DELETE FROM appointments WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
     }
+    for (const id of createdSlotIds) await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
     try {
       (server as any).closeAllConnections?.();
     } catch {}

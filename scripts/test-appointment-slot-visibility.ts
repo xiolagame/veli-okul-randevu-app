@@ -7,7 +7,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Calendar } from 'lucide-react';
 import { Metric } from '../src/components/ui';
-import { intervalsOverlap } from '../src/utils/appointment-slots';
+import { calendarWeekday, intervalsOverlap, slotMatchesAvailability } from '../src/utils/appointment-slots';
+import { AvailabilityCalendar } from '../src/components/AvailabilityCalendar';
 
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('Local PGlite only.');
@@ -58,6 +59,15 @@ async function run() {
     assert(intervalsOverlap({ startTime: '10:30', endTime: '10:45' }, { startTime: '10:35', endTime: '10:50' }));
     assert(intervalsOverlap({ startTime: '10:30', endTime: '10:45' }, { startTime: '10:30', endTime: '10:45' }));
     assert(!intervalsOverlap({ startTime: '10:30', endTime: '10:45' }, { startTime: '10:45', endTime: '11:00' }));
+    const mondaySlot = { dayOfWeek: 1, startTime: '12:30', endTime: '12:45', slotDurationMinutes: 15 };
+    assert(slotMatchesAvailability(mondaySlot, '2090-03-13', '12:30', '12:45'));
+    assert(!slotMatchesAvailability(mondaySlot, '2090-03-11', '12:30', '12:45'));
+    const calendar = renderToStaticMarkup(React.createElement(AvailabilityCalendar, {
+      month: '2090-03', selectedDate: '', weekdays: [1, 6], onMonthChange: () => {}, onSelectDate: () => {},
+    }));
+    assert(calendar.includes('aria-label="11/03/2090"') && calendar.includes('aria-label="13/03/2090"'));
+    for (const day of [12, 14, 15, 16, 17]) assert(calendar.includes(`disabled="" aria-label="${day}/03/2090"`));
+    for (const day of [11, 13]) assert(!calendar.includes(`disabled="" aria-label="${day}/03/2090"`));
     const parentManagement = fs.readFileSync('src/components/ParentManagement.tsx', 'utf8');
     assert(parentManagement.includes('kind="parent"') && parentManagement.includes('showRemove={false}'));
     const studentActions = parentManagement.match(/<ManagementActions[^>]*kind="student"[^>]*>/)?.[0];
@@ -87,11 +97,23 @@ async function run() {
        VALUES($1,$2,$3,'LOCAL','TEACHER','Türkçe',$4)`, [id, schoolId, user.id, user.phone]);
 
     const date = '2090-03-09';
+    await db.query(`INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
+      VALUES($1,$2,$3,'09:30','09:45',15)`, [schoolA, teacherA, calendarWeekday(date)]);
     const path = `/schools/${schoolA}/teachers/${teacherA}/occupied-slots?date=${date}`;
     const booking = { teacherId: teacherA, studentName: 'STUDENT A', className: '5-C', date,
       startTime: '09:30', endTime: '09:45' };
     const otherBooking = { ...booking, studentName: 'STUDENT A2', className: '6-C' };
     const bookingPath = `/schools/${schoolA}/appointments`;
+    const unavailable = await request('POST', bookingPath, parentA.token, {
+      ...booking, date: '2090-03-11', startTime: '12:30', endTime: '12:45',
+    });
+    assert.equal(unavailable.status, 409, 'Unavailable Saturday must be rejected server-side.');
+    await db.query(`INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
+      VALUES($1,$2,6,'11:00','11:15',15)`, [schoolA, teacherA]);
+    const saturday = await request('POST', bookingPath, parentA.token, {
+      ...booking, date: '2090-03-11', startTime: '11:00', endTime: '11:15',
+    });
+    assert.equal(saturday.status, 200, 'Configured Saturday slot must book.');
     assert.deepEqual((await request('GET', path, parentA.token)).body.occupied, []);
     assert.equal((await request('GET', path, foreignParent.token)).status, 403);
     assert.equal((await request('GET', `/schools/${schoolA}/teachers/${teacherB}/occupied-slots?date=${date}`, parentA.token)).status, 404);

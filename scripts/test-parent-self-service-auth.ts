@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import express from 'express';
 import http from 'node:http';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
 
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('This test requires local PGlite.');
@@ -24,7 +25,10 @@ async function run() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
   async function request(method: string, path: string, body?: object, token?: string) {
-    const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const input = body as Record<string, unknown> | undefined;
+    const payload = input && typeof input.phone === 'string' && /^\+905\d{9}$/.test(input.phone)
+      ? { ...input, phone: displayStoredTurkishPhone(input.phone) } : body;
+    const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: payload ? JSON.stringify(payload) : undefined });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
   try {
@@ -43,7 +47,7 @@ async function run() {
     assert.equal(invalidBirthDate.status, 400);
     assert.equal(invalidBirthDate.body.error, generic);
 
-    const challengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: phone.slice(3), birthDate });
+    const challengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), birthDate });
     assert.equal(challengeResponse.status, 200);
     const expiredChallenge = challengeResponse.body.challenge as string;
     assert.equal(typeof expiredChallenge, 'string');
@@ -76,7 +80,7 @@ async function run() {
     const wrongRelation = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone, birthDate: '2016-01-01' });
     assert.equal(wrongRelation.status, 400);
     assert.equal(wrongRelation.body.error, generic);
-    const resetChallengeResponse = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone: `(${phone.slice(3, 6)}) ${phone.slice(6, 9)}-${phone.slice(9, 11)}-${phone.slice(11)}`, birthDate });
+    const resetChallengeResponse = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), birthDate });
     assert.equal(resetChallengeResponse.status, 200);
     const resetChallenge = resetChallengeResponse.body.challenge as string;
     const reset = await request('POST', '/auth/parent/reset-complete', { schoolId, phone, birthDate, challenge: resetChallenge, password: replacement });

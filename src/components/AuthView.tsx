@@ -3,7 +3,8 @@ import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, Calendar, 
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Alert, Brand, Button, Dialog } from './ui';
-import { normalizeTurkishPhone } from '../utils/phone';
+import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
+import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -85,23 +86,25 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     event.preventDefault();
     if (!parentFlow) return;
     setError('');
-    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
+    const birthDate = parseBirthDateInputToIso(parentBirthDate);
+    if (!birthDate) { setError('Doğum tarihini GG/AA/YYYY biçiminde kontrol edin.'); return; }
     setIsSubmitting(true);
     try {
       if (!parentChallenge) {
         const result = parentFlow === 'registration'
-          ? await api.parentRegistrationChallenge(parentSchoolCode, normalizedPhone, parentBirthDate)
-          : await api.parentResetChallenge(parentSchoolCode, normalizedPhone, parentBirthDate);
+          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, birthDate)
+          : await api.parentResetChallenge(parentSchoolCode, codePhone, birthDate);
         setParentChallenge(result.challenge);
         setParentSchoolId(result.schoolId);
         return;
       }
       if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
       const result = parentFlow === 'registration'
-        ? await api.parentRegistrationComplete(parentSchoolId, normalizedPhone, parentBirthDate, parentChallenge, newPassword)
-        : await api.parentResetComplete(parentSchoolId, normalizedPhone, parentBirthDate, parentChallenge, newPassword);
-      setPhone(normalizedPhone);
+        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword)
+        : await api.parentResetComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword);
+      setPhone(displayStoredTurkishPhone(normalizedPhone));
       closeParentFlow();
       setSuccessMessage(result.message);
     } catch (cause) {
@@ -112,23 +115,23 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   const closeStaffReset = () => { setStaffResetStep(null); setStaffResetSchoolCode(''); setStaffResetChallenge(''); setStaffResetSchoolId(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setError(''); };
   const submitStaffReset = async (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
     setError('');
     setIsSubmitting(true);
     try {
       if (staffResetStep === 'request') {
-        const result = await api.requestStaffReset(staffResetSchoolCode, normalizedPhone);
+        const result = await api.requestStaffReset(staffResetSchoolCode, codePhone);
         setSuccessMessage(result.message);
         setStaffResetStep('verify');
       } else if (staffResetStep === 'verify') {
-        const result = await api.verifyStaffReset(staffResetSchoolCode, normalizedPhone, code);
+        const result = await api.verifyStaffReset(staffResetSchoolCode, codePhone, code);
         setStaffResetChallenge(result.setupToken);
         setStaffResetSchoolId(result.schoolId);
         setStaffResetStep('password');
       } else {
         if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeStaffReset(staffResetSchoolId, normalizedPhone, staffResetChallenge, newPassword);
+        const result = await api.completeStaffReset(staffResetSchoolId, codePhone, staffResetChallenge, newPassword);
         closeStaffReset();
         setSuccessMessage(result.message);
       }
@@ -148,22 +151,22 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   };
   const submitSchoolAdminActivation = async (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
     setError('');
     setIsSubmitting(true);
     try {
       if (schoolAdminActivationStep === 'verify') {
-        const result = await api.verifySchoolAdminActivation(schoolAdminSchoolCode, normalizedPhone, code);
+        const result = await api.verifySchoolAdminActivation(schoolAdminSchoolCode, codePhone, code);
         setSchoolAdminSetupToken(result.setupToken);
         setSchoolAdminSchoolId(result.schoolId);
         setSchoolAdminActivationStep('password');
         setSuccessMessage('Kod doğrulandı. Okul Yönetimi parolanızı belirleyin.');
       } else {
         if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeSchoolAdminActivation(schoolAdminSchoolId, normalizedPhone, schoolAdminSetupToken, newPassword);
+        const result = await api.completeSchoolAdminActivation(schoolAdminSchoolId, codePhone, schoolAdminSetupToken, newPassword);
         closeSchoolAdminActivation();
-        setPhone(normalizedPhone);
+        setPhone(displayStoredTurkishPhone(normalizedPhone));
         setSuccessMessage(result.message);
       }
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Bilgiler doğrulanamadı.'); }
@@ -181,23 +184,23 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   };
   const submitSchoolAdminReset = async (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
     setError('');
     setIsSubmitting(true);
     try {
       if (schoolAdminResetStep === 'request') {
-        const result = await api.requestSchoolAdminReset(schoolAdminResetSchoolCode, normalizedPhone);
+        const result = await api.requestSchoolAdminReset(schoolAdminResetSchoolCode, codePhone);
         setSuccessMessage(result.message);
         setSchoolAdminResetStep('verify');
       } else if (schoolAdminResetStep === 'verify') {
-        const result = await api.verifySchoolAdminReset(schoolAdminResetSchoolCode, normalizedPhone, code);
+        const result = await api.verifySchoolAdminReset(schoolAdminResetSchoolCode, codePhone, code);
         setSchoolAdminResetSetupToken(result.setupToken);
         setSchoolAdminResetSchoolId(result.schoolId);
         setSchoolAdminResetStep('password');
       } else {
         if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeSchoolAdminReset(schoolAdminResetSchoolId, normalizedPhone, schoolAdminResetSetupToken, newPassword);
+        const result = await api.completeSchoolAdminReset(schoolAdminResetSchoolId, codePhone, schoolAdminResetSetupToken, newPassword);
         closeSchoolAdminReset();
         setSuccessMessage(result.message);
       }
@@ -209,14 +212,14 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     event.preventDefault();
     setError('');
     setSuccessMessage('');
-    const normalizedPhone = normalizeTurkishPhone(phone);
+    const normalizedPhone = normalizeUserPhoneInput(phone);
     if (!normalizedPhone) {
       setError('Geçerli bir Türkiye GSM numarası girin.');
       return;
     }
     setIsSubmitting(true);
     try {
-      const success = await login(normalizedPhone, password);
+      const success = await login(phone, password);
       if (!success) setError('Telefon numarası veya şifre hatalı.');
     } finally {
       setIsSubmitting(false);
@@ -228,11 +231,11 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     if (!codeFlow) return;
     setError('');
     if (codeFlow === 'activation' && !staffSetupToken) {
-      const normalizedPhone = normalizeTurkishPhone(codePhone);
+      const normalizedPhone = normalizeUserPhoneInput(codePhone);
       if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
       setIsSubmitting(true);
       try {
-        const result = await api.verifyStaffActivation(schoolId, normalizedPhone, code);
+        const result = await api.verifyStaffActivation(schoolId, codePhone, code);
         setStaffSetupToken(result.setupToken);
         setResolvedStaffSchoolId(result.schoolId);
         setSuccessMessage('Kod doğrulandı. Şimdi yeni parolanızı belirleyin.');
@@ -249,7 +252,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       return;
     }
 
-    const normalizedPhone = normalizeTurkishPhone(codePhone);
+    const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) {
       setError('Geçerli bir Türkiye GSM numarası girin.');
       return;
@@ -258,9 +261,9 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     setIsSubmitting(true);
     try {
       const result = codeFlow === 'activation'
-        ? await api.completeStaffActivation(resolvedStaffSchoolId, normalizedPhone, staffSetupToken, newPassword)
-        : await api.resetPasswordWithCode(schoolId, normalizedPhone, code, newPassword);
-      setPhone(normalizedPhone);
+        ? await api.completeStaffActivation(resolvedStaffSchoolId, codePhone, staffSetupToken, newPassword)
+        : await api.resetPasswordWithCode(schoolId, codePhone, code, newPassword);
+      setPhone(displayStoredTurkishPhone(normalizedPhone));
       setPassword('');
       closeCodeFlow();
       setSuccessMessage(result.message);
@@ -298,7 +301,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
-              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="login-phone" type="tel" inputMode="tel" autoComplete="username" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0555 123 45 67" required /></div>
+              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="login-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></div>
             </label>
             <div className="field">
               <label htmlFor="login-password">Parolanız</label>
@@ -321,7 +324,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           <label className="field" htmlFor="code-school">Okulunuz
             <input id="code-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} placeholder="Okul kodu" disabled={!!staffSetupToken} required />
           </label>
-          <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="tel" autoComplete="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required /></label>
+          <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
           {codeFlow === 'activation' && !staffSetupToken && <label className="field" htmlFor="activation-code">6 haneli aktivasyon kodu<input id="activation-code" type="text" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" autoComplete="one-time-code" spellCheck={false} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" required className="font-mono" /></label>}
           {staffSetupToken && <><label className="field" htmlFor="new-password">Yeni parolanız<input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} maxLength={128} required /><span className="field-hint">8–128 karakter uzunluğunda bir parola belirleyin.</span></label><label className="field" htmlFor="confirm-password">Yeni parolanız, tekrar<input id="confirm-password" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} minLength={8} maxLength={128} required /></label></>}
           <div className="form-actions"><Button variant="secondary" disabled={isSubmitting} onClick={closeCodeFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffSetupToken ? 'Hesabı Aktifleştir' : 'Kodu Doğrula'}</Button></div>
@@ -332,8 +335,8 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           {error && <Alert tone="danger">{error}</Alert>}
           {!parentChallenge ? <>
             <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(event.target.value)} required /></label>
-            <label className="field">Telefon Numaranız<input type="tel" inputMode="tel" autoComplete="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required /></label>
-            <label className="field">Öğrencinizin Doğum Tarihi<input type="date" value={parentBirthDate} onChange={(event) => setParentBirthDate(event.target.value)} required /></label>
+            <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
+            <label className="field">Öğrencinizin Doğum Tarihi<input type="text" inputMode="numeric" maxLength={10} placeholder="GG/AA/YYYY" value={parentBirthDate} onChange={(event) => setParentBirthDate(formatBirthDateInput(event.target.value))} required /></label>
           </> : <>
             <label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
             <label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>
@@ -345,7 +348,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={submitStaffReset} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field">Okul Kodu<input value={staffResetSchoolCode} onChange={(event) => setStaffResetSchoolCode(event.target.value)} required readOnly={staffResetStep !== 'request'} /></label>
-          <label className="field">Telefon Numaranız<input type="tel" inputMode="tel" autoComplete="tel" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} placeholder="0555 123 45 67" required readOnly={staffResetStep !== 'request'} /></label>
+          <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required readOnly={staffResetStep !== 'request'} /></label>
           {staffResetStep === 'verify' && <label className="field">6 haneli sıfırlama kodu<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g,'').slice(0,6))} required /></label>}
           {staffResetStep === 'password' && <><label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}
           <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeStaffReset}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffResetStep === 'request' ? 'Sıfırlama Kodu Gönder' : staffResetStep === 'verify' ? 'Kodu Doğrula' : 'Şifremi Güncelle'}</Button></div>
@@ -355,7 +358,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={submitSchoolAdminActivation} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field" htmlFor="school-admin-activation-school">Okul Kodu<input id="school-admin-activation-school" autoComplete="off" value={schoolAdminSchoolCode} onChange={(event) => setSchoolAdminSchoolCode(event.target.value)} readOnly={schoolAdminActivationStep === 'password'} required /></label>
-          <label className="field" htmlFor="school-admin-activation-phone">Telefon Numaranız<input id="school-admin-activation-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} readOnly={schoolAdminActivationStep === 'password'} required /></label>
+          <label className="field" htmlFor="school-admin-activation-phone">Telefon Numaranız<input id="school-admin-activation-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
           {schoolAdminActivationStep === 'verify' ? <label className="field" htmlFor="school-admin-activation-code">6 haneli aktivasyon kodu<input id="school-admin-activation-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label> : <>
             <label className="field" htmlFor="school-admin-new-password">Yeni parolanız<input id="school-admin-new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
             <label className="field" htmlFor="school-admin-confirm-password">Yeni parolanız, tekrar<input id="school-admin-confirm-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>
@@ -367,7 +370,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={submitSchoolAdminReset} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field" htmlFor="school-admin-reset-school">Okul Kodu<input id="school-admin-reset-school" autoComplete="off" value={schoolAdminResetSchoolCode} onChange={(event) => setSchoolAdminResetSchoolCode(event.target.value)} readOnly={schoolAdminResetStep !== 'request'} required /></label>
-          <label className="field" htmlFor="school-admin-reset-phone">Telefon Numaranız<input id="school-admin-reset-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(event.target.value)} readOnly={schoolAdminResetStep !== 'request'} required /></label>
+          <label className="field" htmlFor="school-admin-reset-phone">Telefon Numaranız<input id="school-admin-reset-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminResetStep !== 'request'} required /></label>
           {schoolAdminResetStep === 'verify' && <label className="field" htmlFor="school-admin-reset-code">6 haneli sıfırlama kodu<input id="school-admin-reset-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>}
           {schoolAdminResetStep === 'password' && <><label className="field" htmlFor="school-admin-reset-password">Yeni parolanız<input id="school-admin-reset-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="field" htmlFor="school-admin-reset-confirm">Yeni parolanız, tekrar<input id="school-admin-reset-confirm" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}
           <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeSchoolAdminReset}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : schoolAdminResetStep === 'request' ? 'Sıfırlama Kodu Gönder' : schoolAdminResetStep === 'verify' ? 'Kodu Doğrula' : 'Parolayı Güncelle'}</Button></div>

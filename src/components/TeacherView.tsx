@@ -23,6 +23,7 @@ const DAYS_OF_WEEK = [
   { id: 3, name: 'Çarşamba' },
   { id: 4, name: 'Perşembe' },
   { id: 5, name: 'Cuma' },
+  { id: 6, name: 'Cumartesi' },
 ];
 
 export const TeacherView: React.FC = () => {

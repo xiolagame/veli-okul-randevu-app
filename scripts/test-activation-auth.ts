@@ -6,7 +6,9 @@ import { generateActivationCode, hashActivationCode } from '../server/activation
 import { getDb, initDatabase } from '../server/database/postgres';
 import { invitationRepository, membershipRepository, rosterRepository, userRepository } from '../server/repositories';
 import { bootstrapLocalPasswordFixtures, createTestPassword } from './test-auth-fixtures';
-import { normalizeTurkishPhone } from '../src/utils/phone';
+import { displayStoredTurkishPhone, formatTurkishPhoneInput, isValidTurkishPhoneInput, normalizeTurkishPhone } from '../src/utils/phone';
+import { formatBirthDateInput, parseBirthDateInputToIso } from '../src/utils/birth-date';
+import { uppercasePersonNameInput } from '../src/utils/person-name';
 
 type HttpResult = { status: number; body: Record<string, unknown> };
 
@@ -17,11 +19,8 @@ function assert(condition: unknown, message: string): asserts condition {
 function phoneFormats(canonicalPhone: string): string[] {
   const subscriberNumber = canonicalPhone.slice(3);
   return [
-    canonicalPhone,
-    canonicalPhone.slice(1),
     `0${subscriberNumber}`,
-    subscriberNumber,
-    `(${subscriberNumber.slice(0, 3)}) ${subscriberNumber.slice(3, 6)}-${subscriberNumber.slice(6, 8)}-${subscriberNumber.slice(8)}`,
+    displayStoredTurkishPhone(canonicalPhone),
   ];
 }
 
@@ -37,7 +36,7 @@ async function run() {
   const address = server.address() as import('net').AddressInfo;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
 
-  async function request(path: string, body: Record<string, unknown>, token?: string, schoolId?: string): Promise<HttpResult> {
+  async function request(path: string, body: Record<string, unknown>, token?: string, schoolId?: string, rawPhone = false): Promise<HttpResult> {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
       headers: {
@@ -45,7 +44,7 @@ async function run() {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(schoolId ? { 'x-school-id': schoolId } : {}),
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, ...(!rawPhone && typeof body.phone === 'string' && /^\+905\d{9}$/.test(body.phone) ? { phone: displayStoredTurkishPhone(body.phone) } : {}) }),
     });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
@@ -70,11 +69,24 @@ async function run() {
     assert(normalizeTurkishPhone('0555 123 45 67') === '+905551234567', 'Local phone format must normalize.');
     assert(normalizeTurkishPhone('5551234567') === '+905551234567', 'Subscriber phone format must normalize.');
     assert(normalizeTurkishPhone('123') === null, 'Invalid phone format must be rejected.');
+    assert(formatTurkishPhoneInput('05432222222') === '0543 222 22 22', 'Phone paste must be masked.');
+    assert(isValidTurkishPhoneInput('0543 222 22 22'), 'Domestic masked phone must be valid.');
+    for (const invalid of ['+905432222222', '905432222222', '5432222222', '0543222222', '0 5432222222']) assert(!isValidTurkishPhoneInput(invalid), 'Invalid public phone must be rejected.');
+    assert(uppercasePersonNameInput('ali ışık ') === 'ALİ IŞIK ', 'Turkish uppercase must preserve typing spaces.');
+    assert(uppercasePersonNameInput('çağla içen') === 'ÇAĞLA İÇEN', 'Turkish uppercase paste must work.');
+    assert(formatBirthDateInput('12032016') === '12/03/2016', 'Birth date mask must format digits.');
+    assert(parseBirthDateInputToIso('12/03/2016') === '2016-03-12', 'Birth date must convert to ISO.');
+    for (const invalid of ['31/02/2016', '29/02/2023', '12/03/20']) assert(parseBirthDateInputToIso(invalid) === null, 'Invalid birth date must fail.');
+    assert(parseBirthDateInputToIso('29/02/2024') === '2024-02-29', 'Leap date must pass.');
 
-    for (const format of phoneFormats(adminPhone).slice(0, 4)) {
+    for (const format of phoneFormats(adminPhone)) {
       const formatLogin = await request('/auth/login', { phone: format, password: fixturePassword });
-      assert(formatLogin.status === 200 && formatLogin.body.user && (formatLogin.body.user as { id: string }).id === 'u-admin-1', 'Every supported phone format must log in as the same user.');
+      assert(formatLogin.status === 200 && formatLogin.body.user && (formatLogin.body.user as { id: string }).id === 'u-admin-1', 'Domestic phone formats must log in as the same user.');
     }
+    for (const invalidFormat of [adminPhone.slice(1), adminPhone.slice(3)]) {
+      assert((await request('/auth/login', { phone: invalidFormat, password: fixturePassword })).status === 400, 'International or zero-less user input must be rejected.');
+    }
+    assert((await request('/auth/login', { phone: adminPhone, password: fixturePassword }, undefined, undefined, true)).status === 400, '+90 public input must be rejected.');
 
     const adminLogin = await request('/auth/login', { phone: adminPhone, password: fixturePassword });
     assert(adminLogin.status === 200 && typeof adminLogin.body.token === 'string', 'Admin password login must succeed.');
@@ -109,7 +121,7 @@ async function run() {
     assert(memberships.some((membership) => membership.schoolId === schoolId && membership.role === 'parent'), 'Activation must derive the parent membership server-side.');
     for (const format of phoneFormats(phone)) {
       const activationLogin = await request('/auth/login', { phone: format, password: activationPassword });
-      assert(activationLogin.status === 200, 'Activated password must allow normal login with every supported phone format.');
+      assert(activationLogin.status === 200, 'Activated password must allow domestic phone formats.');
       assert(!JSON.stringify(activationLogin.body).match(/password(Hash|_hash)?/i), 'Login response must not expose password data.');
     }
     const preResetLogin = await request('/auth/login', { phone, password: activationPassword });
@@ -140,7 +152,7 @@ async function run() {
     const afterWrongReset = (await userRepository.getAuthByPhone(phone))!;
     assert(afterWrongReset.passwordHash === previousHash, 'Wrong reset code must preserve the current hash.');
     assert(afterWrongReset.authVersion === beforeWrongReset.authVersion, 'Wrong reset code must not increment authVersion.');
-    const reset = await request('/auth/reset-password-with-code', { schoolId, phone: phone.slice(1), code: resetCode, password: replacementPassword });
+    const reset = await request('/auth/reset-password-with-code', { schoolId, phone: `0${phone.slice(3)}`, code: resetCode, password: replacementPassword });
     assert(reset.status === 200, 'Valid reset code must update the password.');
     const afterReset = (await userRepository.getAuthByPhone(phone))!;
     assert(afterReset.authVersion === beforeWrongReset.authVersion + 1, 'Valid reset must increment authVersion exactly once.');

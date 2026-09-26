@@ -5,6 +5,8 @@ import { Alert, Button, Dialog, Skeleton } from './ui';
 import { formatDateTime } from '../utils/dates';
 import { ShieldCheck, School as SchoolIcon, FileText, LayoutDashboard } from 'lucide-react';
 import { auditDisplay } from '../utils/audit-display';
+import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
+import { uppercasePersonNameInput } from '../utils/person-name';
 
 export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void> }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
@@ -88,11 +90,11 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
         {adminMessage && <Alert tone={adminInvitePending ? 'warning' : 'info'}>{adminMessage}</Alert>}
         {error && <Alert tone="danger">{error}</Alert>}
         {!adminInvitePending ? <>
-          <label className="field" htmlFor="school-admin-full-name">Yönetici Ad Soyad<input id="school-admin-full-name" autoComplete="name" maxLength={150} value={adminDraft.fullName} onChange={(event) => setAdminDraft({ ...adminDraft, fullName: event.target.value })} required /></label>
-          <label className="field" htmlFor="school-admin-phone">Telefon<input id="school-admin-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0555 123 45 67" value={adminDraft.phone} onChange={(event) => setAdminDraft({ ...adminDraft, phone: event.target.value })} required /></label>
+          <label className="field" htmlFor="school-admin-full-name">Yönetici Ad Soyad<input id="school-admin-full-name" autoComplete="name" maxLength={150} value={adminDraft.fullName} onChange={(event) => setAdminDraft({ ...adminDraft, fullName: uppercasePersonNameInput(event.target.value) })} required /></label>
+          <label className="field" htmlFor="school-admin-phone">Telefon<input id="school-admin-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={adminDraft.phone} onChange={(event) => setAdminDraft({ ...adminDraft, phone: formatTurkishPhoneInput(event.target.value) })} required /></label>
           <label className="field" htmlFor="school-admin-email">E-posta<input id="school-admin-email" type="email" autoComplete="email" maxLength={150} value={adminDraft.email} onChange={(event) => setAdminDraft({ ...adminDraft, email: event.target.value })} required /></label>
           <p className="field-hint">Parola oluşturulmaz. Yönetici, tek kullanımlık e-posta koduyla kendi parolasını belirler.</p>
-          <Button disabled={busy} onClick={() => { void mutate(async () => {
+          <Button disabled={busy} onClick={() => { if (!isValidTurkishPhoneInput(adminDraft.phone)) { setError('Telefonu 0XXX XXX XX XX biçiminde girin.'); return; } void mutate(async () => {
             const result = await api.createSchoolAdminInvitation(adminTarget.id, adminDraft);
             setAdminInvitePending(true);
             setAdminMessage(result.message);

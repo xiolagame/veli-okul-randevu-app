@@ -1,5 +1,7 @@
-import { normalizeTurkishPhone } from './phone';
+import { formatTurkishPhoneInput, normalizeUserPhoneInput } from './phone';
 import { normalizePersonName } from './person-name';
+import { uppercasePersonNameInput } from './person-name';
+import { formatBirthDateInput, formatIsoBirthDateForInput, parseBirthDateInputToIso } from './birth-date';
 
 export const ROSTER_HEADERS = ['Öğrenci Ad Soyad', 'Öğrenci No', 'Veli Ad Soyad', 'Veli Telefonu', 'Doğum Tarihi'];
 export const MAX_ROSTER_ROWS = 500;
@@ -8,22 +10,24 @@ export type RosterDraft = { studentName: string; studentNumber: string; parentNa
 export type RosterPreview = { record: RosterDraft; status: 'valid' | 'duplicate' | 'invalid'; errors: string[] };
 export const emptyRosterRow = (): RosterDraft => ({ studentName: '', studentNumber: '', parentName: '', parentPhone: '', birthDate: '' });
 
+export function formatRosterDraftInput(record: RosterDraft): RosterDraft {
+  return {
+    ...record,
+    studentName: uppercasePersonNameInput(record.studentName),
+    parentName: uppercasePersonNameInput(record.parentName),
+    parentPhone: formatTurkishPhoneInput(record.parentPhone),
+    birthDate: formatIsoBirthDateForInput(record.birthDate) || formatBirthDateInput(record.birthDate),
+  };
+}
+
 export function normalizeBirthDate(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const clean = value.trim();
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean);
-  const local = /^(\d{2})[./](\d{2})[./](\d{4})$/.exec(clean);
-  if (!iso && !local) return null;
-  const [year, month, day] = iso ? [Number(iso[1]), Number(iso[2]), Number(iso[3])] : [Number(local![3]), Number(local![2]), Number(local![1])];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (year < 1900 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || date.getTime() > Date.now()) return null;
-  return date.toISOString().slice(0, 10);
+  return parseBirthDateInputToIso(value);
 }
 
 export function validateRosterRow(value: unknown): RosterPreview {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const read = (key: string) => typeof source[key] === 'string' ? source[key].trim().replace(/\s+/g, ' ') : '';
-  const record: RosterDraft = { studentName: normalizePersonName(read('studentName')), studentNumber: read('studentNumber'), parentName: normalizePersonName(read('parentName')), parentPhone: normalizeTurkishPhone(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
+  const record: RosterDraft = { studentName: normalizePersonName(read('studentName')), studentNumber: read('studentNumber'), parentName: normalizePersonName(read('parentName')), parentPhone: normalizeUserPhoneInput(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
   const errors: string[] = [];
   if (!record.studentName || record.studentName.length > 150) errors.push('Öğrenci adı eksik veya çok uzun.');
   if (!record.parentName || record.parentName.length > 150) errors.push('Veli adı eksik veya çok uzun.');

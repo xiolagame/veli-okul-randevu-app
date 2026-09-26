@@ -94,6 +94,9 @@ async function run() {
       VALUES ($1,$2,$3,'LOCAL','TEACHER A','Türkçe',$4,'teacher-a@example.test'),
         ($5,$2,$6,'LOCAL','TEACHER B','Matematik',$7,'teacher-b@example.test')`,
       [teacherProfileA, schoolA, teacherA.id, teacherA.phone, teacherProfileB, teacherB.id, teacherB.phone]);
+    for (const teacherId of [teacherProfileA, teacherProfileB]) await db.query(
+      `INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
+       VALUES($1,$2,EXTRACT(DOW FROM DATE '2090-01-02'),'10:00','14:00',15)`, [schoolA, teacherId]);
     const removal = (id: string) => `${schoolPath}/management/students/${id}/removal`;
     stage = 'removal authorization';
     for (const token of [parentOnly.token, teacherA.token, security.token, otherAdmin.token]) {
@@ -217,7 +220,7 @@ async function run() {
     assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentSibling.id])).rows.length, 1);
     assert.equal((await db.query('SELECT id FROM students WHERE id=$1', [siblingTwo])).rows.length, 1);
     assert.equal((await db.query('SELECT id FROM student_parent_relations WHERE student_id=$1 AND parent_user_id=$2', [siblingTwo, parentSibling.id])).rows.length, 1);
-    assert.equal((await request('POST', '/auth/login', undefined, { phone: parentSibling.phone, password })).status, 200);
+    assert.equal((await request('POST', '/auth/login', undefined, { phone: `0${parentSibling.phone.slice(3)}`, password })).status, 200);
     assert.equal((await request('DELETE', removal(roleStudent), admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentRole.id])).rows.length, 1);
     assert.equal((await db.query('SELECT id FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role=$3', [schoolB, parentRole.id, 'teacher'])).rows.length, 1);

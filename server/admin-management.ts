@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { authMiddleware, tenantGuard, AuthenticatedRequest } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
 import { auditLogRepository } from './repositories';
-import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
+import { getTurkishPhoneLookupDigits, normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
 import { isPlatformAdmin } from './auth';
+import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 
 class ManagementError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -196,8 +197,8 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
         const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
-        if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
-        const phone = normalizeTurkishPhone(req.body.parentPhone);
+        if (birthDate && parseBirthDateInputToIso(birthDate) !== birthDate) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
+        const phone = normalizeUserPhoneInput(req.body.parentPhone);
         if (!phone || number.length > 50) throw new ManagementError(400, 'Telefon veya okul numarası geçersiz.');
         const found = await tx.query<{ parent_phone: string; is_claimed: boolean }>(
           'SELECT parent_phone,is_claimed FROM school_roster WHERE school_id=$1 AND id=$2 FOR UPDATE', [schoolId,id]);
@@ -221,7 +222,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         const className = textField(req.body.className, 50);
         const number = typeof req.body.studentNumber === 'string' ? req.body.studentNumber.trim() : '';
         const birthDate = typeof req.body.birthDate === 'string' && req.body.birthDate ? req.body.birthDate : null;
-        if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
+        if (birthDate && parseBirthDateInputToIso(birthDate) !== birthDate) throw new ManagementError(400, 'Doğum tarihini kontrol edin.');
         if (number.length > 50) throw new ManagementError(400, 'Okul numarası çok uzun.');
         const previous = await tx.query<{ name: string; class_name: string; student_number: string | null }>(
           'SELECT name,class_name,student_number FROM students WHERE school_id=$1 AND id=$2 FOR UPDATE', [schoolId, id]);
@@ -303,7 +304,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           await revokeCodes(tx, schoolId, oldPhone, kind);
         } else {
           const fullName = normalizePersonName(textField(req.body.fullName, 150));
-          const phone = normalizeTurkishPhone(req.body.phone);
+          const phone = normalizeUserPhoneInput(req.body.phone);
           if (!phone) throw new ManagementError(400, 'Geçerli bir Türkiye GSM numarası girin.');
           const names = fullName.split(' ');
           if (names.length < 2) throw new ManagementError(400, 'Ad ve soyad girin.');

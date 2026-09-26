@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { auditDisplay } from '../src/utils/audit-display';
-import { normalizeBirthDate, parseDelimited, rowsToDrafts, validateRosterRow, ROSTER_HEADERS } from '../src/utils/roster-import';
+import { formatRosterDraftInput, normalizeBirthDate, parseDelimited, rowsToDrafts, validateRosterRow, ROSTER_HEADERS } from '../src/utils/roster-import';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
 import { validateStaffForm } from '../src/utils/staff-form';
 import { readRosterFile, rosterTemplate } from '../src/utils/roster-files';
 
@@ -14,12 +15,17 @@ async function run() {
   for (const value of ['14.03.2014', '14/03/2014', '2014-03-14']) assert.equal(normalizeBirthDate(value), '2014-03-14');
   for (const value of ['31.02.2014', '', '03/14/2014', '2100-01-01']) assert.equal(normalizeBirthDate(value), null);
   const baseRow = { studentName: 'Test Student', studentNumber: '1', parentName: 'Test Parent', parentPhone: '+905551234567', birthDate: '2014-03-14' };
-  for (const phone of ['05551234567', '5551234567', '+905551234567', '90 555 123 45 67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).record.parentPhone, baseRow.parentPhone);
+  const displayed = formatRosterDraftInput({ ...baseRow, parentPhone: '05551234567' });
+  assert.equal(displayed.parentPhone, '0555 123 45 67');
+  assert.equal(displayed.birthDate, '14/03/2014');
+  assert.equal(displayed.studentName, 'TEST STUDENT');
+  for (const phone of ['05551234567', '0555 123 45 67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).record.parentPhone, baseRow.parentPhone);
+  for (const phone of ['5551234567', '+905551234567', '90 555 123 45 67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).status, 'invalid');
   for (const key of ['studentName', 'parentName', 'parentPhone', 'birthDate']) assert.equal(validateRosterRow({ ...baseRow, [key]: '' }).status, 'invalid');
   assert.equal(validateRosterRow({ ...baseRow, studentNumber: '1,2' }).status, 'invalid');
   const quotedCsv = ROSTER_HEADERS.join(',') + '\n"Test, Student",1,Test Parent,05551234567,14.03.2014';
   assert.equal(rowsToDrafts(parseDelimited(quotedCsv))[0].studentName, 'Test, Student');
-  const draft = { fullName: 'Test Person', role: 'security' as const, phone: baseRow.parentPhone, email: 'test@example.test', branch: '' };
+  const draft = { fullName: 'Test Person', role: 'security' as const, phone: '0555 123 45 67', email: 'test@example.test', branch: '' };
   assert.deepEqual(validateStaffForm(draft), {});
   assert(validateStaffForm({ ...draft, role: '' }).role);
   assert(validateStaffForm({ ...draft, email: '' }).email);
@@ -60,7 +66,10 @@ async function run() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + (server.address() as import('node:net').AddressInfo).port + '/api';
   async function request(method: string, path: string, token?: string, body?: object) {
-    const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const input = body as Record<string, unknown> | undefined;
+    const payload = input && typeof input.phone === 'string' && /^\+905\d{9}$/.test(input.phone)
+      ? { ...input, phone: displayStoredTurkishPhone(input.phone) } : body;
+    const response = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, body: payload ? JSON.stringify(payload) : undefined });
     return { status: response.status, body: await response.json().catch(() => ({})) as Record<string, unknown> };
   }
   async function fixture(role: 'admin' | 'parent' | 'teacher' | 'security') {
@@ -127,9 +136,9 @@ async function run() {
     stage = 'bulk validation and transaction';
     const path = '/schools/' + schoolA + '/roster/bulk-upload';
     const rosterPhone = '+905' + crypto.randomInt(100000000,999999999);
-    const rows = [0,1,2].map((index) => ({ ...baseRow, studentName: 'Student ' + index, studentNumber: String(index + 1), parentPhone: [rosterPhone, '0' + rosterPhone.slice(3), rosterPhone.slice(3)][index], birthDate: '14.03.2014', schoolId: schoolB, className: 'OTHER' }));
+    const rows = [0,1,2].map((index) => ({ ...baseRow, studentName: 'Student ' + index, studentNumber: String(index + 1), parentPhone: displayStoredTurkishPhone(rosterPhone), birthDate: '14.03.2014', schoolId: schoolB, className: 'OTHER' }));
     const payload = { className:'5-A', records:rows, schoolId:schoolB };
-    const largeBatch = Array.from({ length: 500 }, (_, index) => ({ ...baseRow, studentName: 'Student ' + index + ' ' + 'A'.repeat(120), parentName: 'Parent ' + 'B'.repeat(120), studentNumber: String(index + 100), parentPhone: rosterPhone }));
+    const largeBatch = Array.from({ length: 500 }, (_, index) => ({ ...baseRow, studentName: 'Student ' + index + ' ' + 'A'.repeat(120), parentName: 'Parent ' + 'B'.repeat(120), studentNumber: String(index + 100), parentPhone: displayStoredTurkishPhone(rosterPhone) }));
     assert(Buffer.byteLength(JSON.stringify(largeBatch)) > 100 * 1024);
     assert.equal((await request('POST',path,admin.token,{className:'7-A',records:largeBatch,preview:true})).status,200);
     assert.equal((await request('POST',path,admin.token,{className:'7-A',records:[...largeBatch,largeBatch[0]],preview:true})).status,400);

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound } from 'lucide-react';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
-import { normalizeTurkishPhone } from '../utils/phone';
+import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
+import { uppercasePersonNameInput } from '../utils/person-name';
 import { ManagementActions } from './ManagementActions';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -49,7 +50,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
     setCreatingTeacher(true);
     setCreateTeacherError('');
     try {
-      await onCreateTeacher({ fullName: fullName.trim(), role: staffRole, ...(staffRole === 'teacher' ? { branch: branch.trim() } : {}), phone: normalizeTurkishPhone(phone)!, email: email.trim().toLowerCase() });
+      await onCreateTeacher({ fullName: fullName.trim(), role: staffRole, ...(staffRole === 'teacher' ? { branch: branch.trim() } : {}), phone, email: email.trim().toLowerCase() });
       setResendMessage('Personel kaydı oluşturuldu. Aktivasyon e-postası gönderildi.');
       setShowCreateTeacher(false);
       setFullName('');
@@ -134,9 +135,9 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
       {showCreateTeacher && <Dialog title="Yeni Personel Ekle" description="Aktivasyon kodu yalnızca kayıtlı e-posta adresine gönderilir." onClose={() => { if (!creatingTeacher) setShowCreateTeacher(false); }} dismissible={!creatingTeacher}>
         <form className="form-stack" noValidate onSubmit={submitTeacher}>
           <label className="field">Görevi<select aria-label="Görevi" value={staffRole} required aria-invalid={!!fieldErrors.role} aria-describedby="staff-error-role" onChange={(event) => { setStaffRole(event.target.value as StaffDraft['role']); setFieldErrors({}); }}><option value="">Görev seçin</option><option value="teacher">Öğretmen</option><option value="security">Güvenlik</option></select>{fieldError('role')}</label>
-          <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input aria-label="Ad Soyad" id="staff-teacher-name" autoComplete="name" maxLength={150} required aria-invalid={!!fieldErrors.fullName} aria-describedby="staff-error-fullName" value={fullName} onChange={(event) => { setFullName(event.target.value); setFieldErrors((previous) => ({ ...previous, fullName: undefined })); }} />{fieldError('fullName')}</label>
+          <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input aria-label="Ad Soyad" id="staff-teacher-name" autoComplete="name" maxLength={150} required aria-invalid={!!fieldErrors.fullName} aria-describedby="staff-error-fullName" value={fullName} onChange={(event) => { setFullName(uppercasePersonNameInput(event.target.value)); setFieldErrors((previous) => ({ ...previous, fullName: undefined })); }} />{fieldError('fullName')}</label>
           {staffRole === 'teacher' && <label className="field" htmlFor="staff-teacher-branch">Branş<input aria-label="Branş" id="staff-teacher-branch" maxLength={100} required aria-invalid={!!fieldErrors.branch} aria-describedby="staff-error-branch" value={branch} onChange={(event) => { setBranch(event.target.value); setFieldErrors((previous) => ({ ...previous, branch: undefined })); }} />{fieldError('branch')}</label>}
-          <label className="field" htmlFor="staff-teacher-phone">Telefon<input aria-label="Telefon" id="staff-teacher-phone" type="tel" autoComplete="tel" placeholder="0555 123 45 67" required aria-invalid={!!fieldErrors.phone} aria-describedby="staff-error-phone" value={phone} onChange={(event) => { setPhone(event.target.value); setFieldErrors((previous) => ({ ...previous, phone: undefined })); }} />{fieldError('phone')}</label>
+          <label className="field" htmlFor="staff-teacher-phone">Telefon<input aria-label="Telefon" id="staff-teacher-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" required aria-invalid={!!fieldErrors.phone} aria-describedby="staff-error-phone" value={phone} onChange={(event) => { setPhone(formatTurkishPhoneInput(event.target.value)); setFieldErrors((previous) => ({ ...previous, phone: undefined })); }} />{fieldError('phone')}</label>
           <label className="field" htmlFor="staff-email">E-posta<input aria-label="E-posta" id="staff-email" type="email" autoComplete="email" maxLength={150} required aria-invalid={!!fieldErrors.email} aria-describedby="staff-error-email" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })); }} />{fieldError('email')}</label>
           {createTeacherError && <Alert tone="danger">{createTeacherError}</Alert>}
           <div className="form-actions"><Button type="button" variant="secondary" disabled={creatingTeacher} onClick={() => setShowCreateTeacher(false)}>İptal</Button><Button type="submit" disabled={creatingTeacher}>{creatingTeacher ? 'Ekleniyor…' : 'Personel Ekle'}</Button></div>

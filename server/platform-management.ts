@@ -5,7 +5,7 @@ import { checkDatabaseHealth, getDb } from './database/postgres';
 import { auditLogRepository, invitationRepository, membershipRepository, schoolRepository, userRepository } from './repositories';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { sendEmail } from './email';
-import { normalizeTurkishPhone } from '../src/utils/phone';
+import { normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
 
 function platformTargetAllows(method: string, path: string): boolean {
@@ -152,7 +152,7 @@ platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res)
 platformManagementRouter.post('/schools/:id/admin-invitation', async (req: AuthenticatedRequest, res) => {
   const schoolId = String(req.params.id);
   const fullName = typeof req.body?.fullName === 'string' ? normalizePersonName(req.body.fullName) : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
+  const phone = normalizeUserPhoneInput(req.body?.phone);
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (fullName.split(' ').length < 2 || fullName.length > 150 || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150) {
     return res.status(400).json({ error: 'Okul yöneticisinin adını, telefonunu ve e-posta adresini kontrol edin.' });

@@ -11,7 +11,9 @@ import {
   isPlatformAdmin,
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
-import { normalizeTurkishPhone } from '../src/utils/phone';
+import { isValidTurkishPhoneInput, normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
+import { parseBirthDateInputToIso } from '../src/utils/birth-date';
+import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
@@ -43,7 +45,17 @@ import {
   TenantIsolationTestResult,
 } from '../src/types';
 
+const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
+
 export const apiRouter = Router();
+apiRouter.use('/auth', (req, res, next) => {
+  if (req.method !== 'GET' && req.body && typeof req.body === 'object') {
+    if ('phone' in req.body && !isValidTurkishPhoneInput(req.body.phone)) {
+      return res.status(400).json({ error: req.originalUrl.includes('/auth/parent/') ? PARENT_AUTH_ERROR : 'Telefon numarasını 0XXX XXX XX XX biçiminde girin.' });
+    }
+  }
+  next();
+});
 apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
 apiRouter.use('/platform', platformManagementRouter);
 
@@ -127,8 +139,6 @@ async function recordFailedAuthCodeAttempt(schoolId: string, phone: string, purp
   await invitationRepository.recordFailedAuthCodeAttempt(schoolId, phone, purpose).catch(() => undefined);
 }
 
-const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
-
 async function withinAuthRateLimit(scope: string, maximum: number, windowMinutes: number): Promise<boolean> {
   const key = hashSetupToken(scope);
   const result = await (await getDb()).query<{ attempts: number; blocked_until: string | null }>(
@@ -161,9 +171,9 @@ async function createParentChallenge(schoolId: string, phone: string, birthDate:
 
 apiRouter.post('/auth/parent/registration-challenge', async (req, res) => {
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
+  const phone = normalizeUserPhoneInput(req.body?.phone);
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
-  if (!schoolCode || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  if (!schoolCode || !phone || parseBirthDateInputToIso(birthDate) !== birthDate) return res.status(400).json({ error: PARENT_AUTH_ERROR });
   if (!await withinAuthRateLimit(`parent-register:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
   try {
     const school = await schoolRepository.getByCode(schoolCode);
@@ -201,7 +211,7 @@ apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
   const password = req.body?.password;
   const passwordError = validatePassword(password);
-  if (!schoolId || !phone || !challenge || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
+  if (!schoolId || !phone || !challenge || parseBirthDateInputToIso(birthDate) !== birthDate || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
   if (!await withinAuthRateLimit(`parent-register-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
   try {
     await (await getDb()).transaction(async (tx) => {
@@ -245,7 +255,7 @@ apiRouter.post('/auth/parent/reset-challenge', async (req, res) => {
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
-  if (!schoolCode || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
+  if (!schoolCode || !phone || parseBirthDateInputToIso(birthDate) !== birthDate) return res.status(400).json({ error: PARENT_AUTH_ERROR });
   if (!await withinAuthRateLimit(`parent-reset:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
   try {
     const school = await schoolRepository.getByCode(schoolCode);
@@ -272,7 +282,7 @@ apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
   const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
   const passwordError = validatePassword(req.body?.password);
-  if (!schoolId || !phone || !challenge || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
+  if (!schoolId || !phone || !challenge || parseBirthDateInputToIso(birthDate) !== birthDate || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
   if (!await withinAuthRateLimit(`parent-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
   try {
     await (await getDb()).transaction(async (tx) => {
@@ -783,7 +793,7 @@ apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']
   const schoolId = req.membership!.schoolId;
   const role = req.body?.role;
   const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
+  const phone = normalizeUserPhoneInput(req.body?.phone);
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
   if (!['teacher', 'security'].includes(role) || fullName.split(' ').length < 2 || fullName.length > 150 || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150 || (role === 'teacher' && (!branch || branch.length > 100))) {
@@ -1135,7 +1145,7 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
   const schoolId = req.membership!.schoolId;
   const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
   const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
+  const phone = normalizeUserPhoneInput(req.body?.phone);
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (fullName.length < 3 || fullName.length > 150 || fullName.split(' ').length < 2) {
     return res.status(400).json({ error: 'Ad soyad alanına geçerli bir ad ve soyad girin.' });
@@ -1277,6 +1287,13 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
     try {
       const schoolId = req.membership!.schoolId;
       const { dayOfWeek, startTime, endTime, slotDurationMinutes } = req.body;
+      const duration = slotDurationMinutes == null ? 15 : Number(slotDurationMinutes);
+
+      if (!Number.isInteger(Number(dayOfWeek)) || Number(dayOfWeek) < 1 || Number(dayOfWeek) > 6 ||
+          !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) ||
+          startTime >= endTime || !Number.isInteger(duration) || duration < 1) {
+        return res.status(400).json({ error: 'Geçerli gün ve saat aralığı seçin.' });
+      }
 
       const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
       if (!teacher) {
@@ -1289,7 +1306,7 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
         dayOfWeek: Number(dayOfWeek),
         startTime,
         endTime,
-        slotDurationMinutes: Number(slotDurationMinutes) || 15,
+        slotDurationMinutes: duration,
       });
 
       res.json({ success: true, slot });
@@ -1458,6 +1475,17 @@ apiRouter.post(
           Object.assign(unavailable, { code: 'TEACHER_UNAVAILABLE' });
           throw unavailable;
         }
+        const weeklySlots = await tx.query<{ day_of_week: number; start_time: string; end_time: string; slot_duration: number }>(
+          `SELECT day_of_week,start_time,end_time,slot_duration FROM availability_slots
+           WHERE school_id=$1 AND teacher_id=$2`, [schoolId, teacher.id]);
+        if (!weeklySlots.rows.some((slot) => slotMatchesAvailability({
+          dayOfWeek: slot.day_of_week, startTime: slot.start_time,
+          endTime: slot.end_time, slotDurationMinutes: slot.slot_duration,
+        }, date, startTime, endTime))) {
+          const unavailable = new Error('Öğretmen bu gün ve saatte randevu kabul etmiyor.');
+          Object.assign(unavailable, { code: 'SLOT_UNAVAILABLE' });
+          throw unavailable;
+        }
         // Fast conflict check
         const conflict = await appointmentRepository.findConflictingAppointment(
           schoolId,
@@ -1541,6 +1569,7 @@ apiRouter.post(
     } catch (err: any) {
       if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
+      if (err.code === 'SLOT_UNAVAILABLE') return res.status(409).json({ error: 'Öğretmen bu gün ve saatte randevu kabul etmiyor. Lütfen başka bir zaman seçin.' });
       if (err.code === '23505' || err.code === 'DOUBLE_BOOKING' || (err.message && err.message.includes('idx_appointments_no_double_booking'))) {
         return res.status(409).json({
           error: 'Bu saat az önce başka bir randevu için alındı. Lütfen başka bir saat seçin.',

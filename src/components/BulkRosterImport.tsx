@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Dialog, StepIndicator } from './ui';
 import { api } from '../services/api';
-import { emptyRosterRow, MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, parseDelimited, RosterDraft, RosterPreview, rowsToDrafts, ROSTER_HEADERS } from '../utils/roster-import';
+import { emptyRosterRow, formatRosterDraftInput, MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, parseDelimited, RosterDraft, RosterPreview, rowsToDrafts, ROSTER_HEADERS } from '../utils/roster-import';
 import { rosterTemplate } from '../utils/roster-files';
+import { formatTurkishPhoneInput } from '../utils/phone';
+import { formatBirthDateInput } from '../utils/birth-date';
+import { uppercasePersonNameInput } from '../utils/person-name';
 
 export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onChanged }: { schoolId: string; classes: string[]; initialClass: string; onClose: () => void; onChanged: () => Promise<void> }) {
   const [className, setClassName] = useState(initialClass);
@@ -30,7 +33,7 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
         worker.onerror = () => { clearTimeout(timer); reject(new Error('Dosya okunamadı.')); };
         worker.postMessage({ buffer, name: file.name }, [buffer]);
       });
-      update(imported); setSelected([]);
+      update(imported.map(formatRosterDraftInput)); setSelected([]);
       setFileName(file.name);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Dosya okunamadı.'); }
     finally { workerRef.current?.terminate(); workerRef.current = null; setBusy(false); }
@@ -64,8 +67,8 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
         <div className="max-h-[45vh] overflow-y-auto space-y-3">
           {records.map((record, index) => <div key={index} className="rounded-xl border p-3 space-y-2">
             <label className="flex gap-2 text-sm"><input type="checkbox" checked={selected.includes(index)} onChange={(event) => setSelected(event.target.checked ? [...selected, index] : selected.filter((entry) => entry !== index))} />Satır {index + 1}</label>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{keys.map((key, column) => <label className="field min-w-0" key={key}>{ROSTER_HEADERS[column]}<input value={record[key]} maxLength={key === 'studentName' || key === 'parentName' ? 150 : 50} onChange={(event) => update(records.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry))}
-              onPaste={(event) => { const text = event.clipboardData.getData('text'); if (column !== 0 || !text.includes('\t')) return; event.preventDefault(); try { const next = rowsToDrafts(parseDelimited(text, '\t'), false); const merged = [...records.slice(0, index), ...next, ...records.slice(index + 1)]; if (merged.length > MAX_ROSTER_ROWS) throw new Error('En fazla 500 kayıt eklenebilir.'); update(merged); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Satırlar okunamadı.'); } }} /></label>)}</div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{keys.map((key, column) => <label className="field min-w-0" key={key}>{ROSTER_HEADERS[column]}<input value={record[key]} type={key === 'parentPhone' ? 'tel' : 'text'} inputMode={key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'parentPhone' ? '0543 222 22 22' : key === 'birthDate' ? 'GG/AA/YYYY' : undefined} maxLength={key === 'parentPhone' ? 14 : key === 'birthDate' ? 10 : key === 'studentName' || key === 'parentName' ? 150 : 50} onChange={(event) => update(records.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: key === 'parentPhone' ? formatTurkishPhoneInput(event.target.value) : key === 'birthDate' ? formatBirthDateInput(event.target.value) : key === 'studentName' || key === 'parentName' ? uppercasePersonNameInput(event.target.value) : event.target.value } : entry))}
+              onPaste={(event) => { const text = event.clipboardData.getData('text'); if (column !== 0 || !text.includes('\t')) return; event.preventDefault(); try { const next = rowsToDrafts(parseDelimited(text, '\t'), false).map(formatRosterDraftInput); const merged = [...records.slice(0, index), ...next, ...records.slice(index + 1)]; if (merged.length > MAX_ROSTER_ROWS) throw new Error('En fazla 500 kayıt eklenebilir.'); update(merged); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Satırlar okunamadı.'); } }} /></label>)}</div>
             {preview?.[index] && <p role="status" className={preview[index].status === 'invalid' ? 'text-red-700' : 'text-green-800'}>{preview[index].status === 'valid' ? '✓ Geçerli' : preview[index].status === 'duplicate' ? '⚠ Zaten mevcut' : '✕ Hatalı'} {preview[index].errors.join(' ')}</p>}
           </div>)}
         </div>

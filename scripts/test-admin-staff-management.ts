@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
 
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('This test requires local PGlite without DATABASE_URL.');
@@ -39,7 +40,9 @@ async function run() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseUrl = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
   async function request(method: string, path: string, token?: string, body?: object, headerSchool?: string) {
-    const response = await fetch(baseUrl + path, { method, headers: { 'content-type':'application/json', ...(token ? {authorization:`Bearer ${token}`} : {}), ...(headerSchool ? {'x-school-id':headerSchool} : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const input = body as Record<string, unknown> | undefined;
+    const payload = input && typeof input.phone === 'string' && /^\+905\d{9}$/.test(input.phone) ? { ...input, phone: displayStoredTurkishPhone(input.phone) } : body;
+    const response = await fetch(baseUrl + path, { method, headers: { 'content-type':'application/json', ...(token ? {authorization:`Bearer ${token}`} : {}), ...(headerSchool ? {'x-school-id':headerSchool} : {}) }, body: payload ? JSON.stringify(payload) : undefined });
     const text = await response.text();
     try { return {status:response.status,body:JSON.parse(text) as Record<string,unknown>}; }
     catch { console.error('Non-JSON test response',method,path,response.status,response.headers.get('content-type')); throw new Error('Unexpected non-JSON test response.'); }

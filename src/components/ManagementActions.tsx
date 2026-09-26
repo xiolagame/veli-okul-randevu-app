@@ -1,6 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Dialog } from './ui';
 import { api } from '../services/api';
+import { displayStoredTurkishPhone, formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
+import { formatBirthDateInput, formatIsoBirthDateForInput, parseBirthDateInputToIso } from '../utils/birth-date';
+import { uppercasePersonNameInput } from '../utils/person-name';
 
 interface Props {
   schoolId: string;
@@ -16,7 +19,8 @@ const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci 
 
 export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
-  const initialDraft = kind === 'roster' ? { ...values, birthDate: values.birthDate || '' } : values;
+  const initialDraft = Object.fromEntries(Object.entries(values).map(([key, value]) => [key,
+    key === 'phone' || key === 'parentPhone' ? displayStoredTurkishPhone(value) : key === 'birthDate' ? formatIsoBirthDateForInput(value) : value]));
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -39,7 +43,12 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged, showR
     try {
       if (mode === 'remove' && kind === 'student') await api.removeStudent(schoolId, id);
       else if (mode === 'remove') await api.removeManagedRecord(schoolId, kind, id);
-      else await api.updateManagedRecord(schoolId, kind, id, draft);
+      else {
+        if (['phone', 'parentPhone'].some((key) => key in draft && !isValidTurkishPhoneInput(draft[key]))) throw new Error('Telefonu 0XXX XXX XX XX biçiminde girin.');
+        const birthDate = draft.birthDate ? parseBirthDateInputToIso(draft.birthDate) : null;
+        if (draft.birthDate && !birthDate) throw new Error('Doğum tarihini GG/AA/YYYY biçiminde kontrol edin.');
+        await api.updateManagedRecord(schoolId, kind, id, { ...draft, ...('birthDate' in draft ? { birthDate: birthDate || '' } : {}) });
+      }
       await onChanged();
       setMode(null);
       setSuccess(mode === 'remove' ? kind === 'student' ? 'Öğrenci okuldan kaldırıldı.' : kind === 'teacher' ? 'Öğretmen ve ilişkili kayıtlar sistemden silindi.' : 'Okul erişimi kaldırıldı.' : 'Bilgiler güncellendi.');
@@ -57,9 +66,9 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged, showR
       <form onSubmit={submit} className="form-stack">
         {mode === 'remove' ? <Alert tone="warning">{kind === 'student' ? studentImpact ? <>{studentImpact.studentName} okuldan tamamen kaldırılacak. Bu öğrenciye ait okul ilişkileri silinecek, açık randevuları iptal edilecektir. {studentImpact.siblingAccounts > 0 && 'Bu veli hesabına başka öğrenciler de bağlı; veli hesabı korunacaktır. '}{studentImpact.deletedAccounts > 0 && `${studentImpact.deletedAccounts} veli hesabı başka öğrenci veya role bağlı olmadığı için tamamen silinecektir. `}{studentImpact.preservedAccounts > studentImpact.siblingAccounts && 'Başka erişimi bulunan veli hesapları korunacaktır.'}</> : 'Silme etkisi kontrol ediliyor…' : kind === 'teacher' ? 'Bu öğretmen sistemden kaldırılacaktır. Öğretmene ait randevular, müsaitlik bilgileri ve personel kayıtları silinecektir. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?' : 'Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. Devam etmek istiyor musunuz?'}</Alert> :
           Object.entries(draft).map(([key, value]) => <label className="field" key={key}>{labels[key]}
-            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : key === 'birthDate' ? 'date' : 'text'} required={key !== 'studentNumber' && key !== 'birthDate'} value={value}
-              maxLength={key === 'phone' || key === 'parentPhone' ? 30 : key === 'className' || key === 'studentNumber' ? 50 : key === 'branch' ? 100 : 150}
-              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
+            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : 'text'} inputMode={key === 'phone' || key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'birthDate' ? 'GG/AA/YYYY' : key === 'phone' || key === 'parentPhone' ? '0543 222 22 22' : undefined} required={key !== 'studentNumber' && key !== 'birthDate'} value={value}
+              maxLength={key === 'phone' || key === 'parentPhone' ? 14 : key === 'birthDate' ? 10 : key === 'className' || key === 'studentNumber' ? 50 : key === 'branch' ? 100 : 150}
+              onChange={(event) => setDraft({ ...draft, [key]: key === 'phone' || key === 'parentPhone' ? formatTurkishPhoneInput(event.target.value) : key === 'birthDate' ? formatBirthDateInput(event.target.value) : ['fullName', 'name', 'parentName', 'studentName'].includes(key) ? uppercasePersonNameInput(event.target.value) : event.target.value })} />
           </label>)}
         {error && <Alert tone="danger">{error}</Alert>}
         <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setMode(null)}>Vazgeç</Button>

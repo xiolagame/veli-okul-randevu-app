@@ -11,7 +11,10 @@ import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
 import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
-import { appointmentRepository } from '../server/repositories';
+import { appointmentRepository, availabilityRepository } from '../server/repositories';
+import { calendarWeekday } from '../src/utils/appointment-slots';
+import { displayStoredTurkishPhone } from '../src/utils/phone';
+import { evaluateSecurityQr } from '../server/appointment-entry';
 
 async function runApiIntegrationTests() {
   console.log('===============================================================');
@@ -35,6 +38,7 @@ async function runApiIntegrationTests() {
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
   const createdAppointmentIds: string[] = [];
+  const createdSlotIds: string[] = [];
   console.log(`✅ Test HTTP sunucusu ${baseUrl} adresinde dinliyor.`);
 
   // Helper for real HTTP requests
@@ -59,7 +63,9 @@ async function runApiIntegrationTests() {
         'content-type': 'application/json',
         ...(options?.headers || {}),
       },
-      body: options?.body ? JSON.stringify(options.body) : undefined,
+      body: options?.body ? JSON.stringify({ ...options.body,
+        ...(typeof options.body.phone === 'string' && /^\+905\d{9}$/.test(options.body.phone)
+          ? { phone: displayStoredTurkishPhone(options.body.phone) } : {}) }) : undefined,
     });
 
     const data = await res.json().catch(() => ({}));
@@ -154,26 +160,21 @@ async function runApiIntegrationTests() {
     console.log('\n[8/10] PostgreSQL Randevu Rezervasyonu ve Double-Booking Engeli...');
     const teacherId = teachersRes.body.teachers[0].id;
     const student = studentsRes.body.students[0];
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date());
-    const part = (type: string) => parts.find((value) => value.type === type)!.value;
-    const testDate = `${part('year')}-${part('month')}-${part('day')}`;
-    const minutes = Number(part('hour')) * 60 + Number(part('minute'));
-    const formatTime = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
-    let testTime = '';
-    let testEndTime = '';
-    for (let offset = 0; offset < 20; offset++) {
-      const candidate = Math.max(0, Math.min(1424, minutes - offset));
-      const time = formatTime(candidate);
-      if (!await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherId, testDate, time)) {
-        testTime = time;
-        testEndTime = formatTime(candidate + 15);
+    const testTime = '09:00';
+    const testEndTime = '09:15';
+    let testDate = '';
+    for (let day = 1; day <= 28; day++) {
+      const candidate = `2090-04-${String(day).padStart(2, '0')}`;
+      if (calendarWeekday(candidate) !== 0 &&
+          !await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherId, candidate, testTime)) {
+        testDate = candidate;
         break;
       }
     }
-    if (!testTime) throw new Error('No isolated local test slot available.');
+    if (!testDate) throw new Error('No isolated local test slot available.');
+    const availability = await availabilityRepository.createSlot({ schoolId: 'sch-kazan-01', teacherId,
+      dayOfWeek: calendarWeekday(testDate)!, startTime: testTime, endTime: testEndTime, slotDurationMinutes: 15 });
+    createdSlotIds.push(availability.id);
 
     // First booking: Should SUCCEED
     const bookRes1 = await makeRequest('POST', '/schools/sch-kazan-01/appointments', {
@@ -254,12 +255,14 @@ async function runApiIntegrationTests() {
       },
       body: { qrToken: approveRes.body.appointment.qrToken },
     });
-    if (checkInRes.status !== 200 || checkInRes.body.allowed !== true) {
-      throw new Error(`Security check-in failed: HTTP ${checkInRes.status}, decision ${checkInRes.body.decision}`);
+    if (checkInRes.status !== 200 || checkInRes.body.allowed !== false || checkInRes.body.decision !== 'TOO_EARLY') {
+      throw new Error(`Future appointment check-in was not denied: HTTP ${checkInRes.status}, decision ${checkInRes.body.decision}`);
     }
     const checkedIn = await appointmentRepository.getAppointmentById('sch-kazan-01', createdAppointment.id);
-    if (checkedIn?.status !== 'checked_in') throw new Error('Check-in did not persist.');
-    console.log('✅ QR doğrulandı ve giriş kaydı veritabanında doğrulandı.');
+    if (checkedIn?.status !== 'booked') throw new Error('Early check-in changed the appointment status.');
+    const permittedAt = new Date(`${testDate}T06:00:00Z`);
+    if (evaluateSecurityQr(checkedIn, permittedAt).decision !== 'APPROVED') throw new Error('Valid entry window was not recognized.');
+    console.log('✅ Gelecekteki QR giriş reddedildi; geçerli pencere kontrolü doğrulandı.');
 
     // TEST 9: Test Isolation Runner
     console.log('\n[10/10] PostgreSQL Çoklu Okul İzolasyon Testleri Çalıştırılıyor (/schools/:id/security/test-isolation)...');
@@ -291,6 +294,7 @@ async function runApiIntegrationTests() {
     for (const id of createdAppointmentIds) {
       await db.query('DELETE FROM appointments WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
     }
+    for (const id of createdSlotIds) await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND id=$2', ['sch-kazan-01', id]);
     server.close();
     if (db && typeof db.close === 'function') {
       await db.close();

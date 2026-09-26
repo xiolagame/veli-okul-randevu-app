@@ -1,12 +1,13 @@
 import { formatDate, formatDateTime, formatDatesInText, getIstanbulDate } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
-import { normalizePersonName } from '../utils/person-name';
+import { normalizePersonName, uppercasePersonNameInput } from '../utils/person-name';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge, StepIndicator } from './ui';
 import { QRCodePass } from './QRCodePass';
 import { api } from '../services/api';
-import { intervalsOverlap } from '../utils/appointment-slots';
+import { calendarWeekday, intervalsOverlap } from '../utils/appointment-slots';
+import { AvailabilityCalendar } from './AvailabilityCalendar';
 import {
   Calendar,
   Clock,
@@ -46,11 +47,8 @@ export const ParentView: React.FC = () => {
 
   // Booking Modal State
   const [bookingTeacher, setBookingTeacher] = useState<TeacherProfile | null>(null);
-  const [bookingDate, setBookingDate] = useState<string>(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return getIstanbulDate(tomorrow);
-  });
+  const [bookingDate, setBookingDate] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => getIstanbulDate().slice(0, 7));
   const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<string>(
     currentUser?.students?.[0]?.name || ''
@@ -114,6 +112,8 @@ export const ParentView: React.FC = () => {
 
   const handleOpenBooking = (teacher: TeacherProfile) => {
     setBookingTeacher(teacher);
+    setBookingDate('');
+    setCalendarMonth(getIstanbulDate().slice(0, 7));
     setOccupiedSlots(null);
     setSelectedSlotTime('');
     setBookingNotes('');
@@ -176,11 +176,10 @@ export const ParentView: React.FC = () => {
 
   // Generate slots for the selected teacher and date
   const getAvailableSlotsForTeacher = (teacherId: string, dateStr: string) => {
-    const d = new Date(dateStr);
-    const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay(); // 1=Mon .. 7=Sun
+    const dayOfWeek = calendarWeekday(dateStr);
 
     const teacherAvail = availability.filter(
-      (a) => a.teacherId === teacherId && (a.dayOfWeek === dayOfWeek || a.dayOfWeek === undefined)
+      (a) => a.teacherId === teacherId && a.dayOfWeek === dayOfWeek
     );
 
     // If teacher has defined hours for this day
@@ -201,12 +200,6 @@ export const ParentView: React.FC = () => {
           curr = next;
         }
       });
-    } else {
-      // Default slots if not specifically restricted
-      for (const time of ['09:30', '10:00', '10:30', '11:00', '13:30', '14:00', '14:30']) {
-        const minutes = Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) + settings.defaultSlotMinutes;
-        slots.push({ time, endTime: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}` });
-      }
     }
 
     const intervals = occupiedSlots?.key === occupiedKey ? occupiedSlots.intervals : [];
@@ -288,7 +281,7 @@ export const ParentView: React.FC = () => {
         <section className="surface flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="text-xl font-bold">{normalizePersonName(`${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`)}</h2><p className="text-sm text-slate-500 mt-1">{currentUser?.phone}</p></div></section>
         <section className="surface"><div className="section-heading"><div><h2>Öğrencilerim</h2><p>Görüşmelerinizde bu öğrencilerden seçim yapabilirsiniz.</p></div></div>
           <div className="space-y-3">{currentUser?.students?.map((student) => <div key={student.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50"><div><h3 className="font-semibold text-sm">{normalizePersonName(student.name)}</h3><p className="text-xs text-slate-500">{student.className}</p></div>{currentUser.students && currentUser.students.length > 1 && <button type="button" className="icon-button" onClick={() => removeStudentFromProfile(student.id)} aria-label={`${student.name} öğrencisini kaldır`}><Trash2 size={18} /></button>}</div>)}</div>
-          <div className="form-stack mt-6 pt-6 border-t border-slate-200"><h3 className="font-semibold">Öğrenci ekle</h3><label className="field" htmlFor="student-name">Öğrenci adı soyadı<input id="student-name" value={newStudentName} onChange={(event) => setNewStudentName(event.target.value)} placeholder="Adı soyadı" /></label><label className="field" htmlFor="student-class">Sınıf<select id="student-class" value={newStudentClass} onChange={(event) => setNewStudentClass(event.target.value)} disabled={classesLoading || !schoolClasses.length}><option value="">Sınıf seçin</option>{schoolClasses.map((schoolClass) => <option key={schoolClass} value={schoolClass}>{schoolClass}</option>)}</select></label>{!classesLoading && !schoolClasses.length && <p className="field-hint">Henüz okul yönetimi tarafından sınıf tanımlanmamış.</p>}<Button disabled={!newStudentName.trim() || !newStudentClass} onClick={() => { void addStudentToProfile({ name: newStudentName, className: newStudentClass }).then(() => { setNewStudentName(''); setNewStudentClass(''); }).catch((error: Error) => setActionError(error.message)); }}><Plus size={17} />Öğrenci ekle</Button></div>
+          <div className="form-stack mt-6 pt-6 border-t border-slate-200"><h3 className="font-semibold">Öğrenci ekle</h3><label className="field" htmlFor="student-name">Öğrenci adı soyadı<input id="student-name" value={newStudentName} onChange={(event) => setNewStudentName(uppercasePersonNameInput(event.target.value))} placeholder="Adı soyadı" /></label><label className="field" htmlFor="student-class">Sınıf<select id="student-class" value={newStudentClass} onChange={(event) => setNewStudentClass(event.target.value)} disabled={classesLoading || !schoolClasses.length}><option value="">Sınıf seçin</option>{schoolClasses.map((schoolClass) => <option key={schoolClass} value={schoolClass}>{schoolClass}</option>)}</select></label>{!classesLoading && !schoolClasses.length && <p className="field-hint">Henüz okul yönetimi tarafından sınıf tanımlanmamış.</p>}<Button disabled={!newStudentName.trim() || !newStudentClass} onClick={() => { void addStudentToProfile({ name: newStudentName, className: newStudentClass }).then(() => { setNewStudentName(''); setNewStudentClass(''); }).catch((error: Error) => setActionError(error.message)); }}><Plus size={17} />Öğrenci ekle</Button></div>
         </section>
         <section className="surface"><h2 className="font-semibold mb-3">Gizlilik</h2><Button variant="secondary" onClick={() => { if (window.confirm('Bu işlem yalnızca sizin randevu geçmişi görünümünüzü temizler. Okul ve öğretmen kayıtları etkilenmez.')) void clearParentHistory().catch(() => setActionError('Randevu geçmişi temizlenemedi.')); }}>Randevu geçmişini temizle</Button></section>
       </div>}
@@ -300,8 +293,8 @@ export const ParentView: React.FC = () => {
           <label className="field" htmlFor="booking-student">Hangi öğrenciniz için?
             {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <select id="booking-student" disabled><option>Önce profilinize öğrenci ekleyin</option></select>}
           </label>
-          <label className="field" htmlFor="booking-date">Görüşme tarihi<input id="booking-date" type="date" value={bookingDate} onChange={(event) => { setBookingDate(event.target.value); setSelectedSlotTime(''); }} min={getIstanbulDate()} required /></label>
-          <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}<div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>
+          <div className="field"><span>Görüşme tarihi</span><AvailabilityCalendar month={calendarMonth} onMonthChange={setCalendarMonth} selectedDate={bookingDate} weekdays={[...new Set(availability.filter((slot) => slot.teacherId === bookingTeacher.id && slot.dayOfWeek >= 1 && slot.dayOfWeek <= 6).map((slot) => slot.dayOfWeek))]} onSelectDate={(date) => { setBookingDate(date); setSelectedSlotTime(''); }} /></div>
+          {bookingDate && <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}<div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>}
           <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
           {selectedSlotTime && <Alert>{formatDate(bookingDate)} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
           <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy || occupiedSlots?.key !== occupiedKey || !!slotsError}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
