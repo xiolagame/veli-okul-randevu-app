@@ -1065,14 +1065,14 @@ export const appointmentRepository = {
     }));
   },
 
-  async getAppointmentById(schoolId: string, appointmentId: string): Promise<Appointment | null> {
+  async getAppointmentById(schoolId: string, appointmentId: string, client?: TransactionClient): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
               notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments
-       WHERE school_id = $1 AND id = $2;`,
-      [schoolId, appointmentId]
+       WHERE school_id = $1 AND id = $2${client ? ' FOR UPDATE' : ''};`,
+      [schoolId, appointmentId], client
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];

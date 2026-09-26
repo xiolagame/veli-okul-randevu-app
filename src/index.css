@@ -273,7 +273,7 @@
 .camera-preview-result.tone-danger .camera-result-panel { color: #7f1d1d; background: #fef2f2; }
 .camera-result-close { position: absolute; top: 10px; right: 10px; display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid currentColor; border-radius: 999px; background: #fff; }
 .camera-result-panel h2 { max-width: calc(100% - 28px); align-self: center; font-size: clamp(20px, 5vw, 26px); font-weight: 850; line-height: 1.15; }
-.camera-result-panel > p { font-size: 15px; line-height: 1.4; }
+.camera-result-panel > p { color: #1f2937; font-size: 16px; font-weight: 700; line-height: 1.5; }
 .camera-result-icon { width: 52px; height: 52px; align-self: center; }
 .camera-result-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 6px 0; text-align: left; }
 .camera-result-details > div { min-width: 0; }

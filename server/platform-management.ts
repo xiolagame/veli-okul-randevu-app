@@ -10,6 +10,7 @@ import { normalizePersonName } from '../src/utils/person-name';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
+  if (/^\/schools\/[^/]+\/management\/students\/[^/]+\/removal$/.test(path) && ['GET', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/audit-logs$/.test(path) && method === 'DELETE') return true;
   if (/^\/schools\/[^/]+\/management\/(teacher|parent|security|student|roster)\/[^/]+$/.test(path) && ['PATCH', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/(info|teachers|users|students|availability|appointments|audit-logs|settings|roster)$/.test(path) && method === 'GET') return true;

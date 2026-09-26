@@ -227,7 +227,7 @@ export const ParentView: React.FC = () => {
 
   const teacherCard = (teacher: TeacherProfile) => (
     <article key={teacher.id} className="surface teacher-card">
-      <div className="flex items-center gap-3"><span className="avatar">{teacher.firstName[0]}{teacher.lastName[0]}</span><div><h3>{normalizePersonName(`${teacher.firstName} ${teacher.lastName}`)}</h3><p>{teacher.branch}</p></div></div>
+      <div><h3>{normalizePersonName(`${teacher.firstName} ${teacher.lastName}`)}</h3><p>{teacher.branch}</p></div>
       <p>{teacher.bio || 'Uygun bir gün ve saat seçerek görüşme planlayın.'}</p>
       <Button variant="secondary" onClick={() => handleOpenBooking(teacher)}>Randevu al<ArrowRight size={16} /></Button>
     </article>

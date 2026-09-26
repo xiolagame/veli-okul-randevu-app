@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     teacher_id TEXT NOT NULL,
     teacher_name VARCHAR(150) NOT NULL,
     teacher_branch VARCHAR(100) NOT NULL,
-    parent_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     parent_name VARCHAR(150) NOT NULL,
     parent_phone VARCHAR(20) NOT NULL,
     student_id TEXT,

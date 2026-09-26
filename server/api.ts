@@ -16,9 +16,11 @@ import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
 import { sendEmail } from './email';
+import { findAppointmentReview, matchesReviewBinding, sendAppointmentRequestEmail } from './appointment-email';
 import {
   getDb,
   checkDatabaseHealth,
+  TransactionClient,
 } from './database/postgres';
 import {
   schoolRepository,
@@ -1394,13 +1396,15 @@ apiRouter.post(
       }
 
       // 2. Parent-Student Data Integrity (Requirement 9)
+      let selectedStudentId: string | undefined;
       if (req.membership!.role === 'parent') {
         const parentStudents = await studentRepository.getStudentsByParent(schoolId, req.user!.id);
-        const isStudentValid = parentStudents.some(
+        const selectedStudent = parentStudents.find(
           (student) => typeof studentName === 'string' && normalizePersonName(student.name) === normalizePersonName(studentName) && student.className === className
         );
+        selectedStudentId = selectedStudent?.id;
 
-        if (!isStudentValid) {
+        if (!selectedStudentId) {
           return res.status(403).json({
             error: 'VERİ BÜTÜNLÜĞÜ VE YETKİ HATASI: Belirtilen öğrenci bu okulda veli hesabınıza tanımlı değildir! Başka bir okulun veya velinin öğrencisi için randevu oluşturulamaz.',
           });
@@ -1411,6 +1415,15 @@ apiRouter.post(
       const db = await getDb();
       const newApt = await db.transaction(async (tx) => {
         await tx.query('SELECT id FROM schools WHERE id=$1 FOR UPDATE', [schoolId]);
+        const linkedStudent = req.membership!.role === 'parent' ? await tx.query<{ id: string }>(
+          `SELECT s.id FROM students s JOIN student_parent_relations rel ON rel.school_id=s.school_id AND rel.student_id=s.id
+           WHERE s.school_id=$1 AND rel.parent_user_id=$2 AND s.id=$3 FOR SHARE OF s`,
+          [schoolId, req.user!.id, selectedStudentId]) : null;
+        if (req.membership!.role === 'parent' && linkedStudent?.rows.length !== 1) {
+          const invalid = new Error('Öğrenci eşleşmesi doğrulanamadı.');
+          Object.assign(invalid, { code: 'STUDENT_UNAVAILABLE' });
+          throw invalid;
+        }
         const activeTeacher = await tx.query(
           `SELECT tp.id FROM teacher_profiles tp JOIN users u ON u.id=tp.user_id
            JOIN school_memberships sm ON sm.user_id=u.id AND sm.school_id=tp.school_id
@@ -1445,6 +1458,7 @@ apiRouter.post(
             parentId: req.user!.id,
             parentName: `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Veli',
             parentPhone: normalizeTurkishPhone(req.user!.phone) || req.user!.phone,
+            studentId: linkedStudent?.rows[0]?.id,
             studentName,
             className,
             date,
@@ -1484,8 +1498,23 @@ apiRouter.post(
         return created;
       });
 
+      if (teacher.userId) {
+        try {
+          const school = await schoolRepository.getById(schoolId);
+          const contact = teacher.email ? teacher.email : (await db.query<{ email: string | null }>(
+            'SELECT email FROM users WHERE id=$1', [teacher.userId])).rows[0]?.email;
+          if (school && contact) await sendAppointmentRequestEmail({ appointment: newApt, teacherUserId: teacher.userId,
+            teacherEmail: contact, schoolName: school.name,
+            teacherName: normalizePersonName(`${teacher.firstName} ${teacher.lastName}`) });
+          else console.error('[Appointment email]: Öğretmen e-posta adresi bulunamadı.');
+        } catch {
+          console.error('[Appointment email]: E-posta gönderilemedi.');
+        }
+      }
+
       res.json({ success: true, appointment: newApt });
     } catch (err: any) {
+      if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
       if (err.code === '23505' || err.code === 'DOUBLE_BOOKING' || (err.message && err.message.includes('idx_appointments_no_double_booking'))) {
         return res.status(409).json({
@@ -1498,6 +1527,72 @@ apiRouter.post(
   }
 );
 
+async function approvePendingAppointment(tx: TransactionClient, schoolId: string, appointmentId: string, actorId: string) {
+  const updatedApt = await appointmentRepository.transitionStatus(schoolId, appointmentId, 'pending', 'booked',
+    { approvedAt: new Date().toISOString(), approvedBy: actorId }, tx);
+  if (!updatedApt) return null;
+  if (updatedApt.parentId) await notificationRepository.createNotification({
+    schoolId, userId: updatedApt.parentId, title: 'Randevunuz Onaylandı!',
+    message: `${updatedApt.teacherName} ile ${updatedApt.date} ${updatedApt.startTime} randevunuz onaylandı. Okul Giriş Kodunuz: ${updatedApt.entryCode}`,
+    appointmentId: updatedApt.id,
+  }, tx);
+  await auditLogRepository.createAuditLog({ schoolId, action: 'Randevu Onayı',
+    actorName: updatedApt.teacherName, details: `${updatedApt.parentName} için randevu onaylandı.` }, tx);
+  return updatedApt;
+}
+
+apiRouter.get('/schools/:schoolId/appointments/email-review', authMiddleware, tenantGuard(['teacher']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  try {
+    const token = req.header('X-Appointment-Review-Token') || '';
+    const db = await getDb();
+    const invitation = await findAppointmentReview(db, schoolId, req.user!.id, token);
+    if (!invitation) return res.status(404).json({ error: 'Bağlantı geçersiz veya süresi dolmuş.' });
+    const appointmentId = (JSON.parse(invitation.description) as { a?: string }).a;
+    const appointment = appointmentId ? await appointmentRepository.getAppointmentById(schoolId, appointmentId) : null;
+    const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
+    if (!appointment || !teacher || appointment.teacherId !== teacher.id || !matchesReviewBinding(invitation.description, appointment)) {
+      return res.status(404).json({ error: 'Randevu talebi bulunamadı.' });
+    }
+    return res.json({ appointment: { studentName: appointment.studentName, className: appointment.className,
+      parentName: appointment.parentName, date: appointment.date, startTime: appointment.startTime,
+      endTime: appointment.endTime, teacherName: appointment.teacherName, status: appointment.status } });
+  } catch {
+    return res.status(404).json({ error: 'Bağlantı geçersiz veya süresi dolmuş.' });
+  }
+});
+
+apiRouter.post('/schools/:schoolId/appointments/email-review/approve', authMiddleware, tenantGuard(['teacher']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  try {
+    const token = req.header('X-Appointment-Review-Token') || '';
+    const db = await getDb();
+    const updated = await db.transaction(async (tx) => {
+      const invitation = await findAppointmentReview(tx, schoolId, req.user!.id, token, true);
+      if (!invitation) return { status: 404 as const };
+      const appointmentId = (JSON.parse(invitation.description) as { a?: string }).a;
+      if (!appointmentId) return { status: 404 as const };
+      const appointment = await appointmentRepository.getAppointmentById(schoolId, appointmentId, tx);
+      const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id, tx);
+      if (!appointment || !teacher || appointment.teacherId !== teacher.id || !matchesReviewBinding(invitation.description, appointment)) {
+        return { status: 404 as const };
+      }
+      if (appointment.status !== 'pending') return { status: 409 as const };
+      const approved = await approvePendingAppointment(tx, schoolId, appointment.id, req.user!.id);
+      if (!approved) return { status: 409 as const };
+      await tx.query(`UPDATE invitations SET consumed_at=NOW(),is_active=FALSE WHERE id=$1 AND school_id=$2`,
+        [invitation.id, schoolId]);
+      return { status: 200 as const };
+    });
+    if (updated.status === 404) return res.status(404).json({ error: 'Bağlantı geçersiz veya süresi dolmuş.' });
+    if (updated.status === 409) return res.status(409).json({ error: 'Bu randevu artık onay beklemiyor.' });
+    return res.json({ success: true, message: 'Randevu onaylandı.' });
+  } catch {
+    console.error('[Appointment email approval]: İşlem tamamlanamadı.');
+    return res.status(500).json({ error: 'Randevu onaylanamadı.' });
+  }
+});
+
 // Approve appointment (Teacher / Admin)
 apiRouter.post(
   '/schools/:schoolId/appointments/:id/approve',
@@ -1505,7 +1600,7 @@ apiRouter.post(
   tenantGuard(['teacher', 'admin']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const aptId = req.params.id;
+    const aptId = String(req.params.id);
 
     try {
       // 1. Verify appointment belongs to this school
@@ -1523,40 +1618,7 @@ apiRouter.post(
       }
 
       const db = await getDb();
-      const updated = await db.transaction(async (tx) => {
-        const updatedApt = await appointmentRepository.transitionStatus(
-          schoolId,
-          aptId,
-          'pending',
-          'booked',
-          { approvedAt: new Date().toISOString(), approvedBy: req.user!.id },
-          tx
-        );
-        if (!updatedApt) return null;
-
-        await notificationRepository.createNotification(
-          {
-            schoolId,
-            userId: updatedApt.parentId,
-            title: 'Randevunuz Onaylandı!',
-            message: `${updatedApt.teacherName} ile ${updatedApt.date} ${updatedApt.startTime} randevunuz onaylandı. Okul Giriş Kodunuz: ${updatedApt.entryCode}`,
-            appointmentId: updatedApt.id,
-          },
-          tx
-        );
-
-        await auditLogRepository.createAuditLog(
-          {
-            schoolId,
-            action: 'Randevu Onayı',
-            actorName: updatedApt.teacherName,
-            details: `${updatedApt.parentName} için randevu onaylandı.`,
-          },
-          tx
-        );
-
-        return updatedApt;
-      });
+      const updated = await db.transaction((tx) => approvePendingAppointment(tx, schoolId, aptId, req.user!.id));
 
       if (!updated) {
         return res.status(404).json({ error: 'Randevu bulunamadı' });

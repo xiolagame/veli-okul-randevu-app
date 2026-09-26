@@ -106,6 +106,21 @@ export const api = {
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   removeManagedRecord: (schoolId: string, kind: string, id: string) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  previewStudentRemoval: (schoolId: string, studentId: string) =>
+    request<{ studentName: string; siblingAccounts: number; preservedAccounts: number; deletedAccounts: number }>(
+      `/api/schools/${schoolId}/management/students/${encodeURIComponent(studentId)}/removal`),
+  removeStudent: (schoolId: string, studentId: string) =>
+    request<{ success: boolean; deletedAccounts: number; preservedAccounts: number }>(
+      `/api/schools/${schoolId}/management/students/${encodeURIComponent(studentId)}/removal`, { method: 'DELETE' }),
+  getAppointmentEmailReview: (schoolId: string, token: string) =>
+    request<{ appointment: { studentName: string; className: string; parentName: string; date: string;
+      startTime: string; endTime: string; teacherName: string; status: string } }>(
+      `/api/schools/${encodeURIComponent(schoolId)}/appointments/email-review`,
+      { headers: { 'X-School-Id': schoolId, 'X-Appointment-Review-Token': token } }),
+  approveAppointmentEmailReview: (schoolId: string, token: string) =>
+    request<{ success: boolean; message: string }>(
+      `/api/schools/${encodeURIComponent(schoolId)}/appointments/email-review/approve`,
+      { method: 'POST', headers: { 'X-School-Id': schoolId, 'X-Appointment-Review-Token': token } }),
   clearAuditLogs: (schoolId: string) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/audit-logs`, { method: 'DELETE' }),
   // Public

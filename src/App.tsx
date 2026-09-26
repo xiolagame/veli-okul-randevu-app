@@ -12,6 +12,7 @@ const AdminView = lazy(() => import('./components/AdminView').then((module) => (
 const SchoolManagement = lazy(() => import('./components/SchoolManagement').then((module) => ({ default: module.SchoolManagement })));
 const NotificationsModal = lazy(() => import('./components/NotificationsModal').then((module) => ({ default: module.NotificationsModal })));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal').then((module) => ({ default: module.OnboardingModal })));
+const AppointmentEmailReview = lazy(() => import('./components/AppointmentEmailReview').then((module) => ({ default: module.AppointmentEmailReview })));
 
 export const AppContent: React.FC = () => {
   const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, switchSchool, refreshPlatformSchools } = useApp();
@@ -42,6 +43,15 @@ export const AppContent: React.FC = () => {
         </Suspense>}
       </>
     );
+  }
+
+  const reviewLink = window.location.hash.match(/^#appointment-review=([^.]*)\.([A-Za-z0-9_-]{43})$/);
+  let reviewSchoolId: string | null = null;
+  try { if (reviewLink) reviewSchoolId = decodeURIComponent(reviewLink[1]); } catch { reviewSchoolId = null; }
+  if (reviewLink && reviewSchoolId) {
+    return currentUser.role === 'teacher'
+      ? <Suspense fallback={<div className="page-shell"><Skeleton rows={3} /></div>}><AppointmentEmailReview schoolId={reviewSchoolId} token={reviewLink[2]} /></Suspense>
+      : <main className="page-shell"><Brand /><div className="surface mt-8"><p>Bu bağlantı öğretmen hesabına özeldir.</p><Button onClick={() => { window.location.href = '/'; }}>Uygulamaya Git</Button></div></main>;
   }
 
   return (
