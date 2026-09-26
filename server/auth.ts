@@ -28,7 +28,13 @@ export interface AuthTokenPayload {
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
-  membership?: SchoolMembership;
+  membership?: SchoolMembership | { schoolId: string; role: UserRole };
+  schoolContext?: { schoolId: string; role: UserRole; source: 'membership' | 'platform'; membership?: SchoolMembership };
+  platformTargetSchoolId?: string;
+}
+
+export function isPlatformAdmin(userId: string | undefined): boolean {
+  return !!userId && (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean).includes(userId);
 }
 
 // Token helper using base64url HMAC-SHA256
@@ -132,21 +138,26 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
         return res.status(400).json({ error: 'Okul bağlamı (X-School-Id) eksik veya geçersiz' });
       }
 
-      const membership = await requireSchoolMembership(req.user.id, schoolId);
+      const platformContext = req.platformTargetSchoolId === schoolId && isPlatformAdmin(req.user.id);
+      const membership = platformContext ? null : await requireSchoolMembership(req.user.id, schoolId);
 
-      if (!membership) {
+      if (!membership && !platformContext) {
         return res.status(403).json({
           error: 'Erişim Reddedildi: Bu okulda aktif üyeliğiniz bulunmamaktadır (Tenant İzolasyon Koruması).',
         });
       }
 
-      if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(membership.role)) {
+      const role = platformContext ? 'admin' : membership!.role;
+      if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
         return res.status(403).json({
-          error: `Erişim Reddedildi: Bu işlem için yetkiniz (${membership.role}) yetersizdir. Gerekli rol: ${allowedRoles.join(', ')}`,
+          error: `Erişim Reddedildi: Bu işlem için yetkiniz (${role}) yetersizdir. Gerekli rol: ${allowedRoles.join(', ')}`,
         });
       }
 
-      req.membership = membership;
+      req.membership = membership || { schoolId, role: 'admin' };
+      req.schoolContext = platformContext
+        ? { schoolId, role: 'admin', source: 'platform' }
+        : { schoolId, role: membership!.role, source: 'membership', membership: membership! };
       next();
     } catch (err) {
       console.error('[tenantGuard Error]:', err);
@@ -164,10 +175,10 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
  * NEVER trusts blind headers or unverified client inputs.
  */
 export function getAuthorizedSchool(req: AuthenticatedRequest): string {
-  if (!req.membership || !req.membership.schoolId) {
+  if (!req.schoolContext || !req.schoolContext.schoolId) {
     throw new Error('Erişim Reddedildi: İstek için doğrulanmış okul üyeliği (tenant context) bulunamadı.');
   }
-  return req.membership.schoolId;
+  return req.schoolContext.schoolId;
 }
 
 /**

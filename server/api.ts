@@ -8,6 +8,7 @@ import {
   authMiddleware,
   tenantGuard,
   createToken,
+  isPlatformAdmin,
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone } from '../src/utils/phone';
@@ -451,6 +452,167 @@ apiRouter.post('/auth/staff/reset-complete', async (req, res) => {
     });
     return res.json({success:true,message:'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.'});
   } catch { return res.status(400).json({error:AUTH_CODE_ERROR}); }
+});
+
+const SCHOOL_ADMIN_RESET_GENERIC = 'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.';
+
+apiRouter.post('/auth/school-admin/activation-verify', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const code = typeof req.body?.code === 'string' ? req.body.code : '';
+  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`school-admin-activate:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    const candidate = school ? await userRepository.getByPhone(phone) : null;
+    if (!school || !candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+    const setupToken = generateSetupToken();
+    await (await getDb()).transaction(async (tx) => {
+      const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+      if (!activeSchool.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+      const user = await tx.query('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [candidate.id, phone]);
+      if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: candidate.id,
+        targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code) }, tx);
+      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== candidate.id) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+      await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: candidate.id, targetRole: 'admin',
+        purpose: 'school_admin_activation_setup', codeHash: hashSetupToken(setupToken), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        token: crypto.randomUUID() }, tx);
+    });
+    return res.json({ success: true, setupToken, schoolId: school.id });
+  } catch {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (school) await recordFailedAuthCodeAttempt(school.id, phone, 'school_admin_activation');
+    return res.status(400).json({ error: AUTH_CODE_ERROR });
+  }
+});
+
+apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
+  const passwordError = validatePassword(req.body?.password);
+  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`school-admin-activate-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
+      const candidate = await userRepository.getByPhone(phone, tx);
+      if (!candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const setup = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: candidate.id, purpose: 'school_admin_activation_setup',
+        targetRole: 'admin', codeHash: hashSetupToken(setupToken) }, tx);
+      if (!setup || setup.targetRole !== 'admin' || !setup.targetUserId) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const user = await tx.query<{ id: string }>('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [setup.targetUserId, phone]);
+      if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const memberships = await tx.query('SELECT school_id,role,status FROM school_memberships WHERE user_id=$1 LIMIT 1', [setup.targetUserId]);
+      if (memberships.rows.length) throw new Error('SCHOOL_ADMIN_IDENTITY_IN_USE');
+      const activeSchoolAdmins = await tx.query<{ id: string }>(`SELECT sm.user_id AS id FROM school_memberships sm
+        WHERE sm.school_id=$1 AND sm.role='admin' AND sm.status='active'`, [schoolId]);
+      if (activeSchoolAdmins.rows.some((entry) => !isPlatformAdmin(entry.id))) throw new Error('SCHOOL_ADMIN_ALREADY_ASSIGNED');
+      const hashedPassword = hashPassword(req.body.password as string);
+      await userRepository.updatePasswordHashAndInvalidateSessions(setup.targetUserId, hashedPassword, tx);
+      await membershipRepository.createOrActivate({ schoolId, userId: setup.targetUserId, role: 'admin' }, tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_completed', actorName: 'Sistem',
+        details: `Okul yöneticisi ${setup.targetUserId} etkinleştirildi.` }, tx);
+    });
+    return res.json({ success: true, message: 'Okul yöneticisi hesabınız etkinleştirildi. Yeni parolanızla giriş yapabilirsiniz.' });
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş.' });
+    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
+    return res.status(400).json({ error: AUTH_CODE_ERROR });
+  }
+});
+
+apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  try {
+    if (schoolCode && phone && await withinAuthRateLimit(`school-admin-reset-request:${req.ip}:${phone}`, 3, 60)) {
+      const school = await schoolRepository.getByCode(schoolCode);
+      const user = school ? await userRepository.getByPhone(phone) : null;
+      const membership = school && user ? await membershipRepository.getActiveMembership(user.id, school.id) : null;
+      if (school && user && !isPlatformAdmin(user.id) && membership?.role === 'admin') {
+        const db = await getDb();
+        const candidate = await db.query<{ email: string | null; first_name: string; last_name: string }>('SELECT email,first_name,last_name FROM users WHERE id=$1', [user.id]);
+        const recent = await db.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2 AND purpose='school_admin_password_reset'
+          AND created_at>NOW()-INTERVAL '60 seconds' LIMIT 1`, [school.id, user.id]);
+        if (candidate.rows[0]?.email && !recent.rows.length) {
+          const code = generateStaffCode();
+          await db.transaction(async (tx) => {
+            const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+            const activeMembership = await membershipRepository.getActiveMembership(user.id, school.id, tx);
+            if (!activeSchool.rows.length || isPlatformAdmin(user.id) || activeMembership?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+            await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
+              purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+              token: crypto.randomUUID() }, tx);
+          });
+          const fullName = `${candidate.rows[0].first_name} ${candidate.rows[0].last_name}`.trim();
+          const message = `<p>Merhaba ${escapeHtml(fullName)},</p><p>${escapeHtml(school.name)} okul yönetimi parola sıfırlama kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>Kod 15 dakika içinde sona erer ve tek kullanımlıdır. Veli Randevu</p>`;
+          await sendEmail({ to: candidate.rows[0].email, subject: 'Veli Randevu Okul Yönetimi Parola Sıfırlama', html: message });
+          await auditLogRepository.createAuditLog({ schoolId: school.id, action: 'school_admin_password_reset_email_sent', actorName: 'Sistem',
+            details: `Okul yöneticisi ${user.id} için parola sıfırlama e-postası gönderildi.` });
+        }
+      }
+    }
+  } catch {
+    // Public response intentionally does not disclose account or email delivery state.
+  }
+  return res.json({ success: true, message: SCHOOL_ADMIN_RESET_GENERIC });
+});
+
+apiRouter.post('/auth/school-admin/reset-verify', async (req, res) => {
+  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const code = typeof req.body?.code === 'string' ? req.body.code : '';
+  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`school-admin-reset-verify:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
+  try {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (!school) throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+    const setupToken = generateSetupToken();
+    await (await getDb()).transaction(async (tx) => {
+      const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+      const user = await userRepository.getByPhone(phone, tx);
+      if (!activeSchool.rows.length || !user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, school.id, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
+        purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code) }, tx);
+      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== user.id) throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+      await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
+        purpose: 'school_admin_password_setup', codeHash: hashSetupToken(setupToken), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        token: crypto.randomUUID() }, tx);
+    });
+    return res.json({ success: true, setupToken, schoolId: school.id });
+  } catch {
+    const school = await schoolRepository.getByCode(schoolCode);
+    if (school) await recordFailedAuthCodeAttempt(school.id, phone, 'school_admin_password_reset');
+    return res.status(400).json({ error: AUTH_CODE_ERROR });
+  }
+});
+
+apiRouter.post('/auth/school-admin/reset-complete', async (req, res) => {
+  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
+  const phone = normalizeTurkishPhone(req.body?.phone);
+  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
+  const passwordError = validatePassword(req.body?.password);
+  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
+  if (!await withinAuthRateLimit(`school-admin-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
+  try {
+    await (await getDb()).transaction(async (tx) => {
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
+      if (!school.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const user = await userRepository.getByPhone(phone, tx);
+      if (!user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, schoolId, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
+        purpose: 'school_admin_password_setup', codeHash: hashSetupToken(setupToken) }, tx);
+      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== user.id) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(req.body.password as string), tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_password_reset_completed', actorName: 'Sistem',
+        details: `Okul yöneticisi ${user.id} için parola sıfırlandı.` }, tx);
+    });
+    return res.json({ success: true, message: 'Parolanız güncellendi. Yeni parolanızla giriş yapabilirsiniz.' });
+  } catch { return res.status(400).json({ error: AUTH_CODE_ERROR }); }
 });
 
 apiRouter.post('/auth/activate-account', async (req, res) => {
@@ -1766,8 +1928,9 @@ apiRouter.post(
 apiRouter.get(
   '/schools/:schoolId/security/test-isolation',
   authMiddleware,
-  tenantGuard(),
+  tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
+    if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu kontrol yalnızca platform yöneticilerine açıktır.' });
     try {
       const results: TenantIsolationTestResult[] = [];
 

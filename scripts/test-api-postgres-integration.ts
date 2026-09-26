@@ -263,12 +263,16 @@ async function runApiIntegrationTests() {
 
     // TEST 9: Test Isolation Runner
     console.log('\n[10/10] PostgreSQL Çoklu Okul İzolasyon Testleri Çalıştırılıyor (/schools/:id/security/test-isolation)...');
+    const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
+    process.env.PLATFORM_ADMIN_USER_IDS = adminRes.body.user.id;
     const isoRes = await makeRequest('GET', '/schools/sch-kazan-01/security/test-isolation', {
       headers: {
-        authorization: `Bearer ${userToken}`,
+        authorization: `Bearer ${adminToken}`,
         'x-school-id': 'sch-kazan-01',
       },
     });
+    if (previousPlatformAdmins === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS;
+    else process.env.PLATFORM_ADMIN_USER_IDS = previousPlatformAdmins;
     if (isoRes.status !== 200 || !Array.isArray(isoRes.body.results)) {
       throw new Error(`Test isolation endpoint failed: ${JSON.stringify(isoRes.body)}`);
     }

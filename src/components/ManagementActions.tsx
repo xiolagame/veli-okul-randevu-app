@@ -40,7 +40,7 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged }: Pro
   return <div className="mt-3">
     <div className="flex flex-wrap gap-2">
       <Button variant="secondary" onClick={() => { setDraft(initialDraft); setError(''); setSuccess(''); setMode('edit'); }}>Düzenle</Button>
-      {kind !== 'student' && kind !== 'roster' && <Button variant="quiet" onClick={() => { setError(''); setSuccess(''); setMode('remove'); }}>Okuldan Kaldır</Button>}
+      {kind !== 'student' && kind !== 'roster' && <Button variant="danger" onClick={() => { setError(''); setSuccess(''); setMode('remove'); }}>Okuldan Kaldır</Button>}
     </div>
     {success && <p role="status" className="text-sm mt-2">{success}</p>}
     {mode && <Dialog title={`${titles[kind]} — ${mode === 'edit' ? 'Bilgileri düzenle' : 'Okuldan kaldır'}`} onClose={() => { if (!busy) setMode(null); }} dismissible={!busy}>
@@ -53,7 +53,7 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged }: Pro
           </label>)}
         {error && <Alert tone="danger">{error}</Alert>}
         <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setMode(null)}>Vazgeç</Button>
-          <Button type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : mode === 'remove' ? 'Kaldırmayı onayla' : 'Değişiklikleri Kaydet'}</Button></div>
+          <Button type="submit" variant={mode === 'remove' ? 'danger' : 'primary'} disabled={busy}>{busy ? 'Kaydediliyor…' : mode === 'remove' ? 'Kaldırmayı onayla' : 'Değişiklikleri Kaydet'}</Button></div>
       </form>
     </Dialog>}
   </div>;

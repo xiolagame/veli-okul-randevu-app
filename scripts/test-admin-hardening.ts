@@ -22,6 +22,7 @@ async function run() {
   };
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
+  const { platformTargetContextGuard } = await import('../server/platform-management');
   const { requireSchoolMembership, requireSchoolRole } = await import('../server/auth');
   const { userRepository, membershipRepository, notificationRepository, auditLogRepository } = await import('../server/repositories');
   const { hashPassword } = await import('../server/passwords');
@@ -38,6 +39,7 @@ async function run() {
   const phone = () => '+905' + crypto.randomInt(100000000, 999999999);
   const app = express();
   app.use(express.json());
+  app.use('/api/platform-target/:targetSchoolId', platformTargetContextGuard, apiRouter);
   app.use('/api', apiRouter);
   const server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -268,8 +270,8 @@ async function run() {
     assert.equal(newSchool.status, 201);
     const newSchoolId = (newSchool.body.school as { id: string }).id;
     createdSchoolIds.push(newSchoolId);
-    assert.equal((await membershipRepository.getActiveMembership(admin.id, newSchoolId))?.role, 'admin');
-    const newSettings = (await request('GET', '/schools/' + newSchoolId + '/settings', admin.token)).body.settings as Record<string, unknown>;
+    assert.equal(await membershipRepository.getActiveMembership(admin.id, newSchoolId), null);
+    const newSettings = (await request('GET', `/platform-target/${newSchoolId}/schools/${newSchoolId}/settings`, admin.token)).body.settings as Record<string, unknown>;
     assert.equal(newSettings.schoolName, schoolData.name);
     assert.equal(newSettings.defaultSlotMinutes, 15);
     assert.equal((await request('POST', '/platform/schools', admin.token, { ...schoolData, code: schoolData.code.toLowerCase() })).status, 409);

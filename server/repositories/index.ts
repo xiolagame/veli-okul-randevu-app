@@ -91,7 +91,11 @@ export type AuthCodePurpose =
   | 'staff_activation'
   | 'staff_password_reset'
   | 'staff_activation_setup'
-  | 'staff_password_setup';
+  | 'staff_password_setup'
+  | 'school_admin_activation'
+  | 'school_admin_activation_setup'
+  | 'school_admin_password_reset'
+  | 'school_admin_password_setup';
 
 // ==============================================================================
 // 1. SCHOOL REPOSITORY

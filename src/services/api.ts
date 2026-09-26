@@ -16,6 +16,7 @@ import {
 
 let authToken: string | null = localStorage.getItem('veli_auth_token');
 let currentSchoolId: string | null = localStorage.getItem('veli_active_school_id');
+let platformTargetSchoolId: string | null = localStorage.getItem('veli_platform_target_school_id');
 
 export const setAuthToken = (token: string | null) => {
   authToken = token;
@@ -38,6 +39,12 @@ export const setActiveSchoolId = (schoolId: string | null) => {
 };
 
 export const getActiveSchoolId = () => currentSchoolId;
+export const setPlatformTargetSchoolId = (schoolId: string | null) => {
+  platformTargetSchoolId = schoolId;
+  if (schoolId) localStorage.setItem('veli_platform_target_school_id', schoolId);
+  else localStorage.removeItem('veli_platform_target_school_id');
+};
+export const getPlatformTargetSchoolId = () => platformTargetSchoolId;
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -55,7 +62,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['X-School-Id'] = currentSchoolId;
   }
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  const targetScopedEndpoint = platformTargetSchoolId && endpoint.startsWith('/api/schools/')
+    ? `/api/platform-target/${encodeURIComponent(platformTargetSchoolId)}${endpoint.slice(4)}`
+    : endpoint;
+  const url = `${API_BASE_URL}${targetScopedEndpoint}`;
   const res = await fetch(url, {
     ...options,
     headers,
@@ -81,8 +91,16 @@ export const api = {
   getManagedSchools: () => request<{ schools: import('../types/platform').ManagedSchool[] }>('/api/platform/schools'),
   createSchool: (data: { name: string; code: string; city: string; district: string }) =>
     request<{ school: import('../types/platform').ManagedSchool }>('/api/platform/schools', { method: 'POST', body: JSON.stringify(data) }),
+  createSchoolAdminInvitation: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
+    request<{ success: boolean; emailSent: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(schoolId)}/admin-invitation`, { method: 'POST', body: JSON.stringify(data) }),
+  resendSchoolAdminActivation: (schoolId: string) =>
+    request<{ success: boolean; emailSent: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(schoolId)}/admin-invitation/resend`, { method: 'POST' }),
   setSchoolStatus: (id: string, active: boolean) =>
     request<{ success: boolean }>(`/api/platform/schools/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  updateSchoolCode: (id: string, code: string) =>
+    request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
+  getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
+  getPlatformAuditLogs: () => request<{ logs: { id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[] }>('/api/platform/audit-logs'),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
   updateManagedRecord: (schoolId: string, kind: string, id: string, data: Record<string, string>) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -125,6 +143,16 @@ export const api = {
     request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/staff/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
   completeStaffReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
     request<{success:boolean;message:string}>('/api/auth/staff/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
+  verifySchoolAdminActivation: (schoolCode:string,phone:string,code:string) =>
+    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+  completeSchoolAdminActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
+    request<{success:boolean;message:string}>('/api/auth/school-admin/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
+  requestSchoolAdminReset: (schoolCode:string,phone:string) =>
+    request<{success:boolean;message:string}>('/api/auth/school-admin/reset-request',{method:'POST',body:JSON.stringify({schoolCode,phone})}),
+  verifySchoolAdminReset: (schoolCode:string,phone:string,code:string) =>
+    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+  completeSchoolAdminReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
+    request<{success:boolean;message:string}>('/api/auth/school-admin/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
 
   login: (phone: string, password: string, role?: string) =>
     request<{

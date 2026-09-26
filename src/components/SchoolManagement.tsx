@@ -3,8 +3,10 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { formatDateTime } from '../utils/dates';
+import { ShieldCheck, School as SchoolIcon, FileText, LayoutDashboard } from 'lucide-react';
+import { auditDisplay } from '../utils/audit-display';
 
-export function SchoolManagement({ onClose }: { onClose: () => void }) {
+export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void> }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -12,7 +14,14 @@ export function SchoolManagement({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(false);
   const [target, setTarget] = useState<ManagedSchool | null>(null);
+  const [adminTarget, setAdminTarget] = useState<ManagedSchool | null>(null);
+  const [adminDraft, setAdminDraft] = useState({ fullName: '', phone: '', email: '' });
+  const [adminInvitePending, setAdminInvitePending] = useState(false);
+  const [adminMessage, setAdminMessage] = useState('');
   const [draft, setDraft] = useState({ name: '', code: '', city: '', district: '' });
+  const [section, setSection] = useState<'overview' | 'schools' | 'security' | 'audit'>('overview');
+  const [security, setSecurity] = useState<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' } | null>(null);
+  const [logs, setLogs] = useState<{ id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[]>([]);
   const load = async () => setSchools((await api.getManagedSchools()).schools);
   useEffect(() => {
     let cancelled = false;
@@ -30,37 +39,73 @@ export function SchoolManagement({ onClose }: { onClose: () => void }) {
       await action();
       setChanged(true);
       setTarget(null);
-      await load();
+      const refreshResults = await Promise.allSettled([onChanged(), load()]);
+      if (refreshResults.some((result) => result.status === 'rejected')) setError('Değişiklik kaydedildi ancak okul listesi yenilenemedi. Yeniden yüklemeyi deneyin.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.'); }
     finally { pending.current = false; setBusy(false); }
   };
-  const close = () => {
-    if (changed) window.location.reload();
-    else onClose();
-  };
-  return <Dialog wide title="Okul Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Okul kayıtları kalıcı olarak silinmez." onClose={close} dismissible={!busy}>
+  const close = () => { onClose(); };
+  useEffect(() => {
+    if (section === 'security') void api.getPlatformSecurity().then(setSecurity).catch(() => setError('Sistem güvenliği bilgileri alınamadı.'));
+    if (section === 'audit') void api.getPlatformAuditLogs().then((result) => setLogs(result.logs)).catch(() => setError('Platform işlem günlüğü yüklenemedi.'));
+  }, [section]);
+  return <Dialog wide title="Platform Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Okul kayıtları kalıcı olarak silinmez." onClose={close} dismissible={!busy}>
     <div className="space-y-5">
+      <nav className="platform-nav" aria-label="Platform yönetimi">
+        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}</button>)}
+      </nav>
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
-      {changed && <Alert tone="success">Değişiklik kaydedildi. Bu pencere kapatılınca okul listeniz ve erişim bilgileriniz yenilenecek.</Alert>}
-      <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { await api.createSchool(draft); setDraft({ name: '', code: '', city: '', district: '' }); }); }}>
+      {changed && <Alert tone="success">Değişiklik kaydedildi ve okul listesi yenilendi.</Alert>}
+      {section === 'overview' && <div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div>}
+      {(section === 'overview' || section === 'schools') && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); }); }}>
         <h3>Yeni okul ekle</h3>
         {(['name', 'code', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', city: 'İl', district: 'İlçe' })[key]}
           <input required={key !== 'code'} placeholder={key === 'code' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Za-z0-9_-]{3,50}' : undefined}
             onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /></label>)}
-        <p className="field-hint">Kod boş bırakılırsa benzersiz bir kod üretilir. Elle giriş: 3–50 harf, rakam, tire veya alt çizgi. Yeni okulda hesabınıza okul yöneticisi üyeliği eklenir.</p>
+        <p className="field-hint">Kod boş bırakılırsa benzersiz bir kod üretilir. Elle giriş: 3–50 harf, rakam, tire veya alt çizgi. Okul yöneticisi ayrı bir aktivasyonla atanır.</p>
         <Button type="submit" disabled={busy}>Okul oluştur</Button>
-      </form>
-      {loading ? <Skeleton /> : schools.map((school) => <article className="surface" key={school.id}>
+      </form>}
+      {(section === 'overview' || section === 'schools') && (loading ? <Skeleton /> : schools.map((school) => <article className="surface platform-school-row" key={school.id}>
         <h3>{school.name}</h3><p>{school.code} · {school.city} / {school.district}</p>
-        <p>{school.disabledAt ? `Pasif · ${formatDateTime(school.disabledAt)}` : 'Aktif'}</p>
+        <p><span className={`status-badge tone-${school.disabledAt ? 'warning' : 'success'}`}>{school.disabledAt ? `Devre dışı · ${formatDateTime(school.disabledAt)}` : 'Aktif'}</span></p>
+        <p><span className={`status-badge tone-${school.adminStatus === 'active' ? 'success' : 'warning'}`}>{school.adminStatus === 'active' ? `Okul Yönetimi Aktif${school.adminName ? ` · ${school.adminName}` : ''}` : school.adminStatus === 'pending' ? `Yönetici Aktivasyonu Bekliyor${school.adminName ? ` · ${school.adminName}` : ''}` : 'Okul yöneticisi atanmamış'}</span></p>
+        {school.adminStatus === 'unassigned' && <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => { setAdminTarget(school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage(''); }}>Okul Yöneticisi Ata</Button>}
+        {school.adminStatus === 'pending' && <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => { setAdminTarget(school); setAdminInvitePending(true); setAdminMessage('Bekleyen aktivasyon e-postası yeniden gönderilebilir.'); }}>Aktivasyon e-postasını yeniden gönder</Button>}
+        <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => onManageSchool(school.id)}>Seçili Okulu Yönet</Button>
         <Button variant={school.disabledAt ? 'secondary' : 'danger'} disabled={busy} onClick={() => { setError(''); setTarget(school); }}>{school.disabledAt ? 'Yeniden etkinleştir' : 'Devre dışı bırak'}</Button>
-      </article>)}
+      </article>))}
+      {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
+      {section === 'audit' && <section className="surface"><h3>Platform İşlem Günlüğü</h3>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
       <Button variant="secondary" disabled={busy} onClick={close}>Kapat</Button>
     </div>
     {target && <Dialog title={target.disabledAt ? 'Okulu etkinleştir' : 'Okulu devre dışı bırak'} onClose={() => setTarget(null)} dismissible={!busy}>
       <Alert tone="warning">{target.name}: {target.disabledAt ? 'Mevcut aktif üyeliklerin erişimi yeniden açılır.' : 'Bu okuldaki tüm rollerin erişimi, aktivasyon ve reset işlemleri kapanır. Geçmiş randevular, üyelikler ve ayarlar korunur; hiçbir kayıt silinmez.'} Devam etmek istiyor musunuz?</Alert>
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setTarget(null)}>Vazgeç</Button><Button disabled={busy} onClick={() => { void mutate(() => api.setSchoolStatus(target.id, !!target.disabledAt)); }}>Onayla</Button></div>
+    </Dialog>}
+    {adminTarget && <Dialog title={adminInvitePending ? 'Okul yöneticisi aktivasyonu' : 'Okul Yöneticisi Ata'} description={`${adminTarget.name} için yönetici hesabı, e-posta aktivasyonu tamamlanınca etkinleşir.`} onClose={() => { if (!busy) setAdminTarget(null); }} dismissible={!busy}>
+      <div className="form-stack">
+        {adminMessage && <Alert tone={adminInvitePending ? 'warning' : 'info'}>{adminMessage}</Alert>}
+        {error && <Alert tone="danger">{error}</Alert>}
+        {!adminInvitePending ? <>
+          <label className="field" htmlFor="school-admin-full-name">Yönetici Ad Soyad<input id="school-admin-full-name" autoComplete="name" maxLength={150} value={adminDraft.fullName} onChange={(event) => setAdminDraft({ ...adminDraft, fullName: event.target.value })} required /></label>
+          <label className="field" htmlFor="school-admin-phone">Telefon<input id="school-admin-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0555 123 45 67" value={adminDraft.phone} onChange={(event) => setAdminDraft({ ...adminDraft, phone: event.target.value })} required /></label>
+          <label className="field" htmlFor="school-admin-email">E-posta<input id="school-admin-email" type="email" autoComplete="email" maxLength={150} value={adminDraft.email} onChange={(event) => setAdminDraft({ ...adminDraft, email: event.target.value })} required /></label>
+          <p className="field-hint">Parola oluşturulmaz. Yönetici, tek kullanımlık e-posta koduyla kendi parolasını belirler.</p>
+          <Button disabled={busy} onClick={() => { void mutate(async () => {
+            const result = await api.createSchoolAdminInvitation(adminTarget.id, adminDraft);
+            setAdminInvitePending(true);
+            setAdminMessage(result.message);
+            setAdminDraft({ ...adminDraft, fullName: '', phone: '', email: '' });
+            if (result.emailSent) setAdminTarget(null);
+          }); }}>Aktivasyon e-postası gönder</Button>
+        </> : <Button disabled={busy || !!adminTarget.disabledAt} onClick={() => { void mutate(async () => {
+          const result = await api.resendSchoolAdminActivation(adminTarget.id);
+          setAdminMessage(result.message);
+          if (result.emailSent) setAdminTarget(null);
+        }); }}>Yeniden gönder</Button>}
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => setAdminTarget(null)}>Kapat</Button>
+      </div>
     </Dialog>}
   </Dialog>;
 }

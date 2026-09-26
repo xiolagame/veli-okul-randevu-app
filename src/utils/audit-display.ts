@@ -18,6 +18,11 @@ const events: Record<string, [string, string]> = {
   'staff_password_reset_email_sent': ['Parola sıfırlama e-postası gönderildi.', 'info'],
   'staff_activation_completed': ['Personel hesabı aktifleştirildi.', 'success'],
   'staff_password_reset_completed': ['Personel parolası sıfırlandı.', 'info'],
+  'school_admin_invited': ['Okul yöneticisi için aktivasyon daveti oluşturuldu.', 'success'],
+  'school_admin_activation_resent': ['Okul yöneticisi aktivasyon e-postası yeniden gönderildi.', 'info'],
+  'school_admin_activation_completed': ['Okul yöneticisi hesabı etkinleştirildi.', 'success'],
+  'school_admin_password_reset_email_sent': ['Okul yöneticisi parola sıfırlama e-postası gönderildi.', 'info'],
+  'school_admin_password_reset_completed': ['Okul yöneticisi parolası sıfırlandı.', 'info'],
   'parent_self_registration_completed': ['Veli hesabı oluşturuldu.', 'success'],
   'parent_password_reset_completed': ['Veli parolası sıfırlandı.', 'info'],
   'roster.bulk_imported': ['Toplu öğrenci/veli kaydı eklendi.', 'success'],
@@ -36,6 +41,7 @@ const events: Record<string, [string, string]> = {
   'school.created': ['Okul oluşturuldu.', 'success'],
   'school.disabled': ['Okul devre dışı bırakıldı.', 'warning'],
   'school.enabled': ['Okul etkinleştirildi.', 'success'],
+  'school.code_changed': ['Okul kodu değiştirildi.', 'info'],
 };
 
 export function auditDisplay(action: string, details: string) {

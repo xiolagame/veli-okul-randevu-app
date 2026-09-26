@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { apiRouter } from './api';
 import { initDatabase } from './database/postgres';
+import { platformTargetContextGuard } from './platform-management';
 
 let initPromise: Promise<void> | null = null;
 
@@ -32,7 +33,7 @@ export function createExpressApp() {
         }
         return callback(new Error(`CORS İhlali: ${origin} adresine izin verilmiyor.`));
       },
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id'],
       credentials: true,
     })
@@ -67,6 +68,7 @@ export function createExpressApp() {
   });
 
   // Mount API routes at both standard /api and Netlify Functions path
+  app.use(['/api/platform-target/:targetSchoolId', '/.netlify/functions/api/platform-target/:targetSchoolId'], platformTargetContextGuard, apiRouter);
   app.use(['/api', '/.netlify/functions/api'], apiRouter);
 
   return app;

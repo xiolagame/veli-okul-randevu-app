@@ -1,7 +1,6 @@
 import { formatDate, formatDateTime } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
 import { Appointment } from '../types';
-import QRCode from 'qrcode';
 import { Printer, QrCode } from 'lucide-react';
 import { Alert, Button, Dialog, StatusBadge } from './ui';
 
@@ -20,7 +19,8 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
     setQrDataUrl(null);
     setQrError(false);
     if (appointment.qrToken) {
-      void QRCode.toDataURL(appointment.qrToken, { margin: 4, width: 280 }).then((image) => { if (active) setQrDataUrl(image); }).catch(() => { if (active) setQrError(true); });
+      void import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(appointment.qrToken!, { margin: 4, width: 280 }))
+        .then((image) => { if (active) setQrDataUrl(image); }).catch(() => { if (active) setQrError(true); });
     }
     return () => { active = false; };
   }, [appointment.qrToken]);
