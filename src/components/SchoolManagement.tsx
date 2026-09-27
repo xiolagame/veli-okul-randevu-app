@@ -3,10 +3,11 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { formatDateTime } from '../utils/dates';
-import { ShieldCheck, School as SchoolIcon, FileText, LayoutDashboard } from 'lucide-react';
+import { ShieldCheck, School as SchoolIcon, FileText, LayoutDashboard, Trash2 } from 'lucide-react';
 import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
+import { normalizeSchoolCodeInput } from '../utils/school-code';
 
 export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void> }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
@@ -15,7 +16,10 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
   const pending = useRef(false);
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(false);
+  const [changeMessage, setChangeMessage] = useState('Değişiklik kaydedildi ve okul listesi yenilendi.');
   const [target, setTarget] = useState<ManagedSchool | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedSchool | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [adminTarget, setAdminTarget] = useState<ManagedSchool | null>(null);
   const [adminDraft, setAdminDraft] = useState({ fullName: '', phone: '', email: '' });
   const [adminInvitePending, setAdminInvitePending] = useState(false);
@@ -32,7 +36,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
-  const mutate = async (action: () => Promise<unknown>) => {
+  const mutate = async (action: () => Promise<unknown>, successMessage = 'Değişiklik kaydedildi ve okul listesi yenilendi.') => {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
@@ -40,6 +44,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
     try {
       await action();
       setChanged(true);
+      setChangeMessage(successMessage);
       setTarget(null);
       const refreshResults = await Promise.allSettled([onChanged(), load()]);
       if (refreshResults.some((result) => result.status === 'rejected')) setError('Değişiklik kaydedildi ancak okul listesi yenilenemedi. Yeniden yüklemeyi deneyin.');
@@ -51,19 +56,19 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
     if (section === 'security') void api.getPlatformSecurity().then(setSecurity).catch(() => setError('Sistem güvenliği bilgileri alınamadı.'));
     if (section === 'audit') void api.getPlatformAuditLogs().then((result) => setLogs(result.logs)).catch(() => setError('Platform işlem günlüğü yüklenemedi.'));
   }, [section]);
-  return <Dialog wide title="Platform Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Okul kayıtları kalıcı olarak silinmez." onClose={close} dismissible={!busy}>
+  return <Dialog wide title="Platform Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Kalıcı silme yalnızca devre dışı okullar için kullanılabilir." onClose={close} dismissible={!busy}>
     <div className="space-y-5">
       <nav className="platform-nav" aria-label="Platform yönetimi">
         {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}</button>)}
       </nav>
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
-      {changed && <Alert tone="success">Değişiklik kaydedildi ve okul listesi yenilendi.</Alert>}
+      {changed && <Alert tone="success">{changeMessage}</Alert>}
       {section === 'overview' && <div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div>}
       {(section === 'overview' || section === 'schools') && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); }); }}>
         <h3>Yeni okul ekle</h3>
         {(['name', 'code', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', city: 'İl', district: 'İlçe' })[key]}
-          <input required={key !== 'code'} placeholder={key === 'code' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Za-z0-9_-]{3,50}' : undefined}
-            onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /></label>)}
+          <input required={key !== 'code'} placeholder={key === 'code' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Z0-9_-]{3,50}' : undefined}
+            onChange={(event) => setDraft({ ...draft, [key]: key === 'code' ? normalizeSchoolCodeInput(event.target.value) : event.target.value })} /></label>)}
         <p className="field-hint">Kod boş bırakılırsa benzersiz bir kod üretilir. Elle giriş: 3–50 harf, rakam, tire veya alt çizgi. Okul yöneticisi ayrı bir aktivasyonla atanır.</p>
         <Button type="submit" disabled={busy}>Okul oluştur</Button>
       </form>}
@@ -75,6 +80,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
         {school.adminStatus === 'pending' && <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => { setAdminTarget(school); setAdminInvitePending(true); setAdminMessage('Bekleyen aktivasyon e-postası yeniden gönderilebilir.'); }}>Aktivasyon e-postasını yeniden gönder</Button>}
         <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => onManageSchool(school.id)}>Seçili Okulu Yönet</Button>
         <Button variant={school.disabledAt ? 'secondary' : 'danger'} disabled={busy} onClick={() => { setError(''); setTarget(school); }}>{school.disabledAt ? 'Yeniden etkinleştir' : 'Devre dışı bırak'}</Button>
+        {school.disabledAt && <Button variant="danger" disabled={busy} onClick={() => { setError(''); setDeleteConfirmation(''); setDeleteTarget(school); }}><Trash2 size={17} />Okulu Kalıcı Olarak Sil</Button>}
       </article>))}
       {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
       {section === 'audit' && <section className="surface"><h3>Platform İşlem Günlüğü</h3>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
@@ -84,6 +90,16 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
       <Alert tone="warning">{target.name}: {target.disabledAt ? 'Mevcut aktif üyeliklerin erişimi yeniden açılır.' : 'Bu okuldaki tüm rollerin erişimi, aktivasyon ve reset işlemleri kapanır. Geçmiş randevular, üyelikler ve ayarlar korunur; hiçbir kayıt silinmez.'} Devam etmek istiyor musunuz?</Alert>
       {error && <Alert tone="danger">{error}</Alert>}
       <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setTarget(null)}>Vazgeç</Button><Button disabled={busy} onClick={() => { void mutate(() => api.setSchoolStatus(target.id, !!target.disabledAt)); }}>Onayla</Button></div>
+    </Dialog>}
+    {deleteTarget && <Dialog title="Okulu kalıcı olarak sil" description={`${deleteTarget.name} ve okula bağlı veriler silinecektir.`} onClose={() => { setDeleteTarget(null); setDeleteConfirmation(''); }} dismissible={!busy}>
+      <div className="form-stack">
+        <Alert tone="danger"><strong>Bu işlem geri alınamaz.</strong><p className="mt-2">Bu okula ait öğrenciler, personel ilişkileri, randevular ve diğer okul verileri kalıcı olarak silinecektir.</p></Alert>
+        <label className="field" htmlFor="permanent-school-delete-code">Kalıcı silme işlemini onaylamak için <strong>{normalizeSchoolCodeInput(deleteTarget.code)}</strong> yazın.
+          <input id="permanent-school-delete-code" autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(normalizeSchoolCodeInput(event.target.value))} />
+        </label>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => { setDeleteTarget(null); setDeleteConfirmation(''); }}>Vazgeç</Button><Button variant="danger" disabled={busy || deleteConfirmation !== normalizeSchoolCodeInput(deleteTarget.code)} onClick={() => { void mutate(async () => { await api.deleteSchool(deleteTarget.id); setDeleteTarget(null); setDeleteConfirmation(''); }, 'Okul ve okula bağlı veriler kalıcı olarak silindi.'); }}>{busy ? 'Siliniyor…' : 'KALICI OLARAK SİL'}</Button></div>
+      </div>
     </Dialog>}
     {adminTarget && <Dialog title={adminInvitePending ? 'Okul yöneticisi aktivasyonu' : 'Okul Yöneticisi Ata'} description={`${adminTarget.name} için yönetici hesabı, e-posta aktivasyonu tamamlanınca etkinleşir.`} onClose={() => { if (!busy) setAdminTarget(null); }} dismissible={!busy}>
       <div className="form-stack">

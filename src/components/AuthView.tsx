@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { Alert, Brand, Button, Dialog } from './ui';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
 import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
+import { normalizeSchoolCodeInput } from '../utils/school-code';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -322,7 +323,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={handleCodeFlow} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field" htmlFor="code-school">Okulunuz
-            <input id="code-school" value={schoolId} onChange={(event) => setSchoolId(event.target.value)} placeholder="Okul kodu" disabled={!!staffSetupToken} required />
+            <input id="code-school" value={schoolId} onChange={(event) => setSchoolId(normalizeSchoolCodeInput(event.target.value))} placeholder="Okul kodu" disabled={!!staffSetupToken} required />
           </label>
           <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
           {codeFlow === 'activation' && !staffSetupToken && <label className="field" htmlFor="activation-code">6 haneli aktivasyon kodu<input id="activation-code" type="text" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" autoComplete="one-time-code" spellCheck={false} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" required className="font-mono" /></label>}
@@ -334,7 +335,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
         <form onSubmit={submitParentFlow} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           {!parentChallenge ? <>
-            <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(event.target.value)} required /></label>
+            <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(normalizeSchoolCodeInput(event.target.value))} required /></label>
             <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
             <label className="field">Öğrencinizin Doğum Tarihi<input type="text" inputMode="numeric" maxLength={10} placeholder="GG/AA/YYYY" value={parentBirthDate} onChange={(event) => setParentBirthDate(formatBirthDateInput(event.target.value))} required /></label>
           </> : <>
@@ -347,7 +348,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       {staffResetStep && <Dialog title="Personel şifre sıfırlama" description="Sıfırlama kodu kayıtlı personel e-posta adresine gönderilir." onClose={closeStaffReset} dismissible={!isSubmitting}>
         <form onSubmit={submitStaffReset} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field">Okul Kodu<input value={staffResetSchoolCode} onChange={(event) => setStaffResetSchoolCode(event.target.value)} required readOnly={staffResetStep !== 'request'} /></label>
+          <label className="field">Okul Kodu<input value={staffResetSchoolCode} onChange={(event) => setStaffResetSchoolCode(normalizeSchoolCodeInput(event.target.value))} required readOnly={staffResetStep !== 'request'} /></label>
           <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required readOnly={staffResetStep !== 'request'} /></label>
           {staffResetStep === 'verify' && <label className="field">6 haneli sıfırlama kodu<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g,'').slice(0,6))} required /></label>}
           {staffResetStep === 'password' && <><label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}
@@ -357,7 +358,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       {schoolAdminActivationStep && <Dialog title="Okul Yöneticisi İlk Giriş" description="Platform yönetiminin okulunuz için gönderdiği tek kullanımlık kodla hesabınızı etkinleştirin." onClose={closeSchoolAdminActivation} dismissible={!isSubmitting}>
         <form onSubmit={submitSchoolAdminActivation} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field" htmlFor="school-admin-activation-school">Okul Kodu<input id="school-admin-activation-school" autoComplete="off" value={schoolAdminSchoolCode} onChange={(event) => setSchoolAdminSchoolCode(event.target.value)} readOnly={schoolAdminActivationStep === 'password'} required /></label>
+          <label className="field" htmlFor="school-admin-activation-school">Okul Kodu<input id="school-admin-activation-school" autoComplete="off" value={schoolAdminSchoolCode} onChange={(event) => setSchoolAdminSchoolCode(normalizeSchoolCodeInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
           <label className="field" htmlFor="school-admin-activation-phone">Telefon Numaranız<input id="school-admin-activation-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
           {schoolAdminActivationStep === 'verify' ? <label className="field" htmlFor="school-admin-activation-code">6 haneli aktivasyon kodu<input id="school-admin-activation-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label> : <>
             <label className="field" htmlFor="school-admin-new-password">Yeni parolanız<input id="school-admin-new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
@@ -369,7 +370,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
       {schoolAdminResetStep && <Dialog title="Okul Yönetimi parola sıfırlama" description="Yanıt, hesap bilgilerini açıklamaz. Kod varsa kayıtlı e-posta adresine gönderilir." onClose={closeSchoolAdminReset} dismissible={!isSubmitting}>
         <form onSubmit={submitSchoolAdminReset} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field" htmlFor="school-admin-reset-school">Okul Kodu<input id="school-admin-reset-school" autoComplete="off" value={schoolAdminResetSchoolCode} onChange={(event) => setSchoolAdminResetSchoolCode(event.target.value)} readOnly={schoolAdminResetStep !== 'request'} required /></label>
+          <label className="field" htmlFor="school-admin-reset-school">Okul Kodu<input id="school-admin-reset-school" autoComplete="off" value={schoolAdminResetSchoolCode} onChange={(event) => setSchoolAdminResetSchoolCode(normalizeSchoolCodeInput(event.target.value))} readOnly={schoolAdminResetStep !== 'request'} required /></label>
           <label className="field" htmlFor="school-admin-reset-phone">Telefon Numaranız<input id="school-admin-reset-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminResetStep !== 'request'} required /></label>
           {schoolAdminResetStep === 'verify' && <label className="field" htmlFor="school-admin-reset-code">6 haneli sıfırlama kodu<input id="school-admin-reset-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>}
           {schoolAdminResetStep === 'password' && <><label className="field" htmlFor="school-admin-reset-password">Yeni parolanız<input id="school-admin-reset-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="field" htmlFor="school-admin-reset-confirm">Yeni parolanız, tekrar<input id="school-admin-reset-confirm" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}

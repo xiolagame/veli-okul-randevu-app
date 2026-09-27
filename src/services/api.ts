@@ -97,6 +97,8 @@ export const api = {
     request<{ success: boolean; emailSent: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(schoolId)}/admin-invitation/resend`, { method: 'POST' }),
   setSchoolStatus: (id: string, active: boolean) =>
     request<{ success: boolean }>(`/api/platform/schools/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  deleteSchool: (id: string) =>
+    request<{ success: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   updateSchoolCode: (id: string, code: string) =>
     request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),

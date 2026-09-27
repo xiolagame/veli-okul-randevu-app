@@ -7,6 +7,7 @@ import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { sendEmail } from './email';
 import { normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
+import { normalizeSchoolCodeInput } from '../src/utils/school-code';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
@@ -116,10 +117,10 @@ platformManagementRouter.get('/audit-logs', async (_req, res) => {
 
 platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res) => {
   const { name, city, district } = req.body;
-  let code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
+  let code = typeof req.body.code === 'string' ? normalizeSchoolCodeInput(req.body.code.trim()) : '';
   const automatic = !code;
   if ((req.body.code !== undefined && typeof req.body.code !== 'string') || typeof name !== 'string' || !name.trim() || name.trim().length > 255 ||
-      (!automatic && !/^[A-Za-z0-9_-]{3,50}$/.test(code)) ||
+      (!automatic && !/^[A-Z0-9_-]{3,50}$/.test(code)) ||
       typeof city !== 'string' || !city.trim() || city.trim().length > 100 ||
       typeof district !== 'string' || !district.trim() || district.trim().length > 100) {
     return res.status(400).json({ error: 'Okul adı, kodu, il ve ilçeyi kontrol edin.' });
@@ -132,14 +133,14 @@ platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res)
         do { code = randomBytes(5).toString('hex').toUpperCase(); }
         while ((await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code])).rows.length);
       }
-      const duplicate = await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code.toUpperCase()]);
+      const duplicate = await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code]);
       if (duplicate.rows.length) return null;
       const id = 'sch-' + randomUUID();
       const settings = { schoolName: name.trim(), appName: 'Veli Randevu', defaultSlotMinutes: 15,
         minSlotMinutes: 10, maxBookingDaysAhead: 30, allowParentCancel: true };
       const result = await tx.query(`INSERT INTO schools(id,name,code,city,district,settings)
         VALUES($1,$2,$3,$4,$5,$6::jsonb) RETURNING id,name,code,city,district,disabled_at AS "disabledAt"`,
-        [id,name.trim(),code.toUpperCase(),city.trim(),district.trim(),JSON.stringify(settings)]);
+        [id,name.trim(),code,city.trim(),district.trim(),JSON.stringify(settings)]);
       await auditLogRepository.createAuditLog({ schoolId: id, action: 'school.created', actorName: 'Platform yönetimi',
         details: JSON.stringify({ actorId: req.user!.id }) }, tx);
       return result.rows[0];
@@ -276,8 +277,67 @@ platformManagementRouter.patch('/schools/:id/status', async (req: AuthenticatedR
   } catch { res.status(500).json({ error: 'Okul durumu değiştirilemedi.' }); }
 });
 
+platformManagementRouter.delete('/schools/:id', async (req: AuthenticatedRequest, res) => {
+  const schoolId = String(req.params.id);
+  try {
+    const db = await getDb();
+    const result = await db.transaction(async (tx) => {
+      const school = await tx.query<{ disabled_at: string | null }>('SELECT disabled_at FROM schools WHERE id=$1 FOR UPDATE', [schoolId]);
+      if (!school.rows[0]) return 'missing' as const;
+      if (!school.rows[0].disabled_at) return 'active' as const;
+      const candidates = await tx.query<{ id: string }>(`SELECT DISTINCT id FROM (
+        SELECT user_id AS id FROM school_memberships WHERE school_id=$1
+        UNION SELECT parent_user_id AS id FROM student_parent_relations WHERE school_id=$1
+        UNION SELECT user_id AS id FROM teacher_profiles WHERE school_id=$1
+        UNION SELECT parent_id AS id FROM appointments WHERE school_id=$1
+        UNION SELECT approved_by AS id FROM appointments WHERE school_id=$1
+        UNION SELECT checked_in_by AS id FROM appointments WHERE school_id=$1
+        UNION SELECT user_id AS id FROM notifications WHERE school_id=$1
+        UNION SELECT target_user_id AS id FROM invitations WHERE school_id=$1
+        UNION SELECT created_by AS id FROM invitations WHERE school_id=$1
+        UNION SELECT created_by AS id FROM pending_staff WHERE school_id=$1
+      ) scoped_users WHERE id IS NOT NULL`, [schoolId]);
+      const candidateUserIds = candidates.rows.map((candidate) => candidate.id);
+      if (candidateUserIds.length) {
+        await tx.query('SELECT id FROM users WHERE id=ANY($1::text[]) FOR UPDATE', [candidateUserIds]);
+      }
+      const deleted = await tx.query('DELETE FROM schools WHERE id=$1 AND disabled_at IS NOT NULL RETURNING id', [schoolId]);
+      if (deleted.rows.length && candidateUserIds.length) {
+        const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+        await tx.query(`DELETE FROM users u
+          WHERE u.id=ANY($1::text[])
+            AND NOT (u.id=ANY($2::text[]))
+            AND NOT EXISTS (SELECT 1 FROM school_memberships sm WHERE sm.user_id=u.id)
+            AND NOT EXISTS (SELECT 1 FROM student_parent_relations spr WHERE spr.parent_user_id=u.id)
+            AND NOT EXISTS (SELECT 1 FROM teacher_profiles tp WHERE tp.user_id=u.id)
+            AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.parent_id=u.id OR a.approved_by=u.id OR a.checked_in_by=u.id)
+            AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id=u.id)
+            AND NOT EXISTS (SELECT 1 FROM invitations i WHERE i.target_user_id=u.id OR i.created_by=u.id)
+            AND NOT EXISTS (SELECT 1 FROM pending_staff ps WHERE ps.created_by=u.id)
+            AND NOT EXISTS (SELECT 1 FROM school_roster sr
+              WHERE RIGHT(regexp_replace(sr.parent_phone,'[^0-9]','','g'),10)=RIGHT(regexp_replace(u.phone,'[^0-9]','','g'),10))
+            AND NOT EXISTS (SELECT 1 FROM teacher_profiles tp
+              WHERE RIGHT(regexp_replace(tp.phone,'[^0-9]','','g'),10)=RIGHT(regexp_replace(u.phone,'[^0-9]','','g'),10))
+            AND NOT EXISTS (SELECT 1 FROM appointments a
+              WHERE RIGHT(regexp_replace(a.parent_phone,'[^0-9]','','g'),10)=RIGHT(regexp_replace(u.phone,'[^0-9]','','g'),10))
+            AND NOT EXISTS (SELECT 1 FROM invitations i
+              WHERE RIGHT(regexp_replace(i.target_phone,'[^0-9]','','g'),10)=RIGHT(regexp_replace(u.phone,'[^0-9]','','g'),10))
+            AND NOT EXISTS (SELECT 1 FROM pending_staff ps
+              WHERE RIGHT(regexp_replace(ps.phone,'[^0-9]','','g'),10)=RIGHT(regexp_replace(u.phone,'[^0-9]','','g'),10))`,
+          [candidateUserIds, platformAdminIds]);
+      }
+      return deleted.rows.length ? 'deleted' as const : 'missing' as const;
+    });
+    if (result === 'missing') return res.status(404).json({ error: 'Okul bulunamadı.' });
+    if (result === 'active') return res.status(409).json({ error: 'Aktif okul kalıcı olarak silinemez. Önce devre dışı bırakın.' });
+    return res.json({ success: true, message: 'Okul ve okula bağlı veriler kalıcı olarak silindi.' });
+  } catch {
+    return res.status(500).json({ error: 'Okul kalıcı olarak silinemedi.' });
+  }
+});
+
 platformManagementRouter.patch('/schools/:id/code', async (req: AuthenticatedRequest, res) => {
-  const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+  const code = typeof req.body?.code === 'string' ? normalizeSchoolCodeInput(req.body.code.trim()) : '';
   if (!/^[A-Z0-9_-]{3,50}$/.test(code)) return res.status(400).json({ error: 'Okul kodu 3–50 harf, rakam, tire veya alt çizgiden oluşmalıdır.' });
   const schoolId = String(req.params.id);
   try {

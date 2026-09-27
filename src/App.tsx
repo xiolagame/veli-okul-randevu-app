@@ -97,7 +97,7 @@ export const AppContent: React.FC = () => {
             </div>
             <h3 className="font-bold text-slate-900">Bu Okulda Kayıtlı Değilsiniz</h3>
             <p className="text-xs text-slate-500">
-              {currentSchool?.name} için erişim almak üzere okul yönetiminizden aktivasyon kodu isteyin.
+              {currentSchool?.name} Erişim almak için okul yönetiminizden aktivasyon kodu isteyin.
             </p>
             <button
               onClick={() => setShowOnboardingModal(true)}

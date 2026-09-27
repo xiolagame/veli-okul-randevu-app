@@ -535,7 +535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return updated ? asSchool(updated) : school;
           }));
           const active = currentSchool && result.schools.find((school) => school.id === currentSchool.id);
-          if (active?.disabledAt && platformContextActive) {
+          if ((!active || active.disabledAt) && currentSchool && platformContextActive) {
             await returnToPlatform();
           } else if (active) setCurrentSchool(asSchool(active));
         },

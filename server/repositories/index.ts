@@ -25,6 +25,7 @@ import {
 } from '../../src/types';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
 import { normalizePersonName } from '../../src/utils/person-name';
+import { normalizeSchoolCodeInput } from '../../src/utils/school-code';
 
 // Helper: executes query on transaction client if provided, else on global db
 async function execQuery<T = any>(
@@ -136,7 +137,7 @@ export const schoolRepository = {
   },
 
   async getByCode(code: string): Promise<School | null> {
-    const clean = code.trim().toUpperCase();
+    const clean = normalizeSchoolCodeInput(code.trim());
     const res = await execQuery<any>(
       `SELECT id, name, code, city, district, settings, created_at 
        FROM schools 
