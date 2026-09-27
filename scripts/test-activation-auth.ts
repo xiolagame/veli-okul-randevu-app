@@ -64,7 +64,7 @@ async function run() {
     const racePasswordA = createTestPassword();
     const racePasswordB = createTestPassword();
     const expiredPassword = createTestPassword();
-    const weakPassword = 'x'.repeat(7);
+    const weakPassword = 'x'.repeat(4);
     const adminPhone = '+905559998877';
     assert(normalizeTurkishPhone('0555 123 45 67') === '+905551234567', 'Local phone format must normalize.');
     assert(normalizeTurkishPhone('5551234567') === '+905551234567', 'Subscriber phone format must normalize.');

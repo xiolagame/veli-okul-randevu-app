@@ -45,6 +45,8 @@ const context = {
 };
 const output: { SecurityView?: () => ElementNode } = {};
 const source = fs.readFileSync('src/components/SecurityView.tsx', 'utf8');
+assert.doesNotMatch(source, /checkOutVisitor|Çıkışı kaydet|Ziyareti Tamamla/);
+assert.equal(dates.formatAppointmentDateTime('2026-09-27', '14:40'), '14:40 27.09.2026');
 const javascript = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
 vm.runInNewContext(javascript, {
   exports: output,

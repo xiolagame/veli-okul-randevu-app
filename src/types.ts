@@ -73,6 +73,7 @@ export interface User {
   firstName: string;
   lastName: string;
   phone: string;
+  email?: string;
   branch?: string; // For teachers
   students?: Student[]; // For parents (in current active school)
   securityQuestion?: string;

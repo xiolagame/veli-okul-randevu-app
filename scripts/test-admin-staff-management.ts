@@ -31,6 +31,12 @@ async function run() {
   const schoolId = `staff-school-${suffix}`;
   const otherSchoolId = `staff-other-${suffix}`;
   const schoolCode = `ST${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+  const emailSuffix = crypto.randomBytes(8).toString('hex');
+  const teacherEmail = `teacher-${emailSuffix}@example.test`;
+  const pendingTeacherEmail = `teacher-pending-${emailSuffix}@example.test`;
+  const updatedTeacherEmail = `teacher-updated-${emailSuffix}@example.test`;
+  const securityEmail = `security-${emailSuffix}@example.test`;
+  const updatedSecurityEmail = `security-updated-${emailSuffix}@example.test`;
   let teacherId = '';
   const phones: string[] = [];
   const app = express();
@@ -73,7 +79,7 @@ async function run() {
     const foreignAdmin = await fixture('admin',otherSchoolId);
     const teacherPhone = phone();
     const staffPath = `/schools/${schoolId}/staff`;
-    const created = await request('POST',staffPath,admin.token,{schoolId:otherSchoolId,role:'teacher',fullName:'Local Teacher',branch:'Türkçe',phone:`0${teacherPhone.slice(3)}`,email:'teacher@example.test'});
+    const created = await request('POST',staffPath,admin.token,{schoolId:otherSchoolId,role:'teacher',fullName:'Local Teacher',branch:'Türkçe',phone:`0${teacherPhone.slice(3)}`,email:teacherEmail});
     assert.equal(created.status,201);
     assert.equal(created.body.success,true);
     assert.equal('code' in created.body,false);
@@ -85,7 +91,10 @@ async function run() {
     assert.equal(pending.userId ?? null,null);
     assert.equal(pending.accountStatus,'pending');
     assert.equal((await db.query('SELECT user_id FROM teacher_profiles WHERE school_id=$1 AND id=$2',[schoolId,teacherId])).rows[0].user_id,null);
-    assert.equal(sentEmails[0].to,'teacher@example.test');
+    assert.equal(sentEmails[0].to,teacherEmail);
+    assert.match(sentEmails[0].html,/Personel İlk Giriş/);
+    assert.match(sentEmails[0].html,new RegExp(schoolCode));
+    assert(!sentEmails[0].html.includes(`${schoolCode}.`));
     assert.equal((await auditLogRepository.getAuditLogs(schoolId)).some((row) => row.action === 'admin_staff_created'),true);
     assert.equal((await request('POST',staffPath,admin.token,{role:'teacher',fullName:'Cross School',branch:'Türkçe',phone:teacherPhone,email:'x@example.test'})).status,409);
     assert.equal((await request('POST',staffPath,admin.token,{role:'teacher',fullName:'Invalid Phone',branch:'Türkçe',phone:'123',email:'x@example.test'})).status,400);
@@ -99,9 +108,16 @@ async function run() {
 
     const activationCode = emailCode(0);
     assert.match(activationCode,/^\d{6}$/);
+    assert.equal((await request('PATCH',`/schools/${schoolId}/management/teacher/${teacherId}`,admin.token,
+      {fullName:'Local Teacher',branch:'Türkçe',phone:teacherPhone,email:pendingTeacherEmail})).status,200);
+    assert.equal((await db.query('SELECT email,user_id FROM teacher_profiles WHERE id=$1',[teacherId])).rows[0].email,pendingTeacherEmail);
+    assert.equal((await db.query('SELECT email,user_id FROM teacher_profiles WHERE id=$1',[teacherId])).rows[0].user_id,null);
+    assert.equal((await db.query("SELECT COUNT(*)::text AS count FROM invitations WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation' AND is_active=TRUE",[schoolId,teacherPhone])).rows[0].count,'0');
+    assert.equal((await request('POST','/auth/staff/activation-verify',undefined,{schoolCode,phone:teacherPhone,code:activationCode})).status,400);
     assert.equal((await request('POST',`/schools/${schoolId}/staff/teacher/${teacherId}/resend-activation`,admin.token)).status,429);
     await db.query("UPDATE invitations SET created_at=NOW()-INTERVAL '61 seconds' WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation'",[schoolId,teacherPhone]);
     assert.equal((await request('POST',`/schools/${schoolId}/staff/teacher/${teacherId}/resend-activation`,admin.token)).status,200);
+    assert.equal(sentEmails[1].to,pendingTeacherEmail);
     assert.equal((await request('POST','/auth/staff/activation-verify',undefined,{schoolCode,phone:teacherPhone,code:activationCode})).status,400);
     const resentActivationCode=emailCode(1);
     assert.notEqual(resentActivationCode,activationCode);
@@ -114,7 +130,7 @@ async function run() {
     const validVerify = await request('POST','/auth/staff/activation-verify',undefined,{schoolCode,phone:teacherPhone,code:resentActivationCode});
     assert.equal(validVerify.status,200);
     assert.equal(typeof validVerify.body.setupToken,'string');
-    const password = crypto.randomBytes(24).toString('base64url');
+    const password = 'Ab123';
     assert.equal((await request('POST','/auth/staff/activation-complete',undefined,{schoolId,phone:teacherPhone,setupToken:validVerify.body.setupToken,password})).status,200);
     assert.equal((await request('POST','/auth/staff/activation-complete',undefined,{schoolId,phone:teacherPhone,setupToken:validVerify.body.setupToken,password})).status,400);
     const login = await request('POST','/auth/login',undefined,{phone:teacherPhone,password});
@@ -125,18 +141,27 @@ async function run() {
     assert(linked);
     const stableTeacherId = (await db.query('SELECT user_id FROM teacher_profiles WHERE school_id=$1 AND id=$2',[schoolId,teacherId])).rows[0];
     assert.equal(stableTeacherId.user_id,linked.id);
+    assert.equal((await request('PATCH',`/schools/${schoolId}/management/teacher/${teacherId}`,admin.token,
+      {fullName:'Local Teacher',branch:'Türkçe',phone:teacherPhone,email:updatedTeacherEmail})).status,200);
+    assert.equal((await db.query('SELECT email FROM users WHERE id=$1',[linked.id])).rows[0].email,updatedTeacherEmail);
+    assert.equal((await db.query('SELECT email FROM teacher_profiles WHERE id=$1',[teacherId])).rows[0].email,updatedTeacherEmail);
     assert.equal((await request('POST',`/schools/${otherSchoolId}/staff`,foreignAdmin.token,{role:'teacher',fullName:'Same Teacher',branch:'Dil',phone:teacherPhone,email:'other@example.test'})).status,409);
 
     const securityPhone = phone();
     failNextEmail = true;
-    const createSecurity = await request('POST',staffPath,admin.token,{role:'security',fullName:'Local Security',phone:securityPhone,email:'security@example.test'});
+    const createSecurity = await request('POST',staffPath,admin.token,{role:'security',fullName:'Local Security',phone:securityPhone,email:securityEmail});
     assert.equal(createSecurity.status,503);
     const pendingUsers = await request('GET',`/schools/${schoolId}/users?role=security`,admin.token);
     assert((pendingUsers.body.users as Array<Record<string,unknown>>).some((row) => row.accountStatus === 'pending' && row.phone === securityPhone));
     assert.equal((await request('POST',`/schools/${schoolId}/staff/security/${String((pendingUsers.body.users as Array<Record<string,unknown>>).find((row) => row.phone === securityPhone)?.id)}/resend-activation`,admin.token)).status,429);
     await db.query("UPDATE invitations SET created_at=NOW()-INTERVAL '61 seconds' WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation'",[schoolId,securityPhone]);
     const pendingSecurityId=String((pendingUsers.body.users as Array<Record<string,unknown>>).find((row) => row.phone === securityPhone)?.id);
+    assert.equal((await request('PATCH',`/schools/${schoolId}/management/security/${pendingSecurityId}`,admin.token,
+      {fullName:'Local Security',phone:securityPhone,email:updatedSecurityEmail})).status,200);
+    assert.equal((await db.query("SELECT email FROM pending_staff WHERE id=$1",[pendingSecurityId])).rows[0].email,updatedSecurityEmail);
+    assert.equal((await db.query("SELECT COUNT(*)::text AS count FROM invitations WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation' AND is_active=TRUE",[schoolId,securityPhone])).rows[0].count,'0');
     assert.equal((await request('POST',`/schools/${schoolId}/staff/security/${pendingSecurityId}/resend-activation`,admin.token)).status,200);
+    assert.equal(sentEmails[2].to,updatedSecurityEmail);
     const newSecurityCode = emailCode(2);
     const securityVerify = await request('POST','/auth/staff/activation-verify',undefined,{schoolCode,phone:securityPhone,code:newSecurityCode});
     assert.equal(securityVerify.status,200);
@@ -148,12 +173,12 @@ async function run() {
     const resetRequest = await request('POST','/auth/staff/reset-request',undefined,{schoolCode,phone:teacherPhone,email:'attacker@example.test'});
     assert.equal(resetRequest.status,200);
     assert.equal(resetRequest.body.message,'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.');
-    assert.equal(sentEmails[3].to,'teacher@example.test');
+    assert.equal(sentEmails[3].to,updatedTeacherEmail);
     const resetCode = emailCode(3);
     assert.equal((await request('POST','/auth/staff/reset-verify',undefined,{schoolCode,phone:teacherPhone,code:activationCode})).status,400);
     const resetVerify = await request('POST','/auth/staff/reset-verify',undefined,{schoolCode,phone:teacherPhone,code:resetCode});
     assert.equal(resetVerify.status,200);
-    const replacement = crypto.randomBytes(24).toString('base64url');
+    const replacement = 'Cd456';
     assert.equal((await request('POST','/auth/staff/reset-complete',undefined,{schoolId,phone:teacherPhone,setupToken:resetVerify.body.setupToken,password:replacement})).status,200);
     assert.equal((await request('POST','/auth/login',undefined,{phone:teacherPhone,password})).status,401);
     assert.equal((await request('POST','/auth/login',undefined,{phone:teacherPhone,password:replacement})).status,200);

@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime, formatDatesInText } from '../utils/dates';
+import { formatAppointmentDateTime, formatDate, formatDateTime, formatDatesInText } from '../utils/dates';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, EmptyState, PageHeader, StatusBadge } from './ui';
 import { useApp } from '../context/AppContext';
@@ -12,14 +12,13 @@ import {
   Search,
   CheckCircle2,
   AlertTriangle,
-  LogOut,
   Calendar,
   LogIn,
   X,
 } from 'lucide-react';
 
 export const SecurityView: React.FC = () => {
-  const { appointments, verifySecurityQr, checkInVisitor, checkOutVisitor, settings } = useApp();
+  const { appointments, verifySecurityQr, checkInVisitor, settings } = useApp();
   const todayStr = getTodayDateString();
 
   const [busy, setBusy] = useState(false);
@@ -37,19 +36,16 @@ export const SecurityView: React.FC = () => {
   const startingRef = useRef(false);
   const cameraRunRef = useRef(0);
 
-  const [segment, setSegment] = useState<'all' | 'expected' | 'inside' | 'done'>('all');
+  const [segment, setSegment] = useState<'all' | 'expected' | 'inside'>('all');
 
   // Filter today's appointments
   const todayAppointments = appointments.filter((a) => a.date === todayStr);
 
   const expectedVisitors = todayAppointments.filter((a) => a.status === 'booked');
   const insideVisitors = todayAppointments.filter((a) => a.status === 'checked_in');
-  const checkedOutVisitors = todayAppointments.filter((a) => a.status === 'checked_out');
-
   const displayedAppointments = todayAppointments.filter((a) => {
     if (segment === 'expected') return a.status === 'booked';
     if (segment === 'inside') return a.status === 'checked_in';
-    if (segment === 'done') return a.status === 'checked_out';
     return true;
   });
 
@@ -174,19 +170,6 @@ export const SecurityView: React.FC = () => {
     }
   };
 
-  const handleManualCheckOut = async (id: string) => {
-    setBusy(true);
-    setError('');
-    try {
-      await checkOutVisitor(id);
-      setVerifyResult(null);
-    } catch {
-      setError('Çıkış kaydedilemedi. Lütfen tekrar deneyin.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const resultTone = verifyResult?.allowed ? 'success' : verifyResult?.decision === 'TOO_EARLY' || verifyResult?.decision === 'PENDING_APPROVAL' ? 'warning' : 'danger';
   const showAppointmentDetails = verifyResult?.appointment && ['APPROVED', 'TOO_EARLY', 'ALREADY_CHECKED_IN'].includes(verifyResult.decision);
 
@@ -209,7 +192,7 @@ export const SecurityView: React.FC = () => {
                 {verifyResult.allowed ? <CheckCircle2 className="camera-result-icon" /> : <AlertTriangle className="camera-result-icon" />}
                 <h2>{verifyResult.title}</h2><p>{formatDatesInText(verifyResult.message)}</p>
                 {error && <p role="alert">{error}</p>}
-                {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Tarih</dt><dd>{formatDate(verifyResult.appointment.date)}</dd></div><div><dt>Saat</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div>{verifyResult.decision === 'ALREADY_CHECKED_IN' && verifyResult.appointment.checkedInAt && <div><dt>Giriş zamanı</dt><dd>{formatDateTime(verifyResult.appointment.checkedInAt)}</dd></div>}</dl>}
+                {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Randevu</dt><dd>{formatAppointmentDateTime(verifyResult.appointment.date, verifyResult.appointment.startTime)}</dd></div><div><dt>Saat aralığı</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div>{verifyResult.decision === 'ALREADY_CHECKED_IN' && verifyResult.appointment.checkedInAt && <div><dt>Giriş zamanı</dt><dd>{formatDateTime(verifyResult.appointment.checkedInAt)}</dd></div>}</dl>}
                 {verifyResult.allowed && !checkInComplete && <Button className="w-full" disabled={busy} onClick={handleCheckIn}><LogIn size={19} />Girişi Kaydet</Button>}
                 <Button variant="secondary" className="w-full" disabled={busy} onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button>
               </> : <><AlertTriangle className="camera-result-icon" /><h2>QR DOĞRULANAMADI</h2><p>{error}</p><Button className="w-full" onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button></>}
@@ -227,16 +210,14 @@ export const SecurityView: React.FC = () => {
         </section>
       </div>
       <section className="surface mt-7">
-        <div className="section-heading"><div><h2>Bugünkü ziyaretler</h2><p>{insideVisitors.length} kişi okulda · {expectedVisitors.length} kişi bekleniyor · {checkedOutVisitors.length} ziyaret tamamlandı</p></div></div>
+        <div className="section-heading"><div><h2>Bugünkü ziyaretler</h2><p>{insideVisitors.length} kişi okulda · {expectedVisitors.length} kişi bekleniyor</p></div></div>
         <div className="chips mb-6">{[
           { id: 'all' as const, label: 'Tümü' },
           { id: 'expected' as const, label: `Beklenen (${expectedVisitors.length})` },
           { id: 'inside' as const, label: `Okulda (${insideVisitors.length})` },
-          { id: 'done' as const, label: 'Tamamlanan' },
         ].map((item) => <button key={item.id} type="button" aria-pressed={segment === item.id} onClick={() => setSegment(item.id)}>{item.label}</button>)}</div>
         {displayedAppointments.length ? <div className="space-y-4">{displayedAppointments.map((appointment) => <article className="appointment-card" key={appointment.id}><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.parentName}</h3><p>{appointment.studentName} · {appointment.className}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">Görüşülecek öğretmen: {appointment.teacherName} · {appointment.teacherBranch}</p><p className="mt-1">{appointment.parentPhone}</p><div className="appointment-actions">
           {appointment.status === 'booked' && <Button variant="secondary" disabled={busy} onClick={() => { if (appointment.qrToken) { window.scrollTo({ top: 0, behavior: 'smooth' }); void verifyCode(appointment.qrToken); } }}><Search size={17} />QR doğrula</Button>}
-          {appointment.status === 'checked_in' && <Button variant="secondary" disabled={busy} onClick={() => handleManualCheckOut(appointment.id)}><LogOut size={17} />Çıkışı kaydet</Button>}
         </div></div></article>)}</div> : <EmptyState icon={Calendar} title="Bu görünümde ziyaret bulunmuyor" description="Bugünün randevuları ve giriş durumları burada listelenir." />}
       </section>
     </main>

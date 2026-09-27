@@ -180,10 +180,10 @@ export const schoolRepository = {
 export const userRepository = {
   async getSecurityUsers(schoolId: string): Promise<User[]> {
     const result = await execQuery<{
-      id: string; first_name: string; last_name: string; phone: string;
+      id: string; first_name: string; last_name: string; phone: string; email: string | null;
       account_status: 'active' | 'pending';
     }>(
-      `SELECT u.id, u.first_name, u.last_name, u.phone,
+      `SELECT u.id, u.first_name, u.last_name, u.phone, u.email,
          CASE WHEN NULLIF(u.password_hash, '') IS NOT NULL THEN 'active' ELSE 'pending' END AS account_status
        FROM users u
        WHERE EXISTS (
@@ -196,7 +196,7 @@ export const userRepository = {
     );
     return result.rows.map((row) => ({
       id: row.id, firstName: normalizePersonName(row.first_name), lastName: normalizePersonName(row.last_name),
-      phone: row.phone, role: 'security', accountStatus: row.account_status,
+      phone: row.phone, email: row.email || undefined, role: 'security', accountStatus: row.account_status,
     }));
   },
 

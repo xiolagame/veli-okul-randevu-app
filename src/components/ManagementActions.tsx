@@ -15,7 +15,7 @@ interface Props {
 }
 
 const titles = { teacher: 'Öğretmen', parent: 'Veli', student: 'Öğrenci', security: 'Güvenlik personeli', roster: 'Veli ve öğrenci kütüğü' };
-const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No', birthDate: 'Doğum Tarihi' };
+const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', email: 'E-posta', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No', birthDate: 'Doğum Tarihi' };
 
 export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
@@ -66,7 +66,7 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged, showR
       <form onSubmit={submit} className="form-stack">
         {mode === 'remove' ? <Alert tone="warning">{kind === 'student' ? studentImpact ? <>{studentImpact.studentName} okuldan tamamen kaldırılacak. Bu öğrenciye ait okul ilişkileri silinecek, açık randevuları iptal edilecektir. {studentImpact.siblingAccounts > 0 && 'Bu veli hesabına başka öğrenciler de bağlı; veli hesabı korunacaktır. '}{studentImpact.deletedAccounts > 0 && `${studentImpact.deletedAccounts} veli hesabı başka öğrenci veya role bağlı olmadığı için tamamen silinecektir. `}{studentImpact.preservedAccounts > studentImpact.siblingAccounts && 'Başka erişimi bulunan veli hesapları korunacaktır.'}</> : 'Silme etkisi kontrol ediliyor…' : kind === 'teacher' ? 'Bu öğretmen sistemden kaldırılacaktır. Öğretmene ait randevular, müsaitlik bilgileri ve personel kayıtları silinecektir. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?' : 'Bu kişinin bu okuldaki erişimi kaldırılacak. Geçmiş randevular ve diğer okul üyelikleri korunur. Devam etmek istiyor musunuz?'}</Alert> :
           Object.entries(draft).map(([key, value]) => <label className="field" key={key}>{labels[key]}
-            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : 'text'} inputMode={key === 'phone' || key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'birthDate' ? 'GG/AA/YYYY' : key === 'phone' || key === 'parentPhone' ? '0543 222 22 22' : undefined} required={key !== 'studentNumber' && key !== 'birthDate'} value={value}
+            <input type={key === 'phone' || key === 'parentPhone' ? 'tel' : key === 'email' ? 'email' : 'text'} inputMode={key === 'phone' || key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'birthDate' ? 'GG/AA/YYYY' : key === 'phone' || key === 'parentPhone' ? '0543 222 22 22' : undefined} required={key !== 'studentNumber' && key !== 'birthDate'} value={value}
               maxLength={key === 'phone' || key === 'parentPhone' ? 14 : key === 'birthDate' ? 10 : key === 'className' || key === 'studentNumber' ? 50 : key === 'branch' ? 100 : 150}
               onChange={(event) => setDraft({ ...draft, [key]: key === 'phone' || key === 'parentPhone' ? formatTurkishPhoneInput(event.target.value) : key === 'birthDate' ? formatBirthDateInput(event.target.value) : ['fullName', 'name', 'parentName', 'studentName'].includes(key) ? uppercasePersonNameInput(event.target.value) : event.target.value })} />
           </label>)}

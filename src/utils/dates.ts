@@ -14,6 +14,12 @@ export function formatDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+export function formatAppointmentDateTime(date: string, time: string): string {
+  const formattedDate = formatDate(date);
+  if (formattedDate === '—' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return '—';
+  return `${time} ${formattedDate.replace(/\//g, '.')}`;
+}
+
 export function formatDateTime(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value);
   if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return formatDatesInText(value);

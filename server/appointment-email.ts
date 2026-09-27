@@ -52,6 +52,9 @@ export async function sendAppointmentRequestEmail(data: {
   const link = `${origin}/#appointment-review=${encodeURIComponent(data.appointment.schoolId)}.${token}`;
   const appointment = data.appointment;
   const date = appointment.date.split('-').reverse().join('/');
+  const note = appointment.notes?.trim()
+    ? `<p style="margin-bottom:4px;font-weight:600">Veli Notu</p><p>${escapeHtml(appointment.notes.trim())}</p>`
+    : '';
   await sendEmail({ to: data.teacherEmail, subject: 'Veli Randevu — Yeni Randevu Talebi',
-    html: `<p>Merhaba ${escapeHtml(data.teacherName)},</p><p>${escapeHtml(data.schoolName)} okulunda ${escapeHtml(appointment.className)} sınıfındaki ${escapeHtml(appointment.studentName)} öğrencisinin velisi ${escapeHtml(appointment.parentName)}, ${escapeHtml(date)} tarihinde ${escapeHtml(appointment.startTime)}–${escapeHtml(appointment.endTime)} saatleri için randevu talebi oluşturmuştur.</p><p>Müsaitseniz velinin okula giriş izninin oluşturulabilmesi için lütfen randevuyu inceleyip onaylayınız.</p><p><a href="${escapeHtml(link)}">Randevu Talebini İncele</a></p><p>Bağlantı 24 saat geçerlidir. Onaylamak için öğretmen hesabınızla giriş yapmanız gerekir.</p>` });
+    html: `<p>Merhaba ${escapeHtml(data.teacherName)},</p><p>${escapeHtml(data.schoolName)} okulunda ${escapeHtml(appointment.className)} sınıfındaki ${escapeHtml(appointment.studentName)} öğrencisinin velisi ${escapeHtml(appointment.parentName)}, ${escapeHtml(date)} tarihinde ${escapeHtml(appointment.startTime)}–${escapeHtml(appointment.endTime)} saatleri için randevu talebi oluşturmuştur.</p>${note}<p>Müsaitseniz velinin okula giriş izninin oluşturulabilmesi için lütfen randevuyu inceleyip onaylayınız.</p><p><a href="${escapeHtml(link)}">Randevu Talebini İncele</a></p><p>Bağlantı 24 saat geçerlidir. Onaylamak için öğretmen hesabınızla giriş yapmanız gerekir.</p>` });
 }

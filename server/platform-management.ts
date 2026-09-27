@@ -4,13 +4,14 @@ import { authMiddleware, AuthenticatedRequest, isPlatformAdmin } from './auth';
 import { checkDatabaseHealth, getDb } from './database/postgres';
 import { auditLogRepository, invitationRepository, membershipRepository, schoolRepository, userRepository } from './repositories';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
-import { sendEmail } from './email';
 import { normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
 import { normalizeSchoolCodeInput } from '../src/utils/school-code';
+import { deliverSchoolAdminCode } from './school-admin-email';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
+  if (/^\/schools\/[^/]+\/management\/admins(?:\/[^/]+(?:\/resend)?)?$/.test(path) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/students\/[^/]+\/removal$/.test(path) && ['GET', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/audit-logs$/.test(path) && method === 'DELETE') return true;
   if (/^\/schools\/[^/]+\/management\/(teacher|parent|security|student|roster)\/[^/]+$/.test(path) && ['PATCH', 'DELETE'].includes(method)) return true;
@@ -73,28 +74,6 @@ platformManagementRouter.get('/schools', async (_req, res) => {
     res.json({ schools: result.rows.map((school) => ({ ...school, adminName: school.adminName ? normalizePersonName(school.adminName) : null })) });
   } catch { res.status(500).json({ error: 'Okullar yüklenemedi.' }); }
 });
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-}
-
-function schoolAdminEmail(schoolName: string, schoolCode: string, fullName: string, code: string, reset = false): { subject: string; html: string } {
-  const action = reset ? 'parola sıfırlama' : 'ilk hesap aktivasyonu';
-  return {
-    subject: `Veli Randevu Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'İlk Giriş'}`,
-    html: `<p>Merhaba ${escapeHtml(fullName)},</p><p>${escapeHtml(schoolName)} için ${action} kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>${reset ? 'Kod 15 dakika içinde sona erer.' : `Okul kodu: ${escapeHtml(schoolCode)}. Kod 24 saat içinde sona erer.`} Kod tek kullanımlıdır. Veli Randevu</p>`,
-  };
-}
-
-async function deliverSchoolAdminCode(to: string, schoolName: string, schoolCode: string, fullName: string, code: string, reset = false): Promise<boolean> {
-  try {
-    const email = schoolAdminEmail(schoolName, schoolCode, fullName, code, reset);
-    await sendEmail({ to, ...email });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 platformManagementRouter.get('/security', async (_req, res) => {
   const health = await checkDatabaseHealth();
@@ -169,14 +148,6 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
       if (!school.rows[0]) throw new Error('SCHOOL_NOT_AVAILABLE');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       await tx.query('LOCK TABLE invitations IN SHARE ROW EXCLUSIVE MODE');
-      const activeSchoolAdmin = await tx.query<{ id: string }>(`SELECT sm.user_id AS id FROM school_memberships sm JOIN users u ON u.id=sm.user_id
-        WHERE sm.school_id=$1 AND sm.role='admin' AND sm.status='active'`, [schoolId]);
-      const realSchoolAdmin = activeSchoolAdmin.rows.find((entry) => !isPlatformAdmin(entry.id));
-      if (realSchoolAdmin) throw new Error('SCHOOL_ADMIN_ALREADY_ASSIGNED');
-      const pendingSchoolAdmin = await tx.query(`SELECT id FROM invitations WHERE school_id=$1 AND purpose='school_admin_activation'
-        AND is_active=TRUE AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [schoolId]);
-      if (pendingSchoolAdmin.rows.length) throw new Error('SCHOOL_ADMIN_INVITATION_PENDING');
-
       const existingUser = await userRepository.getByPhone(phone, tx);
       if (existingUser) {
         const userState = await tx.query<{ email: string | null; password_hash: string | null; first_name: string | null; last_name: string | null; is_phone_verified: boolean }>(
@@ -209,8 +180,6 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
     });
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'SCHOOL_NOT_AVAILABLE') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_INVITATION_PENDING') return res.status(409).json({ error: 'Bu okul için bir yönetici aktivasyonu zaten bekliyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_INVITATION_PENDING') return res.status(409).json({ error: 'Bu okul yöneticisi için zaten bir aktivasyon daveti bekliyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş. Farklı bir yönetici bilgisi kullanın.' });
     return res.status(500).json({ error: 'Okul yöneticisi daveti oluşturulamadı.' });

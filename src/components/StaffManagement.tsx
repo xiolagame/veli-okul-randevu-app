@@ -9,23 +9,15 @@ import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { StaffDraft, validateStaffForm } from '../utils/staff-form';
 
-export interface StaffCodeTarget {
-  type: 'teacher' | 'security';
-  id: string;
-  label: string;
-  phone: string;
-}
-
 interface StaffManagementProps {
   teachers: TeacherProfile[];
   securityUsers: User[];
   loading: boolean;
   error: string;
-  onIssue: (target: StaffCodeTarget, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET') => void;
   onCreateTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
 }
 
-export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onIssue, onCreateTeacher }) => {
+export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onCreateTeacher }) => {
   const { currentSchool, refreshSchoolData } = useApp();
   const [search, setSearch] = useState('');
   const [showCreateTeacher, setShowCreateTeacher] = useState(false);
@@ -93,7 +85,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
       {resendMessage && <p role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{resendMessage}</p>}
       {!loading && !error && sections.map(({ type, title, Icon, empty, description, records }) => {
         const filtered = records.filter((record) =>
-          [record.firstName, record.lastName, record.branch || '', record.phone].join(' ').toLocaleLowerCase('tr-TR').includes(query)
+          [record.firstName, record.lastName, record.branch || '', record.phone, record.email || ''].join(' ').toLocaleLowerCase('tr-TR').includes(query)
         );
         return (
           <section key={type} className="space-y-3">
@@ -115,12 +107,13 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                     <div className="flex gap-3 items-center mb-4"><h5 className="text-base font-bold text-slate-900">{label}</h5></div>
                     <p className="text-sm text-slate-500">{type === 'teacher' ? record.branch : 'Güvenlik'}</p>
                     <p className="mt-2 break-words text-sm text-slate-700">{record.phone || 'Telefon tanımlı değil'}</p>
+                    <p className="mt-1 break-all text-sm text-slate-600">{record.email || 'E-posta tanımlı değil'}</p>
                     <span className={`mt-3 inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                       {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
                     </span>
                     {!phone && <p className="mt-2 text-xs text-slate-500">Aktivasyon kodu oluşturmak için geçerli telefon numarası gereklidir.</p>}
-                    {currentSchool && !(type === 'security' && status === 'pending') && <ManagementActions schoolId={currentSchool.id} kind={type} id={record.id}
-                      values={{ fullName: label, phone: record.phone || '', ...(type === 'teacher' ? { branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
+                    {currentSchool && <ManagementActions schoolId={currentSchool.id} kind={type} id={record.id}
+                      values={{ fullName: label, phone: record.phone || '', email: record.email || '', ...(type === 'teacher' ? { branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
                     {status === 'pending' && currentSchool && <Button className="mt-5 w-full" disabled={!actionable} onClick={async () => {
                       try { const result = await api.resendStaffActivation(currentSchool.id, type, record.id); setResendMessage(result.message); }
                       catch (cause) { setResendMessage(cause instanceof Error ? cause.message : 'E-posta yeniden gönderilemedi.'); }

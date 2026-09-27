@@ -45,6 +45,7 @@ export function AppointmentEmailReview({ schoolId, token }: { schoolId: string; 
           <div><dt className="font-semibold">Saat</dt><dd>{appointment.startTime}–{appointment.endTime}</dd></div>
           <div><dt className="font-semibold">Öğretmen</dt><dd>{normalizePersonName(appointment.teacherName)}</dd></div>
         </dl>
+        {appointment.notes && <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h2 className="font-semibold text-slate-900">Veli Notu</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-700">{appointment.notes}</p></section>}
         {appointment.status === 'pending' && !approved ? <Button disabled={busy} onClick={() => { void approve(); }}>{busy ? 'Onaylanıyor…' : 'Randevuyu Onayla'}</Button>
           : !approved && <Alert tone="warning">Bu randevu artık onay beklemiyor.</Alert>}
       </>}

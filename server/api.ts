@@ -245,7 +245,7 @@ apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
       if (!claimed) throw new Error('INVALID_PARENT_CHALLENGE');
       await auditLogRepository.createAuditLog({ schoolId, action: 'parent_self_registration_completed', actorName: 'Sistem', details: `Veli hesabı ${user.id} oluşturuldu.` }, tx);
     });
-    return res.json({ success: true, message: 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.' });
+    return res.json({ success: true, message: 'Hesabınız oluşturuldu. Oluşturduğunuz şifre ile giriş yapabilirsiniz.' });
   } catch {
     return res.status(400).json({ error: PARENT_AUTH_ERROR });
   }
@@ -373,7 +373,7 @@ apiRouter.post('/auth/staff/activation-complete', async (req, res) => {
       else await userRepository.updatePasswordHash(user.id,hashPassword(req.body.password as string),tx);
       await auditLogRepository.createAuditLog({schoolId,action:'staff_activation_completed',actorName:'Sistem',details:`${setup.targetRole} hesabı ${user.id} etkinleştirildi.`},tx);
     });
-    return res.json({success:true,message:'Hesabınız etkinleştirildi. Yeni şifrenizle giriş yapabilirsiniz.'});
+    return res.json({success:true,message:'Hesap aktivasyonunuz tamamlanmıştır. Oluşturduğunuz şifre ile giriş yapabilirsiniz.'});
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({error:'Bu öğretmen başka bir okulda kayıtlı.'});
     return res.status(400).json({error:AUTH_CODE_ERROR});
@@ -521,19 +521,15 @@ apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
       if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
       const memberships = await tx.query('SELECT school_id,role,status FROM school_memberships WHERE user_id=$1 LIMIT 1', [setup.targetUserId]);
       if (memberships.rows.length) throw new Error('SCHOOL_ADMIN_IDENTITY_IN_USE');
-      const activeSchoolAdmins = await tx.query<{ id: string }>(`SELECT sm.user_id AS id FROM school_memberships sm
-        WHERE sm.school_id=$1 AND sm.role='admin' AND sm.status='active'`, [schoolId]);
-      if (activeSchoolAdmins.rows.some((entry) => !isPlatformAdmin(entry.id))) throw new Error('SCHOOL_ADMIN_ALREADY_ASSIGNED');
       const hashedPassword = hashPassword(req.body.password as string);
       await userRepository.updatePasswordHashAndInvalidateSessions(setup.targetUserId, hashedPassword, tx);
       await membershipRepository.createOrActivate({ schoolId, userId: setup.targetUserId, role: 'admin' }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_completed', actorName: 'Sistem',
         details: `Okul yöneticisi ${setup.targetUserId} etkinleştirildi.` }, tx);
     });
-    return res.json({ success: true, message: 'Okul yöneticisi hesabınız etkinleştirildi. Yeni parolanızla giriş yapabilirsiniz.' });
+    return res.json({ success: true, message: 'Hesap aktivasyonunuz tamamlanmıştır. Oluşturduğunuz şifre ile giriş yapabilirsiniz.' });
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş.' });
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
     return res.status(400).json({ error: AUTH_CODE_ERROR });
   }
 });
@@ -785,7 +781,7 @@ async function emailStaffActivation(data: { schoolId: string; role: 'teacher' | 
   try { await sendEmail({
     to: data.email,
     subject: 'Veli Randevu Hesap Aktivasyonu',
-    html: `<p>Merhaba ${escapeHtml(`${data.firstName} ${data.lastName}`.trim())},</p><p>${escapeHtml(school.name)} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.</p><p>Aktivasyon kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>İlk girişte cep telefonu numaranız ve bu kod ile hesabınızı aktifleştirerek kendi şifrenizi oluşturabilirsiniz.</p><p>Kodun geçerlilik süresi: 24 saat. Bu kod tek kullanımlıktır.</p><p>Veli Randevu</p>`,
+    html: `<p>Merhaba ${escapeHtml(`${data.firstName} ${data.lastName}`.trim())},</p><p>${escapeHtml(school.name)} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.</p><p style="margin-bottom:4px;font-weight:600">Okul Kodu</p><p style="font-size:26px;font-weight:bold;letter-spacing:3px;margin-top:0">${escapeHtml(school.code.toUpperCase())}</p><p style="margin-bottom:4px;font-weight:600">Aktivasyon Kodu</p><p style="font-size:28px;font-weight:bold;letter-spacing:4px;margin-top:0">${escapeHtml(code)}</p><p>İlk giriş için Veli Randevu giriş ekranındaki “Personel İlk Giriş” butonuna basın. Telefon numaranız ve yukarıdaki 6 haneli aktivasyon koduyla hesabınızı aktifleştirerek kendi şifrenizi oluşturun.</p><p>Kodun geçerlilik süresi: 24 saat. Bu kod tek kullanımlıktır.</p><p>Veli Randevu</p>`,
   }); } catch (cause) { throw new Error(cause instanceof Error ? cause.message : 'Email delivery failed.'); }
 }
 
@@ -806,6 +802,10 @@ apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']
     staff = await db.transaction(async (tx) => {
       await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
       await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
+      const duplicateEmail = await tx.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)
+        UNION ALL SELECT id FROM teacher_profiles WHERE LOWER(email)=LOWER($1)
+        UNION ALL SELECT id FROM pending_staff WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
+      if (duplicateEmail.rows.length) throw new Error('STAFF_EMAIL_EXISTS');
       const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
       const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`, digits);
       if (role === 'teacher' && duplicate.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
@@ -831,6 +831,7 @@ apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu öğretmen başka bir okulda kayıtlı.' });
     if (cause instanceof Error && cause.message === 'STAFF_PHONE_EXISTS') return res.status(409).json({ error: 'Bu telefon okulda kayıtlı.' });
+    if (cause instanceof Error && cause.message === 'STAFF_EMAIL_EXISTS') return res.status(409).json({ error: 'Bu e-posta başka bir hesaba bağlı.' });
     if (staff!) {
       if (cause instanceof Error) console.error('[staff activation delivery]', cause.message);
       return res.status(503).json({ error: 'Personel kaydı oluşturuldu ancak e-posta gönderilemedi. Yeniden göndermeyi deneyin.' });
@@ -1201,9 +1202,9 @@ apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin'])
   try {
     const schoolId = req.membership!.schoolId;
     const users = await userRepository.getSecurityUsers(schoolId);
-    const pending = await (await getDb()).query<{id:string;first_name:string;last_name:string;phone:string}>(
-      "SELECT id,first_name,last_name,phone FROM pending_staff WHERE school_id=$1 AND role='security' ORDER BY created_at DESC",[schoolId]);
-    users.push(...pending.rows.map((row) => ({id:row.id,firstName:normalizePersonName(row.first_name),lastName:normalizePersonName(row.last_name),phone:row.phone,accountStatus:'pending' as const})));
+    const pending = await (await getDb()).query<{id:string;first_name:string;last_name:string;phone:string;email:string}>(
+      "SELECT id,first_name,last_name,phone,email FROM pending_staff WHERE school_id=$1 AND role='security' ORDER BY created_at DESC",[schoolId]);
+    users.push(...pending.rows.map((row) => ({id:row.id,firstName:normalizePersonName(row.first_name),lastName:normalizePersonName(row.last_name),phone:row.phone,email:row.email,accountStatus:'pending' as const})));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: 'Güvenlik personeli listelenemedi.' });
@@ -1610,7 +1611,7 @@ apiRouter.get('/schools/:schoolId/appointments/email-review', authMiddleware, te
     }
     return res.json({ appointment: { studentName: appointment.studentName, className: appointment.className,
       parentName: appointment.parentName, date: appointment.date, startTime: appointment.startTime,
-      endTime: appointment.endTime, teacherName: appointment.teacherName, status: appointment.status } });
+      endTime: appointment.endTime, teacherName: appointment.teacherName, status: appointment.status, notes: appointment.notes } });
   } catch {
     return res.status(404).json({ error: 'Bağlantı geçersiz veya süresi dolmuş.' });
   }

@@ -1,11 +1,14 @@
 import { Router } from 'express';
+import { randomUUID } from 'node:crypto';
 import { authMiddleware, tenantGuard, AuthenticatedRequest } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
-import { auditLogRepository } from './repositories';
+import { auditLogRepository, invitationRepository, userRepository } from './repositories';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
 import { isPlatformAdmin } from './auth';
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
+import { generateStaffCode, hashActivationCode } from './activation-codes';
+import { deliverSchoolAdminCode } from './school-admin-email';
 
 class ManagementError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -44,6 +47,252 @@ adminManagementRouter.get('/parents', async (req: AuthenticatedRequest, res) => 
        WHERE s.school_id = $1 ORDER BY s.id`, [req.membership!.schoolId]);
     res.json({ parents: result.rows.map((parent) => ({ ...parent, fullName: normalizePersonName(parent.fullName), students: students.rows.filter((student) => student.parentId === parent.id).map((student) => ({ ...student, name: normalizePersonName(student.name) })) })) });
   } catch { res.status(500).json({ error: 'Veli bilgileri alınamadı.' }); }
+});
+
+type ManagedAdmin = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  status: 'active' | 'pending';
+};
+
+function emailField(value: unknown): string {
+  const email = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150) {
+    throw new ManagementError(400, 'Geçerli bir e-posta adresi girin.');
+  }
+  return email;
+}
+
+function adminIdentity(body: Record<string, unknown>) {
+  const fullName = normalizePersonName(textField(body.fullName, 150));
+  const parts = fullName.split(' ');
+  if (parts.length < 2) throw new ManagementError(400, 'Ad ve soyad girin.');
+  const firstName = parts.shift()!;
+  const lastName = parts.join(' ');
+  const phone = normalizeUserPhoneInput(body.phone);
+  if (!phone) throw new ManagementError(400, 'Geçerli bir Türkiye GSM numarası girin.');
+  return { fullName, firstName, lastName, phone, email: emailField(body.email) };
+}
+
+adminManagementRouter.get('/admins', async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  try {
+    const db = await getDb();
+    const result = await db.query<ManagedAdmin>(`SELECT u.id,concat_ws(' ',u.first_name,u.last_name) AS "fullName",
+        u.phone,COALESCE(u.email,'') AS email,'active'::text AS status
+      FROM school_memberships sm JOIN users u ON u.id=sm.user_id
+      WHERE sm.school_id=$1 AND sm.role='admin' AND sm.status='active'
+      UNION ALL
+      SELECT pending.id,pending."fullName",pending.phone,pending.email,'pending'::text AS status FROM (
+        SELECT DISTINCT ON (u.id) u.id,concat_ws(' ',u.first_name,u.last_name) AS "fullName",
+          u.phone,COALESCE(u.email,'') AS email,i.created_at
+        FROM invitations i JOIN users u ON u.id=i.target_user_id
+        WHERE i.school_id=$1 AND i.purpose='school_admin_activation' AND i.target_role='admin'
+          AND i.consumed_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM school_memberships sm WHERE sm.school_id=$1 AND sm.user_id=u.id
+            AND sm.role='admin' AND sm.status='active')
+        ORDER BY u.id,i.created_at DESC,i.id DESC
+      ) pending
+      ORDER BY status,"fullName",id`, [schoolId]);
+    const admins = result.rows.filter((entry) => !isPlatformAdmin(entry.id)).map((entry) => ({
+      ...entry, fullName: normalizePersonName(entry.fullName), status: entry.status as 'active' | 'pending',
+    }));
+    return res.json({ admins });
+  } catch {
+    return res.status(500).json({ error: 'Okul yöneticileri yüklenemedi.' });
+  }
+});
+
+adminManagementRouter.post('/admins', async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  let identity: ReturnType<typeof adminIdentity>;
+  try { identity = adminIdentity(req.body || {}); }
+  catch (cause) { return res.status(cause instanceof ManagementError ? cause.status : 400).json({ error: cause instanceof Error ? cause.message : 'Bilgileri kontrol edin.' }); }
+  const code = generateStaffCode();
+  try {
+    const db = await getDb();
+    const target = await db.transaction(async (tx) => {
+      const school = await tx.query<{ name: string; code: string }>('SELECT name,code FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      if (!school.rows[0]) throw new ManagementError(404, 'Aktif okul bulunamadı.');
+      await tx.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE');
+      await tx.query('LOCK TABLE invitations IN SHARE ROW EXCLUSIVE MODE');
+      const existingUser = await userRepository.getByPhone(identity.phone, tx);
+      const duplicateEmail = await tx.query(`SELECT id FROM users WHERE id IS DISTINCT FROM $2 AND LOWER(email)=LOWER($1)
+        UNION ALL SELECT id FROM teacher_profiles WHERE user_id IS DISTINCT FROM $2 AND LOWER(email)=LOWER($1)
+        UNION ALL SELECT id FROM pending_staff WHERE LOWER(email)=LOWER($1) LIMIT 1`, [identity.email, existingUser?.id || null]);
+      if (duplicateEmail.rows.length) {
+        throw new ManagementError(409, 'Bu e-posta başka bir hesaba bağlı.');
+      }
+      let userId: string;
+      if (existingUser) {
+        if (isPlatformAdmin(existingUser.id)) throw new ManagementError(409, 'Platform yöneticisi okul yöneticisi olarak eklenemez.');
+        const state = await tx.query<{ password_hash: string | null; is_phone_verified: boolean }>(
+          'SELECT password_hash,is_phone_verified FROM users WHERE id=$1 FOR UPDATE', [existingUser.id]);
+        const relations = await tx.query('SELECT id FROM school_memberships WHERE user_id=$1 LIMIT 1', [existingUser.id]);
+        if (state.rows[0]?.password_hash || state.rows[0]?.is_phone_verified || relations.rows.length) {
+          throw new ManagementError(409, 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş.');
+        }
+        userId = existingUser.id;
+        const pending = await tx.query(`SELECT id FROM invitations WHERE target_user_id=$1 AND purpose='school_admin_activation'
+          AND is_active=TRUE AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [userId]);
+        if (pending.rows.length) throw new ManagementError(409, 'Bu okul yöneticisi için zaten bir aktivasyon daveti bekliyor.');
+        await tx.query('UPDATE users SET first_name=$2,last_name=$3,email=$4,updated_at=NOW() WHERE id=$1',
+          [userId, identity.firstName, identity.lastName, identity.email]);
+      } else {
+        userId = `usr-${randomUUID()}`;
+        await tx.query(`INSERT INTO users(id,phone,first_name,last_name,email,is_phone_verified)
+          VALUES($1,$2,$3,$4,$5,FALSE)`, [userId, identity.phone, identity.firstName, identity.lastName, identity.email]);
+      }
+      await invitationRepository.createAuthCode({ schoolId, targetPhone: identity.phone, targetUserId: userId,
+        targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
+        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_invited', actorName: 'Okul yönetimi',
+        details: `Okul yöneticisi ${userId} için aktivasyon daveti oluşturuldu.` }, tx);
+      return { userId, schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
+    });
+    const emailSent = await deliverSchoolAdminCode(identity.email, target.schoolName, target.schoolCode, identity.fullName, code);
+    return res.status(201).json({ success: true, emailSent, message: emailSent
+      ? 'Yönetici eklendi ve aktivasyon e-postası gönderildi.'
+      : 'Yönetici eklendi ancak e-posta gönderilemedi. Yeniden göndermeyi deneyin.' });
+  } catch (cause) {
+    if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
+    if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === '23505') {
+      return res.status(409).json({ error: 'Telefon veya e-posta başka bir hesaba bağlı.' });
+    }
+    return res.status(500).json({ error: 'Okul yöneticisi eklenemedi.' });
+  }
+});
+
+adminManagementRouter.post('/admins/:id/resend', async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const userId = String(req.params.id);
+  const code = generateStaffCode();
+  try {
+    const db = await getDb();
+    const target = await db.transaction(async (tx) => {
+      const school = await tx.query<{ name: string; code: string }>('SELECT name,code FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      if (!school.rows[0]) throw new ManagementError(404, 'Aktif okul bulunamadı.');
+      const user = await tx.query<{ first_name: string; last_name: string; phone: string; email: string | null }>(`SELECT u.first_name,u.last_name,u.phone,u.email FROM users u
+        WHERE u.id=$1 AND EXISTS (SELECT 1 FROM invitations i WHERE i.school_id=$2 AND i.target_user_id=u.id
+          AND i.purpose='school_admin_activation' AND i.consumed_at IS NULL) FOR UPDATE`, [userId, schoolId]);
+      if (!user.rows[0]?.email || isPlatformAdmin(userId)) throw new ManagementError(404, 'Bekleyen yönetici daveti bulunamadı.');
+      const active = await tx.query("SELECT id FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='admin' AND status='active'", [schoolId, userId]);
+      if (active.rows.length) throw new ManagementError(409, 'Yönetici hesabı zaten etkin.');
+      const recent = await tx.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2
+        AND purpose='school_admin_activation' AND created_at>NOW()-INTERVAL '60 seconds' LIMIT 1`, [schoolId, userId]);
+      if (recent.rows.length) throw new ManagementError(429, 'Yeni e-posta göndermeden önce kısa süre bekleyin.');
+      await invitationRepository.createAuthCode({ schoolId, targetPhone: user.rows[0].phone, targetUserId: userId,
+        targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
+        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_resent', actorName: 'Okul yönetimi',
+        details: `Okul yöneticisi ${userId} için aktivasyon daveti yeniden oluşturuldu.` }, tx);
+      return { ...user.rows[0], schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
+    });
+    const emailSent = await deliverSchoolAdminCode(target.email!, target.schoolName, target.schoolCode,
+      `${target.first_name} ${target.last_name}`.trim(), code);
+    return res.json({ success: true, emailSent, message: emailSent ? 'Aktivasyon e-postası yeniden gönderildi.' : 'Yeni kod kaydedildi ancak e-posta gönderilemedi.' });
+  } catch (cause) {
+    if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
+    return res.status(500).json({ error: 'Aktivasyon e-postası gönderilemedi.' });
+  }
+});
+
+adminManagementRouter.patch('/admins/:id', async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const userId = String(req.params.id);
+  let identity: ReturnType<typeof adminIdentity>;
+  try { identity = adminIdentity(req.body || {}); }
+  catch (cause) { return res.status(cause instanceof ManagementError ? cause.status : 400).json({ error: cause instanceof Error ? cause.message : 'Bilgileri kontrol edin.' }); }
+  try {
+    const db = await getDb();
+    const invitationRevoked = await db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      await tx.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE');
+      const current = await tx.query<{ phone: string; email: string | null }>(`SELECT u.phone,u.email FROM users u WHERE u.id=$1 AND (
+        EXISTS (SELECT 1 FROM school_memberships sm WHERE sm.school_id=$2 AND sm.user_id=u.id AND sm.role='admin' AND sm.status='active')
+        OR EXISTS (SELECT 1 FROM invitations i WHERE i.school_id=$2 AND i.target_user_id=u.id AND i.purpose='school_admin_activation'
+          AND i.consumed_at IS NULL)) FOR UPDATE`, [userId, schoolId]);
+      if (!current.rows[0] || isPlatformAdmin(userId)) throw new ManagementError(404, 'Okul yöneticisi bulunamadı.');
+      const otherSchool = await tx.query('SELECT id FROM school_memberships WHERE user_id=$1 AND school_id<>$2 LIMIT 1', [userId, schoolId]);
+      if (otherSchool.rows.length) throw new ManagementError(409, 'Birden fazla okula bağlı hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
+      const digits = getTurkishPhoneLookupDigits(identity.phone)!;
+      const duplicatePhone = await tx.query(`SELECT id FROM users WHERE id<>$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`, [userId, ...digits]);
+      const duplicateEmail = await tx.query(`SELECT id FROM users WHERE id<>$1 AND LOWER(email)=LOWER($2)
+        UNION ALL SELECT id FROM teacher_profiles WHERE user_id IS DISTINCT FROM $1 AND LOWER(email)=LOWER($2)
+        UNION ALL SELECT id FROM pending_staff WHERE LOWER(email)=LOWER($2) LIMIT 1`, [userId, identity.email]);
+      if (duplicatePhone.rows.length) throw new ManagementError(409, 'Telefon başka bir hesaba bağlı.');
+      if (duplicateEmail.rows.length) throw new ManagementError(409, 'E-posta başka bir hesaba bağlı.');
+      const identityChanged = normalizeTurkishPhone(current.rows[0].phone) !== identity.phone || (current.rows[0].email || '').toLowerCase() !== identity.email;
+      await tx.query(`UPDATE users SET first_name=$2,last_name=$3,phone=$4,email=$5,
+        auth_version=auth_version + CASE WHEN $6 THEN 1 ELSE 0 END,updated_at=NOW() WHERE id=$1`,
+        [userId, identity.firstName, identity.lastName, identity.phone, identity.email, identityChanged]);
+      if (identityChanged) await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=COALESCE(revoked_at,NOW())
+        WHERE school_id=$1 AND target_user_id=$2 AND purpose IN ('school_admin_activation','school_admin_activation_setup')
+          AND consumed_at IS NULL AND revoked_at IS NULL`, [schoolId, userId]);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_updated', actorName: 'Okul yönetimi',
+        details: `Okul yöneticisi ${userId} bilgileri güncellendi.` }, tx);
+      return identityChanged;
+    });
+    return res.json({ success: true, invitationRevoked, message: invitationRevoked
+      ? 'Bilgiler güncellendi. Bekleyen aktivasyon iptal edildi; yeni e-posta gönderin.'
+      : 'Yönetici bilgileri güncellendi.' });
+  } catch (cause) {
+    if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
+    return res.status(500).json({ error: 'Yönetici bilgileri güncellenemedi.' });
+  }
+});
+
+adminManagementRouter.delete('/admins/:id', async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const userId = String(req.params.id);
+  try {
+    const db = await getDb();
+    await db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
+      if (isPlatformAdmin(userId)) throw new ManagementError(404, 'Okul yöneticisi bulunamadı.');
+      const membership = await tx.query(`SELECT id FROM school_memberships WHERE school_id=$1 AND user_id=$2
+        AND role='admin' AND status='active' FOR UPDATE`, [schoolId, userId]);
+      if (membership.rows.length) {
+        const admins = await tx.query<{ user_id: string }>(`SELECT user_id FROM school_memberships WHERE school_id=$1
+          AND role='admin' AND status='active' FOR UPDATE`, [schoolId]);
+        const realAdmins = admins.rows.filter((entry) => !isPlatformAdmin(entry.user_id));
+        if (realAdmins.length <= 1) throw new ManagementError(409, 'Okulun son etkin yöneticisi kaldırılamaz. Önce başka bir yönetici ekleyin.');
+        await tx.query("DELETE FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='admin'", [schoolId, userId]);
+        await tx.query('UPDATE users SET auth_version=auth_version+1,updated_at=NOW() WHERE id=$1', [userId]);
+      } else {
+        const pending = await tx.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2
+          AND purpose='school_admin_activation' AND consumed_at IS NULL FOR UPDATE`, [schoolId, userId]);
+        if (!pending.rows.length) throw new ManagementError(404, 'Okul yöneticisi bulunamadı.');
+      }
+      await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=COALESCE(revoked_at,NOW())
+        WHERE school_id=$1 AND target_user_id=$2 AND purpose LIKE 'school_admin_%' AND consumed_at IS NULL`, [schoolId, userId]);
+      if (!membership.rows.length) {
+        await tx.query(`DELETE FROM invitations WHERE school_id=$1 AND target_user_id=$2
+          AND purpose LIKE 'school_admin_%'`, [schoolId, userId]);
+        await tx.query(`DELETE FROM users u WHERE u.id=$1 AND u.password_hash IS NULL AND u.is_phone_verified=FALSE
+          AND NOT EXISTS (SELECT 1 FROM school_memberships WHERE user_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM teacher_profiles WHERE user_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM student_parent_relations WHERE parent_user_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM appointments WHERE parent_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM notifications WHERE user_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM pending_staff WHERE phone=u.phone)
+          AND NOT EXISTS (SELECT 1 FROM school_roster WHERE school_id<>$2
+            AND right(regexp_replace(parent_phone,'[^0-9]','','g'),10)=right(regexp_replace(u.phone,'[^0-9]','','g'),10))
+          AND NOT EXISTS (SELECT 1 FROM invitations WHERE target_user_id=u.id
+            AND (school_id<>$2 OR purpose NOT LIKE 'school_admin_%')
+            AND consumed_at IS NULL AND revoked_at IS NULL)`, [userId, schoolId]);
+      }
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_removed', actorName: 'Okul yönetimi',
+        details: `Okul yöneticisi ${userId} okul yetkisinden kaldırıldı.` }, tx);
+    });
+    return res.json({ success: true });
+  } catch (cause) {
+    if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
+    return res.status(500).json({ error: 'Okul yöneticisi kaldırılamadı.' });
+  }
 });
 
 adminManagementRouter.delete('/audit-logs', async (req: AuthenticatedRequest, res) => {
@@ -248,23 +497,38 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
         let userId: string | null = id;
         let oldPhone: string;
         let oldName: string;
+        let oldEmail: string;
+        let pendingSecurity = false;
         if (kind === 'teacher') {
-          const profiles = await tx.query<{ user_id: string | null; phone: string; full_name: string }>(
-            `SELECT user_id, phone, concat_ws(' ',first_name,last_name) AS full_name
+          const profiles = await tx.query<{ user_id: string | null; phone: string; email: string | null; full_name: string }>(
+            `SELECT user_id, phone, email, concat_ws(' ',first_name,last_name) AS full_name
              FROM teacher_profiles WHERE school_id=$1 AND id=$2 FOR UPDATE`, [schoolId, id]);
           const profile = profiles.rows[0];
           if (!profile) throw new ManagementError(404, 'Kayıt bulunamadı.');
           userId = profile.user_id;
           oldPhone = profile.phone;
           oldName = profile.full_name;
+          oldEmail = profile.email || '';
         } else {
-          const users = await tx.query<{ phone: string; full_name: string }>(
-            `SELECT u.phone, concat_ws(' ',u.first_name,u.last_name) AS full_name
+          const users = await tx.query<{ phone: string; email: string | null; full_name: string }>(
+            `SELECT u.phone,u.email,concat_ws(' ',u.first_name,u.last_name) AS full_name
              FROM users u JOIN school_memberships sm ON sm.user_id=u.id
              WHERE sm.school_id=$1 AND u.id=$2 AND sm.role=$3 FOR UPDATE OF u`, [schoolId, id, kind]);
-          if (!users.rows[0]) throw new ManagementError(404, 'Kayıt bulunamadı.');
-          oldPhone = users.rows[0].phone;
-          oldName = users.rows[0].full_name;
+          if (users.rows[0]) {
+            oldPhone = users.rows[0].phone;
+            oldName = users.rows[0].full_name;
+            oldEmail = users.rows[0].email || '';
+          } else if (kind === 'security') {
+            const pending = await tx.query<{ phone: string; email: string; full_name: string }>(
+              `SELECT phone,email,concat_ws(' ',first_name,last_name) AS full_name FROM pending_staff
+               WHERE school_id=$1 AND id=$2 AND role='security' FOR UPDATE`, [schoolId, id]);
+            if (!pending.rows[0]) throw new ManagementError(404, 'Kayıt bulunamadı.');
+            userId = null;
+            pendingSecurity = true;
+            oldPhone = pending.rows[0].phone;
+            oldName = pending.rows[0].full_name;
+            oldEmail = pending.rows[0].email;
+          } else throw new ManagementError(404, 'Kayıt bulunamadı.');
         }
         if (removing) {
           if (kind === 'teacher') {
@@ -298,7 +562,8 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               await tx.query('DELETE FROM teacher_profiles WHERE school_id=$1 AND id=$2 AND user_id IS NULL',[schoolId,id]);
             }
           } else {
-            if (userId) await tx.query(`UPDATE school_memberships SET status='inactive', updated_at=NOW()
+            if (pendingSecurity) await tx.query("DELETE FROM pending_staff WHERE school_id=$1 AND id=$2 AND role='security'", [schoolId, id]);
+            else if (userId) await tx.query(`UPDATE school_memberships SET status='inactive', updated_at=NOW()
               WHERE school_id=$1 AND user_id=$2 AND role=$3`, [schoolId, userId, kind]);
           }
           await revokeCodes(tx, schoolId, oldPhone, kind);
@@ -312,13 +577,24 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           const lastName = names.join(' ');
           if (firstName.length > 100 || lastName.length > 100) throw new ManagementError(400, 'Ad veya soyad çok uzun.');
           const branch = kind === 'teacher' ? textField(req.body.branch, 100) : null;
+          const emailProvided = req.body.email !== undefined;
+          const email = emailProvided ? emailField(req.body.email) : oldEmail;
           const phoneChanged = normalizeTurkishPhone(oldPhone) !== phone;
+          const emailChanged = emailProvided && oldEmail.trim().toLowerCase() !== email;
+          if (emailChanged) {
+            const duplicateEmail = await tx.query(`SELECT id FROM users WHERE id IS DISTINCT FROM $1 AND LOWER(email)=LOWER($2)
+              UNION ALL SELECT id FROM teacher_profiles WHERE user_id IS DISTINCT FROM $1
+                AND NOT (school_id=$3 AND id=$4) AND LOWER(email)=LOWER($2)
+              UNION ALL SELECT id FROM pending_staff WHERE NOT (school_id=$3 AND id=$4) AND LOWER(email)=LOWER($2)
+              LIMIT 1`, [userId, email, schoolId, id]);
+            if (duplicateEmail.rows.length) throw new ManagementError(409, 'E-posta başka bir hesaba bağlı.');
+          }
           if (userId) {
-            const identity = await tx.query<{ phone: string; full_name: string }>(
-              "SELECT phone, concat_ws(' ',first_name,last_name) AS full_name FROM users WHERE id=$1 FOR UPDATE", [userId]);
+            const identity = await tx.query<{ phone: string; email: string | null; full_name: string }>(
+              "SELECT phone,email,concat_ws(' ',first_name,last_name) AS full_name FROM users WHERE id=$1 FOR UPDATE", [userId]);
             const otherSchools = await tx.query(
               'SELECT id FROM school_memberships WHERE user_id=$1 AND school_id<>$2 LIMIT 1', [userId, schoolId]);
-            if (otherSchools.rows.length && (identity.rows[0]?.phone !== phone || normalizePersonName(identity.rows[0]?.full_name || '') !== fullName)) {
+            if (otherSchools.rows.length && (identity.rows[0]?.phone !== phone || (identity.rows[0]?.email || '').toLowerCase() !== email || normalizePersonName(identity.rows[0]?.full_name || '') !== fullName)) {
               throw new ManagementError(409, 'Birden fazla okula bağlı hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
             const duplicate = await tx.query(
@@ -331,8 +607,10 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               throw new ManagementError(409, 'Birden fazla rolü olan hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
             await tx.query(`UPDATE users SET first_name=$2,last_name=$3,phone=$4::varchar(20),
-              auth_version=auth_version + CASE WHEN phone<>$4::varchar(20) THEN 1 ELSE 0 END,updated_at=NOW() WHERE id=$1`,
-              [userId, firstName, lastName, phone]);
+              email=CASE WHEN $6::boolean THEN $5::varchar(150) ELSE email END,
+              auth_version=auth_version + CASE WHEN phone<>$4::varchar(20)
+                OR ($6::boolean AND COALESCE(email,'')<>$5::varchar(150)) THEN 1 ELSE 0 END,
+              updated_at=NOW() WHERE id=$1`, [userId, firstName, lastName, phone, email, emailProvided]);
           } else if (phoneChanged) {
             const duplicate = await tx.query(
               `SELECT id FROM users WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`,
@@ -356,18 +634,22 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
                 AND regexp_replace(phone,'[^0-9]','','g') IN ($3,$4,$5) LIMIT 1`, [schoolId, id, ...phoneDigits]);
               if (duplicate.rows.length) throw new ManagementError(409, 'Bu telefon okulda başka bir öğretmene bağlı.');
             }
-            await tx.query(`UPDATE teacher_profiles SET first_name=$3,last_name=$4,phone=$5,branch=$6,updated_at=NOW()
-              WHERE school_id=$1 AND id=$2`, [schoolId, id, firstName, lastName, phone, branch]);
+            await tx.query(`UPDATE teacher_profiles SET first_name=$3,last_name=$4,phone=$5,branch=$6,
+              email=CASE WHEN $8::boolean THEN $7::varchar(150) ELSE email END,updated_at=NOW()
+              WHERE school_id=$1 AND id=$2`, [schoolId, id, firstName, lastName, phone, branch, email, emailProvided]);
             if (userId) await tx.query(`UPDATE school_memberships SET branch=$3,updated_at=NOW()
               WHERE school_id=$1 AND user_id=$2 AND role='teacher'`, [schoolId, userId, branch]);
           }
+          if (pendingSecurity) await tx.query(`UPDATE pending_staff SET first_name=$3,last_name=$4,phone=$5,
+            email=CASE WHEN $7::boolean THEN $6::varchar(150) ELSE email END,updated_at=NOW()
+            WHERE school_id=$1 AND id=$2 AND role='security'`, [schoolId, id, firstName, lastName, phone, email, emailProvided]);
           if (kind === 'parent') {
             const digits = getTurkishPhoneLookupDigits(oldPhone);
             if (digits) await tx.query(`UPDATE school_roster SET parent_name=$2,parent_phone=$3,updated_at=NOW()
               WHERE school_id=$1 AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($4,$5,$6)`,
               [schoolId, fullName, phone, ...digits]);
           }
-          if (phoneChanged) await revokeCodes(tx, schoolId, oldPhone, kind);
+          if (phoneChanged || emailChanged) await revokeCodes(tx, schoolId, oldPhone, kind);
         }
       }
       await auditLogRepository.createAuditLog({

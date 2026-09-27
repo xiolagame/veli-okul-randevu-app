@@ -1,6 +1,6 @@
-import { formatDate, formatDateTime, getIstanbulDate } from '../utils/dates';
-import { appointmentsOnDate } from '../utils/admin-filters';
-import React, { useState, useEffect, useRef } from 'react';
+import { formatDate, getIstanbulDate } from '../utils/dates';
+import { appointmentsOnDate, sortAppointmentsForAdmin } from '../utils/admin-filters';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Shield,
@@ -15,15 +15,15 @@ import {
   Upload,
   Check,
 } from 'lucide-react';
-import { Alert, Button, Dialog, EmptyState, Metric, StatusBadge } from './ui';
-import { SchoolRosterRecord } from '../types';
+import { Alert, Button, EmptyState, Metric, StatusBadge } from './ui';
 import { api } from '../services/api';
-import { StaffManagement, StaffCodeTarget } from './StaffManagement';
+import { StaffManagement } from './StaffManagement';
 import { ParentManagement } from './ParentManagement';
 import { AuditManagement } from './AuditManagement';
 import { ManagementActions } from './ManagementActions';
 import { BulkRosterImport } from './BulkRosterImport';
 import { SchoolInfo } from './SchoolInfo';
+import { SchoolAdminManagement } from './SchoolAdminManagement';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
@@ -52,14 +52,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'roster' | 'isolation' | 'users' | 'appointments' | 'settings' | 'audit'
+    'dashboard' | 'roster' | 'isolation' | 'users' | 'admins' | 'appointments' | 'settings' | 'audit'
   >('dashboard');
 
   const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
+  const [appointmentMode, setAppointmentMode] = useState<'today' | 'all'>('today');
   const [selectedClass, setSelectedClass] = useState('');
   const [parentClasses, setParentClasses] = useState<string[]>([]);
   const classOptions = [...new Set([...parentClasses, ...roster.map((record) => record.className)])].sort((left, right) => left.localeCompare(right, 'tr', { numeric: true }));
-  const datedAppointments = appointmentsOnDate(appointments, selectedDate);
+  const istanbulTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+  const datedAppointments = appointmentMode === 'today'
+    ? appointmentsOnDate(appointments, selectedDate)
+    : sortAppointmentsForAdmin(appointments, { date: getIstanbulDate(), time: istanbulTime });
 
   // Roster Filter
   const [rosterSearch, setRosterSearch] = useState('');
@@ -75,26 +79,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
   // Bulk Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [authCodeRoster, setAuthCodeRoster] = useState<SchoolRosterRecord | null>(null);
-  const [authCodeTarget, setAuthCodeTarget] = useState<StaffCodeTarget | null>(null);
-  const [copyMessage, setCopyMessage] = useState('');
-  const [authCodePurpose, setAuthCodePurpose] = useState<'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET'>('ACCOUNT_ACTIVATION');
-  const [generatedAuthCode, setGeneratedAuthCode] = useState<{ code: string; expiresAt: string } | null>(null);
-  const [authCodeError, setAuthCodeError] = useState('');
-  const [isCreatingAuthCode, setIsCreatingAuthCode] = useState(false);
-  const codeRequestSequence = useRef(0);
   useEffect(() => {
-    codeRequestSequence.current += 1;
-    setIsCreatingAuthCode(false);
-    setAuthCodeRoster(null);
-    setAuthCodeTarget(null);
-    setGeneratedAuthCode(null);
-    setAuthCodeError('');
-    setCopyMessage('');
     setSelectedClass('');
     setParentClasses([]);
     setSelectedDate(getIstanbulDate());
-    return () => { codeRequestSequence.current += 1; };
+    setAppointmentMode('today');
   }, [currentSchool?.id]);
 
   // Test Runner State
@@ -125,23 +114,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
     }
   };
 
-  const handleCreateAuthCode = async () => {
-    if (!currentSchool || (!authCodeRoster && !authCodeTarget)) return;
-    const sequence = ++codeRequestSequence.current;
-    setAuthCodeError('');
-    setIsCreatingAuthCode(true);
-    try {
-      const result = await api.createAuthCode(currentSchool.id, authCodeRoster?.id || '', authCodePurpose, authCodeTarget || undefined);
-      if (sequence !== codeRequestSequence.current) return;
-      setGeneratedAuthCode({ code: result.code, expiresAt: result.expiresAt });
-    } catch (requestError: any) {
-      if (sequence !== codeRequestSequence.current) return;
-      setAuthCodeError(requestError.message || 'Güvenlik kodu oluşturulamadı.');
-    } finally {
-      if (sequence === codeRequestSequence.current) setIsCreatingAuthCode(false);
-    }
-  };
-
   const handleRunIsolationTests = async () => {
     setIsRunningTests(true);
     try {
@@ -161,17 +133,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
     );
   });
 
-  const closeCode = () => {
-    if (isCreatingAuthCode) return;
-    setGeneratedAuthCode(null);
-    setAuthCodeRoster(null);
-    setAuthCodeTarget(null);
-    setCopyMessage('');
-  };
   const navigation = [
     { id: 'dashboard' as const, label: 'Genel bakış', icon: Shield },
     { id: 'roster' as const, label: 'Öğrenci ve veliler', icon: GraduationCap },
     { id: 'users' as const, label: 'Personel', icon: Users },
+    { id: 'admins' as const, label: 'Okul Yöneticileri', icon: Shield },
     { id: 'appointments' as const, label: 'Randevular', icon: Calendar },
     { id: 'settings' as const, label: 'Okul ayarları', icon: SettingsIcon },
     { id: 'audit' as const, label: 'İşlem günlüğü', icon: FileText },
@@ -180,11 +146,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('[role="dialog"]') && !showUploadModal && !authCodeRoster && !authCodeTarget) onClose();
+      if (event.key === 'Escape' && !document.querySelector('[role="dialog"]') && !showUploadModal) onClose();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose, showUploadModal, authCodeRoster, authCodeTarget]);
+  }, [onClose, showUploadModal]);
 
   return (
     <div className="admin-backdrop">
@@ -209,18 +175,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
               <option value="">Önce sınıf seçin</option>{classOptions.map((className) => <option key={className} value={className}>{className}</option>)}
             </select></label>
             <label className="field" htmlFor="parent-search">Seçili sınıfta ara<input id="parent-search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="Öğrenci, veli veya telefon" /></label>
-            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} roster={roster} search={rosterSearch} selectedClass={selectedClass} onClassesChange={setParentClasses}
-              onChanged={refreshSchoolData} onIssue={(record) => { setAuthCodeRoster(record); setAuthCodePurpose('PASSWORD_RESET'); setGeneratedAuthCode(null); setAuthCodeError(''); }} />}
+            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} search={rosterSearch} selectedClass={selectedClass} onClassesChange={setParentClasses} onChanged={refreshSchoolData} />}
             <div className="section-heading"><div><h3>Hesap Oluşturmayı Bekleyen Kayıtlar</h3><p>Toplu kayıtla eklenip henüz veli hesabıyla eşleşmeyen öğrenci/veli bilgileri.</p></div><Button onClick={() => { setFormError(''); setShowUploadModal(true); }}><Upload size={17} />Toplu kayıt ekle</Button></div>
-            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-bold text-slate-900">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif hesap' : 'Hesap oluşturmadı'}</span></td><td><Button variant="secondary" onClick={() => { setAuthCodeRoster(item); setGeneratedAuthCode(null); setAuthCodeError(''); }}>Kod oluştur</Button>{currentSchool && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={!selectedClass ? 'Önce sınıf seçin' : 'Hesap oluşturmayı bekleyen kayıt yok'} description={!selectedClass ? 'Bekleyen kayıtları görmek için önce sınıf seçin.' : 'Bu sınıfa toplu kayıtla eklenmiş ve henüz veli hesabıyla eşleşmemiş öğrenci/veli bilgisi bulunmuyor.'} /></div>}
+            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-bold text-slate-900">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentName}</td><td data-label="Telefon">{item.parentPhone}</td><td><span className={`status-badge tone-${item.isClaimed ? 'success' : 'warning'}`}>{item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.isClaimed ? 'Aktif hesap' : 'Hesap oluşturmadı'}</span></td><td>{currentSchool && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={!selectedClass ? 'Önce sınıf seçin' : 'Hesap oluşturmayı bekleyen kayıt yok'} description={!selectedClass ? 'Bekleyen kayıtları görmek için önce sınıf seçin.' : 'Bu sınıfa toplu kayıtla eklenmiş ve henüz veli hesabıyla eşleşmemiş öğrenci/veli bilgisi bulunmuyor.'} /></div>}
           </section>}
 
-          {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} onIssue={(target, purpose) => { setAuthCodeTarget(target); setAuthCodePurpose(purpose); setAuthCodeRoster(null); setGeneratedAuthCode(null); setAuthCodeError(''); setCopyMessage(''); }} />}
+          {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} />}
+
+          {activeTab === 'admins' && currentSchool && <SchoolAdminManagement key={currentSchool.id} schoolId={currentSchool.id} onChanged={async () => { await Promise.all([refreshSchoolData(), refreshPlatformSchools()]); }} />}
 
           {activeTab === 'appointments' && <section className="space-y-5">
-            <div className="section-heading"><div><h3>Okulunuzun görüşmeleri</h3><p>{formatDate(selectedDate)} · {datedAppointments.length} randevu</p></div></div>
-            <div className="flex flex-wrap items-end gap-3"><label className="field" htmlFor="admin-appointment-date">Görüşme tarihi<input id="admin-appointment-date" type="date" required value={selectedDate} onChange={(event) => setSelectedDate(event.target.value || getIstanbulDate())} /></label><Button variant="secondary" onClick={() => setSelectedDate(getIstanbulDate())}>Bugün</Button></div>
-            {datedAppointments.length ? datedAppointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{formatDate(appointment.date)}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title="Seçili günde randevu bulunmuyor" description="Başka bir tarih seçerek o günün görüşmelerini görebilirsiniz." /></div>}
+            <div className="section-heading"><div><h3>Okulunuzun görüşmeleri</h3><p>{appointmentMode === 'today' ? formatDate(selectedDate) : 'Tüm tarihler'} · {datedAppointments.length} randevu</p></div></div>
+            <div className="flex flex-wrap items-end gap-3"><label className="field" htmlFor="admin-appointment-date">Görüşme tarihi<input id="admin-appointment-date" type="date" required value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value || getIstanbulDate()); setAppointmentMode('today'); }} /></label><Button variant={appointmentMode === 'today' ? 'primary' : 'secondary'} aria-pressed={appointmentMode === 'today'} onClick={() => { setSelectedDate(getIstanbulDate()); setAppointmentMode('today'); }}>Bugün</Button><Button variant={appointmentMode === 'all' ? 'primary' : 'secondary'} aria-pressed={appointmentMode === 'all'} onClick={() => setAppointmentMode('all')}>Tüm Randevular</Button></div>
+            {datedAppointments.length ? datedAppointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{formatDate(appointment.date)}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title={appointmentMode === 'today' ? 'Seçili günde randevu bulunmuyor' : 'Kayıtlı randevu bulunmuyor'} description={appointmentMode === 'today' ? 'Başka bir tarih seçerek o günün görüşmelerini görebilirsiniz.' : 'Okulunuz için henüz randevu kaydı oluşturulmamış.'} /></div>}
           </section>}
 
           {activeTab === 'settings' && <section className="surface max-w-2xl"><div className="section-heading"><div><h3>Okul ve görüşme ayarları</h3><p>Okulunuzun randevu tercihlerini düzenleyin.</p></div></div><form onSubmit={handleSaveSettings} className="form-stack">
@@ -238,14 +205,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
         {showUploadModal && currentSchool && <BulkRosterImport key={currentSchool.id} schoolId={currentSchool.id} initialClass={selectedClass} classes={classOptions} onClose={() => setShowUploadModal(false)} onChanged={refreshSchoolData} />}
 
-        {(authCodeRoster || authCodeTarget) && <Dialog title={authCodePurpose === 'PASSWORD_RESET' ? 'Parola sıfırlama kodu' : 'Hesap aktivasyonu'} onClose={closeCode} dismissible={!isCreatingAuthCode}>
-          <div className="flex gap-3 items-center mb-6"><span className="avatar"><Shield size={22} /></span><div><h3 className="font-bold text-sm">{authCodeTarget?.label || authCodeRoster?.parentName}</h3><p className="text-sm text-slate-500">{(authCodeTarget?.phone || authCodeRoster?.parentPhone || '').slice(0, 5)} *** ** {(authCodeTarget?.phone || authCodeRoster?.parentPhone || '').slice(-2)}</p></div></div>
-          {!generatedAuthCode ? <div className="form-stack"><p className="text-sm text-slate-600">Yeni kod oluşturulduğunda aynı amaçla verilen önceki kullanılmamış kod iptal edilir.</p><label className="field" htmlFor="code-purpose">Kod türü<select id="code-purpose" disabled={!!authCodeTarget} value={authCodePurpose} onChange={(event) => setAuthCodePurpose(event.target.value as 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET')}><option value="ACCOUNT_ACTIVATION">Hesap aktivasyonu</option><option value="PASSWORD_RESET">Parola sıfırlama</option></select></label>{authCodeError && <Alert tone="danger">{authCodeError}</Alert>}<div className="form-actions"><Button variant="secondary" disabled={isCreatingAuthCode} onClick={closeCode}>Vazgeç</Button><Button disabled={isCreatingAuthCode} onClick={handleCreateAuthCode}>{isCreatingAuthCode ? 'Oluşturuluyor…' : 'Kod oluştur'}</Button></div></div> : <>
-            <Alert tone="success">Kod oluşturuldu.</Alert><div className="code-display">{generatedAuthCode.code}</div>
-            <Button variant="secondary" className="w-full" onClick={async () => { try { await navigator.clipboard.writeText(generatedAuthCode.code); setCopyMessage('Kod kopyalandı.'); } catch { setCopyMessage('Kopyalanamadı. Kodu seçerek kopyalayabilirsiniz.'); } }}>Kodu kopyala</Button>
-            <p role="status" className="text-sm text-center text-blue-700 my-3">{copyMessage}</p><Alert tone="warning">Bu kod tek kullanımlıktır ve yalnızca burada gösterilir. İlgili kişiye güvenli bir kanaldan iletin.</Alert><p className="text-xs text-center text-slate-500 my-5">Son kullanım: {formatDateTime(generatedAuthCode.expiresAt)}</p><Button className="w-full" onClick={closeCode}>Tamam</Button>
-          </>}
-        </Dialog>}
       </section>
     </div>
   );

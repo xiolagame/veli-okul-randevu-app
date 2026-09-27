@@ -104,6 +104,15 @@ export const api = {
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
   getPlatformAuditLogs: () => request<{ logs: { id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[] }>('/api/platform/audit-logs'),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
+  getManagedSchoolAdmins: (schoolId: string) => request<{ admins: import('../types/management').ManagedSchoolAdmin[] }>(`/api/schools/${schoolId}/management/admins`),
+  createManagedSchoolAdmin: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
+    request<{ success: boolean; emailSent: boolean; message: string }>(`/api/schools/${schoolId}/management/admins`, { method: 'POST', body: JSON.stringify(data) }),
+  updateManagedSchoolAdmin: (schoolId: string, userId: string, data: { fullName: string; phone: string; email: string }) =>
+    request<{ success: boolean; invitationRevoked: boolean; message: string }>(`/api/schools/${schoolId}/management/admins/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  removeManagedSchoolAdmin: (schoolId: string, userId: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/management/admins/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+  resendManagedSchoolAdminActivation: (schoolId: string, userId: string) =>
+    request<{ success: boolean; emailSent: boolean; message: string }>(`/api/schools/${schoolId}/management/admins/${encodeURIComponent(userId)}/resend`, { method: 'POST' }),
   updateManagedRecord: (schoolId: string, kind: string, id: string, data: Record<string, string>) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   removeManagedRecord: (schoolId: string, kind: string, id: string) =>
@@ -116,7 +125,7 @@ export const api = {
       `/api/schools/${schoolId}/management/students/${encodeURIComponent(studentId)}/removal`, { method: 'DELETE' }),
   getAppointmentEmailReview: (schoolId: string, token: string) =>
     request<{ appointment: { studentName: string; className: string; parentName: string; date: string;
-      startTime: string; endTime: string; teacherName: string; status: string } }>(
+      startTime: string; endTime: string; teacherName: string; status: string; notes?: string } }>(
       `/api/schools/${encodeURIComponent(schoolId)}/appointments/email-review`,
       { headers: { 'X-School-Id': schoolId, 'X-Appointment-Review-Token': token } }),
   approveAppointmentEmailReview: (schoolId: string, token: string) =>
@@ -131,12 +140,6 @@ export const api = {
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
 
   // Authentication
-  activateAccount: (schoolId: string, phone: string, code: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/activate-account', {
-      method: 'POST',
-      body: JSON.stringify({ schoolId, phone, code, password }),
-    }),
-
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
     request<{ success: boolean; message: string }>('/api/auth/reset-password-with-code', {
       method: 'POST',
@@ -364,12 +367,6 @@ export const api = {
 
   getRoster: (schoolId: string) =>
     request<{ roster: SchoolRosterRecord[] }>(`/api/schools/${schoolId}/roster`),
-
-  createAuthCode: (schoolId: string, rosterId: string, purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET', target?: { type: 'teacher' | 'security'; id: string }) =>
-    request<{ success: boolean; code: string; purpose: string; expiresAt: string }>(`/api/schools/${schoolId}/auth-codes`, {
-      method: 'POST',
-      body: JSON.stringify({ rosterId: target ? undefined : rosterId, purpose, targetType: target?.type, targetId: target?.id }),
-    }),
 
   testIsolation: (schoolId: string) =>
     request<{ results: TenantIsolationTestResult[] }>(

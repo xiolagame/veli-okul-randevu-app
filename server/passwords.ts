@@ -2,13 +2,12 @@ import crypto from 'crypto';
 
 const HASH_ALGORITHM = 'scrypt';
 const KEY_LENGTH = 64;
-export const MIN_PASSWORD_LENGTH = 8;
+export const MIN_PASSWORD_LENGTH = 5;
 const MAX_PASSWORD_LENGTH = 128;
 
 export function validatePassword(password: unknown): string | null {
-  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    return `Şifre ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} karakter arasında olmalıdır.`;
-  }
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) return `Şifre en az ${MIN_PASSWORD_LENGTH} karakter olmalıdır.`;
+  if (password.length > MAX_PASSWORD_LENGTH) return 'Şifre çok uzun.';
   return null;
 }
 

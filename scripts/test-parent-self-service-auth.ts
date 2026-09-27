@@ -16,8 +16,8 @@ async function run() {
   const schoolCode = `PA${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
   const phone = `+905${crypto.randomInt(100000000, 999999999)}`;
   const birthDate = '2015-04-17';
-  const password = crypto.randomBytes(24).toString('base64url');
-  const replacement = crypto.randomBytes(24).toString('base64url');
+  const password = 'Ab123';
+  const replacement = 'Cd456';
   const app = express();
   app.use(express.json());
   app.use('/api', apiRouter);
@@ -62,6 +62,7 @@ async function run() {
     const freshChallengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone, birthDate });
     assert.equal(freshChallengeResponse.status,200);
     const challenge = freshChallengeResponse.body.challenge as string;
+    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, birthDate, challenge, password: 'Ab12' })).status, 400);
     const registered = await request('POST', '/auth/parent/registration-complete', { schoolId, phone: `0${phone.slice(3)}`, birthDate, challenge, password });
     assert.equal(registered.status, 200);
     assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, birthDate, challenge, password })).status, 400);

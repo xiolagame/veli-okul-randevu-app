@@ -53,7 +53,7 @@ function harness(file: string, context: object, api: object = {}) {
       if (name === '../utils/dates') return dates;
       if (name === '../utils/admin-filters') return filters;
       if (name === '../utils/phone') return phone;
-      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo'].includes(name)) {
+      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement'].includes(name)) {
         return new Proxy({}, { get: (_, key) => String(key) });
       }
       throw new Error('Unexpected component dependency');
@@ -80,14 +80,18 @@ async function run() {
     { id: 'roster-b', className: '6-B', studentName: 'Student B', parentName: 'Parent B', parentPhone: '', isClaimed: false }];
   const admin = harness('src/components/AdminView.tsx', {
     currentSchool: { id: 'local' }, settings: {}, users: [], teachers: [], roster, auditLogs: [], isolationTestResults: [],
-    appointments: [{ id: 'today', date: today, status: 'pending' }, { id: 'other', date: '2099-12-31', status: 'pending' }],
+    appointments: [{ id: 'today', date: today, startTime: '09:00', status: 'pending' }, { id: 'other', date: '2099-12-31', startTime: '10:00', status: 'pending' }],
   });
   const props = { onClose() {} };
   let elements = admin('AdminView', props);
   change(elements, 'admin-section', 'appointments');
   elements = admin('AdminView', props);
   assert.equal(elements.find((element) => element.props.id === 'admin-appointment-date')?.props.value, today);
-  assert.deepEqual(elements.filter((element) => element.type === 'article').map((element) => element.props.key), ['today']);
+  const allButton = elements.find((element) => element.type === 'Button' && element.children.includes('Tüm Randevular'));
+  assert(allButton);
+  (allButton.props.onClick as () => void)();
+  elements = admin('AdminView', props);
+  assert.deepEqual(elements.filter((element) => element.type === 'article').map((element) => element.props.key), ['other', 'today']);
   change(elements, 'admin-appointment-date', '2099-12-31');
   elements = admin('AdminView', props);
   assert.deepEqual(elements.filter((element) => element.type === 'article').map((element) => element.props.key), ['other']);
@@ -118,6 +122,21 @@ async function run() {
   assert.equal(elements.filter((element) => element.type === 'article').length, 1);
   assert.deepEqual(elements.filter((element) => element.type === 'h4').flatMap((element) => element.children), ['Child A']);
   assert.deepEqual(elements.filter((element) => element.type === 'ManagementActions').map((element) => element.props.id), ['parent','child-a']);
+
+  const bulkRosterSource = fs.readFileSync('src/components/BulkRosterImport.tsx', 'utf8');
+  assert.match(bulkRosterSource, /Excel Şablonunu İndir/);
+  assert.match(bulkRosterSource, /<Button variant="secondary" disabled=\{busy\} onClick=\{async \(\) => \{/);
+  const authSource = fs.readFileSync('src/components/AuthView.tsx', 'utf8');
+  assert.match(authSource, /Veli Hesabı Oluştur/);
+  assert.match(authSource, /En az 5 karakter/);
+  assert.doesNotMatch(authSource, /En az 8 karakter/);
+  const parentSource = fs.readFileSync('src/components/ParentManagement.tsx', 'utf8');
+  assert.doesNotMatch(parentSource, /Veli Parola Sıfırlama Kodu/);
+  const adminSource = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
+  assert.doesNotMatch(adminSource, /ACCOUNT_ACTIVATION|PASSWORD_RESET|authCodeRoster|createAuthCode|code-purpose|Parola sıfırlama kodu/);
   console.log('Admin component date picker, today action, class-first roster/parent rendering and child actions PASS (mocked hooks).');
 }
-run().catch(() => { console.error('Admin component filter test FAILED.'); process.exitCode = 1; });
+run().catch((cause: unknown) => {
+  console.error('Admin component filter test FAILED.', cause instanceof Error ? cause.message : 'Unknown error');
+  process.exitCode = 1;
+});

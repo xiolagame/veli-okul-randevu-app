@@ -106,7 +106,7 @@ async function run() {
     assert.equal((await db.query('SELECT id FROM students WHERE id=$1', [foreignStudent])).rows.length, 1);
 
     const booking = { teacherId: teacherProfileA, studentName: 'ONLY STUDENT', className: '5-A',
-      date: '2090-01-02', startTime: '10:00', endTime: '10:15' };
+      date: '2090-01-02', startTime: '10:00', endTime: '10:15', notes: 'Görüşmede <b>deneme sınavını</b> konuşmak istiyorum.' };
     stage = 'booking and email';
     const booked = await request('POST', `${schoolPath}/appointments`, parentOnly.token, booking);
     assert.equal(booked.status, 200);
@@ -114,9 +114,10 @@ async function run() {
     assert.equal(messages.length, 1);
     assert.deepEqual(messages[0].to, ['teacher-a@example.test']);
     for (const text of ['ONLY STUDENT', '5-A', (booked.body.appointment as { parentName: string }).parentName,
-      '02/01/2090', '10:00', '10:15', 'Randevu Talebini İncele']) {
+      '02/01/2090', '10:00', '10:15', 'Randevu Talebini İncele', 'Veli Notu', '&lt;b&gt;deneme sınavını&lt;/b&gt;']) {
       assert(messages[0].html.includes(text));
     }
+    assert(!messages[0].html.includes('<b>deneme sınavını</b>'));
     const reviewToken = messages[0].html.match(/#appointment-review=[^.]+\.([A-Za-z0-9_-]{43})/)?.[1];
     assert(reviewToken);
     const storedToken = await db.query<{ token: string }>('SELECT token FROM invitations WHERE token=$1', [hashSetupToken(reviewToken)]);
@@ -135,6 +136,7 @@ async function run() {
     assert.equal(review.status, 200);
     assert(!JSON.stringify(review.body).includes(reviewToken));
     assert.equal((review.body.appointment as { studentName: string }).studentName, 'ONLY STUDENT');
+    assert.equal((review.body.appointment as { notes: string }).notes, booking.notes);
     assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [appointmentId])).rows[0].status, 'pending');
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token,
       { appointmentId: 'another-appointment' }, reviewToken)).status, 200);

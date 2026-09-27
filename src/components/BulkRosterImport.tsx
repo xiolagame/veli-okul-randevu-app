@@ -54,15 +54,15 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
       <label className="field">Sınıf<input list="bulk-classes" value={className} maxLength={50} disabled={busy} placeholder="Örn. 5-A" onChange={(event) => { setClassName(event.target.value); setPreview(null); }} /><datalist id="bulk-classes">{classes.map((entry) => <option key={entry} value={entry} />)}</datalist></label>
       <p className="field-hint">Listeden sınıf seçebilir veya okulunuz için yeni sınıf yazabilirsiniz. Dosyada sınıf sütunu bulunmaz.</p>
       {error && <Alert tone="danger">{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
+      <Button variant="secondary" disabled={busy} onClick={async () => {
+        try {
+          const buffer = await rosterTemplate();
+          const url = URL.createObjectURL(new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+          const link = document.createElement('a'); link.href = url; link.download = 'veli-randevu-ogrenci-veli-sablonu.xlsx'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch { setError('Şablon oluşturulamadı.'); }
+      }}>Excel Şablonunu İndir</Button>
       <fieldset disabled={!className.trim() || busy} className="min-w-0 space-y-4">
-        <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={async () => {
-          try {
-            const buffer = await rosterTemplate();
-            const url = URL.createObjectURL(new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-            const link = document.createElement('a'); link.href = url; link.download = 'veli-randevu-ogrenci-veli-sablonu.xlsx'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-          } catch { setError('Şablon oluşturulamadı.'); }
-        }}>Excel Şablonunu İndir</Button>
-        <div className="file-picker"><input id="bulk-roster-file" className="sr-only" type="file" accept=".xlsx,.csv" aria-label="XLSX veya CSV dosyası yükle" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadFile(file); event.target.value = ''; }} /><label className="ui-button ui-button-secondary" htmlFor="bulk-roster-file">Dosya Yükle</label><span className="file-picker-name" aria-live="polite">{fileName || 'Dosya seçilmedi'}</span><span className="field-hint">XLSX / CSV · en fazla 2 MB</span></div></div>
+        <div className="flex flex-wrap gap-2"><div className="file-picker"><input id="bulk-roster-file" className="sr-only" type="file" accept=".xlsx,.csv" aria-label="XLSX veya CSV dosyası yükle" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadFile(file); event.target.value = ''; }} /><label className="ui-button ui-button-secondary" htmlFor="bulk-roster-file">Dosya Yükle</label><span className="file-picker-name" aria-live="polite">{fileName || 'Dosya seçilmedi'}</span><span className="field-hint">XLSX / CSV · en fazla 2 MB</span></div></div>
         <p className="field-hint">Excel'den kopyaladığınız 5 sütunu ilk alana yapıştırabilirsiniz. En fazla 500 satır. Mevcut kayıtlar atlanır; hatalı satır varsa aktarım yapılmaz.</p>
         <div className="max-h-[45vh] overflow-y-auto space-y-3">
           {records.map((record, index) => <div key={index} className="rounded-xl border p-3 space-y-2">

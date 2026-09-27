@@ -13,3 +13,11 @@ export interface ManagedParent {
   status: string;
   students: ManagedStudent[];
 }
+
+export interface ManagedSchoolAdmin {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  status: 'active' | 'pending';
+}
