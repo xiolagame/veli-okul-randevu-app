@@ -75,6 +75,10 @@ async function run() {
     const bookingView = fs.readFileSync('src/components/ParentView.tsx', 'utf8');
     const stylesheet = fs.readFileSync('src/index.css', 'utf8');
     assert(bookingView.includes('data-booked={slot.isBooked}') && bookingView.includes('disabled={slot.isBooked'));
+    assert(bookingView.includes('setBookingCalendarOpen(false)') && bookingView.includes('Tarihi değiştir'));
+    assert(bookingView.includes("matchMedia?.('(prefers-reduced-motion: reduce)')") && bookingView.includes('scrollIntoView'));
+    assert(bookingView.includes('Bu tarihte uygun saat bulunmuyor. Başka bir tarih seçin.'));
+    assert(stylesheet.includes('.booking-date-summary') && stylesheet.includes('.booking-slots-anchor'));
     assert(stylesheet.includes('.slot-grid button[data-booked="true"] { text-decoration: line-through; }'));
     const metricMarkup = renderToStaticMarkup(React.createElement(Metric, { label: 'Onay bekleyen', value: 0, icon: Calendar, onClick: () => {} }));
     assert(metricMarkup.includes('<button') && metricMarkup.includes('type="button"') && metricMarkup.includes('randevuları göster'));

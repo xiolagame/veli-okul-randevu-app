@@ -1,5 +1,5 @@
 import { formatDate, formatDateTime, formatDatesInText, getIstanbulDate } from '../utils/dates';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { normalizePersonName, uppercasePersonNameInput } from '../utils/person-name';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
@@ -22,6 +22,17 @@ import {
   ArrowRight,
   Bell,
 } from 'lucide-react';
+
+function formatBookingDate(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
 
 export const ParentView: React.FC = () => {
   const {
@@ -49,6 +60,7 @@ export const ParentView: React.FC = () => {
   const [bookingTeacher, setBookingTeacher] = useState<TeacherProfile | null>(null);
   const [bookingDate, setBookingDate] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => getIstanbulDate().slice(0, 7));
+  const [bookingCalendarOpen, setBookingCalendarOpen] = useState(true);
   const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<string>(
     currentUser?.students?.[0]?.name || ''
@@ -64,6 +76,7 @@ export const ParentView: React.FC = () => {
   const [occupiedSlots, setOccupiedSlots] = useState<{ key: string; intervals: { startTime: string; endTime: string }[] } | null>(null);
   const [slotsError, setSlotsError] = useState('');
   const [slotsRefresh, setSlotsRefresh] = useState(0);
+  const bookingSlotsRef = useRef<HTMLFieldSetElement>(null);
 
   // Teacher Filter
   const [teacherSearch, setTeacherSearch] = useState<string>('');
@@ -114,6 +127,7 @@ export const ParentView: React.FC = () => {
     setBookingTeacher(teacher);
     setBookingDate('');
     setCalendarMonth(getIstanbulDate().slice(0, 7));
+    setBookingCalendarOpen(true);
     setOccupiedSlots(null);
     setSelectedSlotTime('');
     setBookingNotes('');
@@ -139,6 +153,18 @@ export const ParentView: React.FC = () => {
       .catch(() => { if (active) setSlotsError('Dolu saatler alınamadı. Lütfen tekrar deneyin.'); });
     return () => { active = false; };
   }, [bookingTeacher?.id, bookingDate, currentSchool?.id, slotsRefresh]);
+
+  useEffect(() => {
+    if (!bookingTeacher || !bookingDate || bookingCalendarOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      bookingSlotsRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [bookingTeacher?.id, bookingDate, bookingCalendarOpen]);
 
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +234,12 @@ export const ParentView: React.FC = () => {
       isBooked: intervals.some((occupied) => intervalsOverlap({ startTime: slot.time, endTime: slot.endTime }, occupied)),
     }));
   };
+
+  const bookingSlots = bookingTeacher && bookingDate
+    ? getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate)
+    : [];
+  const bookingSlotsReady = !!bookingDate && !slotsError && occupiedSlots?.key === occupiedKey;
+  const noSelectableBookingSlots = bookingSlotsReady && !bookingSlots.some((slot) => !slot.isBooked);
 
   const navigation = [
     { id: 'home' as const, label: 'Ana sayfa', icon: BookOpen },
@@ -293,8 +325,8 @@ export const ParentView: React.FC = () => {
           <label className="field" htmlFor="booking-student">Hangi öğrenciniz için?
             {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <select id="booking-student" disabled><option>Önce profilinize öğrenci ekleyin</option></select>}
           </label>
-          <div className="field"><span>Görüşme tarihi</span><AvailabilityCalendar month={calendarMonth} onMonthChange={setCalendarMonth} selectedDate={bookingDate} weekdays={[...new Set(availability.filter((slot) => slot.teacherId === bookingTeacher.id && slot.dayOfWeek >= 1 && slot.dayOfWeek <= 6).map((slot) => slot.dayOfWeek))]} onSelectDate={(date) => { setBookingDate(date); setSelectedSlotTime(''); }} /></div>
-          {bookingDate && <fieldset><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}<div className="slot-grid">{getAvailableSlotsForTeacher(bookingTeacher.id, bookingDate).map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div><p className="field-hint mt-2">Üzeri çizili saatler doludur.</p></fieldset>}
+          <div className="field"><span>Görüşme tarihi</span>{!bookingDate || bookingCalendarOpen ? <AvailabilityCalendar month={calendarMonth} onMonthChange={setCalendarMonth} selectedDate={bookingDate} weekdays={[...new Set(availability.filter((slot) => slot.teacherId === bookingTeacher.id && slot.dayOfWeek >= 1 && slot.dayOfWeek <= 6).map((slot) => slot.dayOfWeek))]} onSelectDate={(date) => { setBookingDate(date); setSelectedSlotTime(''); setBookingCalendarOpen(false); }} /> : <div className="booking-date-summary"><div role="status" aria-live="polite"><span>Seçilen tarih</span><strong>{formatBookingDate(bookingDate)}</strong></div><Button variant="quiet" onClick={() => setBookingCalendarOpen(true)}>Tarihi değiştir</Button></div>}</div>
+          {bookingDate && <fieldset ref={bookingSlotsRef} className="booking-slots-anchor"><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}{noSelectableBookingSlots && <Alert tone="warning">Bu tarihte uygun saat bulunmuyor. Başka bir tarih seçin.</Alert>}<div className="slot-grid">{bookingSlots.map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div>{bookingSlots.length > 0 && <p className="field-hint mt-2">Üzeri çizili saatler doludur.</p>}</fieldset>}
           <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
           {selectedSlotTime && <Alert>{formatDate(bookingDate)} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}
           <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy || occupiedSlots?.key !== occupiedKey || !!slotsError}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>

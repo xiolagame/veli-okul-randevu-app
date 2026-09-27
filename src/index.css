@@ -192,6 +192,13 @@
 .chips button[aria-pressed="true"] { background: var(--primary); color: white; border-color: var(--primary); }
 .slot-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
 .availability-calendar { max-width: 390px; width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.booking-date-summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: #f7faf8; }
+.booking-date-summary > div { display: grid; gap: 3px; min-width: 0; }
+.booking-date-summary span { color: var(--muted); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.booking-date-summary strong { font-size: 14px; line-height: 1.4; }
+.booking-date-summary .ui-button { flex-shrink: 0; }
+.booking-slots-anchor { scroll-margin-top: 112px; }
+.booking-slots-anchor > .ui-alert { margin-bottom: 12px; }
 .calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .calendar-heading button { padding: 4px 12px; border: 1px solid var(--line); border-radius: 8px; }
 .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; text-align: center; }
@@ -362,6 +369,8 @@
   .dialog-panel { max-height: calc(100dvh - 24px); border-radius: 20px; }
   .dialog-heading, .dialog-body { padding: 20px; }
   .dialog-heading h2 { font-size: 19px; }
+  .booking-date-summary { align-items: flex-start; flex-direction: column; }
+  .booking-date-summary .ui-button { width: 100%; }
   .teacher-grid { grid-template-columns: 1fr; }
   .appointment-card { padding: 18px; gap: 12px; flex-direction: column; }
   .appointment-time { flex-direction: row; gap: 8px; width: auto; align-items: baseline; padding: 0; }
