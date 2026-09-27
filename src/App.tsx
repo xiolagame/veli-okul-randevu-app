@@ -3,7 +3,7 @@ import { useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
-import { ShieldAlert, QrCode, Shield } from 'lucide-react';
+import { Building2, ShieldAlert, QrCode, Shield } from 'lucide-react';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -15,16 +15,23 @@ const OnboardingModal = lazy(() => import('./components/OnboardingModal').then((
 const AppointmentEmailReview = lazy(() => import('./components/AppointmentEmailReview').then((module) => ({ default: module.AppointmentEmailReview })));
 
 export const AppContent: React.FC = () => {
-  const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, switchSchool, refreshPlatformSchools } = useApp();
+  const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, platformSchools, switchSchool, refreshPlatformSchools } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showSchoolManagement, setShowSchoolManagement] = useState(false);
+  const [platformManagementSection, setPlatformManagementSection] = useState<'overview' | 'schools'>('overview');
   const canManageSchools = isPlatformAdmin;
+  const showPlatformHome = isPlatformAdmin && !platformContextActive && !currentMembership;
+  const openPlatformManagement = (section: 'overview' | 'schools' = 'overview') => {
+    setPlatformManagementSection(section);
+    setShowAdminModal(false);
+    setShowSchoolManagement(true);
+  };
 
   useEffect(() => {
-    setShowAdminModal(currentUser?.role === 'admin');
-  }, [currentUser?.id, currentUser?.role]);
+    setShowAdminModal(currentUser?.role === 'admin' && (!isPlatformAdmin || platformContextActive || !!currentMembership));
+  }, [currentUser?.id, currentUser?.role, currentMembership?.id, isPlatformAdmin, platformContextActive]);
 
   if (isLoading) {
     return <div className="page-shell"><Brand /><div className="mt-10"><Skeleton rows={4} /></div></div>;
@@ -57,16 +64,16 @@ export const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900"><a href="#main-content" className="skip-link">İçeriğe geç</a>
       <Navbar
-        onManageSchools={canManageSchools ? () => setShowSchoolManagement(true) : undefined}
+        onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined}
         onOpenNotifications={() => setShowNotifications(true)}
-        onOpenAdmin={() => setShowAdminModal(true)}
+        onOpenAdmin={() => { if (isPlatformAdmin) openPlatformManagement('overview'); else setShowAdminModal(true); }}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
       />
 
-      {platformContextActive && currentSchool && <div className="platform-context-banner"><span><strong>Platform Yönetimi</strong><span aria-hidden="true"> › </span>{currentSchool.name}</span><Button variant="quiet" onClick={() => { setShowAdminModal(false); setShowSchoolManagement(true); }}>Platform alanına dön</Button></div>}
+      {platformContextActive && currentSchool && <div className="platform-context-banner"><span><strong>Platform Yönetimi</strong><span aria-hidden="true"> › </span>{currentSchool.name}</span><Button variant="quiet" onClick={() => openPlatformManagement('overview')}>Platform alanına dön</Button></div>}
 
       {/* Warning banner if user has no membership in currentSchool */}
-      {!currentMembership && !platformContextActive && currentSchool && (
+      {!isPlatformAdmin && !currentMembership && !platformContextActive && currentSchool && (
         <div className="bg-amber-50 text-amber-900 px-4 py-3 text-sm flex flex-wrap gap-3 items-center justify-between border-b border-amber-200">
           <div className="flex items-center gap-2 max-w-2xl">
             <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -86,11 +93,12 @@ export const AppContent: React.FC = () => {
 
       <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}>
       <div className="flex-1">
-        {currentUser.role === 'admin' && !showAdminModal && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Shield} title="Okulunuzun yönetim alanı" description="Personeli, veli kayıtlarını ve okul görüşmelerini buradan yönetin." action={<Button onClick={() => setShowAdminModal(true)}>Yönetim panelini aç</Button>} /></div></main>}
+        {showPlatformHome && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Building2} title={platformSchools.length ? 'Yönetilecek okulu seçin' : 'Henüz okul bulunmuyor'} description={platformSchools.length ? 'Okul seçmek veya platform ayarlarını yönetmek için Platform Yönetimi alanını açın.' : 'Platformu kullanmaya başlamak için ilk okul kaydını oluşturun.'} action={<Button onClick={() => openPlatformManagement(platformSchools.length ? 'overview' : 'schools')}>{platformSchools.length ? 'Platform Yönetimi' : 'Yeni Okul Oluştur'}</Button>} /></div></main>}
+        {!showPlatformHome && currentUser.role === 'admin' && !showAdminModal && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Shield} title="Okulunuzun yönetim alanı" description="Personeli, veli kayıtlarını ve okul görüşmelerini buradan yönetin." action={<Button onClick={() => setShowAdminModal(true)}>Yönetim panelini aç</Button>} /></div></main>}
         {currentUser.role === 'parent' && <ParentView />}
         {currentUser.role === 'teacher' && <TeacherView />}
         {currentUser.role === 'security' && <SecurityView key={currentSchool?.id} />}
-        {!currentUser.role && (
+        {!isPlatformAdmin && !currentUser.role && (
           <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl shadow-md border border-slate-200 text-center space-y-4">
             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
               <QrCode className="w-6 h-6" />
@@ -118,7 +126,7 @@ export const AppContent: React.FC = () => {
       )}
 
       {showAdminModal && (
-        <AdminView onClose={() => setShowAdminModal(false)} onManageSchools={canManageSchools ? () => setShowSchoolManagement(true) : undefined} />
+        <AdminView onClose={() => setShowAdminModal(false)} onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined} />
       )}
 
       {showOnboardingModal && (
@@ -127,7 +135,7 @@ export const AppContent: React.FC = () => {
           onClose={() => setShowOnboardingModal(false)}
         />
       )}
-      {canManageSchools && showSchoolManagement && <SchoolManagement onClose={() => setShowSchoolManagement(false)} onChanged={refreshPlatformSchools} onManageSchool={async (schoolId) => { await switchSchool(schoolId); setShowSchoolManagement(false); setShowAdminModal(true); }} />}
+      {canManageSchools && showSchoolManagement && <SchoolManagement initialSection={platformManagementSection} onClose={() => setShowSchoolManagement(false)} onChanged={refreshPlatformSchools} onManageSchool={async (schoolId) => { await switchSchool(schoolId); setShowSchoolManagement(false); setShowAdminModal(true); }} />}
       </Suspense>
     </div>
   );

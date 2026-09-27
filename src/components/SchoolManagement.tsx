@@ -9,7 +9,9 @@ import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phon
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 
-export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void> }) {
+type PlatformManagementSection = 'overview' | 'schools' | 'security' | 'audit';
+
+export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSection = 'overview' }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void>; initialSection?: PlatformManagementSection }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -25,7 +27,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged }: { onClo
   const [adminInvitePending, setAdminInvitePending] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const [draft, setDraft] = useState({ name: '', code: '', city: '', district: '' });
-  const [section, setSection] = useState<'overview' | 'schools' | 'security' | 'audit'>('overview');
+  const [section, setSection] = useState<PlatformManagementSection>(initialSection);
   const [security, setSecurity] = useState<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' } | null>(null);
   const [logs, setLogs] = useState<{ id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[]>([]);
   const load = async () => setSchools((await api.getManagedSchools()).schools);
