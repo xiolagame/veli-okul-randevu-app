@@ -102,6 +102,32 @@ export type AuthCodePurpose =
 // ==============================================================================
 // 1. SCHOOL REPOSITORY
 // ==============================================================================
+export type SchoolLicenseStatus = 'active' | 'suspended' | 'revoked';
+
+export const schoolLicenseRepository = {
+  async getBySchoolId(schoolId: string, client?: TransactionClient): Promise<{
+    id: string;
+    schoolId: string;
+    licenseCode: string;
+    status: SchoolLicenseStatus;
+    activatedAt: string | null;
+    expiresAt: string | null;
+  } | null> {
+    const result = await execQuery<{ id: string; school_id: string; license_code: string; status: SchoolLicenseStatus; activated_at: string | null; expires_at: string | null }>(
+      `SELECT id,school_id,license_code,status,activated_at,expires_at
+       FROM school_licenses WHERE school_id=$1`, [schoolId], client);
+    const row = result.rows[0];
+    return row ? { id: row.id, schoolId: row.school_id, licenseCode: row.license_code, status: row.status,
+      activatedAt: row.activated_at, expiresAt: row.expires_at } : null;
+  },
+
+  async isAccessAllowed(schoolId: string, client?: TransactionClient): Promise<boolean> {
+    const license = await this.getBySchoolId(schoolId, client);
+    if (!license) return true;
+    return license.status === 'active' && (!license.expiresAt || new Date(license.expiresAt).getTime() > Date.now());
+  },
+};
+
 export const schoolRepository = {
   async getAll(): Promise<School[]> {
     const res = await execQuery<any>(
@@ -146,6 +172,7 @@ export const schoolRepository = {
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
+    if (!await schoolLicenseRepository.isAccessAllowed(r.id)) return null;
     return {
       id: r.id,
       name: r.name,

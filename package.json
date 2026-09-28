@@ -16,6 +16,7 @@
     "test:school-roster-ui": "tsx scripts/test-school-roster-ui.ts",
     "test:first-student": "tsx scripts/test-first-student-empty-school.ts",
     "test:school-admin-provisioning": "tsx scripts/test-school-admin-provisioning.ts",
+    "test:school-license": "tsx scripts/test-school-license.ts",
     "test:platform-school-deletion": "tsx scripts/test-platform-school-deletion.ts",
     "test:platform-navigation": "tsx scripts/test-platform-admin-navigation.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",

@@ -8,6 +8,7 @@ import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
+import { formatLicenseCodeInput } from '../utils/license-code';
 
 type PlatformManagementSection = 'overview' | 'schools' | 'security' | 'audit';
 
@@ -26,7 +27,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
   const [adminDraft, setAdminDraft] = useState({ fullName: '', phone: '', email: '' });
   const [adminInvitePending, setAdminInvitePending] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
-  const [draft, setDraft] = useState({ name: '', code: '', city: '', district: '' });
+  const [draft, setDraft] = useState({ name: '', code: '', licenseCode: '', city: '', district: '' });
   const [section, setSection] = useState<PlatformManagementSection>(initialSection);
   const [security, setSecurity] = useState<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' } | null>(null);
   const [logs, setLogs] = useState<{ id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[]>([]);
@@ -66,16 +67,18 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
       {changed && <Alert tone="success">{changeMessage}</Alert>}
       {section === 'overview' && <div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div>}
-      {(section === 'overview' || section === 'schools') && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); }); }}>
+      {(section === 'overview' || section === 'schools') && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', licenseCode: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); }); }}>
         <h3>Yeni okul ekle</h3>
-        {(['name', 'code', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', city: 'İl', district: 'İlçe' })[key]}
-          <input required={key !== 'code'} placeholder={key === 'code' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : 100} pattern={key === 'code' ? '[A-Z0-9_-]{3,50}' : undefined}
-            onChange={(event) => setDraft({ ...draft, [key]: key === 'code' ? normalizeSchoolCodeInput(event.target.value) : event.target.value })} /></label>)}
-        <p className="field-hint">Kod boş bırakılırsa benzersiz bir kod üretilir. Elle giriş: 3–50 harf, rakam, tire veya alt çizgi. Okul yöneticisi ayrı bir aktivasyonla atanır.</p>
+        {(['name', 'code', 'licenseCode', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', licenseCode: 'Lisans Kodu', city: 'İl', district: 'İlçe' })[key]}
+          <input required={key !== 'code' && key !== 'licenseCode'} placeholder={key === 'code' || key === 'licenseCode' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : key === 'licenseCode' ? 64 : 100} pattern={key === 'code' ? '[A-Z0-9_-]{3,50}' : key === 'licenseCode' ? '[A-Z0-9]+(?:-[A-Z0-9]+)*' : undefined}
+            autoCapitalize={key === 'licenseCode' ? 'characters' : undefined} autoCorrect={key === 'licenseCode' ? 'off' : undefined} spellCheck={key === 'licenseCode' ? false : undefined}
+            onChange={(event) => setDraft({ ...draft, [key]: key === 'code' ? normalizeSchoolCodeInput(event.target.value) : key === 'licenseCode' ? formatLicenseCodeInput(event.target.value) : event.target.value })} />{key === 'licenseCode' && <span className="field-hint">Boş bırakırsanız sistem otomatik oluşturur.</span>}</label>)}
+        <p className="field-hint">Okul kodu ve lisans kodu boş bırakılırsa benzersiz değerler backend tarafından üretilir. Okul yöneticisi ayrı bir aktivasyonla atanır.</p>
         <Button type="submit" disabled={busy}>Okul oluştur</Button>
       </form>}
       {(section === 'overview' || section === 'schools') && (loading ? <Skeleton /> : schools.map((school) => <article className="surface platform-school-row" key={school.id}>
         <h3>{school.name}</h3><p>{school.code} · {school.city} / {school.district}</p>
+        <p><strong>Lisans Kodu:</strong> {school.licenseCode || 'Geçiş bekliyor'} · <strong>Durum:</strong> {school.licenseStatus === 'active' ? 'Aktif' : school.licenseStatus === 'legacy' ? 'Legacy / backfill bekliyor' : school.licenseStatus === 'suspended' ? 'Askıya alındı' : 'İptal edildi'}</p>
         <p><span className={`status-badge tone-${school.disabledAt ? 'warning' : 'success'}`}>{school.disabledAt ? `Devre dışı · ${formatDateTime(school.disabledAt)}` : 'Aktif'}</span></p>
         <p><span className={`status-badge tone-${school.adminStatus === 'active' ? 'success' : 'warning'}`}>{school.adminStatus === 'active' ? `Okul Yönetimi Aktif${school.adminName ? ` · ${school.adminName}` : ''}` : school.adminStatus === 'pending' ? `Yönetici Aktivasyonu Bekliyor${school.adminName ? ` · ${school.adminName}` : ''}` : 'Okul yöneticisi atanmamış'}</span></p>
         {school.adminStatus === 'unassigned' && <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => { setAdminTarget(school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage(''); }}>Okul Yöneticisi Ata</Button>}

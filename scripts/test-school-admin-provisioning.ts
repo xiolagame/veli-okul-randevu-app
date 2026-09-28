@@ -74,8 +74,11 @@ async function run() {
   try {
     const createdSchool = await request('POST', '/platform/schools', platformToken, { name: 'School Admin A', code: schoolCode, city: 'Test', district: 'Test' });
     assert.equal(createdSchool.status, 201);
-    createdSchoolId = String((createdSchool.body.school as Record<string, unknown>).id);
+    const createdSchoolBody = createdSchool.body.school as Record<string, unknown>;
+    createdSchoolId = String(createdSchoolBody.id);
+    const licenseCode = String(createdSchoolBody.licenseCode);
     assert(createdSchoolId);
+    assert.match(licenseCode, /^VR-[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){2}$/);
     const platformMembership = await db.query('SELECT id FROM school_memberships WHERE user_id=$1 AND school_id=$2 AND role=\'admin\'', [platformUser.id, createdSchoolId]);
     assert.equal(platformMembership.rows.length, 0, 'platform user must not receive school admin membership');
     assert.equal((await request('GET', `/platform-target/${createdSchoolId}/schools/${createdSchoolId}/info`, platformToken)).status, 200,
@@ -108,6 +111,7 @@ async function run() {
     assert.match(sentEmails[0].subject, /Okul Yönetimi/);
     assert.match(sentEmails[0].html, /Okul Yöneticisi İlk Giriş/);
     assert.match(sentEmails[0].html, new RegExp(schoolCode));
+    assert.match(sentEmails[0].html, new RegExp(licenseCode));
     assert.match(sentEmails[0].html, /font-size:26px/);
     assert.match(sentEmails[0].html, /font-size:28px/);
     assert(!sentEmails[0].html.includes(`${schoolCode}.`));
@@ -131,25 +135,26 @@ async function run() {
     assert.equal(resent.body.emailSent, true);
     const activationCode = emailCode(1);
     assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined,
-      { schoolCode: otherSchoolCode, phone: managerPhone, code: activationCode }, '192.0.2.11')).status, 400, 'wrong school must fail');
+      { schoolCode: otherSchoolCode, phone: managerPhone, licenseCode, code: activationCode }, '192.0.2.11')).status, 400, 'wrong school must fail');
     assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined,
-      { schoolCode, phone: expiredPhone, code: activationCode }, '192.0.2.12')).status, 400, 'wrong phone must fail');
+      { schoolCode, phone: expiredPhone, licenseCode, code: activationCode }, '192.0.2.12')).status, 400, 'wrong phone must fail');
     assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined,
-      { schoolCode, phone: managerPhone, code: '000000' }, '192.0.2.13')).status, 400, 'wrong code must fail');
+      { schoolCode, phone: managerPhone, licenseCode, code: '000000' }, '192.0.2.13')).status, 400, 'wrong code must fail');
     let clientIp = 14;
     for (const [purpose, role, code] of [['staff_activation', 'teacher', '123456'], ['staff_activation', 'security', '234567'], ['parent_password_reset', 'parent', '345678']] as const) {
       await invitationRepository.createAuthCode({ schoolId: createdSchoolId, targetPhone: managerPhone, targetUserId: pending.id, targetRole: role,
         purpose, codeHash: hashActivationCode(code), expiresAt: new Date(Date.now() + 60_000).toISOString(), token: crypto.randomUUID() });
       assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined,
-        { schoolCode, phone: managerPhone, code }, `192.0.2.${clientIp++}`)).status, 400, `${purpose}/${role} code must not work for admin activation`);
+        { schoolCode, phone: managerPhone, licenseCode, code }, `192.0.2.${clientIp++}`)).status, 400, `${purpose}/${role} code must not work for admin activation`);
       const codeState = await db.query('SELECT consumed_at FROM invitations WHERE school_id=$1 AND target_phone=$2 AND purpose=$3', [createdSchoolId, managerPhone, purpose]);
       assert(codeState.rows.every((row) => row.consumed_at === null), 'cross-purpose code must remain unconsumed');
     }
 
-    const activation = await request('POST', '/auth/school-admin/activation-verify', undefined, { schoolCode, phone: managerPhone, code: activationCode });
+    const activation = await request('POST', '/auth/school-admin/activation-verify', undefined,
+      { schoolCode, phone: managerPhone, licenseCode: licenseCode.toLowerCase(), code: activationCode });
     assert.equal(activation.status, 200);
     assert.equal('setupToken' in activation.body, true);
-    assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined, { schoolCode, phone: managerPhone, code: activationCode })).status, 400,
+    assert.equal((await request('POST', '/auth/school-admin/activation-verify', undefined, { schoolCode, phone: managerPhone, licenseCode, code: activationCode })).status, 400,
       'activation code must be single-use');
     assert.equal((await request('POST', '/auth/school-admin/activation-complete', undefined,
       { schoolId: otherSchoolId, phone: managerPhone, setupToken: activation.body.setupToken, password: 'Local-admin-pass-184!abc' })).status, 400,

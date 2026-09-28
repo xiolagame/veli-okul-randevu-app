@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { userRepository, membershipRepository, schoolRepository } from './repositories';
+import { userRepository, membershipRepository, schoolRepository, schoolLicenseRepository } from './repositories';
 import { UserRole, SchoolMembership } from '../src/types';
 
 const configuredSecret = process.env.JWT_SECRET?.trim();
@@ -186,6 +186,7 @@ export function getAuthorizedSchool(req: AuthenticatedRequest): string {
  */
 export async function requireSchoolMembership(userId: string, schoolId: string): Promise<SchoolMembership | null> {
   if (!await schoolRepository.getById(schoolId)) return null;
+  if (!await schoolLicenseRepository.isAccessAllowed(schoolId)) return null;
   return membershipRepository.getActiveMembership(userId, schoolId);
 }
 

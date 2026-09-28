@@ -6,6 +6,7 @@ import { Alert, Brand, Button, Dialog } from './ui';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
 import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
+import { formatLicenseCodeInput } from '../utils/license-code';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -46,6 +47,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   const [staffResetSchoolId, setStaffResetSchoolId] = useState('');
   const [schoolAdminActivationStep, setSchoolAdminActivationStep] = useState<SchoolAdminStep>(null);
   const [schoolAdminSchoolCode, setSchoolAdminSchoolCode] = useState('');
+  const [schoolAdminLicenseCode, setSchoolAdminLicenseCode] = useState('');
   const [schoolAdminSetupToken, setSchoolAdminSetupToken] = useState('');
   const [schoolAdminSchoolId, setSchoolAdminSchoolId] = useState('');
   const [schoolAdminResetStep, setSchoolAdminResetStep] = useState<SchoolAdminResetStep>(null);
@@ -143,6 +145,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
   const closeSchoolAdminActivation = () => {
     setSchoolAdminActivationStep(null);
     setSchoolAdminSchoolCode('');
+    setSchoolAdminLicenseCode('');
     setSchoolAdminSetupToken('');
     setSchoolAdminSchoolId('');
     setCode('');
@@ -158,7 +161,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
     setIsSubmitting(true);
     try {
       if (schoolAdminActivationStep === 'verify') {
-        const result = await api.verifySchoolAdminActivation(schoolAdminSchoolCode, codePhone, code);
+        const result = await api.verifySchoolAdminActivation(schoolAdminSchoolCode, codePhone, schoolAdminLicenseCode, code);
         setSchoolAdminSetupToken(result.setupToken);
         setSchoolAdminSchoolId(result.schoolId);
         setSchoolAdminActivationStep('password');
@@ -360,6 +363,7 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           {error && <Alert tone="danger">{error}</Alert>}
           <label className="field" htmlFor="school-admin-activation-school">Okul Kodu<input id="school-admin-activation-school" autoComplete="off" value={schoolAdminSchoolCode} onChange={(event) => setSchoolAdminSchoolCode(normalizeSchoolCodeInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
           <label className="field" htmlFor="school-admin-activation-phone">Telefon Numaranız<input id="school-admin-activation-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
+          {schoolAdminActivationStep === 'verify' && <label className="field" htmlFor="school-admin-activation-license">Lisans Kodu<input id="school-admin-activation-license" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={64} placeholder="VR-7K4M-9Q2X-H8NP" value={schoolAdminLicenseCode} onChange={(event) => setSchoolAdminLicenseCode(formatLicenseCodeInput(event.target.value))} /><span className="field-hint">İlk okul yöneticisi aktivasyonunda e-postanızdaki lisans kodunu girin. Ek yöneticiler için gerekli değildir.</span></label>}
           {schoolAdminActivationStep === 'verify' ? <label className="field" htmlFor="school-admin-activation-code">6 haneli aktivasyon kodu<input id="school-admin-activation-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label> : <>
             <label className="field" htmlFor="school-admin-new-password">Yeni parolanız<input id="school-admin-new-password" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label>
             <label className="field" htmlFor="school-admin-confirm-password">Yeni parolanız, tekrar<input id="school-admin-confirm-password" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>

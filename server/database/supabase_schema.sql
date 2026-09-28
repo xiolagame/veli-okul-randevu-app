@@ -40,6 +40,21 @@ CREATE TABLE IF NOT EXISTS schools (
 -- 3. SCHOOL MEMBERSHIPS (Scoped Role per School for Global Users)
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMPTZ;
 
+CREATE TABLE IF NOT EXISTS school_licenses (
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL UNIQUE REFERENCES schools(id) ON DELETE CASCADE,
+    license_code VARCHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'revoked')),
+    activated_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    CONSTRAINT school_licenses_code_canonical CHECK (
+        license_code = UPPER(license_code)
+        AND license_code ~ '^[A-Z0-9]+(-[A-Z0-9]+)*$'
+    )
+);
+
 CREATE TABLE IF NOT EXISTS school_memberships (
     id TEXT PRIMARY KEY DEFAULT ('mem-' || substr(md5(random()::text), 1, 16)),
     school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
@@ -328,6 +343,7 @@ END $$;
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_roster ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
@@ -354,6 +370,9 @@ ON users FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access schools" 
 ON schools FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access school_licenses"
+ON school_licenses FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access school_memberships" 
 ON school_memberships FOR ALL TO service_role USING (true) WITH CHECK (true);

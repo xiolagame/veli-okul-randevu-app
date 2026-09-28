@@ -89,7 +89,7 @@ export const api = {
     request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ className, records, preview }) }),
   getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),
   getManagedSchools: () => request<{ schools: import('../types/platform').ManagedSchool[] }>('/api/platform/schools'),
-  createSchool: (data: { name: string; code: string; city: string; district: string }) =>
+  createSchool: (data: { name: string; code: string; licenseCode: string; city: string; district: string }) =>
     request<{ school: import('../types/platform').ManagedSchool }>('/api/platform/schools', { method: 'POST', body: JSON.stringify(data) }),
   createSchoolAdminInvitation: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
     request<{ success: boolean; emailSent: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(schoolId)}/admin-invitation`, { method: 'POST', body: JSON.stringify(data) }),
@@ -163,8 +163,8 @@ export const api = {
     request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/staff/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
   completeStaffReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
     request<{success:boolean;message:string}>('/api/auth/staff/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
-  verifySchoolAdminActivation: (schoolCode:string,phone:string,code:string) =>
-    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
+  verifySchoolAdminActivation: (schoolCode:string,phone:string,licenseCode:string,code:string) =>
+    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,licenseCode,code})}),
   completeSchoolAdminActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
     request<{success:boolean;message:string}>('/api/auth/school-admin/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
   requestSchoolAdminReset: (schoolCode:string,phone:string) =>

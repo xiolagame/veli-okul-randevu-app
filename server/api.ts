@@ -15,6 +15,7 @@ import { isValidTurkishPhoneInput, normalizeTurkishPhone, normalizeUserPhoneInpu
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { normalizePersonName } from '../src/utils/person-name';
+import { normalizeLicenseCode } from '../src/utils/license-code';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
 import { sendEmail } from './email';
@@ -37,6 +38,7 @@ import {
   notificationRepository,
   auditLogRepository,
   invitationRepository,
+  schoolLicenseRepository,
   AuthCodePurpose,
 } from './repositories';
 import {
@@ -99,8 +101,8 @@ apiRouter.get('/health', async (req, res) => {
 apiRouter.get('/public/schools', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const memberships = await membershipRepository.getMembershipsByUserId(req.user!.id);
-    const list = (await Promise.all(memberships.filter((entry) => entry.status === 'active')
-      .map((entry) => schoolRepository.getById(entry.schoolId)))).filter(Boolean);
+    const list = (await Promise.all(memberships.filter((entry) => entry.status === 'active').map(async (entry) =>
+      await schoolLicenseRepository.isAccessAllowed(entry.schoolId) ? schoolRepository.getById(entry.schoolId) : null))).filter(Boolean);
     res.json({ schools: list });
   } catch (err: any) {
     console.error('[GET /public/schools Error]:', err);
@@ -216,7 +218,7 @@ apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
   try {
     await (await getDb()).transaction(async (tx) => {
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_PARENT_CHALLENGE');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_PARENT_CHALLENGE');
       const existing = await userRepository.getByPhone(phone, tx);
       const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: existing?.id, targetRole: 'parent', purpose: 'parent_self_registration', codeHash: hashSetupToken(`${challenge}:${birthDate}`) }, tx);
       if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
@@ -289,7 +291,7 @@ apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
       const user = await userRepository.getByPhone(phone, tx);
       if (!user) throw new Error('INVALID_PARENT_CHALLENGE');
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_PARENT_CHALLENGE');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_PARENT_CHALLENGE');
       const consumed = await invitationRepository.consumeAuthCode({ schoolId,targetPhone:phone,targetUserId:user.id,targetRole:'parent',purpose:'parent_password_reset',codeHash:hashSetupToken(`${challenge}:${birthDate}`) },tx);
       if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
       await userRepository.updatePasswordHashAndInvalidateSessions(user.id,hashPassword(req.body.password as string),tx);
@@ -310,7 +312,8 @@ apiRouter.post('/auth/staff/activation-verify', async (req, res) => {
     if (!school) return res.status(400).json({ error: AUTH_CODE_ERROR });
     const db = await getDb();
     const challenge = await db.transaction(async (tx) => {
-      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+      const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
+      if (!activeSchool.rows.length || !await schoolLicenseRepository.isAccessAllowed(school.id, tx)) throw new Error('INVALID_STAFF_CODE');
       const teacher = await teacherRepository.getTeacherByPhone(school.id, phone, tx);
       const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
       const security = await tx.query<{ id: string; first_name: string; last_name: string; phone: string; email: string }>(
@@ -341,7 +344,8 @@ apiRouter.post('/auth/staff/activation-complete', async (req, res) => {
   if (!await withinAuthRateLimit(`staff-activate-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:AUTH_CODE_ERROR});
   try {
     await (await getDb()).transaction(async (tx) => {
-      await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_STAFF_CODE');
       const setup = await invitationRepository.consumeAuthCode({ schoolId,targetPhone:phone,purpose:'staff_activation_setup',codeHash:hashSetupToken(setupToken) },tx);
       if (!setup || (setup.targetRole !== 'teacher' && setup.targetRole !== 'security')) throw new Error('INVALID_STAFF_CODE');
       await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
@@ -452,7 +456,7 @@ apiRouter.post('/auth/staff/reset-complete', async (req, res) => {
   try {
     await (await getDb()).transaction(async (tx) => {
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_STAFF_RESET');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_STAFF_RESET');
       const user = await userRepository.getByPhone(phone,tx);
       if (!user) throw new Error('INVALID_STAFF_RESET');
       const memberships = await membershipRepository.getMembershipsByUserId(user.id, tx);
@@ -468,13 +472,15 @@ apiRouter.post('/auth/staff/reset-complete', async (req, res) => {
 });
 
 const SCHOOL_ADMIN_RESET_GENERIC = 'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.';
+const SCHOOL_ADMIN_ACTIVATION_ERROR = 'Okul, lisans veya aktivasyon bilgileri doğrulanamadı.';
 
 apiRouter.post('/auth/school-admin/activation-verify', async (req, res) => {
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
+  const licenseCode = normalizeLicenseCode(req.body?.licenseCode);
   const code = typeof req.body?.code === 'string' ? req.body.code : '';
-  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: AUTH_CODE_ERROR });
-  if (!await withinAuthRateLimit(`school-admin-activate:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
+  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
+  if (!await withinAuthRateLimit(`school-admin-activate:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
   try {
     const school = await schoolRepository.getByCode(schoolCode);
     const candidate = school ? await userRepository.getByPhone(phone) : null;
@@ -483,6 +489,12 @@ apiRouter.post('/auth/school-admin/activation-verify', async (req, res) => {
     await (await getDb()).transaction(async (tx) => {
       const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
       if (!activeSchool.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+      const license = await schoolLicenseRepository.getBySchoolId(school.id, tx);
+      if (!await schoolLicenseRepository.isAccessAllowed(school.id, tx)) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
+      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+      const activeAdmins = await tx.query(`SELECT user_id FROM school_memberships WHERE school_id=$1
+        AND role='admin' AND status='active' AND NOT (user_id=ANY($2::text[])) LIMIT 1`, [school.id, platformAdminIds]);
+      if (!activeAdmins.rows.length && license && license.licenseCode !== licenseCode) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
       const user = await tx.query('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [candidate.id, phone]);
       if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
       const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: candidate.id,
@@ -496,7 +508,7 @@ apiRouter.post('/auth/school-admin/activation-verify', async (req, res) => {
   } catch {
     const school = await schoolRepository.getByCode(schoolCode);
     if (school) await recordFailedAuthCodeAttempt(school.id, phone, 'school_admin_activation');
-    return res.status(400).json({ error: AUTH_CODE_ERROR });
+    return res.status(400).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
   }
 });
 
@@ -510,7 +522,7 @@ apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
   try {
     await (await getDb()).transaction(async (tx) => {
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       const candidate = await userRepository.getByPhone(phone, tx);
       if (!candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
@@ -552,7 +564,7 @@ apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
           await db.transaction(async (tx) => {
             const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
             const activeMembership = await membershipRepository.getActiveMembership(user.id, school.id, tx);
-            if (!activeSchool.rows.length || isPlatformAdmin(user.id) || activeMembership?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+            if (!activeSchool.rows.length || !await schoolLicenseRepository.isAccessAllowed(school.id, tx) || isPlatformAdmin(user.id) || activeMembership?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
             await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
               purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
               token: crypto.randomUUID() }, tx);
@@ -584,7 +596,7 @@ apiRouter.post('/auth/school-admin/reset-verify', async (req, res) => {
     await (await getDb()).transaction(async (tx) => {
       const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
       const user = await userRepository.getByPhone(phone, tx);
-      if (!activeSchool.rows.length || !user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, school.id, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
+      if (!activeSchool.rows.length || !await schoolLicenseRepository.isAccessAllowed(school.id, tx) || !user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, school.id, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
       const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
         purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code) }, tx);
       if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== user.id) throw new Error('INVALID_SCHOOL_ADMIN_RESET');
@@ -610,7 +622,7 @@ apiRouter.post('/auth/school-admin/reset-complete', async (req, res) => {
   try {
     await (await getDb()).transaction(async (tx) => {
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
       const user = await userRepository.getByPhone(phone, tx);
       if (!user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, schoolId, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
       const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
@@ -639,7 +651,7 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
     await db.transaction(async (tx) => {
       const rosterEntries = await rosterRepository.checkPhone(schoolId, cleanPhone, tx);
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_AUTH_CODE');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_AUTH_CODE');
       const existingUser = await userRepository.getByPhone(cleanPhone, tx);
 
       const consumed = await invitationRepository.consumeAuthCode(
@@ -736,7 +748,7 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
     await db.transaction(async (tx) => {
       const user = await userRepository.getByPhone(cleanPhone, tx);
       const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length) throw new Error('INVALID_AUTH_CODE');
+      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_AUTH_CODE');
       if (!user) throw new Error('INVALID_AUTH_CODE');
       const consumed = await invitationRepository.consumeAuthCode(
         { schoolId, targetPhone: cleanPhone, targetUserId: user.id, purpose: 'PASSWORD_RESET', codeHash },

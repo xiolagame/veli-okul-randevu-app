@@ -122,7 +122,7 @@ async function run() {
     const deleted = await request('DELETE', `/platform/schools/${schoolA}`, platform.token);
     assert.equal(deleted.status, 200);
     assert.equal(deleted.body.message, 'Okul ve okula bağlı veriler kalıcı olarak silindi.');
-    const scopedTables = ['school_memberships', 'school_roster', 'students', 'student_parent_relations', 'teacher_profiles',
+    const scopedTables = ['school_licenses', 'school_memberships', 'school_roster', 'students', 'student_parent_relations', 'teacher_profiles',
       'availability_slots', 'appointments', 'notifications', 'audit_logs', 'invitations', 'pending_staff'];
     assert.equal((await db.query('SELECT id FROM schools WHERE id=$1', [schoolA])).rows.length, 0);
     for (const table of scopedTables) {
