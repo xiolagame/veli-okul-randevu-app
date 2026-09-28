@@ -40,7 +40,12 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
   };
   const submit = async (onlyPreview: boolean) => {
     if (busy) return;
-    setBusy(true); setError('');
+    setError('');
+    if (!className.trim()) {
+      setError('Sınıf/şube bilgisi girin.');
+      return;
+    }
+    setBusy(true);
     try {
       const result = await api.importRoster(schoolId, className, records, onlyPreview);
       setPreview(result.rows);
@@ -48,7 +53,7 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.'); }
     finally { setBusy(false); }
   };
-  return <Dialog wide className="roster-import-dialog" title="Toplu Kayıt Ekle" description="Sınıf seçin, kayıtları girin veya dosya yükleyin, önizleyip onaylayın." onClose={onClose} dismissible={!busy}>
+  return <Dialog wide className="roster-import-dialog" title="Toplu Kayıt Ekle" description="Sınıf/şube girin, kayıtları yazın veya dosya yükleyin, önizleyip onaylayın." onClose={onClose} dismissible={!busy}>
     <div className="form-stack">
       <StepIndicator active={message ? 3 : preview ? 2 : className.trim() && records.some((record) => Object.values(record).some(Boolean)) ? 1 : className.trim() ? 1 : 0} labels={['Sınıf', 'Veri / Dosya', 'Önizleme', 'Kaydet']} />
       <label className="field">Sınıf<input list="bulk-classes" value={className} maxLength={50} disabled={busy} placeholder="Örn. 5-A" onChange={(event) => { setClassName(event.target.value); setPreview(null); }} /><datalist id="bulk-classes">{classes.map((entry) => <option key={entry} value={entry} />)}</datalist></label>
@@ -61,7 +66,7 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
           const link = document.createElement('a'); link.href = url; link.download = 'veli-randevu-ogrenci-veli-sablonu.xlsx'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch { setError('Şablon oluşturulamadı.'); }
       }}>Excel Şablonunu İndir</Button>
-      <fieldset disabled={!className.trim() || busy} className="min-w-0 space-y-4">
+      <fieldset disabled={busy} className="min-w-0 space-y-4">
         <div className="flex flex-wrap gap-2"><div className="file-picker"><input id="bulk-roster-file" className="sr-only" type="file" accept=".xlsx,.csv" aria-label="XLSX veya CSV dosyası yükle" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadFile(file); event.target.value = ''; }} /><label className="ui-button ui-button-secondary" htmlFor="bulk-roster-file">Dosya Yükle</label><span className="file-picker-name" aria-live="polite">{fileName || 'Dosya seçilmedi'}</span><span className="field-hint">XLSX / CSV · en fazla 2 MB</span></div></div>
         <p className="field-hint">Excel'den kopyaladığınız 5 sütunu ilk alana yapıştırabilirsiniz. En fazla 500 satır. Mevcut kayıtlar atlanır; hatalı satır varsa aktarım yapılmaz.</p>
         <div className="max-h-[45vh] overflow-y-auto space-y-3">
@@ -76,7 +81,7 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
       </fieldset>
       {preview && <p role="status">{preview.length} kayıt okundu · {preview.filter((row) => row.status === 'valid').length} yeni · {preview.filter((row) => row.status === 'invalid').length} hatalı · {preview.filter((row) => row.status === 'duplicate').length} zaten mevcut</p>}
       {preview && <p className="field-hint">Henüz kaydedilmedi. Önizlemeyi kontrol edin; içe aktar onayında kayıtlar yazılır.</p>}
-      <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={onClose}>Kapat</Button><Button disabled={busy || !className.trim() || !records.length} onClick={() => void submit(true)}>Önizle</Button><Button disabled={busy || !preview || preview.some((row) => row.status === 'invalid') || !preview.some((row) => row.status === 'valid')} onClick={() => void submit(false)}>İçe Aktar</Button></div>
+      <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={onClose}>Kapat</Button><Button disabled={busy || !records.length} onClick={() => void submit(true)}>Önizle</Button><Button disabled={busy || !preview || preview.some((row) => row.status === 'invalid') || !preview.some((row) => row.status === 'valid')} onClick={() => void submit(false)}>İçe Aktar</Button></div>
     </div>
   </Dialog>;
 }

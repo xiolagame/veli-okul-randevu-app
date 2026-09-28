@@ -29,7 +29,7 @@ async function inspect(tx: TransactionClient, schoolId: string, className: strin
 }
 
 export async function processRosterImport(schoolId: string, selectedClass: unknown, records: unknown, preview: boolean, actorName: string) {
-  if (typeof selectedClass !== 'string' || !selectedClass.trim() || selectedClass.trim().length > 50 || /[\x00-\x1f]/.test(selectedClass)) throw new RosterImportError('Önce geçerli bir sınıf seçin.');
+  if (typeof selectedClass !== 'string' || !selectedClass.trim() || selectedClass.trim().length > 50 || /[\x00-\x1f]/.test(selectedClass)) throw new RosterImportError('Sınıf/şube bilgisi girin.');
   if (!Array.isArray(records) || records.length === 0 || records.length > MAX_ROSTER_ROWS) throw new RosterImportError('1–500 kayıt yükleyin.');
   const className = selectedClass.trim();
   const db = await getDb();
