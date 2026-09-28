@@ -397,7 +397,7 @@ async function runSecurityAudit() {
     // 5.F: Security at School A cannot verify a QR from another tenant.
     // The current product contract deliberately returns HTTP 200 with a generic
     // fail-closed result for invalid/foreign QR values.
-    const aptFRes = await makeReq('POST', '/schools/sch-kazan-01/security/check-in', {
+    const aptFRes = await makeReq('POST', '/schools/sch-kazan-01/security/qr/verify', {
       headers: {
         authorization: `Bearer ${sec1Token}`,
         'x-school-id': 'sch-kazan-01',
@@ -410,7 +410,7 @@ async function runSecurityAudit() {
         aptFRes.body.decision === 'INVALID' &&
         !aptFRes.body.appointment,
       'BÖLÜM 5.F',
-      'Cross-School Security Check-In Blocked',
+      'Cross-School Security QR Verification Blocked',
       `Geçersiz/yabancı QR nizamiyede fail-closed reddedildi (status: ${aptFRes.status})`
     );
 

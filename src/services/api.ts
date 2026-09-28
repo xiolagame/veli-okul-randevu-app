@@ -85,8 +85,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
-  importRoster: (schoolId: string, className: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
-    request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ className, records, preview }) }),
+  importRoster: (schoolId: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
+    request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ records, preview }) }),
   getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),
   getManagedSchools: () => request<{ schools: import('../types/platform').ManagedSchool[] }>('/api/platform/schools'),
   createSchool: (data: { name: string; code: string; licenseCode: string; city: string; district: string }) =>
@@ -329,18 +329,6 @@ export const api = {
     request<SecurityQrVerification>(`/api/schools/${schoolId}/security/qr/verify`, {
       method: 'POST', body: JSON.stringify({ qrToken }),
     }),
-
-  checkInVisitor: (schoolId: string, qrToken: string) =>
-    request<SecurityQrVerification & { appointment?: Appointment }>(
-      `/api/schools/${schoolId}/security/check-in`,
-      { method: 'POST', body: JSON.stringify({ qrToken }) }
-    ),
-
-  checkOutVisitor: (schoolId: string, appointmentId: string) =>
-    request<{ success: boolean; appointment: Appointment }>(
-      `/api/schools/${schoolId}/security/check-out`,
-      { method: 'POST', body: JSON.stringify({ appointmentId }) }
-    ),
 
   getNotifications: (schoolId: string) =>
     request<{ notifications: NotificationItem[] }>(`/api/schools/${schoolId}/notifications`),

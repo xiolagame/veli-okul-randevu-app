@@ -251,7 +251,7 @@ async function run() {
     assert.equal((await request('DELETE', manage + '/parent/' + parent.id, admin.token)).status, 200);
     assert.equal((await request('DELETE', manage + '/security/' + security.id, admin.token)).status, 200);
     assert.equal((await request('GET', schoolPath + '/appointments', securityToken)).status, 403);
-    assert.equal((await request('POST', schoolPath + '/security/check-in', securityToken, { qrToken: 'VELIQR1:' + 'A'.repeat(32) })).status, 403);
+    assert.equal((await request('POST', schoolPath + '/security/qr/verify', securityToken, { qrToken: 'VELIQR1:' + 'A'.repeat(32) })).status, 403);
     assert.equal((await request('GET', schoolPath + '/appointments', teacherToken)).status, 401);
     assert.equal((await membershipRepository.getActiveMembership(parent.id, otherSchool))?.role, 'parent');
     assert.equal((await db.query('SELECT teacher_id,parent_id FROM appointments WHERE id=$1', [appointment.id])).rows.length, 0);

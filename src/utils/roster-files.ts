@@ -27,14 +27,14 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
   let sheet: import('read-excel-file/universal').SheetData;
   try { sheet = await readSheet(buffer, 'Kayıtlar'); }
   catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
-  if (sheet.length > MAX_ROSTER_ROWS + 1 || sheet[0]?.length !== 5 || sheet.some(row => row.length > 5)) throw new Error('Kayıtlar sayfasında 5 sütun ve en fazla 500 kayıt olmalı.');
+  if (sheet.length > MAX_ROSTER_ROWS + 1 || sheet[0]?.length !== 6 || sheet.some(row => row.length > 6)) throw new Error('Kayıtlar sayfasında 6 sütun ve en fazla 500 kayıt olmalı.');
   const rows: string[][] = [];
   sheet.forEach((row) => {
     const cells: string[] = [];
-    for (let index = 1; index <= 5; index++) {
+    for (let index = 1; index <= 6; index++) {
       const value = row[index - 1];
       if (value instanceof Date) {
-        if (index !== 5 || Number.isNaN(value.getTime())) throw new Error('Tarih yalnız Doğum Tarihi sütununda kullanılabilir.');
+        if (index !== 6 || Number.isNaN(value.getTime())) throw new Error('Tarih yalnız Doğum Tarihi sütununda kullanılabilir.');
         cells.push(value.toISOString().slice(0,10));
       } else if (value == null || typeof value === 'string' || typeof value === 'number') cells.push(String(value ?? ''));
       else throw new Error('Özel hücre yerine düz metin, sayı veya tarih kullanın.');
@@ -47,10 +47,11 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
 export async function rosterTemplate() {
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const blob = await writeXlsxFile([
-    { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 ? 16 : 26 })) },
+    { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 || index === 2 ? 16 : 26 })) },
     { sheet: 'Açıklamalar', columns: [{ width: 100 }], data: [
-      ['Önce uygulamada sınıf seçin. En fazla 500 kayıt ekleyin.'],
-      ['Doğum tarihi: GG.AA.YYYY veya YYYY-MM-DD. Telefon ve öğrenci numarasını metin olarak girin.'],
+      ['Her öğrenci için kendi satırındaki Sınıf/Şube bilgisini girin. Satırlar karışık sınıflarda olabilir. En fazla 500 kayıt ekleyin.'],
+      ['Sınıf/Şube örneği: 5-A. Doğum tarihi: GG.AA.YYYY veya YYYY-MM-DD. Telefon metin veya sayı olabilir.'],
+      ['Telefon örnekleri: 05334138206, 5334138206, 905334138206 veya +905334138206.'],
       ['Yalnız Kayıtlar sayfası içe aktarılır. Başlıkları değiştirmeyin.'],
     ] },
   ]).toBlob();

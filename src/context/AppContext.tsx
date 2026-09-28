@@ -60,8 +60,6 @@ interface AppContextType {
   rejectAppointment: (appointmentId: string, reason?: string) => Promise<void>;
   cancelAppointment: (appointmentId: string) => Promise<void>;
   verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
-  checkInVisitor: (qrToken: string) => Promise<SecurityQrVerification & { appointment?: Appointment }>;
-  checkOutVisitor: (appointmentId: string) => Promise<void>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
   createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
@@ -126,7 +124,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isAdmin ? api.getSecurityUsers(schoolId).catch(() => { setUsersError('Güvenlik personeli yüklenemedi. Lütfen tekrar deneyin.'); return { users: [] }; }) : Promise.resolve({ users: [] }),
       api.getStudents(schoolId).catch(() => ({ students: [] })),
       api.getAvailability(schoolId).catch(() => ({ availability: [] })),
-      api.getAppointments(schoolId).catch(() => ({ appointments: [] })),
+      role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] })),
       api.getNotifications(schoolId).catch(() => ({ notifications: [] })),
       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
       role === 'admin' || role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
@@ -392,34 +390,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? res.appointment : a)));
   };
 
-  // Check In Visitor (Strictly validated by backend tenant guard)
+  // Read-only QR verification (Strictly validated by backend tenant guard)
   const verifySecurityQr = async (qrToken: string) => {
     if (!currentSchool) {
       return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Aktif okul seçili değil' };
     }
     return api.verifySecurityQr(currentSchool.id, qrToken);
-  };
-
-  const checkInVisitor = async (qrToken: string) => {
-    if (!currentSchool) return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Aktif okul seçili değil' };
-    try {
-      const res = await api.checkInVisitor(currentSchool.id, qrToken);
-      if (res.appointment) {
-        setAppointments((prev) =>
-          prev.map((a) => (a.id === res.appointment!.id ? res.appointment! : a))
-        );
-      }
-      return res;
-    } catch (err: any) {
-      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: err.message || 'Giriş işlemi başarısız' };
-    }
-  };
-
-  // Check Out Visitor
-  const checkOutVisitor = async (appointmentId: string) => {
-    if (!currentSchool) return;
-    const res = await api.checkOutVisitor(currentSchool.id, appointmentId);
-    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? res.appointment : a)));
   };
 
   // Add Availability Slot
@@ -570,8 +546,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rejectAppointment,
         cancelAppointment,
         verifySecurityQr,
-        checkInVisitor,
-        checkOutVisitor,
         addAvailabilitySlot,
         createTeacher,
         removeAvailabilitySlot,

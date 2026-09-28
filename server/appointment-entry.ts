@@ -95,5 +95,5 @@ export function evaluateSecurityQr(appointment: Appointment, now = new Date()): 
     return result('EXPIRED', 'RANDEVU SÜRESİ GEÇMİŞ', 'Giriş zaman penceresi kapandı. Giriş verilmemeli.', appointment);
   }
 
-  return result('APPROVED', 'RANDEVU ONAYLI', 'Randevu güncel olarak onaylı ve giriş zaman penceresi açık.', appointment);
+  return result('APPROVED', 'RANDEVU ONAYLANDI', 'Veliye okula giriş izni verebilirsiniz.', appointment);
 }

@@ -1,7 +1,8 @@
 export function normalizeTurkishPhone(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  if (typeof value === 'number' && (!Number.isSafeInteger(value) || value < 0)) return null;
 
-  const cleaned = value.trim().replace(/[\s\-()]/g, '');
+  const cleaned = String(value).trim().replace(/[\s\-()]/g, '');
   if (!/^\+?\d+$/.test(cleaned)) return null;
 
   let subscriberNumber: string | null = null;
@@ -22,16 +23,18 @@ export function getTurkishPhoneLookupDigits(value: unknown): [string, string, st
 }
 
 export function formatTurkishPhoneInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
+  const canonical = normalizeTurkishPhone(value);
+  const rawDigits = canonical ? `0${canonical.slice(3)}` : value.replace(/\D/g, '');
+  const digits = (rawDigits.startsWith('90') && rawDigits.length > 10 ? `0${rawDigits.slice(2)}` : rawDigits).slice(0, 11);
   return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 9), digits.slice(9, 11)].filter(Boolean).join(' ');
 }
 
 export function isValidTurkishPhoneInput(value: unknown): boolean {
-  return typeof value === 'string' && /^(?:05\d{9}|05\d{2} \d{3} \d{2} \d{2})$/.test(value);
+  return normalizeTurkishPhone(value) !== null;
 }
 
 export function normalizeUserPhoneInput(value: unknown): string | null {
-  return isValidTurkishPhoneInput(value) ? normalizeTurkishPhone(value) : null;
+  return normalizeTurkishPhone(value);
 }
 
 export function displayStoredTurkishPhone(value: string): string {

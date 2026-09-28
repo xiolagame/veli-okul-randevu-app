@@ -221,8 +221,8 @@ async function runApiIntegrationTests() {
     }
     console.log('✅ PostgreSQL Double-Booking engelleme başarılı: 409 Çakışma Hatası döndürüldü.');
 
-    // TEST 8: Teacher Approval & Security Check-In
-    console.log('\n[9/10] Randevu Onayı ve Güvenlik Nizamiye Giriş Kontrolü...');
+    // TEST 8: Teacher Approval & Read-Only Security QR Verification
+    console.log('\n[9/10] Randevu Onayı ve Güvenlik QR Doğrulaması...');
     // Login as admin/teacher to approve
     const adminRes = await makeRequest('POST', '/auth/login', { body: { phone: '+905559998877', password: fixturePassword } });
     if (adminRes.status !== 200 || !adminRes.body.token) {
@@ -241,28 +241,33 @@ async function runApiIntegrationTests() {
     }
     console.log('✅ Randevu öğretmen/yönetici tarafından onaylandı (status: booked).');
 
-    // Security Login and Check-In
+    if (!createdAppointment.qrToken) throw new Error('Parent appointment response did not include its QR token.');
+    if (approveRes.body.appointment.qrToken) throw new Error('Admin/teacher approval response exposed the parent QR token.');
+    // Security Login and read-only verification
     const secRes = await makeRequest('POST', '/auth/login', { body: { phone: '+905550001122', password: fixturePassword } });
     if (secRes.status !== 200 || !secRes.body.token) {
       throw new Error(`Security password login failed: ${JSON.stringify(secRes.body)}`);
     }
     const secToken = secRes.body.token;
 
-    const checkInRes = await makeRequest('POST', '/schools/sch-kazan-01/security/check-in', {
+    const beforeVerification = await appointmentRepository.getAppointmentById('sch-kazan-01', createdAppointment.id);
+    const verifyRes = await makeRequest('POST', '/schools/sch-kazan-01/security/qr/verify', {
       headers: {
         authorization: `Bearer ${secToken}`,
         'x-school-id': 'sch-kazan-01',
       },
-      body: { qrToken: approveRes.body.appointment.qrToken },
+      body: { qrToken: createdAppointment.qrToken },
     });
-    if (checkInRes.status !== 200 || checkInRes.body.allowed !== false || checkInRes.body.decision !== 'TOO_EARLY') {
-      throw new Error(`Future appointment check-in was not denied: HTTP ${checkInRes.status}, decision ${checkInRes.body.decision}`);
+    if (verifyRes.status !== 200 || verifyRes.body.allowed !== false || verifyRes.body.decision !== 'TOO_EARLY') {
+      throw new Error(`Future appointment verification was not denied: HTTP ${verifyRes.status}, decision ${verifyRes.body.decision}`);
     }
-    const checkedIn = await appointmentRepository.getAppointmentById('sch-kazan-01', createdAppointment.id);
-    if (checkedIn?.status !== 'booked') throw new Error('Early check-in changed the appointment status.');
+    const afterVerification = await appointmentRepository.getAppointmentById('sch-kazan-01', createdAppointment.id);
+    if (afterVerification?.status !== beforeVerification?.status || afterVerification?.checkedInAt !== beforeVerification?.checkedInAt) throw new Error('QR verification mutated the appointment.');
+    const removedCheckIn = await makeRequest('POST', '/schools/sch-kazan-01/security/check-in', { headers: { authorization: `Bearer ${secToken}` }, body: { qrToken: createdAppointment.qrToken } });
+    if (removedCheckIn.status !== 404) throw new Error(`Removed check-in endpoint expected HTTP 404, got ${removedCheckIn.status}.`);
     const permittedAt = new Date(`${testDate}T06:00:00Z`);
-    if (evaluateSecurityQr(checkedIn, permittedAt).decision !== 'APPROVED') throw new Error('Valid entry window was not recognized.');
-    console.log('✅ Gelecekteki QR giriş reddedildi; geçerli pencere kontrolü doğrulandı.');
+    if (!afterVerification || evaluateSecurityQr(afterVerification, permittedAt).decision !== 'APPROVED') throw new Error('Valid entry window was not recognized.');
+    console.log('✅ QR doğrulaması salt-okunur; manuel check-in endpointi kapalı.');
 
     // TEST 9: Test Isolation Runner
     console.log('\n[10/10] PostgreSQL Çoklu Okul İzolasyon Testleri Çalıştırılıyor (/schools/:id/security/test-isolation)...');

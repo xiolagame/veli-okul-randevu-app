@@ -19,7 +19,10 @@ function assert(condition: unknown, message: string): asserts condition {
 function phoneFormats(canonicalPhone: string): string[] {
   const subscriberNumber = canonicalPhone.slice(3);
   return [
+    canonicalPhone,
+    canonicalPhone.slice(1),
     `0${subscriberNumber}`,
+    subscriberNumber,
     displayStoredTurkishPhone(canonicalPhone),
   ];
 }
@@ -71,7 +74,8 @@ async function run() {
     assert(normalizeTurkishPhone('123') === null, 'Invalid phone format must be rejected.');
     assert(formatTurkishPhoneInput('05432222222') === '0543 222 22 22', 'Phone paste must be masked.');
     assert(isValidTurkishPhoneInput('0543 222 22 22'), 'Domestic masked phone must be valid.');
-    for (const invalid of ['+905432222222', '905432222222', '5432222222', '0543222222', '0 5432222222']) assert(!isValidTurkishPhoneInput(invalid), 'Invalid public phone must be rejected.');
+    for (const valid of ['+905432222222', '905432222222', '5432222222', '05432222222', '0 543 222 22 22']) assert(isValidTurkishPhoneInput(valid), 'Supported Turkish phone format must be accepted.');
+    for (const invalid of ['123', '+445432222222', '0543222222']) assert(!isValidTurkishPhoneInput(invalid), 'Invalid public phone must be rejected.');
     assert(uppercasePersonNameInput('ali ışık ') === 'ALİ IŞIK ', 'Turkish uppercase must preserve typing spaces.');
     assert(uppercasePersonNameInput('çağla içen') === 'ÇAĞLA İÇEN', 'Turkish uppercase paste must work.');
     assert(formatBirthDateInput('12032016') === '12/03/2016', 'Birth date mask must format digits.');
@@ -83,10 +87,10 @@ async function run() {
       const formatLogin = await request('/auth/login', { phone: format, password: fixturePassword });
       assert(formatLogin.status === 200 && formatLogin.body.user && (formatLogin.body.user as { id: string }).id === 'u-admin-1', 'Domestic phone formats must log in as the same user.');
     }
-    for (const invalidFormat of [adminPhone.slice(1), adminPhone.slice(3)]) {
-      assert((await request('/auth/login', { phone: invalidFormat, password: fixturePassword })).status === 400, 'International or zero-less user input must be rejected.');
+    for (const supportedFormat of [adminPhone.slice(1), adminPhone.slice(3)]) {
+      assert((await request('/auth/login', { phone: supportedFormat, password: fixturePassword })).status === 200, 'International and zero-less input must resolve to the same user.');
     }
-    assert((await request('/auth/login', { phone: adminPhone, password: fixturePassword }, undefined, undefined, true)).status === 400, '+90 public input must be rejected.');
+    assert((await request('/auth/login', { phone: adminPhone, password: fixturePassword }, undefined, undefined, true)).status === 200, '+90 public input must be accepted.');
 
     const adminLogin = await request('/auth/login', { phone: adminPhone, password: fixturePassword });
     assert(adminLogin.status === 200 && typeof adminLogin.body.token === 'string', 'Admin password login must succeed.');

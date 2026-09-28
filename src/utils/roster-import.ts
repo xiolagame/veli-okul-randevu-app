@@ -2,18 +2,20 @@ import { formatTurkishPhoneInput, normalizeUserPhoneInput } from './phone';
 import { normalizePersonName } from './person-name';
 import { uppercasePersonNameInput } from './person-name';
 import { formatBirthDateInput, formatIsoBirthDateForInput, parseBirthDateInputToIso } from './birth-date';
+import { normalizeClassName } from './class-name';
 
-export const ROSTER_HEADERS = ['Öğrenci Ad Soyad', 'Öğrenci No', 'Veli Ad Soyad', 'Veli Telefonu', 'Doğum Tarihi'];
+export const ROSTER_HEADERS = ['Öğrenci Ad Soyad', 'Öğrenci No', 'Sınıf/Şube', 'Veli Ad Soyad', 'Veli Telefonu', 'Doğum Tarihi'];
 export const MAX_ROSTER_ROWS = 500;
 export const MAX_ROSTER_FILE_BYTES = 2 * 1024 * 1024;
-export type RosterDraft = { studentName: string; studentNumber: string; parentName: string; parentPhone: string; birthDate: string };
+export type RosterDraft = { studentName: string; studentNumber: string; className: string; parentName: string; parentPhone: string; birthDate: string };
 export type RosterPreview = { record: RosterDraft; status: 'valid' | 'duplicate' | 'invalid'; errors: string[] };
-export const emptyRosterRow = (): RosterDraft => ({ studentName: '', studentNumber: '', parentName: '', parentPhone: '', birthDate: '' });
+export const emptyRosterRow = (): RosterDraft => ({ studentName: '', studentNumber: '', className: '', parentName: '', parentPhone: '', birthDate: '' });
 
 export function formatRosterDraftInput(record: RosterDraft): RosterDraft {
   return {
     ...record,
     studentName: uppercasePersonNameInput(record.studentName),
+    className: normalizeClassName(record.className) || record.className.toLocaleUpperCase('tr-TR'),
     parentName: uppercasePersonNameInput(record.parentName),
     parentPhone: formatTurkishPhoneInput(record.parentPhone),
     birthDate: formatIsoBirthDateForInput(record.birthDate) || formatBirthDateInput(record.birthDate),
@@ -27,9 +29,10 @@ export function normalizeBirthDate(value: unknown): string | null {
 export function validateRosterRow(value: unknown): RosterPreview {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const read = (key: string) => typeof source[key] === 'string' ? source[key].trim().replace(/\s+/g, ' ') : '';
-  const record: RosterDraft = { studentName: normalizePersonName(read('studentName')), studentNumber: read('studentNumber'), parentName: normalizePersonName(read('parentName')), parentPhone: normalizeUserPhoneInput(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
+  const record: RosterDraft = { studentName: normalizePersonName(read('studentName')), studentNumber: read('studentNumber'), className: normalizeClassName(source.className) || '', parentName: normalizePersonName(read('parentName')), parentPhone: normalizeUserPhoneInput(source.parentPhone) || '', birthDate: normalizeBirthDate(source.birthDate) || '' };
   const errors: string[] = [];
   if (!record.studentName || record.studentName.length > 150) errors.push('Öğrenci adı eksik veya çok uzun.');
+  if (!record.className) errors.push('Sınıf/şube bilgisi eksik veya geçersiz.');
   if (!record.parentName || record.parentName.length > 150) errors.push('Veli adı eksik veya çok uzun.');
   if (!record.parentPhone) errors.push('Telefon numarası geçersiz.');
   if (!record.birthDate) errors.push(read('birthDate') ? 'Doğum tarihi geçersiz.' : 'Doğum tarihi eksik.');
@@ -39,7 +42,7 @@ export function validateRosterRow(value: unknown): RosterPreview {
 }
 
 export function sameRosterIdentity(left: RosterDraft, right: RosterDraft): boolean {
-  return left.parentPhone === right.parentPhone &&
+  return left.className === right.className && left.parentPhone === right.parentPhone &&
     (left.studentNumber && right.studentNumber ? left.studentNumber === right.studentNumber : left.studentName.toLocaleLowerCase('tr-TR') === right.studentName.toLocaleLowerCase('tr-TR'));
 }
 
@@ -70,11 +73,11 @@ export function parseDelimited(text: string, delimiter = ','): string[][] {
 }
 
 export function rowsToDrafts(rows: string[][], withHeaders = true): RosterDraft[] {
-  if (withHeaders && (rows[0]?.length !== 5 || !ROSTER_HEADERS.every((header, index) => rows[0][index]?.trim() === header))) throw new Error('Sütunlar şablonla aynı olmalı.');
+  if (withHeaders && (rows[0]?.length !== 6 || !ROSTER_HEADERS.every((header, index) => rows[0][index]?.trim() === header))) throw new Error('Sütunlar şablonla aynı olmalı.');
   const data = withHeaders ? rows.slice(1) : rows;
   if (!data.length || data.length > MAX_ROSTER_ROWS) throw new Error('1–500 kayıt yükleyin.');
   return data.map((row) => {
-    if (row.length !== 5) throw new Error('Her satırda şablondaki 5 sütun bulunmalı.');
-    return { studentName: row[0], studentNumber: row[1], parentName: row[2], parentPhone: row[3], birthDate: row[4] };
+    if (row.length !== 6) throw new Error('Her satırda şablondaki 6 sütun bulunmalı.');
+    return { studentName: row[0], studentNumber: row[1], className: row[2], parentName: row[3], parentPhone: row[4], birthDate: row[5] };
   });
 }

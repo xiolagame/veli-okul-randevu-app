@@ -203,7 +203,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
           {activeTab === 'isolation' && isPlatformAdmin && <section className="space-y-5"><div className="surface"><div className="section-heading"><div><h3>Sistem Güvenliği</h3><p>Platform servis yapılandırmalarının güvenli durum özeti.</p></div><Button disabled={isRunningTests} onClick={handleRunIsolationTests}><Shield size={18} />{isRunningTests ? 'Kontroller çalışıyor…' : 'Okul izolasyon kontrolleri'}</Button></div></div>{isolationTestResults.length ? isolationTestResults.map((test, index) => <Alert key={index} tone={test.passed ? 'success' : 'danger'}><strong>{test.title}</strong><p className="mt-2">{test.description}</p><p className="text-xs mt-2">{test.details}</p></Alert>) : <div className="surface"><EmptyState icon={Shield} title="Güvenlik kontrolleri" description="Kontrol sonuçlarını görüntülemek için çalıştırın." /></div>}</section>}
         </main>
 
-        {showUploadModal && currentSchool && <BulkRosterImport key={currentSchool.id} schoolId={currentSchool.id} initialClass={selectedClass} classes={classOptions} onClose={() => setShowUploadModal(false)} onChanged={refreshSchoolData} />}
+        {showUploadModal && currentSchool && <BulkRosterImport key={currentSchool.id} schoolId={currentSchool.id} onClose={() => setShowUploadModal(false)} onChanged={refreshSchoolData} />}
 
       </section>
     </div>

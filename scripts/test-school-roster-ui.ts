@@ -14,16 +14,17 @@ async function run() {
   process.env.NODE_ENV = 'test';
   for (const value of ['14.03.2014', '14/03/2014', '2014-03-14']) assert.equal(normalizeBirthDate(value), '2014-03-14');
   for (const value of ['31.02.2014', '', '03/14/2014', '2100-01-01']) assert.equal(normalizeBirthDate(value), null);
-  const baseRow = { studentName: 'Test Student', studentNumber: '1', parentName: 'Test Parent', parentPhone: '+905551234567', birthDate: '2014-03-14' };
+  const baseRow = { studentName: 'Test Student', studentNumber: '1', className: '5-A', parentName: 'Test Parent', parentPhone: '+905551234567', birthDate: '2014-03-14' };
   const displayed = formatRosterDraftInput({ ...baseRow, parentPhone: '05551234567' });
   assert.equal(displayed.parentPhone, '0555 123 45 67');
   assert.equal(displayed.birthDate, '14/03/2014');
   assert.equal(displayed.studentName, 'TEST STUDENT');
-  for (const phone of ['05551234567', '0555 123 45 67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).record.parentPhone, baseRow.parentPhone);
-  for (const phone of ['5551234567', '+905551234567', '90 555 123 45 67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).status, 'invalid');
-  for (const key of ['studentName', 'parentName', 'parentPhone', 'birthDate']) assert.equal(validateRosterRow({ ...baseRow, [key]: '' }).status, 'invalid');
+  for (const phone of ['05551234567', '5551234567', '905551234567', '+905551234567', '0555 123 45 67', '(0555) 123-45-67']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).record.parentPhone, baseRow.parentPhone);
+  for (const phone of ['', '555123456', '055512345678', '2121234567', 'text', '+445551234567']) assert.equal(validateRosterRow({ ...baseRow, parentPhone: phone }).status, 'invalid');
+  for (const key of ['studentName', 'className', 'parentName', 'parentPhone', 'birthDate']) assert.equal(validateRosterRow({ ...baseRow, [key]: '' }).status, 'invalid');
+  assert.equal(validateRosterRow({ ...baseRow, className: '5 a' }).record.className, '5-A');
   assert.equal(validateRosterRow({ ...baseRow, studentNumber: '1,2' }).status, 'invalid');
-  const quotedCsv = ROSTER_HEADERS.join(',') + '\n"Test, Student",1,Test Parent,05551234567,14.03.2014';
+  const quotedCsv = ROSTER_HEADERS.join(',') + '\n"Test, Student",1,5-A,Test Parent,05551234567,14.03.2014';
   assert.equal(rowsToDrafts(parseDelimited(quotedCsv))[0].studentName, 'Test, Student');
   const draft = { fullName: 'Test Person', role: 'security' as const, phone: '0555 123 45 67', email: 'test@example.test', branch: '' };
   assert.deepEqual(validateStaffForm(draft), {});
@@ -40,11 +41,12 @@ async function run() {
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const { readSheet } = await import('read-excel-file/universal');
   assert.deepEqual(await readSheet(await rosterTemplate(), 'Kayıtlar'), [ROSTER_HEADERS]);
-  const data: import('write-excel-file/universal').SheetData = [ROSTER_HEADERS, ['Test Student', '001', 'Test Parent', baseRow.parentPhone, { value: new Date('2014-03-14T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' }]];
+  const data: import('write-excel-file/universal').SheetData = [ROSTER_HEADERS, ['Test Student', '001', '5-A', 'Test Parent', 5334138206, { value: new Date('2014-03-14T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' }]];
   const arrayBuffer = await (await writeXlsxFile(data, { sheet: 'Kayıtlar' }).toBlob()).arrayBuffer();
   const parsed = await readRosterFile(arrayBuffer, 'test.xlsx');
   assert.equal(parsed[0].birthDate, '2014-03-14');
   assert.equal(parsed[0].studentNumber, '001');
+  assert.equal(validateRosterRow(parsed[0]).record.parentPhone, '+905334138206');
   data[1][0] = { type: 'Formula', value: '1+1' };
   const formulaRows = await readRosterFile(await (await writeXlsxFile(data, { sheet: 'Kayıtlar' }).toBlob()).arrayBuffer(), 'test.xlsx');
   assert.equal(formulaRows[0].studentName, '');
@@ -135,17 +137,18 @@ async function run() {
     }
     stage = 'bulk validation and transaction';
     const path = '/schools/' + schoolA + '/roster/bulk-upload';
-    const rosterPhone = '+905' + crypto.randomInt(100000000,999999999);
-    const rows = [0,1,2].map((index) => ({ ...baseRow, studentName: 'Student ' + index, studentNumber: String(index + 1), parentPhone: displayStoredTurkishPhone(rosterPhone), birthDate: '14.03.2014', schoolId: schoolB, className: 'OTHER' }));
-    const payload = { className:'5-A', records:rows, schoolId:schoolB };
+    const rosterPhone = '+905334138206';
+    const classInputs = ['5-a', '7 c', '5-A', '8-b', '6 D', '7-C'];
+    const phoneInputs: Array<string | number> = ['05334138206', 5334138206, '905334138206', '+905334138206', '0533 413 82 06', '(0533) 413-82-06'];
+    const rows = classInputs.map((className, index) => ({ ...baseRow, studentName: 'Student ' + index, studentNumber: String(index + 1), parentPhone: phoneInputs[index], birthDate: '14.03.2014', schoolId: schoolB, className }));
+    const payload = { records:rows, schoolId:schoolB };
     const largeBatch = Array.from({ length: 500 }, (_, index) => ({ ...baseRow, studentName: 'Student ' + index + ' ' + 'A'.repeat(120), parentName: 'Parent ' + 'B'.repeat(120), studentNumber: String(index + 100), parentPhone: displayStoredTurkishPhone(rosterPhone) }));
     assert(Buffer.byteLength(JSON.stringify(largeBatch)) > 100 * 1024);
-    assert.equal((await request('POST',path,admin.token,{className:'7-A',records:largeBatch,preview:true})).status,200);
-    assert.equal((await request('POST',path,admin.token,{className:'7-A',records:[...largeBatch,largeBatch[0]],preview:true})).status,400);
-    assert.equal((await request('POST',path,admin.token,{className:'7-A',records:[{ ...baseRow, studentName:'A'.repeat(1024 * 1024) }],preview:true})).status,413);
+    assert.equal((await request('POST',path,admin.token,{records:largeBatch,preview:true})).status,200);
+    assert.equal((await request('POST',path,admin.token,{records:[...largeBatch,largeBatch[0]],preview:true})).status,400);
+    assert.equal((await request('POST',path,admin.token,{records:[{ ...baseRow, studentName:'A'.repeat(1024 * 1024) }],preview:true})).status,413);
     for (const user of [parent,teacher,security]) assert.equal((await request('POST',path,user.token,payload)).status,403);
-    assert.equal((await request('POST',path,admin.token,{records:rows})).status,400);
-    for (const records of [[{...rows[0],birthDate:'31.02.2014'}],[{...rows[0],birthDate:''}],[{...rows[0],parentName:''}],[{...rows[0],studentName:''}],[{...rows[0],parentPhone:'123'}]]) assert.equal((await request('POST',path,admin.token,{className:'5-A',records})).status,400);
+    for (const records of [[{...rows[0],birthDate:'31.02.2014'}],[{...rows[0],birthDate:''}],[{...rows[0],className:''}],[{...rows[0],parentName:''}],[{...rows[0],studentName:''}],[{...rows[0],parentPhone:'123'}]]) assert.equal((await request('POST',path,admin.token,{records})).status,400);
     assert.equal((await request('POST','/schools/' + schoolB + '/roster/bulk-upload',admin.token,payload)).status,403);
     const preview = await request('POST',path,admin.token,{...payload,preview:true});
     assert.equal(preview.status,200);
@@ -158,16 +161,18 @@ async function run() {
     finally { auditLogRepository.createAuditLog = originalAudit; }
     assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1',[schoolA])).rows.length,0);
     const added = await request('POST',path,admin.token,payload);
-    assert.equal(added.status,200); assert.equal(added.body.addedCount,3);
+    assert.equal(added.status,200); assert.equal(added.body.addedCount,6);
     assert.equal((await request('POST',path,admin.token,payload)).body.addedCount,0);
-    assert.equal((await request('POST',path,admin.token,{className:'5-A',records:[{...rows[0],studentName:'Conflicting Name'}]})).status,400);
+    assert.equal((await request('POST',path,admin.token,{records:[{...rows[0],studentName:'Conflicting Name'}]})).status,400);
     assert.deepEqual(await counts(),before);
     const inserted = await db.query('SELECT parent_phone,class_name,birth_date::text FROM school_roster WHERE school_id=$1',[schoolA]);
-    assert.equal(inserted.rows.length,3);
-    for (const row of inserted.rows) { assert.equal(row.class_name,'5-A'); assert.equal(row.parent_phone,rosterPhone); assert.equal(row.birth_date,'2014-03-14'); }
+    assert.equal(inserted.rows.length,6);
+    assert.deepEqual((await db.query('SELECT student_number,class_name FROM school_roster WHERE school_id=$1 ORDER BY student_number',[schoolA])).rows,
+      [{student_number:'1',class_name:'5-A'},{student_number:'2',class_name:'7-C'},{student_number:'3',class_name:'5-A'},{student_number:'4',class_name:'8-B'},{student_number:'5',class_name:'6-D'},{student_number:'6',class_name:'7-C'}]);
+    for (const row of inserted.rows) { assert.equal(row.parent_phone,rosterPhone); assert.equal(row.birth_date,'2014-03-14'); }
     assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1',[schoolB])).rows.length,0);
     const logs = await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='roster.bulk_imported'",[schoolA]);
-    for (const log of logs.rows) assert.deepEqual(Object.keys(JSON.parse(log.details)).sort(),['addedCount','className']);
+    for (const log of logs.rows) assert.deepEqual(Object.keys(JSON.parse(log.details)).sort(),['addedCount','classNames']);
     stage = 'self registration from imported roster';
     const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,birthDate:'2014-03-14'});
     if (challenge.status !== 200) {
@@ -183,7 +188,7 @@ async function run() {
     assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,birthDate:'2014-03-14',challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
     const newParent = await userRepository.getByPhone(rosterPhone);
     assert(newParent); userIds.push(newParent.id);
-    assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE',[schoolA])).rows.length,3);
+    assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE',[schoolA])).rows.length,6);
     stage = 'disabled school enforcement';
     assert.equal((await request('PATCH','/platform/schools/' + schoolA + '/status',admin.token,{active:false})).status,200);
     assert.equal((await request('GET','/schools/' + schoolA + '/info',admin.token)).status,403);

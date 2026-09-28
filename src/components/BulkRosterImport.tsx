@@ -7,8 +7,7 @@ import { formatTurkishPhoneInput } from '../utils/phone';
 import { formatBirthDateInput } from '../utils/birth-date';
 import { uppercasePersonNameInput } from '../utils/person-name';
 
-export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onChanged }: { schoolId: string; classes: string[]; initialClass: string; onClose: () => void; onChanged: () => Promise<void> }) {
-  const [className, setClassName] = useState(initialClass);
+export function BulkRosterImport({ schoolId, onClose, onChanged }: { schoolId: string; onClose: () => void; onChanged: () => Promise<void> }) {
   const [records, setRecords] = useState<RosterDraft[]>([emptyRosterRow()]);
   const [selected, setSelected] = useState<number[]>([]);
   const [preview, setPreview] = useState<RosterPreview[] | null>(null);
@@ -19,7 +18,7 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
   const workerRef = useRef<Worker | null>(null);
   useEffect(() => () => workerRef.current?.terminate(), []);
   const update = (next: RosterDraft[]) => { setRecords(next); setPreview(null); setMessage(''); };
-  const keys: (keyof RosterDraft)[] = ['studentName', 'studentNumber', 'parentName', 'parentPhone', 'birthDate'];
+  const keys: (keyof RosterDraft)[] = ['studentName', 'studentNumber', 'className', 'parentName', 'parentPhone', 'birthDate'];
   const loadFile = async (file: File) => {
     setError(''); setBusy(true); setPreview(null);
     try {
@@ -41,23 +40,17 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
   const submit = async (onlyPreview: boolean) => {
     if (busy) return;
     setError('');
-    if (!className.trim()) {
-      setError('Sınıf/şube bilgisi girin.');
-      return;
-    }
     setBusy(true);
     try {
-      const result = await api.importRoster(schoolId, className, records, onlyPreview);
+      const result = await api.importRoster(schoolId, records, onlyPreview);
       setPreview(result.rows);
       if (!onlyPreview) { setPreview(null); setRecords([emptyRosterRow()]); setMessage(result.addedCount + ' kayıt eklendi; ' + result.skippedCount + ' mevcut kayıt atlandı.'); await onChanged(); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.'); }
     finally { setBusy(false); }
   };
-  return <Dialog wide className="roster-import-dialog" title="Toplu Kayıt Ekle" description="Sınıf/şube girin, kayıtları yazın veya dosya yükleyin, önizleyip onaylayın." onClose={onClose} dismissible={!busy}>
+  return <Dialog wide className="roster-import-dialog" title="Toplu Kayıt Ekle" description="Her öğrenci için sınıf/şube bilgisini kendi satırına girin, önizleyip onaylayın." onClose={onClose} dismissible={!busy}>
     <div className="form-stack">
-      <StepIndicator active={message ? 3 : preview ? 2 : className.trim() && records.some((record) => Object.values(record).some(Boolean)) ? 1 : className.trim() ? 1 : 0} labels={['Sınıf', 'Veri / Dosya', 'Önizleme', 'Kaydet']} />
-      <label className="field">Sınıf<input list="bulk-classes" value={className} maxLength={50} disabled={busy} placeholder="Örn. 5-A" onChange={(event) => { setClassName(event.target.value); setPreview(null); }} /><datalist id="bulk-classes">{classes.map((entry) => <option key={entry} value={entry} />)}</datalist></label>
-      <p className="field-hint">Listeden sınıf seçebilir veya okulunuz için yeni sınıf yazabilirsiniz. Dosyada sınıf sütunu bulunmaz.</p>
+      <StepIndicator active={message ? 2 : preview ? 1 : 0} labels={['Veri / Dosya', 'Önizleme', 'Kaydet']} />
       {error && <Alert tone="danger">{error}</Alert>}{message && <Alert tone="success">{message}</Alert>}
       <Button variant="secondary" disabled={busy} onClick={async () => {
         try {
@@ -68,11 +61,11 @@ export function BulkRosterImport({ schoolId, classes, initialClass, onClose, onC
       }}>Excel Şablonunu İndir</Button>
       <fieldset disabled={busy} className="min-w-0 space-y-4">
         <div className="flex flex-wrap gap-2"><div className="file-picker"><input id="bulk-roster-file" className="sr-only" type="file" accept=".xlsx,.csv" aria-label="XLSX veya CSV dosyası yükle" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadFile(file); event.target.value = ''; }} /><label className="ui-button ui-button-secondary" htmlFor="bulk-roster-file">Dosya Yükle</label><span className="file-picker-name" aria-live="polite">{fileName || 'Dosya seçilmedi'}</span><span className="field-hint">XLSX / CSV · en fazla 2 MB</span></div></div>
-        <p className="field-hint">Excel'den kopyaladığınız 5 sütunu ilk alana yapıştırabilirsiniz. En fazla 500 satır. Mevcut kayıtlar atlanır; hatalı satır varsa aktarım yapılmaz.</p>
+        <p className="field-hint">Excel'den kopyaladığınız 6 sütunu ilk alana yapıştırabilirsiniz. Sınıflar karışık sırada olabilir. En fazla 500 satır; hatalı satır varsa aktarım yapılmaz.</p>
         <div className="max-h-[45vh] overflow-y-auto space-y-3">
           {records.map((record, index) => <div key={index} className="rounded-xl border p-3 space-y-2">
             <label className="flex gap-2 text-sm"><input type="checkbox" checked={selected.includes(index)} onChange={(event) => setSelected(event.target.checked ? [...selected, index] : selected.filter((entry) => entry !== index))} />Satır {index + 1}</label>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{keys.map((key, column) => <label className="field min-w-0" key={key}>{ROSTER_HEADERS[column]}<input value={record[key]} type={key === 'parentPhone' ? 'tel' : 'text'} inputMode={key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'parentPhone' ? '0543 222 22 22' : key === 'birthDate' ? 'GG/AA/YYYY' : undefined} maxLength={key === 'parentPhone' ? 14 : key === 'birthDate' ? 10 : key === 'studentName' || key === 'parentName' ? 150 : 50} onChange={(event) => update(records.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: key === 'parentPhone' ? formatTurkishPhoneInput(event.target.value) : key === 'birthDate' ? formatBirthDateInput(event.target.value) : key === 'studentName' || key === 'parentName' ? uppercasePersonNameInput(event.target.value) : event.target.value } : entry))}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{keys.map((key, column) => <label className="field min-w-0" key={key}>{ROSTER_HEADERS[column]}<input value={record[key]} type={key === 'parentPhone' ? 'tel' : 'text'} inputMode={key === 'parentPhone' || key === 'birthDate' ? 'numeric' : undefined} placeholder={key === 'parentPhone' ? '0533 413 82 06' : key === 'birthDate' ? 'GG/AA/YYYY' : key === 'className' ? '5-A' : undefined} maxLength={key === 'parentPhone' ? 18 : key === 'birthDate' ? 10 : key === 'studentName' || key === 'parentName' ? 150 : 50} onChange={(event) => update(records.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: key === 'parentPhone' ? formatTurkishPhoneInput(event.target.value) : key === 'birthDate' ? formatBirthDateInput(event.target.value) : key === 'studentName' || key === 'parentName' ? uppercasePersonNameInput(event.target.value) : key === 'className' ? event.target.value.toLocaleUpperCase('tr-TR') : event.target.value } : entry))}
               onPaste={(event) => { const text = event.clipboardData.getData('text'); if (column !== 0 || !text.includes('\t')) return; event.preventDefault(); try { const next = rowsToDrafts(parseDelimited(text, '\t'), false).map(formatRosterDraftInput); const merged = [...records.slice(0, index), ...next, ...records.slice(index + 1)]; if (merged.length > MAX_ROSTER_ROWS) throw new Error('En fazla 500 kayıt eklenebilir.'); update(merged); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Satırlar okunamadı.'); } }} /></label>)}</div>
             {preview?.[index] && <p role="status" className={preview[index].status === 'invalid' ? 'text-red-700' : 'text-green-800'}>{preview[index].status === 'valid' ? '✓ Geçerli' : preview[index].status === 'duplicate' ? '⚠ Zaten mevcut' : '✕ Hatalı'} {preview[index].errors.join(' ')}</p>}
           </div>)}

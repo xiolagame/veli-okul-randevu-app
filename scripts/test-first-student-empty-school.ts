@@ -12,10 +12,10 @@ async function run() {
 
   const component = fs.readFileSync(new URL('../src/components/BulkRosterImport.tsx', import.meta.url), 'utf8');
   assert.match(component, /<fieldset disabled=\{busy\}/);
-  assert.doesNotMatch(component, /<fieldset disabled=\{!className\.trim\(\) \|\| busy\}/);
-  assert.match(component, /setError\('Sınıf\/şube bilgisi girin\.'\)/);
+  assert.doesNotMatch(component, /bulk-classes|initialClass|Dosyada sınıf sütunu bulunmaz/);
+  assert.match(component, /'className'/);
   assert(component.includes('<Button disabled={busy || !records.length} onClick={() => void submit(true)}>Önizle</Button>'));
-  assert.match(component, /<input list="bulk-classes"[^>]*placeholder="Örn\. 5-A"/);
+  assert.match(component, /key === 'className' \? '5-A'/);
 
   const { getDb } = await import('../server/database/postgres');
   const { createExpressApp } = await import('../server/app');
@@ -72,37 +72,38 @@ async function run() {
       parentName: 'İLK VELİ',
       parentPhone: displayStoredTurkishPhone(emptyPhone),
       birthDate: '14/03/2014',
+      className: '8-C',
     };
 
     stage = 'empty school admin import';
     assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM school_roster WHERE school_id=$1', [emptySchool])).rows[0].count, 0);
     const emptyPath = `/schools/${emptySchool}/roster/bulk-upload`;
-    const missingClass = await request('POST', emptyPath, schoolAdmin.token, { records: [firstRecord], preview: true });
-    assert.equal(missingClass.status, 400);
-    assert.equal(missingClass.body.error, 'Sınıf/şube bilgisi girin.');
-    const preview = await request('POST', emptyPath, schoolAdmin.token, { className: '8-C', records: [firstRecord], preview: true });
+    const missingClass = await request('POST', emptyPath, schoolAdmin.token, { records: [{ ...firstRecord, className: '' }], preview: true });
+    assert.equal(missingClass.status, 200);
+    assert.equal((missingClass.body.rows as { status: string }[])[0].status, 'invalid');
+    const preview = await request('POST', emptyPath, schoolAdmin.token, { records: [firstRecord], preview: true });
     assert.equal(preview.status, 200);
     assert.equal((preview.body.rows as { status: string }[])[0].status, 'valid');
     assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM school_roster WHERE school_id=$1', [emptySchool])).rows[0].count, 0);
-    const imported = await request('POST', emptyPath, schoolAdmin.token, { className: '8-C', records: [firstRecord], preview: false });
+    const imported = await request('POST', emptyPath, schoolAdmin.token, { records: [firstRecord], preview: false });
     assert.equal(imported.status, 200);
     assert.equal(imported.body.addedCount, 1);
     assert.deepEqual((await db.query('SELECT class_name FROM school_roster WHERE school_id=$1', [emptySchool])).rows, [{ class_name: '8-C' }]);
 
     stage = 'platform target empty school import';
     const platformPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
-    const platformRecord = { ...firstRecord, studentName: 'PLATFORM ÖĞRENCİ', parentName: 'PLATFORM VELİ', parentPhone: displayStoredTurkishPhone(platformPhone) };
+    const platformRecord = { ...firstRecord, studentName: 'PLATFORM ÖĞRENCİ', parentName: 'PLATFORM VELİ', parentPhone: displayStoredTurkishPhone(platformPhone), className: '7-B' };
     const platformPath = `/platform-target/${platformSchool}/schools/${platformSchool}/roster/bulk-upload`;
-    assert.equal((await request('POST', platformPath, platformAdmin.token, { className: '7-B', records: [platformRecord], preview: true })).status, 200);
-    assert.equal((await request('POST', platformPath, platformAdmin.token, { className: '7-B', records: [platformRecord] })).status, 200);
+    assert.equal((await request('POST', platformPath, platformAdmin.token, { records: [platformRecord], preview: true })).status, 200);
+    assert.equal((await request('POST', platformPath, platformAdmin.token, { records: [platformRecord] })).status, 200);
     assert.equal((await db.query('SELECT class_name FROM school_roster WHERE school_id=$1', [platformSchool])).rows[0].class_name, '7-B');
-    assert.equal((await request('POST', `/platform-target/${platformSchool}/schools/${emptySchool}/roster/bulk-upload`, platformAdmin.token, { className: '1-A', records: [platformRecord] })).status, 403);
+    assert.equal((await request('POST', `/platform-target/${platformSchool}/schools/${emptySchool}/roster/bulk-upload`, platformAdmin.token, { records: [platformRecord] })).status, 403);
 
     stage = 'tenant isolation and existing school regression';
-    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, schoolAdmin.token, { className: '5-A', records: [platformRecord] })).status, 403);
-    const existingRecord = { ...platformRecord, studentName: 'YENİ ÖĞRENCİ', studentNumber: '2', parentPhone: displayStoredTurkishPhone(`+905${crypto.randomInt(100000000, 999999999)}`) };
-    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, existingSchoolAdmin.token, { className: '5-A', records: [existingRecord], preview: true })).status, 200);
-    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, existingSchoolAdmin.token, { className: '5-A', records: [existingRecord] })).status, 200);
+    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, schoolAdmin.token, { records: [platformRecord] })).status, 403);
+    const existingRecord = { ...platformRecord, studentName: 'YENİ ÖĞRENCİ', studentNumber: '2', parentPhone: displayStoredTurkishPhone(`+905${crypto.randomInt(100000000, 999999999)}`), className: '5-A' };
+    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, existingSchoolAdmin.token, { records: [existingRecord], preview: true })).status, 200);
+    assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, existingSchoolAdmin.token, { records: [existingRecord] })).status, 200);
     assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM school_roster WHERE school_id=$1 AND class_name=$2', [existingSchool, '5-A'])).rows[0].count, 2);
 
     stage = 'parent self-registration compatibility';

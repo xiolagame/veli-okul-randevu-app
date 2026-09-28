@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge } from './ui';
-import { QRCodePass } from './QRCodePass';
+import { AVAILABILITY_DAYS, groupAvailabilityByDay } from '../utils/availability';
 import {
   Calendar,
   Clock,
@@ -11,20 +11,10 @@ import {
   CheckCircle2,
   Plus,
   Trash2,
-  QrCode,
   Check,
   Phone,
   BookOpen,
 } from 'lucide-react';
-
-const DAYS_OF_WEEK = [
-  { id: 1, name: 'Pazartesi' },
-  { id: 2, name: 'Salı' },
-  { id: 3, name: 'Çarşamba' },
-  { id: 4, name: 'Perşembe' },
-  { id: 5, name: 'Cuma' },
-  { id: 6, name: 'Cumartesi' },
-];
 
 export const TeacherView: React.FC = () => {
   const {
@@ -46,7 +36,6 @@ export const TeacherView: React.FC = () => {
   const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'today' | 'pending' | 'approved'>('all');
   const [rejectingAptId, setRejectingAptId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
-  const [selectedPass, setSelectedPass] = useState<Appointment | null>(null);
 
   // New Availability Slot State
   const [newDay, setNewDay] = useState<number>(1);
@@ -67,6 +56,7 @@ export const TeacherView: React.FC = () => {
   );
 
   const teacherAvailability = availability.filter((av) => av.teacherId === teacherProfileId);
+  const availabilityGroups = groupAvailabilityByDay(teacherAvailability);
 
   const perform = async (action: () => Promise<void>, message: string) => {
     setBusy(true);
@@ -122,7 +112,7 @@ export const TeacherView: React.FC = () => {
         <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><span><Phone size={15} />{appointment.parentPhone}</span></div>
         {appointment.notes && <p className="mt-4 p-3 bg-slate-50 rounded-xl">Veli notu: {appointment.notes}</p>}
         {appointment.rejectionReason && <p className="mt-3">Ret gerekçesi: {appointment.rejectionReason}</p>}
-        {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : (appointment.status === 'booked' || appointment.status === 'checked_in') && <div className="appointment-actions"><Button variant="secondary" onClick={() => setSelectedPass(appointment)}><QrCode size={17} />Giriş kartı</Button>{appointment.status === 'booked' && <Button variant="quiet" disabled={busy} onClick={() => { void perform(() => cancelAppointment(appointment.id), 'Randevu iptal edildi.'); }}>İptal et</Button>}</div>}
+        {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : appointment.status === 'booked' && <div className="appointment-actions"><Button variant="quiet" disabled={busy} onClick={() => { void perform(() => cancelAppointment(appointment.id), 'Randevu iptal edildi.'); }}>İptal et</Button></div>}
       </div>
     </article>
   );
@@ -149,17 +139,16 @@ export const TeacherView: React.FC = () => {
       {activeTab === 'availability' && <div className="space-y-6">
         <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından randevu seçebilir.</p></div></div>
           <form onSubmit={handleAddSlot} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-            <label className="field" htmlFor="available-day">Gün<select id="available-day" value={newDay} onChange={(event) => setNewDay(Number(event.target.value))}>{DAYS_OF_WEEK.map((day) => <option key={day.id} value={day.id}>{day.name}</option>)}</select></label>
+            <label className="field" htmlFor="available-day">Gün<select id="available-day" value={newDay} onChange={(event) => setNewDay(Number(event.target.value))}>{AVAILABILITY_DAYS.map((day) => <option key={day.id} value={day.id}>{day.name}</option>)}</select></label>
             <label className="field" htmlFor="available-start">Başlangıç<input id="available-start" type="time" value={newStartTime} onChange={(event) => setNewStartTime(event.target.value)} required /></label>
             <label className="field" htmlFor="available-end">Bitiş<input id="available-end" type="time" value={newEndTime} onChange={(event) => setNewEndTime(event.target.value)} required /></label>
             <Button type="submit" disabled={busy}><Plus size={17} />Programa ekle</Button>
           </form>
         </section>
-        <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{teacherAvailability.length ? <div className="divide-y divide-slate-200">{teacherAvailability.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-4"><div><h3 className="font-bold text-sm">{DAYS_OF_WEEK.find((day) => day.id === slot.dayOfWeek)?.name || 'Hafta içi'}</h3><p className="text-sm text-slate-600 mt-1">{slot.startTime} – {slot.endTime}<span className="block sm:inline sm:ml-4 text-xs text-slate-500">{slot.slotDurationMinutes} dakika / görüşme</span></p></div><button type="button" disabled={busy} className="icon-button" aria-label={`${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
+        <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-6">{availabilityGroups.map((day) => <section key={day.id} aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-4"><p className="text-sm text-slate-600">{slot.startTime} – {slot.endTime}<span className="block sm:inline sm:ml-4 text-xs text-slate-500">{slot.slotDurationMinutes} dakika / görüşme</span></p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
       </div>}
       {activeTab === 'profile' && <section className="surface max-w-xl"><div className="flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="font-bold text-xl">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-blue-700 mt-1 text-sm">{currentUser?.branch}</p></div></div><dl className="pass-details mt-7"><div><dt>Telefon</dt><dd>{currentUser?.phone}</dd></div><div><dt>Okul</dt><dd>{settings.schoolName}</dd></div></dl></section>}
       {rejectingAptId && <Dialog title="Randevuyu reddet" description="Dilerseniz veliye iletilecek kısa bir açıklama ekleyin." onClose={() => setRejectingAptId(null)} dismissible={!busy}><div className="form-stack">{feedback?.failed && <Alert tone="danger">{feedback.message}</Alert>}<label className="field" htmlFor="rejection-reason">Ret gerekçesi <span className="field-hint">İsteğe bağlı</span><textarea id="rejection-reason" rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Bu saatte görüşme yapamama nedeniniz…" /></label><div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setRejectingAptId(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={handleConfirmReject}>{busy ? 'Kaydediliyor…' : 'Randevuyu reddet'}</Button></div></div></Dialog>}
-      {selectedPass && <QRCodePass appointment={selectedPass} schoolName={settings.schoolName} onClose={() => setSelectedPass(null)} />}
     </main>
   );
 };

@@ -11,7 +11,7 @@ import {
   isPlatformAdmin,
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
-import { isValidTurkishPhoneInput, normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
+import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { normalizePersonName } from '../src/utils/person-name';
@@ -48,11 +48,15 @@ import {
 } from '../src/types';
 
 const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
+const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> => {
+  const { qrToken: _qrToken, ...safeAppointment } = appointment;
+  return safeAppointment;
+};
 
 export const apiRouter = Router();
 apiRouter.use('/auth', (req, res, next) => {
   if (req.method !== 'GET' && req.body && typeof req.body === 'object') {
-    if ('phone' in req.body && !isValidTurkishPhoneInput(req.body.phone)) {
+    if ('phone' in req.body && !normalizeTurkishPhone(req.body.phone)) {
       return res.status(400).json({ error: req.originalUrl.includes('/auth/parent/') ? PARENT_AUTH_ERROR : 'Telefon numarasını 0XXX XXX XX XX biçiminde girin.' });
     }
   }
@@ -1415,7 +1419,7 @@ apiRouter.get('/schools/:schoolId/appointments', authMiddleware, tenantGuard(), 
       userId,
       ...(teacher ? { teacherProfileId: teacher.id } : {}),
     });
-    res.json({ appointments });
+    res.json({ appointments: role === 'parent' ? appointments : appointments.map(withoutQrToken) });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/appointments Error]:', err);
     res.status(500).json({ error: 'Randevular alınamadı' });
@@ -1578,7 +1582,7 @@ apiRouter.post(
         }
       }
 
-      res.json({ success: true, appointment: newApt });
+      res.json({ success: true, appointment: req.membership!.role === 'parent' ? newApt : withoutQrToken(newApt) });
     } catch (err: any) {
       if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
@@ -1691,7 +1695,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
-      res.json({ success: true, appointment: updated });
+      res.json({ success: true, appointment: withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/approve Error]:', err);
       res.status(500).json({ error: 'Randevu onaylanırken hata oluştu' });
@@ -1764,7 +1768,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
-      res.json({ success: true, appointment: updated });
+      res.json({ success: true, appointment: withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/reject Error]:', err);
       res.status(500).json({ error: 'Randevu reddedilirken hata oluştu' });
@@ -1824,7 +1828,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
-      res.json({ success: true, appointment: updated });
+      res.json({ success: true, appointment: req.membership!.role === 'parent' ? updated : withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/cancel Error]:', err);
       res.status(500).json({ error: 'Randevu iptal edilirken hata oluştu' });
@@ -1832,7 +1836,7 @@ apiRouter.post(
   }
 );
 
-// Security QR verification is read-only; check-in is a separate atomic action.
+// Security QR verification is read-only and never mutates appointment state.
 apiRouter.post(
   '/schools/:schoolId/security/qr/verify',
   authMiddleware,
@@ -1850,77 +1854,6 @@ apiRouter.post(
     } catch (err) {
       console.error('[POST /security/qr/verify Error]:', err);
       return res.status(503).json({ success: false, allowed: false, decision: 'INVALID', title: 'RANDEVU DOĞRULANAMADI', message: 'Bağlantıyı kontrol edin. Giriş vermeyin.' });
-    }
-  }
-);
-
-// Security Check-In (Strict School Isolation)
-apiRouter.post(
-  '/schools/:schoolId/security/check-in',
-  authMiddleware,
-  tenantGuard(['security']),
-  async (req: AuthenticatedRequest, res) => {
-    const schoolId = req.membership!.schoolId;
-    const token = typeof req.body.qrToken === 'string' ? req.body.qrToken.trim() : '';
-
-    try {
-      if (!/^VELIQR1:[A-Za-z0-9_-]{32}$/.test(token)) return res.status(200).json(invalidQrVerification());
-      const appointment = await appointmentRepository.getAppointmentByQrToken(schoolId, token);
-      if (!appointment) return res.status(200).json(invalidQrVerification());
-      const verification = evaluateSecurityQr(appointment);
-      if (!verification.allowed) return res.status(200).json(verification);
-      const updated = await appointmentRepository.checkInAtomically(schoolId, appointment.id, req.user!.id);
-      if (!updated) return res.status(409).json({ success: false, allowed: false, decision: 'ALREADY_CHECKED_IN', title: 'DAHA ÖNCE GİRİŞ KAYDI YAPILDI', message: 'Bu randevu için giriş kaydı zaten oluşturuldu.' });
-      await auditLogRepository.createAuditLog({ schoolId, action: 'QR Giriş Doğrulandı', actorName: `${req.user!.firstName} ${req.user!.lastName} (Güvenlik)`.trim(), details: `${updated.id} için giriş kaydı oluşturuldu.` });
-      return res.json({ success: true, allowed: true, decision: 'APPROVED', title: 'GİRİŞ KAYDI OLUŞTURULDU', message: 'Giriş kaydı başarıyla oluşturuldu.', appointment: updated });
-    } catch (err: any) {
-      console.error('[POST /schools/:schoolId/security/check-in Error]:', err);
-      res.status(500).json({ error: 'Nizamiye giriş kontrolü sırasında hata oluştu' });
-    }
-  }
-);
-
-// Security Check-Out
-apiRouter.post(
-  '/schools/:schoolId/security/check-out',
-  authMiddleware,
-  tenantGuard(['security']),
-  async (req: AuthenticatedRequest, res) => {
-    const schoolId = req.membership!.schoolId;
-    const { appointmentId } = req.body;
-
-    try {
-      const existing = await appointmentRepository.getAppointmentById(schoolId, appointmentId);
-      if (!existing) {
-        return res.status(404).json({ error: 'Randevu bulunamadı veya bu okula ait değil.' });
-      }
-
-      if (existing.status !== 'checked_in') {
-        return res.status(400).json({ error: 'Ziyaretçi henüz okula giriş yapmamış veya zaten çıkış yapmış!' });
-      }
-
-      const checkoutTimestamp = new Date();
-      const timeStr = checkoutTimestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const apt = await appointmentRepository.updateStatus(schoolId, appointmentId, 'checked_out', {
-        checkedOutAt: checkoutTimestamp.toISOString(),
-      });
-
-      if (!apt) {
-        return res.status(404).json({ error: 'Randevu bulunamadı' });
-      }
-
-      await auditLogRepository.createAuditLog({
-        schoolId,
-        timestamp: timeStr,
-        action: 'Okuldan Çıkış Yapıldı',
-        actorName: `${req.user!.firstName} ${req.user!.lastName} (Güvenlik)`.trim(),
-        details: `${apt.parentName} çıkış yaptı.`,
-      });
-
-      res.json({ success: true, appointment: apt });
-    } catch (err: any) {
-      console.error('[POST /schools/:schoolId/security/check-out Error]:', err);
-      res.status(500).json({ error: 'Nizamiye çıkış işlemi sırasında hata oluştu' });
     }
   }
 );
@@ -2088,14 +2021,14 @@ apiRouter.post(
   tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
-    const { records, className, preview } = req.body;
+    const { records, preview } = req.body;
 
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Yüklenecek kayıt listesi boş olamaz.' });
     }
 
     try {
-      const result = await processRosterImport(schoolId, className, records, preview === true,
+      const result = await processRosterImport(schoolId, records, preview === true,
         `${req.user!.firstName} ${req.user!.lastName}`.trim());
       res.json(result);
     } catch (err: any) {

@@ -123,10 +123,12 @@ async function run() {
     assert.equal(list.status, 200);
     const appointments = list.body.appointments as Array<Record<string, unknown>>;
     assert.deepEqual(appointments.map((item) => item.id), [appointmentA]);
+    assert.equal(appointments[0].qrToken, undefined);
 
     const ownApproval = await request('POST', `/schools/${schoolA}/appointments/${appointmentA}/approve`, teacherA.token);
     assert.equal(ownApproval.status, 200);
     assert.equal((ownApproval.body.appointment as Record<string, unknown>).id, appointmentA);
+    assert.equal((ownApproval.body.appointment as Record<string, unknown>).qrToken, undefined);
 
     const otherApproval = await request(
       'POST',
