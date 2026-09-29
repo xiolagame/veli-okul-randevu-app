@@ -66,10 +66,10 @@ export function invalidQrVerification(): SecurityQrVerification {
 
 export function evaluateSecurityQr(appointment: Appointment, now = new Date()): SecurityQrVerification {
   if (appointment.status === 'pending') {
-    return result('PENDING_APPROVAL', 'RANDEVU HENÜZ ONAYLANMADI', 'Randevu henüz öğretmen onayı bekliyor.', appointment);
+    return result('PENDING_APPROVAL', 'RANDEVU HENÜZ ONAYLANMADI', 'Öğretmen onayı bekleniyor.', appointment);
   }
   if (appointment.status === 'rejected') {
-    return result('REJECTED', 'RANDEVU REDDEDİLMİŞ', 'Bu randevu öğretmen tarafından onaylanmamış.', appointment);
+    return result('REJECTED', 'RANDEVU REDDEDİLMİŞ', 'Bu randevu öğretmen tarafından onaylanmamıştır.', appointment);
   }
   if (appointment.status === 'cancelled') {
     return result('CANCELLED', 'RANDEVU İPTAL EDİLMİŞ', 'Bu randevu iptal edilmiş.', appointment);
