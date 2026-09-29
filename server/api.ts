@@ -14,11 +14,13 @@ import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
+import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
 import { normalizeLicenseCode } from '../src/utils/license-code';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
 import { sendEmail } from './email';
+import { renderBrandedEmail } from './email-template';
 import { findAppointmentReview, matchesReviewBinding, sendAppointmentRequestEmail } from './appointment-email';
 import {
   getDb,
@@ -412,7 +414,12 @@ apiRouter.post('/auth/staff/reset-request', async (req, res) => {
         if (!cooldown.rows.length) {
           const code = generateStaffCode();
           await invitationRepository.createAuthCode({schoolId:school.id,targetPhone:phone,targetUserId:found.id,targetRole:found.role,purpose:'staff_password_reset',codeHash:hashActivationCode(code),expiresAt:new Date(Date.now()+15*60*1000).toISOString(),token:crypto.randomUUID()});
-          await sendEmail({to:found.email,subject:'Veli Randevu Parola Sıfırlama',html:`<p>Merhaba ${escapeHtml(found.full_name)},</p><p>Parola sıfırlama kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>Kod 15 dakika içinde sona erer ve tek kullanımlıdır.</p><p>Veli Randevu</p>`});
+          await sendEmail({ to: found.email, subject: 'Veli Randevu Parola Sıfırlama', ...renderBrandedEmail({
+            subtitle: 'Personel Parola Sıfırlama', greeting: found.full_name,
+            intro: ['Personel hesabınız için parola sıfırlama talebi alındı.'],
+            infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
+            notice: 'Kod 15 dakika içinde sona erer ve tek kullanımlıdır.',
+          }) });
           await auditLogRepository.createAuditLog({schoolId:school.id,action:'staff_password_reset_email_sent',actorName:'Sistem',details:`${found.role} hesabı ${found.id} için sıfırlama e-postası gönderildi.`});
         }
       }
@@ -574,8 +581,12 @@ apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
               token: crypto.randomUUID() }, tx);
           });
           const fullName = `${candidate.rows[0].first_name} ${candidate.rows[0].last_name}`.trim();
-          const message = `<p>Merhaba ${escapeHtml(fullName)},</p><p>${escapeHtml(school.name)} okul yönetimi parola sıfırlama kodunuz:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>Kod 15 dakika içinde sona erer ve tek kullanımlıdır. Veli Randevu</p>`;
-          await sendEmail({ to: candidate.rows[0].email, subject: 'Veli Randevu Okul Yönetimi Parola Sıfırlama', html: message });
+          await sendEmail({ to: candidate.rows[0].email, subject: 'Veli Randevu Okul Yönetimi Parola Sıfırlama', ...renderBrandedEmail({
+            subtitle: 'Okul Yönetimi Parola Sıfırlama', greeting: fullName,
+            intro: [`${school.name} okul yönetimi hesabınız için parola sıfırlama talebi alındı.`],
+            infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
+            notice: 'Kod 15 dakika içinde sona erer ve tek kullanımlıdır.',
+          }) });
           await auditLogRepository.createAuditLog({ schoolId: school.id, action: 'school_admin_password_reset_email_sent', actorName: 'Sistem',
             details: `Okul yöneticisi ${user.id} için parola sıfırlama e-postası gönderildi.` });
         }
@@ -776,10 +787,6 @@ apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
   }
 });
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-}
-
 async function emailStaffActivation(data: { schoolId: string; role: 'teacher' | 'security'; phone: string; email: string; firstName: string; lastName: string; userId?: string; adminId: string }) {
   const code = generateStaffCode();
   const db = await getDb();
@@ -797,7 +804,18 @@ async function emailStaffActivation(data: { schoolId: string; role: 'teacher' | 
   try { await sendEmail({
     to: data.email,
     subject: 'Veli Randevu Hesap Aktivasyonu',
-    html: `<p>Merhaba ${escapeHtml(`${data.firstName} ${data.lastName}`.trim())},</p><p>${escapeHtml(school.name)} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.</p><p style="margin-bottom:4px;font-weight:600">Okul Kodu</p><p style="font-size:26px;font-weight:bold;letter-spacing:3px;margin-top:0">${escapeHtml(school.code.toUpperCase())}</p><p style="margin-bottom:4px;font-weight:600">Aktivasyon Kodu</p><p style="font-size:28px;font-weight:bold;letter-spacing:4px;margin-top:0">${escapeHtml(code)}</p><p>İlk giriş için Veli Randevu giriş ekranındaki “Personel İlk Giriş” butonuna basın. Telefon numaranız ve yukarıdaki 6 haneli aktivasyon koduyla hesabınızı aktifleştirerek kendi şifrenizi oluşturun.</p><p>Kodun geçerlilik süresi: 24 saat. Bu kod tek kullanımlıktır.</p><p>Veli Randevu</p>`,
+    ...renderBrandedEmail({
+      subtitle: 'Personel Hesabınız Hazır', greeting: `${data.firstName} ${data.lastName}`.trim(),
+      intro: [
+        `${school.name} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.`,
+        'İlk giriş için Veli Randevu giriş ekranındaki “Personel İlk Giriş” bölümünü kullanarak kendi şifrenizi oluşturun.',
+      ],
+      infoCards: [
+        { label: 'Okul Kodu', value: school.code.toUpperCase() },
+        { label: 'Aktivasyon Kodu', value: code, tone: 'accent' },
+      ],
+      notice: 'Kod 24 saat içinde sona erer ve tek kullanımlıdır.',
+    }),
   }); } catch (cause) { throw new Error(cause instanceof Error ? cause.message : 'Email delivery failed.'); }
 }
 
@@ -1287,8 +1305,12 @@ apiRouter.get('/schools/:schoolId/students', authMiddleware, tenantGuard(), asyn
 apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
-    const slots = await availabilityRepository.getAvailability(schoolId);
-    res.json({ availability: slots });
+    const [slots, school] = await Promise.all([
+      availabilityRepository.getAvailability(schoolId),
+      schoolRepository.getById(schoolId),
+    ]);
+    if (!school) return res.status(404).json({ error: 'Okul bulunamadı.' });
+    res.json({ availability: slots.map((slot) => ({ ...slot, slotDurationMinutes: school.settings.defaultSlotMinutes })) });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/availability Error]:', err);
     res.status(500).json({ error: 'Uygunluk saatleri alınamadı' });
@@ -1303,8 +1325,10 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
   async (req: AuthenticatedRequest, res) => {
     try {
       const schoolId = req.membership!.schoolId;
-      const { dayOfWeek, startTime, endTime, slotDurationMinutes } = req.body;
-      const duration = slotDurationMinutes == null ? 15 : Number(slotDurationMinutes);
+      const { dayOfWeek, startTime, endTime } = req.body;
+      const school = await schoolRepository.getById(schoolId);
+      if (!school) return res.status(404).json({ error: 'Okul bulunamadı.' });
+      const duration = school.settings.defaultSlotMinutes;
 
       if (!Number.isInteger(Number(dayOfWeek)) || Number(dayOfWeek) < 1 || Number(dayOfWeek) > 6 ||
           !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) ||
@@ -1472,7 +1496,14 @@ apiRouter.post(
       // 3. Atomically book with transaction and double-booking guard
       const db = await getDb();
       const newApt = await db.transaction(async (tx) => {
-        await tx.query('SELECT id FROM schools WHERE id=$1 FOR UPDATE', [schoolId]);
+        const schoolSettings = await tx.query<{ settings: unknown; name: string }>(
+          'SELECT settings,name FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+        if (!schoolSettings.rows.length) {
+          const unavailable = new Error('Okul kullanılamıyor.');
+          Object.assign(unavailable, { code: 'SCHOOL_UNAVAILABLE' });
+          throw unavailable;
+        }
+        const meetingDuration = normalizeSchoolSettings(schoolSettings.rows[0].settings, schoolSettings.rows[0].name).defaultSlotMinutes;
         const linkedStudent = req.membership!.role === 'parent' ? await tx.query<{ id: string }>(
           `SELECT s.id FROM students s JOIN student_parent_relations rel ON rel.school_id=s.school_id AND rel.student_id=s.id
            WHERE s.school_id=$1 AND rel.parent_user_id=$2 AND s.id=$3 FOR SHARE OF s`,
@@ -1492,12 +1523,12 @@ apiRouter.post(
           Object.assign(unavailable, { code: 'TEACHER_UNAVAILABLE' });
           throw unavailable;
         }
-        const weeklySlots = await tx.query<{ day_of_week: number; start_time: string; end_time: string; slot_duration: number }>(
-          `SELECT day_of_week,start_time,end_time,slot_duration FROM availability_slots
+        const weeklySlots = await tx.query<{ day_of_week: number; start_time: string; end_time: string }>(
+          `SELECT day_of_week,start_time,end_time FROM availability_slots
            WHERE school_id=$1 AND teacher_id=$2`, [schoolId, teacher.id]);
         if (!weeklySlots.rows.some((slot) => slotMatchesAvailability({
           dayOfWeek: slot.day_of_week, startTime: slot.start_time,
-          endTime: slot.end_time, slotDurationMinutes: slot.slot_duration,
+          endTime: slot.end_time, slotDurationMinutes: meetingDuration,
         }, date, startTime, endTime))) {
           const unavailable = new Error('Öğretmen bu gün ve saatte randevu kabul etmiyor.');
           Object.assign(unavailable, { code: 'SLOT_UNAVAILABLE' });
@@ -1585,6 +1616,7 @@ apiRouter.post(
       res.json({ success: true, appointment: req.membership!.role === 'parent' ? newApt : withoutQrToken(newApt) });
     } catch (err: any) {
       if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
+      if (err.code === 'SCHOOL_UNAVAILABLE') return res.status(403).json({ error: 'Okul kullanılamıyor.' });
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
       if (err.code === 'SLOT_UNAVAILABLE') return res.status(409).json({ error: 'Öğretmen bu gün ve saatte randevu kabul etmiyor. Lütfen başka bir zaman seçin.' });
       if (err.code === '23505' || err.code === 'DOUBLE_BOOKING' || (err.message && err.message.includes('idx_appointments_no_double_booking'))) {
@@ -1924,7 +1956,27 @@ apiRouter.put(
   async (req: AuthenticatedRequest, res) => {
     try {
       const schoolId = req.membership!.schoolId;
-      const settings = await schoolRepository.updateSettings(schoolId, req.body);
+      const school = await schoolRepository.getById(schoolId);
+      if (!school) return res.status(404).json({ error: 'Okul bulunamadı.' });
+      const updates: Partial<typeof school.settings> = {};
+      if ('schoolName' in req.body) {
+        if (typeof req.body.schoolName !== 'string' || !req.body.schoolName.trim() || req.body.schoolName.trim().length > 255) {
+          return res.status(400).json({ error: 'Geçerli bir okul adı girin.' });
+        }
+        updates.schoolName = req.body.schoolName.trim();
+      }
+      if ('defaultSlotMinutes' in req.body) {
+        const duration = validateDefaultSlotMinutes(req.body.defaultSlotMinutes, school.settings.minSlotMinutes);
+        if (duration === null) {
+          return res.status(400).json({ error: `Görüşme süresi en az ${school.settings.minSlotMinutes} dakika olan tam sayı olmalıdır.` });
+        }
+        updates.defaultSlotMinutes = duration;
+      }
+      if ('allowParentCancel' in req.body) {
+        if (typeof req.body.allowParentCancel !== 'boolean') return res.status(400).json({ error: 'İptal ayarı geçersiz.' });
+        updates.allowParentCancel = req.body.allowParentCancel;
+      }
+      const settings = await schoolRepository.updateSettings(schoolId, updates);
       res.json({ success: true, settings });
     } catch (err: any) {
       console.error('[PUT /schools/:schoolId/settings Error]:', err);

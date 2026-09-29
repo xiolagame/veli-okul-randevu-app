@@ -3,6 +3,8 @@ import { generateSetupToken, hashSetupToken } from './activation-codes';
 import { getDb, TransactionClient } from './database/postgres';
 import { sendEmail } from './email';
 import { Appointment } from '../src/types';
+import { renderBrandedEmail } from './email-template';
+import { getPublicOrigin } from './public-origin';
 
 export const appointmentReviewPurpose = 'appointment_email_review';
 
@@ -32,10 +34,6 @@ export async function findAppointmentReview(client: TransactionClient, schoolId:
   return result.rows[0] || null;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-}
-
 export async function sendAppointmentRequestEmail(data: {
   appointment: Appointment; teacherUserId: string; teacherEmail: string;
   schoolName: string; teacherName: string;
@@ -47,14 +45,24 @@ export async function sendAppointmentRequestEmail(data: {
     VALUES ($1,$2,$3,$4,TRUE,NOW()+INTERVAL '24 hours',$5,$6,'teacher')`,
     [crypto.randomUUID(), data.appointment.schoolId, hashSetupToken(token),
       JSON.stringify(reviewBinding(data.appointment)), appointmentReviewPurpose, data.teacherUserId]);
-  const origin = process.env.URL?.startsWith('https://') ? process.env.URL.replace(/\/$/, '')
-    : process.env.NODE_ENV === 'production' ? 'https://velirokulrandevu.netlify.app' : 'http://localhost:3000';
-  const link = `${origin}/#appointment-review=${encodeURIComponent(data.appointment.schoolId)}.${token}`;
+  const link = `${getPublicOrigin()}/#appointment-review=${encodeURIComponent(data.appointment.schoolId)}.${token}`;
   const appointment = data.appointment;
   const date = appointment.date.split('-').reverse().join('/');
-  const note = appointment.notes?.trim()
-    ? `<p style="margin-bottom:4px;font-weight:600">Veli Notu</p><p>${escapeHtml(appointment.notes.trim())}</p>`
-    : '';
-  await sendEmail({ to: data.teacherEmail, subject: 'Veli Randevu — Yeni Randevu Talebi',
-    html: `<p>Merhaba ${escapeHtml(data.teacherName)},</p><p>${escapeHtml(data.schoolName)} okulunda ${escapeHtml(appointment.className)} sınıfındaki ${escapeHtml(appointment.studentName)} öğrencisinin velisi ${escapeHtml(appointment.parentName)}, ${escapeHtml(date)} tarihinde ${escapeHtml(appointment.startTime)}–${escapeHtml(appointment.endTime)} saatleri için randevu talebi oluşturmuştur.</p>${note}<p>Müsaitseniz velinin okula giriş izninin oluşturulabilmesi için lütfen randevuyu inceleyip onaylayınız.</p><p><a href="${escapeHtml(link)}">Randevu Talebini İncele</a></p><p>Bağlantı 24 saat geçerlidir. Onaylamak için öğretmen hesabınızla giriş yapmanız gerekir.</p>` });
+  const rendered = renderBrandedEmail({
+    subtitle: 'Yeni Randevu Talebi',
+    greeting: data.teacherName,
+    intro: [
+      `${data.schoolName} okulunda yeni bir veli görüşme talebi oluşturuldu.`,
+      'Müsaitseniz velinin okula giriş izninin oluşturulabilmesi için randevuyu inceleyip onaylayın.',
+      ...(appointment.notes?.trim() ? [`Veli Notu: ${appointment.notes.trim()}`] : []),
+    ],
+    infoCards: [
+      { label: 'Öğrenci', value: `${appointment.studentName} · ${appointment.className}` },
+      { label: 'Veli', value: appointment.parentName },
+      { label: 'Randevu', value: `${date} · ${appointment.startTime}–${appointment.endTime}`, tone: 'accent' },
+    ],
+    action: { label: 'Randevu Talebini İncele', url: link },
+    notice: 'Bağlantı 24 saat geçerlidir. Onaylamak için öğretmen hesabınızla giriş yapmanız gerekir.',
+  });
+  await sendEmail({ to: data.teacherEmail, subject: 'Veli Randevu — Yeni Randevu Talebi', ...rendered });
 }

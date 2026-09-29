@@ -24,6 +24,7 @@ import { ManagementActions } from './ManagementActions';
 import { BulkRosterImport } from './BulkRosterImport';
 import { SchoolInfo } from './SchoolInfo';
 import { SchoolAdminManagement } from './SchoolAdminManagement';
+import { validateDefaultSlotMinutes } from '../utils/school-settings';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
@@ -71,7 +72,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
   // Settings form state
   const [schoolNameInput, setSchoolNameInput] = useState(settings.schoolName);
-  const [defaultSlotInput, setDefaultSlotInput] = useState(settings.defaultSlotMinutes);
+  const [defaultSlotInput, setDefaultSlotInput] = useState(String(settings.defaultSlotMinutes));
   const [allowCancelInput, setAllowCancelInput] = useState(settings.allowParentCancel);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -91,18 +92,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
   useEffect(() => {
     setSchoolNameInput(settings.schoolName);
-    setDefaultSlotInput(settings.defaultSlotMinutes);
+    setDefaultSlotInput(String(settings.defaultSlotMinutes));
     setAllowCancelInput(settings.allowParentCancel);
   }, [settings]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    const duration = validateDefaultSlotMinutes(defaultSlotInput, settings.minSlotMinutes);
+    if (duration === null) {
+      setFormError(`Görüşme süresi en az ${settings.minSlotMinutes} dakika olan tam sayı olmalıdır.`);
+      return;
+    }
     setSaving(true);
     setFormError('');
     try {
     await updateSettings({
       schoolName: schoolNameInput,
-      defaultSlotMinutes: Number(defaultSlotInput),
+      defaultSlotMinutes: duration,
       allowParentCancel: allowCancelInput,
     });
     setSettingsSavedMsg(true);
@@ -192,7 +198,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
 
           {activeTab === 'settings' && <section className="surface max-w-2xl"><div className="section-heading"><div><h3>Okul ve görüşme ayarları</h3><p>Okulunuzun randevu tercihlerini düzenleyin.</p></div></div><form onSubmit={handleSaveSettings} className="form-stack">
             <label className="field" htmlFor="settings-school">Okul adı<input id="settings-school" value={schoolNameInput} onChange={(event) => setSchoolNameInput(event.target.value)} /></label>
-            <label className="field" htmlFor="settings-duration">Standart görüşme süresi (dakika)<input id="settings-duration" type="number" value={defaultSlotInput} onChange={(event) => setDefaultSlotInput(Number(event.target.value))} /></label>
+            <label className="field" htmlFor="settings-duration">Standart görüşme süresi (dakika)<input id="settings-duration" type="number" min={settings.minSlotMinutes} step="1" inputMode="numeric" value={defaultSlotInput} onChange={(event) => { setDefaultSlotInput(event.target.value); setFormError(''); }} /><span className="field-hint">En az {settings.minSlotMinutes} dakika. Alanı temizleyip yeni değeri doğrudan yazabilirsiniz.</span></label>
             <label htmlFor="allowCancel" className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl text-sm"><input type="checkbox" id="allowCancel" checked={allowCancelInput} onChange={(event) => setAllowCancelInput(event.target.checked)} /><span>Veliler kendi randevularını iptal edebilsin</span></label>
             {formError && <Alert tone="danger">{formError}</Alert>}{settingsSavedMsg && <Alert tone="success">Ayarlarınız kaydedildi.</Alert>}
             <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}</Button>

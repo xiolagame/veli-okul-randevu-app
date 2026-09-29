@@ -190,6 +190,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     checked_in_at TIMESTAMPTZ,
     check_out_time VARCHAR(30),
     checked_out_at TIMESTAMPTZ,
+    teacher_reminder_30m_sent_at TIMESTAMPTZ,
+    teacher_reminder_30m_last_attempt_at TIMESTAMPTZ,
+    teacher_reminder_30m_attempts INTEGER DEFAULT 0 NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT uq_appointments_school_id UNIQUE (school_id, id),
@@ -206,6 +209,12 @@ ON appointments (school_id, teacher_id, date, start_time)
 WHERE status NOT IN ('cancelled', 'rejected');
 
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hidden_for_parent_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS teacher_reminder_30m_sent_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS teacher_reminder_30m_last_attempt_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS teacher_reminder_30m_attempts INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_appointments_teacher_reminder_due
+ON appointments (date, start_time)
+WHERE status = 'booked' AND teacher_reminder_30m_sent_at IS NULL;
 
 -- 10. NOTIFICATIONS (User-targeted in-app notifications)
 CREATE TABLE IF NOT EXISTS notifications (

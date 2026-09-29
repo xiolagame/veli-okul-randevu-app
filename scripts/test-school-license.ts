@@ -121,7 +121,7 @@ async function run() {
     });
     assert.equal(invite.status, 201);
     assert.equal(sentEmails.length, 1);
-    assert.match(sentEmails[0].html, /https:\/\/velirokulrandevu\.netlify\.app\/branding\/veli-randevu-logo\.png/);
+    assert.match(sentEmails[0].html, /http:\/\/localhost:3000\/branding\/veli-randevu-logo\.png/);
     assert.match(sentEmails[0].html, /VR-ABCD-1234/);
     assert.match(sentEmails[0].html, /LİSANS KODUNUZ/);
     assert(sentEmails[0].text?.includes('Lisans Kodu: VR-ABCD-1234'));

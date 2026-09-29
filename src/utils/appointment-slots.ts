@@ -5,6 +5,28 @@ export function intervalsOverlap(
   return slot.startTime < occupied.endTime && slot.endTime > occupied.startTime;
 }
 
+export function generateAppointmentSlots(
+  windows: { startTime: string; endTime: string }[],
+  durationMinutes: number
+): { time: string; endTime: string }[] {
+  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) return [];
+  const minutes = (time: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+    ? Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) : NaN;
+  const format = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+  const slots = windows.flatMap((window) => {
+    const start = minutes(window.startTime);
+    const end = minutes(window.endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return [];
+    const result: { time: string; endTime: string }[] = [];
+    for (let current = start; current + durationMinutes <= end && current + durationMinutes <= 1440; current += durationMinutes) {
+      result.push({ time: format(current), endTime: format(current + durationMinutes) });
+    }
+    return result;
+  });
+  return [...new Map(slots.map((slot) => [`${slot.time}-${slot.endTime}`, slot])).values()]
+    .sort((left, right) => left.time.localeCompare(right.time) || left.endTime.localeCompare(right.endTime));
+}
+
 export function calendarWeekday(isoDate: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
   const [year, month, day] = isoDate.split('-').map(Number);

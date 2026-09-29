@@ -41,7 +41,6 @@ export const TeacherView: React.FC = () => {
   const [newDay, setNewDay] = useState<number>(1);
   const [newStartTime, setNewStartTime] = useState<string>('09:30');
   const [newEndTime, setNewEndTime] = useState<string>('11:30');
-  const [newDuration] = useState<number>(15);
 
   // The API already scopes teacher appointments from the authenticated user.
   const teacherAppointments = appointments;
@@ -88,7 +87,7 @@ export const TeacherView: React.FC = () => {
       dayOfWeek: newDay,
       startTime: newStartTime,
       endTime: newEndTime,
-      slotDurationMinutes: newDuration,
+      slotDurationMinutes: settings.defaultSlotMinutes,
     }), 'Müsaitlik programınıza eklendi.');
   };
 
@@ -137,7 +136,7 @@ export const TeacherView: React.FC = () => {
         {appointmentFilter === 'all' && completedAppointments.length > 0 && <section><div className="section-heading"><h2>Geçmiş randevular</h2></div><div className="space-y-4">{completedAppointments.map(appointmentCard)}</div></section>}
       </div>}
       {activeTab === 'availability' && <div className="space-y-6">
-        <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından randevu seçebilir.</p></div></div>
+        <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından okulunuzun {settings.defaultSlotMinutes} dakikalık standart görüşme süresiyle randevu seçebilir.</p></div></div>
           <form onSubmit={handleAddSlot} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <label className="field" htmlFor="available-day">Gün<select id="available-day" value={newDay} onChange={(event) => setNewDay(Number(event.target.value))}>{AVAILABILITY_DAYS.map((day) => <option key={day.id} value={day.id}>{day.name}</option>)}</select></label>
             <label className="field" htmlFor="available-start">Başlangıç<input id="available-start" type="time" value={newStartTime} onChange={(event) => setNewStartTime(event.target.value)} required /></label>

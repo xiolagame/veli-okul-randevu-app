@@ -6,7 +6,7 @@ import { Appointment, TeacherProfile } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge, StepIndicator } from './ui';
 import { QRCodePass } from './QRCodePass';
 import { api } from '../services/api';
-import { calendarWeekday, intervalsOverlap } from '../utils/appointment-slots';
+import { calendarWeekday, generateAppointmentSlots, intervalsOverlap } from '../utils/appointment-slots';
 import { AvailabilityCalendar } from './AvailabilityCalendar';
 import {
   Calendar,
@@ -209,24 +209,7 @@ export const ParentView: React.FC = () => {
     );
 
     // If teacher has defined hours for this day
-    const slots: { time: string; endTime: string }[] = [];
-    if (teacherAvail.length > 0) {
-      teacherAvail.forEach((av) => {
-        const [startH, startM] = av.startTime.split(':').map(Number);
-        const [endH, endM] = av.endTime.split(':').map(Number);
-        let curr = startH * 60 + startM;
-        const end = endH * 60 + endM;
-        while (curr < end) {
-          const hh = Math.floor(curr / 60);
-          const mm = curr % 60;
-          const duration = av.slotDurationMinutes || settings.defaultSlotMinutes;
-          const next = curr + duration;
-          if (next > end || next > 1440) break;
-          slots.push({ time: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, endTime: `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}` });
-          curr = next;
-        }
-      });
-    }
+    const slots = generateAppointmentSlots(teacherAvail, settings.defaultSlotMinutes);
 
     const intervals = occupiedSlots?.key === occupiedKey ? occupiedSlots.intervals : [];
     return [...new Map(slots.map((slot) => [slot.time, slot])).values()].map((slot) => ({

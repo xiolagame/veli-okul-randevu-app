@@ -26,6 +26,7 @@ import {
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
 import { normalizePersonName } from '../../src/utils/person-name';
 import { normalizeSchoolCodeInput } from '../../src/utils/school-code';
+import { normalizeSchoolSettings } from '../../src/utils/school-settings';
 
 // Helper: executes query on transaction client if provided, else on global db
 async function execQuery<T = any>(
@@ -139,7 +140,7 @@ export const schoolRepository = {
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
+      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
       createdAt: r.created_at,
     }));
   },
@@ -157,7 +158,7 @@ export const schoolRepository = {
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
+      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
       createdAt: r.created_at,
     };
   },
@@ -179,7 +180,7 @@ export const schoolRepository = {
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
+      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
       createdAt: r.created_at,
     };
   },
@@ -188,7 +189,7 @@ export const schoolRepository = {
     const current = await this.getById(schoolId);
     if (!current) throw new Error(`Okul bulunamadı: ${schoolId}`);
 
-    const merged = { ...current.settings, ...settings };
+    const merged = normalizeSchoolSettings({ ...current.settings, ...settings }, settings.schoolName || current.name);
     const res = await execQuery<any>(
       `UPDATE schools 
        SET settings = $1, updated_at = NOW() 
