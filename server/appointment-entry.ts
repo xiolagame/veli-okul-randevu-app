@@ -61,38 +61,38 @@ function result(
 }
 
 export function invalidQrVerification(): SecurityQrVerification {
-  return result('INVALID', 'GEÇERSİZ QR KOD', 'Randevu doğrulanamadı. Giriş vermeyin.');
+  return result('INVALID', 'GEÇERSİZ QR KODU', 'Bu QR koduyla geçerli bir randevu bulunamadı.');
 }
 
 export function evaluateSecurityQr(appointment: Appointment, now = new Date()): SecurityQrVerification {
   if (appointment.status === 'pending') {
-    return result('PENDING_APPROVAL', 'RANDEVU HENÜZ ONAYLANMADI', 'Öğretmen onayı bulunmuyor. Giriş verilmemeli.', appointment);
+    return result('PENDING_APPROVAL', 'RANDEVU HENÜZ ONAYLANMADI', 'Randevu henüz öğretmen onayı bekliyor.', appointment);
   }
   if (appointment.status === 'rejected') {
-    return result('REJECTED', 'RANDEVU REDDEDİLDİ', 'Öğretmen randevuyu onaylamadı. Giriş verilmemeli.', appointment);
+    return result('REJECTED', 'RANDEVU REDDEDİLMİŞ', 'Bu randevu öğretmen tarafından onaylanmamış.', appointment);
   }
   if (appointment.status === 'cancelled') {
-    return result('CANCELLED', 'RANDEVU İPTAL EDİLMİŞ', 'Bu randevu iptal edildi. Giriş verilmemeli.', appointment);
+    return result('CANCELLED', 'RANDEVU İPTAL EDİLMİŞ', 'Bu randevu iptal edilmiş.', appointment);
   }
   if (appointment.status === 'checked_in') {
     return result('ALREADY_CHECKED_IN', 'DAHA ÖNCE GİRİŞ KAYDI YAPILDI', `Giriş zamanı: ${appointment.checkedInAt || 'kayıtlı'}.`, appointment);
   }
   if (appointment.status !== 'booked') {
-    return result('INVALID', 'RANDEVU DOĞRULANAMADI', 'Randevu geçerli bir giriş durumunda değil. Giriş vermeyin.');
+    return result('INVALID', 'RANDEVU DOĞRULANAMADI', 'Bu randevu giriş için doğrulanamadı.');
   }
 
   const serverTime = getIstanbulDateParts(now);
   const startMinutes = toMinutes(appointment.startTime);
   const endMinutes = toMinutes(appointment.endTime);
   if (startMinutes === null || endMinutes === null) {
-    return result('INVALID', 'RANDEVU DOĞRULANAMADI', 'Randevu zamanı doğrulanamadı. Giriş vermeyin.');
+    return result('INVALID', 'RANDEVU DOĞRULANAMADI', 'Bu randevu giriş için doğrulanamadı.');
   }
 
   if (appointment.date > serverTime.date || (appointment.date === serverTime.date && serverTime.minutes < startMinutes - SECURITY_ENTRY_EARLY_MINUTES)) {
-    return result('TOO_EARLY', 'RANDEVU ONAYLI', `Giriş zamanı henüz gelmedi. Randevu saati: ${appointment.startTime}.`, appointment);
+    return result('TOO_EARLY', 'RANDEVU SAATİ HENÜZ GELMEDİ', 'Randevunun giriş saati henüz gelmedi.', appointment);
   }
   if (appointment.date < serverTime.date || (appointment.date === serverTime.date && serverTime.minutes > endMinutes + SECURITY_ENTRY_LATE_MINUTES)) {
-    return result('EXPIRED', 'RANDEVU SÜRESİ GEÇMİŞ', 'Giriş zaman penceresi kapandı. Giriş verilmemeli.', appointment);
+    return result('EXPIRED', 'RANDEVU SÜRESİ GEÇMİŞ', 'Bu randevunun giriş süresi sona erdi.', appointment);
   }
 
   return result('APPROVED', 'RANDEVU ONAYLANDI', 'Veliye okula giriş izni verebilirsiniz.', appointment);

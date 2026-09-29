@@ -9,14 +9,14 @@ async function run() {
   process.env.NODE_ENV = 'test';
   process.env.RESEND_API_KEY = 'local-test-key';
   process.env.EMAIL_FROM = 'test@example.test';
-  const sentEmails: Array<{to:string;subject:string;html:string}> = [];
+  const sentEmails: Array<{to:string;subject:string;html:string;text?:string}> = [];
   let failNextEmail = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     if (String(input).startsWith('https://api.resend.com/emails')) {
-      const payload = JSON.parse(String(init?.body || '{}')) as {to:string[];subject:string;html:string};
+      const payload = JSON.parse(String(init?.body || '{}')) as {to:string[];subject:string;html:string;text?:string};
       if (failNextEmail) { failNextEmail = false; return new Response('{}',{status:503}); }
-      sentEmails.push({to:payload.to[0],subject:payload.subject,html:payload.html});
+      sentEmails.push({to:payload.to[0],subject:payload.subject,html:payload.html,text:payload.text});
       return new Response(JSON.stringify({id:'local-test-email'}),{status:200});
     }
     return originalFetch(input,init);
@@ -174,6 +174,10 @@ async function run() {
     assert.equal(resetRequest.status,200);
     assert.equal(resetRequest.body.message,'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.');
     assert.equal(sentEmails[3].to,updatedTeacherEmail);
+    assert(sentEmails[3].html.includes('Bu kod tek kullanımlıktır.'));
+    assert(sentEmails[3].text?.includes('Bu kod tek kullanımlıktır.'));
+    assert(!sentEmails[3].html.includes('Bu kod tek kullanımlıdır.'));
+    assert(!sentEmails[3].text?.includes('Bu kod tek kullanımlıdır.'));
     const resetCode = emailCode(3);
     assert.equal((await request('POST','/auth/staff/reset-verify',undefined,{schoolCode,phone:teacherPhone,code:activationCode})).status,400);
     const resetVerify = await request('POST','/auth/staff/reset-verify',undefined,{schoolCode,phone:teacherPhone,code:resetCode});

@@ -38,7 +38,7 @@ const react = {
     if (!(index in hooks)) { hooks[index] = true; cleanups.push(effect()); }
   },
 };
-const result = { allowed: false, decision: 'INVALID', title: 'GEÇERSİZ QR KOD', message: 'Giriş vermeyin.' };
+const result = { allowed: false, decision: 'INVALID', title: 'GEÇERSİZ QR KODU', message: 'Bu QR koduyla geçerli bir randevu bulunamadı.' };
 const context = {
   appointments: [], settings: { schoolName: 'Fixture' },
   verifySecurityQr: async () => { verifies++; return result; },

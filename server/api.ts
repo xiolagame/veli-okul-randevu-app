@@ -418,7 +418,7 @@ apiRouter.post('/auth/staff/reset-request', async (req, res) => {
             subtitle: 'Personel Parola Sıfırlama', greeting: found.full_name,
             intro: ['Personel hesabınız için parola sıfırlama talebi alındı.'],
             infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
-            notice: 'Kod 15 dakika içinde sona erer ve tek kullanımlıdır.',
+            notice: 'Kod 15 dakika içinde sona erer. Bu kod tek kullanımlıktır.',
           }) });
           await auditLogRepository.createAuditLog({schoolId:school.id,action:'staff_password_reset_email_sent',actorName:'Sistem',details:`${found.role} hesabı ${found.id} için sıfırlama e-postası gönderildi.`});
         }
@@ -585,7 +585,7 @@ apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
             subtitle: 'Okul Yönetimi Parola Sıfırlama', greeting: fullName,
             intro: [`${school.name} okul yönetimi hesabınız için parola sıfırlama talebi alındı.`],
             infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
-            notice: 'Kod 15 dakika içinde sona erer ve tek kullanımlıdır.',
+            notice: 'Kod 15 dakika içinde sona erer. Bu kod tek kullanımlıktır.',
           }) });
           await auditLogRepository.createAuditLog({ schoolId: school.id, action: 'school_admin_password_reset_email_sent', actorName: 'Sistem',
             details: `Okul yöneticisi ${user.id} için parola sıfırlama e-postası gönderildi.` });
@@ -1885,7 +1885,7 @@ apiRouter.post(
       return res.status(200).json(evaluateSecurityQr(appointment));
     } catch (err) {
       console.error('[POST /security/qr/verify Error]:', err);
-      return res.status(503).json({ success: false, allowed: false, decision: 'INVALID', title: 'RANDEVU DOĞRULANAMADI', message: 'Bağlantıyı kontrol edin. Giriş vermeyin.' });
+      return res.status(503).json({ success: false, allowed: false, decision: 'INVALID', title: 'RANDEVU DOĞRULANAMADI', message: 'Bu randevu giriş için doğrulanamadı.' });
     }
   }
 );

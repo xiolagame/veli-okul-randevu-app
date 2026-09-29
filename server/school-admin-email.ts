@@ -22,7 +22,9 @@ export function schoolAdminEmail(
       ...(licenseCode ? [{ label: 'Lisans Kodunuz', textLabel: 'Lisans Kodu', value: licenseCode.toUpperCase() }] : []),
       { label: codeLabel, value: code, tone: 'accent' as const },
     ],
-    notice: `Kod ${reset ? '15 dakika' : '24 saat'} içinde sona erer ve tek kullanımlıdır.`,
+    notice: reset
+      ? 'Kod 15 dakika içinde sona erer. Bu kod tek kullanımlıktır.'
+      : 'Kod 24 saat içinde sona erer ve tek kullanımlıdır.',
   });
   return {
     subject: `Veli Randevu Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'İlk Giriş'}`,

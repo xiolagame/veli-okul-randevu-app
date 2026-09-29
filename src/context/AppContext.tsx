@@ -393,7 +393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Read-only QR verification (Strictly validated by backend tenant guard)
   const verifySecurityQr = async (qrToken: string) => {
     if (!currentSchool) {
-      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Aktif okul seçili değil' };
+      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Bu randevu giriş için doğrulanamadı.' };
     }
     return api.verifySecurityQr(currentSchool.id, qrToken);
   };

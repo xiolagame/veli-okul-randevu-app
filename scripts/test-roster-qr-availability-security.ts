@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { evaluateSecurityQr } from '../server/appointment-entry';
+import { evaluateSecurityQr, invalidQrVerification } from '../server/appointment-entry';
 import { Appointment, AvailabilitySlot } from '../src/types';
 import { groupAvailabilityByDay } from '../src/utils/availability';
 import { normalizeClassName } from '../src/utils/class-name';
@@ -30,10 +30,40 @@ const appointment: Appointment = {
   parentId: 'parent', parentName: 'VELİ', parentPhone: '+905334138206', studentName: 'ÖĞRENCİ',
   className: '5-A', date: '2026-09-29', startTime: '10:00', endTime: '10:20', status: 'booked', createdAt: '2026-09-29T00:00:00Z',
 };
-const verification = evaluateSecurityQr(appointment, new Date('2026-09-29T07:05:00Z'));
-assert.equal(verification.decision, 'APPROVED');
-assert.equal(verification.title, 'RANDEVU ONAYLANDI');
-assert.equal(verification.message, 'Veliye okula giriş izni verebilirsiniz.');
+function assertVerification(
+  verification: ReturnType<typeof evaluateSecurityQr>,
+  expected: { decision: string; allowed: boolean; title: string; message: string }
+) {
+  assert.equal(verification.decision, expected.decision);
+  assert.equal(verification.allowed, expected.allowed);
+  assert.equal(verification.title, expected.title);
+  assert.equal(verification.message, expected.message);
+}
+
+assertVerification(evaluateSecurityQr(appointment, new Date('2026-09-29T07:05:00Z')), {
+  decision: 'APPROVED', allowed: true, title: 'RANDEVU ONAYLANDI', message: 'Veliye okula giriş izni verebilirsiniz.',
+});
+assertVerification(evaluateSecurityQr(appointment, new Date('2026-09-29T06:00:00Z')), {
+  decision: 'TOO_EARLY', allowed: false, title: 'RANDEVU SAATİ HENÜZ GELMEDİ', message: 'Randevunun giriş saati henüz gelmedi.',
+});
+assertVerification(evaluateSecurityQr(appointment, new Date('2026-09-29T08:00:00Z')), {
+  decision: 'EXPIRED', allowed: false, title: 'RANDEVU SÜRESİ GEÇMİŞ', message: 'Bu randevunun giriş süresi sona erdi.',
+});
+assertVerification(evaluateSecurityQr({ ...appointment, status: 'cancelled' }), {
+  decision: 'CANCELLED', allowed: false, title: 'RANDEVU İPTAL EDİLMİŞ', message: 'Bu randevu iptal edilmiş.',
+});
+assertVerification(evaluateSecurityQr({ ...appointment, status: 'rejected' }), {
+  decision: 'REJECTED', allowed: false, title: 'RANDEVU REDDEDİLMİŞ', message: 'Bu randevu öğretmen tarafından onaylanmamış.',
+});
+assertVerification(evaluateSecurityQr({ ...appointment, status: 'pending' }), {
+  decision: 'PENDING_APPROVAL', allowed: false, title: 'RANDEVU HENÜZ ONAYLANMADI', message: 'Randevu henüz öğretmen onayı bekliyor.',
+});
+assertVerification(invalidQrVerification(), {
+  decision: 'INVALID', allowed: false, title: 'GEÇERSİZ QR KODU', message: 'Bu QR koduyla geçerli bir randevu bulunamadı.',
+});
+assertVerification(evaluateSecurityQr({ ...appointment, startTime: 'invalid' }), {
+  decision: 'INVALID', allowed: false, title: 'RANDEVU DOĞRULANAMADI', message: 'Bu randevu giriş için doğrulanamadı.',
+});
 
 const teacherSource = fs.readFileSync('src/components/TeacherView.tsx', 'utf8');
 const parentSource = fs.readFileSync('src/components/ParentView.tsx', 'utf8');

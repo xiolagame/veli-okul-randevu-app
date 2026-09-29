@@ -11,14 +11,14 @@ async function run() {
   process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.RESEND_API_KEY = 'local-test-key';
   process.env.EMAIL_FROM = 'test@example.test';
-  const sentEmails: Array<{ to: string; subject: string; html: string }> = [];
+  const sentEmails: Array<{ to: string; subject: string; html: string; text?: string }> = [];
   let failNextEmail = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     if (String(input).startsWith('https://api.resend.com/emails')) {
-      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; subject: string; html: string };
+      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; subject: string; html: string; text?: string };
       if (failNextEmail) { failNextEmail = false; return new Response('{}', { status: 503 }); }
-      sentEmails.push({ to: payload.to[0], subject: payload.subject, html: payload.html });
+      sentEmails.push({ to: payload.to[0], subject: payload.subject, html: payload.html, text: payload.text });
       return new Response(JSON.stringify({ id: 'local-test-email' }), { status: 200 });
     }
     return originalFetch(input, init);
@@ -252,6 +252,10 @@ async function run() {
     assert.equal(genericRequest.status, 200);
     assert.equal(genericRequest.body.message, unknownRequest.body.message);
     assert.equal(sentEmails.at(-1)?.to, 'ada@example.test');
+    assert(sentEmails.at(-1)?.html.includes('Bu kod tek kullanımlıktır.'));
+    assert(sentEmails.at(-1)?.text?.includes('Bu kod tek kullanımlıktır.'));
+    assert(!sentEmails.at(-1)?.html.includes('Bu kod tek kullanımlıdır.'));
+    assert(!sentEmails.at(-1)?.text?.includes('Bu kod tek kullanımlıdır.'));
     let resetCode = emailCode(sentEmails.length - 1);
     await db.query("UPDATE invitations SET expires_at=NOW()-INTERVAL '1 second' WHERE school_id=$1 AND target_user_id=$2 AND purpose='school_admin_password_reset'", [createdSchoolId, managerId]);
     assert.equal((await request('POST', '/auth/school-admin/reset-verify', undefined, { schoolCode, phone: managerPhone, code: resetCode })).status, 400,
