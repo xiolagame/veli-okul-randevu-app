@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
+import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
 import crypto from 'crypto';
 import {
   AuthenticatedRequest,
@@ -65,6 +66,8 @@ apiRouter.use('/auth', (req, res, next) => {
   next();
 });
 apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
+apiRouter.use('/public/requests', publicRequestRouter);
+apiRouter.use('/schools/:schoolId/requests', schoolRequestRouter);
 apiRouter.use('/platform', platformManagementRouter);
 
 // ==========================================

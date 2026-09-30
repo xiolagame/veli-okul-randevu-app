@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
 import { Building2, ShieldAlert, QrCode, Shield } from 'lucide-react';
+import { PUBLIC_REQUEST_PATH } from './utils/public-request-route';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -13,6 +14,7 @@ const SchoolManagement = lazy(() => import('./components/SchoolManagement').then
 const NotificationsModal = lazy(() => import('./components/NotificationsModal').then((module) => ({ default: module.NotificationsModal })));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal').then((module) => ({ default: module.OnboardingModal })));
 const AppointmentEmailReview = lazy(() => import('./components/AppointmentEmailReview').then((module) => ({ default: module.AppointmentEmailReview })));
+const PublicRequestPage = lazy(() => import('./components/PublicRequestPage').then((module) => ({ default: module.PublicRequestPage })));
 
 export const AppContent: React.FC = () => {
   const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, platformSchools, switchSchool, refreshPlatformSchools } = useApp();
@@ -21,6 +23,7 @@ export const AppContent: React.FC = () => {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showSchoolManagement, setShowSchoolManagement] = useState(false);
   const [platformManagementSection, setPlatformManagementSection] = useState<'overview' | 'schools'>('overview');
+  const [publicLocation, setPublicLocation] = useState(() => window.location.pathname + window.location.search);
   const canManageSchools = isPlatformAdmin;
   const showPlatformHome = isPlatformAdmin && !platformContextActive && !currentMembership;
   const openPlatformManagement = (section: 'overview' | 'schools' = 'overview') => {
@@ -33,15 +36,44 @@ export const AppContent: React.FC = () => {
     setShowAdminModal(currentUser?.role === 'admin' && (!isPlatformAdmin || platformContextActive || !!currentMembership));
   }, [currentUser?.id, currentUser?.role, currentMembership?.id, isPlatformAdmin, platformContextActive]);
 
+  useEffect(() => {
+    const syncLocation = () => setPublicLocation(window.location.pathname + window.location.search);
+    window.addEventListener('popstate', syncLocation);
+    return () => window.removeEventListener('popstate', syncLocation);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser || window.location.pathname !== PUBLIC_REQUEST_PATH) return;
+    window.history.replaceState(null, '', '/');
+    setPublicLocation('/');
+  }, [currentUser?.id]);
+
+  const openPublicRequest = () => {
+    window.history.pushState({ publicRequestPage: true }, '', PUBLIC_REQUEST_PATH);
+    setPublicLocation(PUBLIC_REQUEST_PATH);
+  };
+
+  const closePublicRequest = () => {
+    if (window.history.state?.publicRequestPage) {
+      window.history.back();
+      return;
+    }
+    window.history.replaceState(null, '', '/');
+    setPublicLocation('/');
+  };
+
   if (isLoading) {
     return <div className="page-shell"><Brand /><div className="mt-10"><Skeleton rows={4} /></div></div>;
   }
 
   // If not logged in, show the login/register screen
   if (!currentUser) {
+    if (publicLocation.split('?')[0] === PUBLIC_REQUEST_PATH) {
+      return <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}><PublicRequestPage onBack={closePublicRequest} /></Suspense>;
+    }
     return (
       <>
-        <AuthView onOpenOnboarding={() => setShowOnboardingModal(true)} />
+        <AuthView onOpenOnboarding={() => setShowOnboardingModal(true)} onOpenPublicRequest={openPublicRequest} />
         {showOnboardingModal && <Suspense fallback={<div className="page-shell"><Skeleton rows={2} /></div>}>
           <OnboardingModal
             isOpen={showOnboardingModal}

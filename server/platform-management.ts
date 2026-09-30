@@ -10,6 +10,7 @@ import { normalizeSchoolCodeInput } from '../src/utils/school-code';
 import { deliverSchoolAdminCode } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
+import { platformRequestRouter } from './platform-requests';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
@@ -48,6 +49,7 @@ platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
   if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   next();
 });
+platformManagementRouter.use('/requests', platformRequestRouter);
 
 platformManagementRouter.get('/schools', async (_req, res) => {
   try {

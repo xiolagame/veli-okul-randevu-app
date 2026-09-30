@@ -14,6 +14,7 @@ import {
   GraduationCap,
   Upload,
   Check,
+  LifeBuoy,
 } from 'lucide-react';
 import { Alert, Button, EmptyState, Metric, StatusBadge } from './ui';
 import { api } from '../services/api';
@@ -25,6 +26,7 @@ import { BulkRosterImport } from './BulkRosterImport';
 import { SchoolInfo } from './SchoolInfo';
 import { SchoolAdminManagement } from './SchoolAdminManagement';
 import { validateDefaultSlotMinutes } from '../utils/school-settings';
+import { SchoolRequestCenter } from './SchoolRequestCenter';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
@@ -53,7 +55,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'roster' | 'isolation' | 'users' | 'admins' | 'appointments' | 'settings' | 'audit'
+    'dashboard' | 'roster' | 'isolation' | 'users' | 'admins' | 'appointments' | 'settings' | 'requests' | 'audit'
   >('dashboard');
 
   const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
@@ -146,6 +148,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
     { id: 'admins' as const, label: 'Okul Yöneticileri', icon: Shield },
     { id: 'appointments' as const, label: 'Randevular', icon: Calendar },
     { id: 'settings' as const, label: 'Okul ayarları', icon: SettingsIcon },
+    ...(!platformContextActive ? [{ id: 'requests' as const, label: 'Destek / Lisans', icon: LifeBuoy }] : []),
     { id: 'audit' as const, label: 'İşlem günlüğü', icon: FileText },
     ...(isPlatformAdmin ? [{ id: 'isolation' as const, label: 'Sistem Güvenliği', icon: CheckCircle2 }] : []),
   ];
@@ -205,6 +208,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
           </form></section>}
 
           {activeTab === 'audit' && currentSchool && <AuditManagement key={currentSchool.id} schoolId={currentSchool.id} logs={auditLogs} onChanged={refreshSchoolData} />}
+
+          {activeTab === 'requests' && !platformContextActive && <SchoolRequestCenter />}
 
           {activeTab === 'isolation' && isPlatformAdmin && <section className="space-y-5"><div className="surface"><div className="section-heading"><div><h3>Sistem Güvenliği</h3><p>Platform servis yapılandırmalarının güvenli durum özeti.</p></div><Button disabled={isRunningTests} onClick={handleRunIsolationTests}><Shield size={18} />{isRunningTests ? 'Kontroller çalışıyor…' : 'Okul izolasyon kontrolleri'}</Button></div></div>{isolationTestResults.length ? isolationTestResults.map((test, index) => <Alert key={index} tone={test.passed ? 'success' : 'danger'}><strong>{test.title}</strong><p className="mt-2">{test.description}</p><p className="text-xs mt-2">{test.details}</p></Alert>) : <div className="surface"><EmptyState icon={Shield} title="Güvenlik kontrolleri" description="Kontrol sonuçlarını görüntülemek için çalıştırın." /></div>}</section>}
         </main>

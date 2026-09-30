@@ -3,14 +3,15 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { formatDateTime } from '../utils/dates';
-import { ShieldCheck, School as SchoolIcon, FileText, LayoutDashboard, Trash2 } from 'lucide-react';
+import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Trash2 } from 'lucide-react';
 import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
+import { PlatformRequestCenter } from './PlatformRequestCenter';
 
-type PlatformManagementSection = 'overview' | 'schools' | 'security' | 'audit';
+type PlatformManagementSection = 'overview' | 'schools' | 'requests' | 'security' | 'audit';
 
 export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSection = 'overview' }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void>; initialSection?: PlatformManagementSection }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
@@ -62,7 +63,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
   return <Dialog wide title="Platform Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Kalıcı silme yalnızca devre dışı okullar için kullanılabilir." onClose={close} dismissible={!busy}>
     <div className="space-y-5">
       <nav className="platform-nav" aria-label="Platform yönetimi">
-        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}</button>)}
+        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}</button>)}
       </nav>
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
       {changed && <Alert tone="success">{changeMessage}</Alert>}
@@ -89,6 +90,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       </article>))}
       {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
       {section === 'audit' && <section className="surface"><h3>Platform İşlem Günlüğü</h3>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
+      {section === 'requests' && <PlatformRequestCenter />}
       <Button variant="secondary" disabled={busy} onClick={close}>Kapat</Button>
     </div>
     {target && <Dialog title={target.disabledAt ? 'Okulu etkinleştir' : 'Okulu devre dışı bırak'} onClose={() => setTarget(null)} dismissible={!busy}>

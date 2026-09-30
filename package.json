@@ -21,6 +21,7 @@
     "test:settings-email-reminders": "tsx scripts/test-settings-email-reminders.ts",
     "test:platform-school-deletion": "tsx scripts/test-platform-school-deletion.ts",
     "test:platform-navigation": "tsx scripts/test-platform-admin-navigation.ts",
+    "test:platform-requests": "tsx scripts/test-platform-requests.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, Calendar, Users, Check } from 'lucide-react';
+import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, BadgeHelp, Calendar, Users, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Alert, Brand, Button, Dialog } from './ui';
@@ -11,6 +11,7 @@ import { formatLicenseCodeInput } from '../utils/license-code';
 interface AuthViewProps {
   onSuccess?: () => void;
   onOpenOnboarding?: () => void;
+  onOpenPublicRequest: () => void;
 }
 
 type CodeFlow = 'activation' | 'reset' | null;
@@ -19,7 +20,7 @@ type StaffResetStep = 'request' | 'verify' | 'password' | null;
 type SchoolAdminStep = 'verify' | 'password' | null;
 type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
 
-export const AuthView: React.FC<AuthViewProps> = () => {
+export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest }) => {
   const { login } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
@@ -320,6 +321,10 @@ export const AuthView: React.FC<AuthViewProps> = () => {
           <button type="button" onClick={() => openCodeFlow('activation')} className="mt-4 w-full text-sm font-semibold text-blue-700">Personel İlk Giriş</button>
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
           <p className="auth-help">Giriş için yardıma mı ihtiyacınız var?<br />Okul yönetiminizle iletişime geçebilirsiniz.</p>
+          <div className="public-request-cta">
+            <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
+            <Button variant="secondary" className="w-full" onClick={onOpenPublicRequest}>Lisans / İletişim<ArrowRight size={17} /></Button>
+          </div>
         </div>
       </main>
       {codeFlow && <Dialog title={codeFlow === 'activation' ? 'Birlikte başlayalım.' : 'Yeni bir parola belirleyin.'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeCodeFlow} dismissible={!isSubmitting}>

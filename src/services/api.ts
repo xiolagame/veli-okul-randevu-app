@@ -103,6 +103,33 @@ export const api = {
     request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
   getPlatformAuditLogs: () => request<{ logs: { id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[] }>('/api/platform/audit-logs'),
+  createPublicRequest: (data: {
+    requestToken: string;
+    requestType: import('../types/platform').PlatformRequestType;
+    schoolName: string;
+    contactName: string;
+    email?: string;
+    phone?: string;
+    teacherCount?: number;
+    message?: string;
+    companyWebsite?: string;
+  }) => request<{ ok: boolean; requestId: string; duplicate: boolean; emailNotificationSent: boolean; requesterEmailSent: boolean }>('/api/public/requests', { method: 'POST', body: JSON.stringify(data) }),
+  createSchoolRequest: (schoolId: string, data: {
+    requestToken: string;
+    requestType: 'YEARLY_LICENSE' | 'SUPPORT';
+    subject?: string;
+    message: string;
+  }) => request<{ ok: boolean; requestId: string; duplicate: boolean; emailNotificationSent: boolean; requesterEmailSent: boolean }>(`/api/schools/${schoolId}/requests`, { method: 'POST', body: JSON.stringify(data) }),
+  getSchoolRequests: (schoolId: string) => request<{ requests: import('../types/platform').PlatformRequestItem[] }>(`/api/schools/${schoolId}/requests`),
+  getPlatformRequests: (filters?: { status?: string; requestType?: string }) => {
+    const query = new URLSearchParams();
+    if (filters?.status) query.set('status', filters.status);
+    if (filters?.requestType) query.set('requestType', filters.requestType);
+    return request<{ requests: import('../types/platform').PlatformRequestItem[] }>(`/api/platform/requests${query.size ? `?${query}` : ''}`);
+  },
+  getPlatformRequest: (id: string) => request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}`),
+  updatePlatformRequestStatus: (id: string, status: import('../types/platform').PlatformRequestStatus) =>
+    request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
   getManagedSchoolAdmins: (schoolId: string) => request<{ admins: import('../types/management').ManagedSchoolAdmin[] }>(`/api/schools/${schoolId}/management/admins`),
   createManagedSchoolAdmin: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
