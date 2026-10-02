@@ -8,7 +8,7 @@ import { createRequestToken } from '../utils/request-token';
 import { Alert, Button } from './ui';
 
 const labels: Record<PublicRequestKind, string> = {
-  YEARLY_LICENSE: 'Yıllık Lisans',
+  YEARLY_LICENSE: 'Yıllık Lisans / 9.900 TL',
   CONTACT: 'İletişim',
 };
 
