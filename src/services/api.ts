@@ -121,6 +121,14 @@ export const api = {
     message: string;
   }) => request<{ ok: boolean; requestId: string; duplicate: boolean; emailNotificationSent: boolean; requesterEmailSent: boolean }>(`/api/schools/${schoolId}/requests`, { method: 'POST', body: JSON.stringify(data) }),
   getSchoolRequests: (schoolId: string) => request<{ requests: import('../types/platform').PlatformRequestItem[] }>(`/api/schools/${schoolId}/requests`),
+  getSchoolSupportThread: (schoolId: string, requestId: string) =>
+    request<import('../types/platform').SupportThread>(`/api/schools/${schoolId}/requests/${encodeURIComponent(requestId)}/messages`),
+  sendSchoolSupportMessage: (schoolId: string, requestId: string, data: { requestToken: string; message: string }) =>
+    request<{ request: import('../types/platform').PlatformRequestItem; message: import('../types/platform').SupportMessage; duplicate: boolean; emailNotificationSent: boolean }>(
+      `/api/schools/${schoolId}/requests/${encodeURIComponent(requestId)}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+  hideSchoolSupportRequest: (schoolId: string, requestId: string) =>
+    request<{ success: boolean; request: import('../types/platform').PlatformRequestItem }>(
+      `/api/schools/${schoolId}/requests/${encodeURIComponent(requestId)}`, { method: 'DELETE' }),
   getPlatformRequests: (filters?: { status?: string; requestType?: string }) => {
     const query = new URLSearchParams();
     if (filters?.status) query.set('status', filters.status);
@@ -128,6 +136,13 @@ export const api = {
     return request<{ requests: import('../types/platform').PlatformRequestItem[] }>(`/api/platform/requests${query.size ? `?${query}` : ''}`);
   },
   getPlatformRequest: (id: string) => request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}`),
+  getPlatformSupportThread: (id: string) => request<import('../types/platform').SupportThread>(`/api/platform/requests/${encodeURIComponent(id)}/messages`),
+  sendPlatformSupportMessage: (id: string, data: { requestToken: string; message: string }) =>
+    request<{ request: import('../types/platform').PlatformRequestItem; message: import('../types/platform').SupportMessage; duplicate: boolean; emailNotificationSent: boolean }>(
+      `/api/platform/requests/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+  hidePlatformSupportRequest: (id: string) =>
+    request<{ success: boolean; request: import('../types/platform').PlatformRequestItem }>(
+      `/api/platform/requests/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   updatePlatformRequestStatus: (id: string, status: import('../types/platform').PlatformRequestStatus) =>
     request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),

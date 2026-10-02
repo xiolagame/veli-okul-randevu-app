@@ -295,6 +295,8 @@ CREATE TABLE IF NOT EXISTS platform_requests (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     resolved_at TIMESTAMPTZ,
     archived_at TIMESTAMPTZ,
+    school_hidden_at TIMESTAMPTZ,
+    platform_hidden_at TIMESTAMPTZ,
     CONSTRAINT platform_requests_contact_required CHECK (email_snapshot IS NOT NULL OR phone_snapshot IS NOT NULL),
     CONSTRAINT platform_requests_source_scope CHECK (
       (source = 'PUBLIC' AND school_id IS NULL AND created_by_user_id IS NULL AND request_type <> 'SUPPORT')
@@ -306,6 +308,23 @@ CREATE TABLE IF NOT EXISTS platform_requests (
 CREATE INDEX IF NOT EXISTS idx_platform_requests_status_created_at ON platform_requests (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_platform_requests_type_created_at ON platform_requests (request_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_platform_requests_school_created_at ON platform_requests (school_id, created_at DESC) WHERE school_id IS NOT NULL;
+
+ALTER TABLE platform_requests ADD COLUMN IF NOT EXISTS school_hidden_at TIMESTAMPTZ;
+ALTER TABLE platform_requests ADD COLUMN IF NOT EXISTS platform_hidden_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS platform_request_messages (
+    id TEXT PRIMARY KEY DEFAULT ('prm-' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
+    request_id TEXT NOT NULL REFERENCES platform_requests(id) ON DELETE CASCADE,
+    sender_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    sender_kind VARCHAR(20) NOT NULL CHECK (sender_kind IN ('SCHOOL_ADMIN', 'PLATFORM_ADMIN')),
+    sender_name_snapshot VARCHAR(150) NOT NULL,
+    message VARCHAR(4000) NOT NULL CHECK (char_length(btrim(message)) BETWEEN 1 AND 4000),
+    idempotency_key UUID NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_request_messages_request_created_at
+    ON platform_request_messages (request_id, created_at, id);
 
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS qr_token TEXT;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
@@ -399,6 +418,7 @@ ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_request_messages ENABLE ROW LEVEL SECURITY;
 
 -- Note on invitations: Direct public SELECT policy is REMOVED to prevent unauthorized token enumeration.
 -- Resolving invitations is handled strictly through the backend Express API using service_role context.
@@ -457,3 +477,6 @@ ON auth_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access platform_requests"
 ON platform_requests FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access platform_request_messages"
+ON platform_request_messages FOR ALL TO service_role USING (true) WITH CHECK (true);

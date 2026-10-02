@@ -60,7 +60,12 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
     if (section === 'security') void api.getPlatformSecurity().then(setSecurity).catch(() => setError('Sistem güvenliği bilgileri alınamadı.'));
     if (section === 'audit') void api.getPlatformAuditLogs().then((result) => setLogs(result.logs)).catch(() => setError('Platform işlem günlüğü yüklenemedi.'));
   }, [section]);
-  return <Dialog wide title="Platform Yönetimi" description="Yalnızca yetkili platform yöneticileri içindir. Kalıcı silme yalnızca devre dışı okullar için kullanılabilir." onClose={close} dismissible={!busy}>
+  useEffect(() => { setSection(initialSection); }, [initialSection]);
+  return <main id="main-content" className="page-shell platform-management-page">
+    <header className="platform-management-header">
+      <div><p className="eyebrow">VELİ RANDEVU</p><h1>Platform Yönetimi</h1><p>Yalnızca yetkili platform yöneticileri içindir. Kalıcı silme yalnızca devre dışı okullar için kullanılabilir.</p></div>
+      <Button variant="secondary" disabled={busy} onClick={close}>Platform alanından çık</Button>
+    </header>
     <div className="space-y-5">
       <nav className="platform-nav" aria-label="Platform yönetimi">
         {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}</button>)}
@@ -91,7 +96,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
       {section === 'audit' && <section className="surface"><h3>Platform İşlem Günlüğü</h3>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
       {section === 'requests' && <PlatformRequestCenter />}
-      <Button variant="secondary" disabled={busy} onClick={close}>Kapat</Button>
+      <Button variant="secondary" disabled={busy} onClick={close}>Platform alanından çık</Button>
     </div>
     {target && <Dialog title={target.disabledAt ? 'Okulu etkinleştir' : 'Okulu devre dışı bırak'} onClose={() => setTarget(null)} dismissible={!busy}>
       <Alert tone="warning">{target.name}: {target.disabledAt ? 'Mevcut aktif üyeliklerin erişimi yeniden açılır.' : 'Bu okuldaki tüm rollerin erişimi, aktivasyon ve reset işlemleri kapanır. Geçmiş randevular, üyelikler ve ayarlar korunur; hiçbir kayıt silinmez.'} Devam etmek istiyor musunuz?</Alert>
@@ -132,5 +137,5 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
         <Button type="button" variant="secondary" disabled={busy} onClick={() => setAdminTarget(null)}>Kapat</Button>
       </div>
     </Dialog>}
-  </Dialog>;
+  </main>;
 }

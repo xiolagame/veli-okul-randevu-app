@@ -29,6 +29,16 @@ export function getPlatformRequestStatusOptions(
   status: PlatformRequestStatus,
   requestType: PlatformRequestType,
 ): PlatformRequestStatus[] {
+  if (requestType === 'SUPPORT') {
+    const supportTransitions: Record<PlatformRequestStatus, PlatformRequestStatus[]> = {
+      NEW: ['NEW', 'IN_PROGRESS', 'RESOLVED', 'ARCHIVED'],
+      IN_PROGRESS: ['IN_PROGRESS', 'RESOLVED', 'ARCHIVED'],
+      WAITING_PAYMENT: ['WAITING_PAYMENT'],
+      RESOLVED: ['RESOLVED', 'ARCHIVED'],
+      ARCHIVED: ['ARCHIVED'],
+    };
+    return supportTransitions[status];
+  }
   return allowedTransitions[status].filter((option) => (
     option !== 'WAITING_PAYMENT' || requestType === 'MONTHLY_LICENSE' || requestType === 'YEARLY_LICENSE'
   ));

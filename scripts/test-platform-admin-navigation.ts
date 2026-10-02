@@ -17,5 +17,9 @@ assert(navbar.includes("isPlatformAdmin && !schoolOptions.length"));
 assert(navbar.includes("!isPlatformAdmin && onOpenOnboarding"));
 assert(schoolManagement.includes("initialSection = 'overview'"));
 assert(schoolManagement.includes('useState<PlatformManagementSection>(initialSection)'));
+assert(schoolManagement.includes('<main id="main-content" className="page-shell platform-management-page">'));
+assert(!schoolManagement.includes('return <Dialog wide title="Platform Yönetimi"'));
+assert(app.includes('{canManageSchools && showSchoolManagement'));
+assert(!app.includes('{canManageSchools && showSchoolManagement && <SchoolManagement'));
 
 console.log('Platform Admin navigation, no-school empty state, CTA routing and normal-user separation tests PASS.');

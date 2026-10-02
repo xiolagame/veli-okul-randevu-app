@@ -146,6 +146,9 @@ export const AppContent: React.FC = () => {
 
       <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}>
       <div className="flex-1">
+        {canManageSchools && showSchoolManagement
+          ? <SchoolManagement initialSection={platformManagementSection} onClose={() => setShowSchoolManagement(false)} onChanged={refreshPlatformSchools} onManageSchool={async (schoolId) => { await switchSchool(schoolId); setShowSchoolManagement(false); setShowAdminModal(true); }} />
+          : <>
         {showPlatformHome && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Building2} title={platformSchools.length ? 'Yönetilecek okulu seçin' : 'Henüz okul bulunmuyor'} description={platformSchools.length ? 'Okul seçmek veya platform ayarlarını yönetmek için Platform Yönetimi alanını açın.' : 'Platformu kullanmaya başlamak için ilk okul kaydını oluşturun.'} action={<Button onClick={() => openPlatformManagement(platformSchools.length ? 'overview' : 'schools')}>{platformSchools.length ? 'Platform Yönetimi' : 'Yeni Okul Oluştur'}</Button>} /></div></main>}
         {!showPlatformHome && currentUser.role === 'admin' && !showAdminModal && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Shield} title="Okulunuzun yönetim alanı" description="Personeli, veli kayıtlarını ve okul görüşmelerini buradan yönetin." action={<Button onClick={() => setShowAdminModal(true)}>Yönetim panelini aç</Button>} /></div></main>}
         {currentUser.role === 'parent' && <ParentView />}
@@ -167,7 +170,7 @@ export const AppContent: React.FC = () => {
               Hesap etkinleştirme bilgisi
             </button>
           </div>
-        )}
+        )}</>}
       </div>
       </Suspense>
 
@@ -188,7 +191,6 @@ export const AppContent: React.FC = () => {
           onClose={() => setShowOnboardingModal(false)}
         />
       )}
-      {canManageSchools && showSchoolManagement && <SchoolManagement initialSection={platformManagementSection} onClose={() => setShowSchoolManagement(false)} onChanged={refreshPlatformSchools} onManageSchool={async (schoolId) => { await switchSchool(schoolId); setShowSchoolManagement(false); setShowAdminModal(true); }} />}
       </Suspense>
     </div>
   );
