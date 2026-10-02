@@ -235,13 +235,29 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ;
 -- 11. AUDIT LOGS (Security and administrative audit trail)
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY DEFAULT ('log-' || substr(md5(random()::text), 1, 16)),
-    school_id TEXT NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    school_id TEXT REFERENCES schools(id) ON DELETE CASCADE,
     timestamp VARCHAR(50) NOT NULL,
     action VARCHAR(100) NOT NULL,
     actor_name VARCHAR(150) NOT NULL,
     details TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    audit_scope VARCHAR(16) DEFAULT 'SCHOOL' NOT NULL,
+    CONSTRAINT chk_audit_logs_scope CHECK (audit_scope IN ('SCHOOL', 'PLATFORM'))
 );
+
+ALTER TABLE audit_logs ALTER COLUMN school_id DROP NOT NULL;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS audit_scope VARCHAR(16) NOT NULL DEFAULT 'SCHOOL';
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.audit_logs'::regclass
+          AND conname = 'chk_audit_logs_scope'
+    ) THEN
+        ALTER TABLE audit_logs
+          ADD CONSTRAINT chk_audit_logs_scope CHECK (audit_scope IN ('SCHOOL', 'PLATFORM'));
+    END IF;
+END $$;
 
 -- 12. INVITATIONS (QR / Token Invitation Context)
 CREATE TABLE IF NOT EXISTS invitations (
@@ -312,6 +328,15 @@ CREATE INDEX IF NOT EXISTS idx_platform_requests_school_created_at ON platform_r
 ALTER TABLE platform_requests ADD COLUMN IF NOT EXISTS school_hidden_at TIMESTAMPTZ;
 ALTER TABLE platform_requests ADD COLUMN IF NOT EXISTS platform_hidden_at TIMESTAMPTZ;
 
+CREATE TABLE IF NOT EXISTS platform_admin_request_views (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    requests_last_seen_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_requests_visible_created_at
+ON platform_requests(created_at) WHERE platform_hidden_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS platform_request_messages (
     id TEXT PRIMARY KEY DEFAULT ('prm-' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
     request_id TEXT NOT NULL REFERENCES platform_requests(id) ON DELETE CASCADE,
@@ -378,6 +403,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_qr_token_unique
 CREATE INDEX IF NOT EXISTS idx_appointments_school_qr_token ON appointments(school_id, qr_token);
 CREATE INDEX IF NOT EXISTS idx_notifications_school_user ON notifications(school_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_school ON audit_logs(school_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_scope_created_at ON audit_logs(audit_scope, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
 
 -- ==============================================================================
@@ -418,6 +444,7 @@ ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_admin_request_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_request_messages ENABLE ROW LEVEL SECURITY;
 
 -- Note on invitations: Direct public SELECT policy is REMOVED to prevent unauthorized token enumeration.
@@ -477,6 +504,9 @@ ON auth_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access platform_requests"
 ON platform_requests FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access platform_admin_request_views"
+ON platform_admin_request_views FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access platform_request_messages"
 ON platform_request_messages FOR ALL TO service_role USING (true) WITH CHECK (true);

@@ -103,6 +103,9 @@ export const api = {
     request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
   getPlatformAuditLogs: () => request<{ logs: { id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[] }>('/api/platform/audit-logs'),
+  clearPlatformAuditLogs: () => request<{ success: boolean; deletedCount: number }>('/api/platform/audit-logs', { method: 'DELETE', body: JSON.stringify({ confirmation: 'TEMİZLE' }) }),
+  getPlatformUnseenRequestCount: () => request<{ count: number }>('/api/platform/requests/unseen-count'),
+  markPlatformRequestsSeen: () => request<{ count: number }>('/api/platform/requests/mark-seen', { method: 'POST' }),
   createPublicRequest: (data: {
     requestToken: string;
     requestType: import('../types/platform').PlatformRequestType;

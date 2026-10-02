@@ -1473,6 +1473,7 @@ export const auditLogRepository = {
       action: string;
       actorName: string;
       details: string;
+      auditScope?: 'SCHOOL' | 'PLATFORM';
     },
     client?: TransactionClient
   ): Promise<AuditLogItem> {
@@ -1482,10 +1483,10 @@ export const auditLogRepository = {
       new Date().toISOString();
 
     const res = await execQuery<any>(
-      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, details)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, details, audit_scope)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, school_id, timestamp, action, actor_name, details;`,
-      [id, log.schoolId, time, log.action, log.actorName, log.details],
+      [id, log.schoolId, time, log.action, log.actorName, log.details, log.auditScope || 'SCHOOL'],
       client
     );
     const r = res.rows[0];

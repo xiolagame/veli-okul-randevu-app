@@ -236,6 +236,7 @@ async function createSupportMessage(input: {
         action: 'support.message_sent',
         actorName: input.senderKind === 'PLATFORM_ADMIN' ? 'Veli Randevu Destek' : input.senderName,
         details: JSON.stringify({ requestId: request.id, senderKind: input.senderKind, actorUserId: input.senderUserId }),
+        auditScope: input.senderKind === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'SCHOOL',
       }, tx);
     }
     return { request: mapRequest({ ...updated.rows[0], message_count: request.messageCount + 1 }), message: stored, created: true };
@@ -263,6 +264,7 @@ async function hideSupportRequest(input: {
         action: 'support.hidden',
         actorName: input.actorName,
         details: JSON.stringify({ requestId: request.id, hiddenFor: input.access.hiddenFor, actorUserId: input.userId }),
+        auditScope: input.access.hiddenFor === 'platform' ? 'PLATFORM' : 'SCHOOL',
       }, tx);
     }
     return mapRequest(result.rows[0]);
@@ -615,6 +617,58 @@ schoolRequestRouter.delete('/:id', async (req: AuthenticatedRequest, res) => {
 });
 
 export const platformRequestRouter = Router();
+async function ensurePlatformRequestView(userId: string, tx: TransactionClient): Promise<void> {
+  await tx.query(
+    `INSERT INTO platform_admin_request_views(user_id,requests_last_seen_at)
+     SELECT $1,COALESCE(MAX(created_at),'-infinity'::timestamptz)
+     FROM platform_requests WHERE platform_hidden_at IS NULL
+     ON CONFLICT(user_id) DO NOTHING`,
+    [userId],
+  );
+}
+
+platformRequestRouter.get('/unseen-count', async (req: AuthenticatedRequest, res) => {
+  try {
+    const db = await getDb();
+    const count = await db.transaction(async (tx) => {
+      await ensurePlatformRequestView(req.user!.id, tx);
+      const result = await tx.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM platform_requests pr
+         JOIN platform_admin_request_views v ON v.user_id=$1
+         WHERE pr.platform_hidden_at IS NULL AND pr.created_at>v.requests_last_seen_at`,
+        [req.user!.id],
+      );
+      return result.rows[0].count;
+    });
+    return res.json({ count });
+  } catch { return res.status(500).json({ error: 'Yeni talep sayısı yüklenemedi.' }); }
+});
+
+platformRequestRouter.post('/mark-seen', async (req: AuthenticatedRequest, res) => {
+  try {
+    const db = await getDb();
+    const count = await db.transaction(async (tx) => {
+      await ensurePlatformRequestView(req.user!.id, tx);
+      await tx.query(
+        `UPDATE platform_admin_request_views SET
+           requests_last_seen_at=GREATEST(requests_last_seen_at,
+             COALESCE((SELECT MAX(created_at) FROM platform_requests WHERE platform_hidden_at IS NULL),'-infinity'::timestamptz)),
+           updated_at=NOW()
+         WHERE user_id=$1`,
+        [req.user!.id],
+      );
+      const result = await tx.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM platform_requests pr
+         JOIN platform_admin_request_views v ON v.user_id=$1
+         WHERE pr.platform_hidden_at IS NULL AND pr.created_at>v.requests_last_seen_at`,
+        [req.user!.id],
+      );
+      return result.rows[0].count;
+    });
+    return res.json({ count });
+  } catch { return res.status(500).json({ error: 'Talepler görüntülendi olarak işaretlenemedi.' }); }
+});
+
 platformRequestRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const status = typeof req.query.status === 'string' ? req.query.status : '';
   const requestType = typeof req.query.requestType === 'string' ? req.query.requestType : '';
@@ -714,6 +768,7 @@ platformRequestRouter.patch('/:id/status', async (req: AuthenticatedRequest, res
           action: current.requestType === 'SUPPORT' && nextStatus === 'RESOLVED' ? 'support.resolved' : 'platform_request.status_changed',
           actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(),
           details: JSON.stringify({ requestId: current.id, from: current.status, to: nextStatus }),
+          auditScope: 'PLATFORM',
         }, tx);
       }
       return mapRequest(result.rows[0]);

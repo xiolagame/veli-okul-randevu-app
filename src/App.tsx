@@ -123,7 +123,7 @@ export const AppContent: React.FC = () => {
         onOpenHelp={() => navigateStandalonePage(HELP_PATH)}
       />
 
-      {platformContextActive && currentSchool && <div className="platform-context-banner"><span><strong>Platform Yönetimi</strong><span aria-hidden="true"> › </span>{currentSchool.name}</span><Button variant="quiet" onClick={() => openPlatformManagement('overview')}>Platform alanına dön</Button></div>}
+      {platformContextActive && currentSchool && !showSchoolManagement && <div className="platform-context-banner"><span><strong>Platform Yönetimi</strong><span aria-hidden="true"> › </span>{currentSchool.name}</span><Button variant="quiet" onClick={() => openPlatformManagement('overview')}>Platform alanına dön</Button></div>}
 
       {/* Warning banner if user has no membership in currentSchool */}
       {!isPlatformAdmin && !currentMembership && !platformContextActive && currentSchool && (

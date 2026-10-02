@@ -95,9 +95,29 @@ platformManagementRouter.get('/audit-logs', async (_req, res) => {
     const db = await getDb();
     const result = await db.query<{ id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }>(
       `SELECT a.id,s.name AS "schoolName",a.actor_name AS "actorName",a.action,a.details,a.timestamp
-       FROM audit_logs a JOIN schools s ON s.id=a.school_id ORDER BY a.timestamp DESC,a.id LIMIT 100`);
+       FROM audit_logs a LEFT JOIN schools s ON s.id=a.school_id ORDER BY a.created_at DESC,a.id LIMIT 100`);
     res.json({ logs: result.rows });
   } catch { res.status(500).json({ error: 'Platform işlem günlüğü yüklenemedi.' }); }
+});
+
+platformManagementRouter.delete('/audit-logs', async (req: AuthenticatedRequest, res) => {
+  if (req.body?.confirmation !== 'TEMİZLE') return res.status(400).json({ error: 'Günlüğü temizlemek için TEMİZLE yazın.' });
+  try {
+    const db = await getDb();
+    const deletedCount = await db.transaction(async (tx) => {
+      await tx.query('LOCK TABLE audit_logs IN SHARE ROW EXCLUSIVE MODE');
+      const deleted = await tx.query("DELETE FROM audit_logs WHERE audit_scope='PLATFORM'");
+      const count = deleted.rowCount ?? 0;
+      await tx.query(
+        `INSERT INTO audit_logs(id,school_id,timestamp,action,actor_name,details,audit_scope)
+         VALUES($1,NULL,$2,'platform.audit_logs_cleared',$3,$4,'PLATFORM')`,
+        [`log-${randomUUID()}`, new Date().toISOString(), `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(),
+          JSON.stringify({ deletedCount: count, actorUserId: req.user!.id })],
+      );
+      return count;
+    });
+    return res.json({ success: true, deletedCount });
+  } catch { return res.status(500).json({ error: 'Platform işlem günlüğü temizlenemedi.' }); }
 });
 
 platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res) => {
@@ -140,7 +160,7 @@ platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res)
       await tx.query(`INSERT INTO school_licenses(id,school_id,license_code,status,activated_at)
         VALUES($1,$2,$3,'active',NOW())`, [`lic-${randomUUID()}`, id, licenseCode]);
       await auditLogRepository.createAuditLog({ schoolId: id, action: 'school.created', actorName: 'Platform yönetimi',
-        details: JSON.stringify({ actorId: req.user!.id }) }, tx);
+        details: JSON.stringify({ actorId: req.user!.id }), auditScope: 'PLATFORM' }, tx);
       return { ...result.rows[0], licenseCode, licenseStatus: 'active', licenseExpiresAt: null };
     });
     if (!school) return res.status(409).json({ error: 'Bu okul kodu zaten kullanılıyor.' });
@@ -200,7 +220,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
       await invitationRepository.createAuthCode({ schoolId, targetPhone: phone, targetUserId: candidate.id, targetRole: 'admin',
         purpose: 'school_admin_activation', codeHash: hashActivationCode(code), createdBy: req.user!.id, expiresAt, token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_invited', actorName: 'Platform yönetimi',
-        details: `Okul yöneticisi ${candidate.id} için aktivasyon daveti oluşturuldu.` }, tx);
+        details: `Okul yöneticisi ${candidate.id} için aktivasyon daveti oluşturuldu.`, auditScope: 'PLATFORM' }, tx);
       return { schoolName: school.rows[0].name, schoolCode: school.rows[0].code,
         licenseCode: school.rows[0].license_code || undefined, email, fullName };
     });
@@ -240,7 +260,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation/resend', async (req
         purpose: 'school_admin_activation', codeHash: hashActivationCode(code), createdBy: req.user!.id,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_resent', actorName: 'Platform yönetimi',
-        details: `Okul yöneticisi ${target.target_user_id} için aktivasyon daveti yeniden oluşturuldu.` }, tx);
+        details: `Okul yöneticisi ${target.target_user_id} için aktivasyon daveti yeniden oluşturuldu.`, auditScope: 'PLATFORM' }, tx);
       return { schoolName: school.rows[0].name, schoolCode: school.rows[0].code, email: user.rows[0].email,
         licenseCode: school.rows[0].license_code || undefined,
         fullName: `${user.rows[0].first_name} ${user.rows[0].last_name}`.trim() };
@@ -267,7 +287,7 @@ platformManagementRouter.patch('/schools/:id/status', async (req: AuthenticatedR
       if (active === (existing.rows[0].disabled_at === null)) return true;
       await tx.query('UPDATE schools SET disabled_at=CASE WHEN $2 THEN NULL ELSE NOW() END,updated_at=NOW() WHERE id=$1', [id,active]);
       await auditLogRepository.createAuditLog({ schoolId: id, action: active ? 'school.enabled' : 'school.disabled',
-        actorName: 'Platform yönetimi', details: JSON.stringify({ actorId: req.user!.id, reason: 'Okul erişim durumu değiştirildi; kayıtlar korunur.' }) }, tx);
+        actorName: 'Platform yönetimi', details: JSON.stringify({ actorId: req.user!.id, reason: 'Okul erişim durumu değiştirildi; kayıtlar korunur.' }), auditScope: 'PLATFORM' }, tx);
       return true;
     });
     if (!found) return res.status(404).json({ error: 'Okul bulunamadı.' });
@@ -348,7 +368,7 @@ platformManagementRouter.patch('/schools/:id/code', async (req: AuthenticatedReq
       if (duplicate.rows.length) return 'duplicate' as const;
       if (current.rows[0].code.toUpperCase() === code) return 'unchanged' as const;
       await tx.query('UPDATE schools SET code=$2,updated_at=NOW() WHERE id=$1', [schoolId, code]);
-      await auditLogRepository.createAuditLog({ schoolId, action: 'school.code_changed', actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(), details: JSON.stringify({ oldCode: current.rows[0].code, newCode: code }) }, tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'school.code_changed', actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(), details: JSON.stringify({ oldCode: current.rows[0].code, newCode: code }), auditScope: 'PLATFORM' }, tx);
       return 'updated' as const;
     });
     if (result === 'missing') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });

@@ -397,11 +397,25 @@
 .platform-nav { display: flex; align-items: stretch; gap: 8px; width: 100%; overflow-x: auto; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #f7faf8; scrollbar-width: thin; }
 .platform-nav button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 12px; border-radius: 10px; color: var(--muted); font-size: 12px; font-weight: 650; white-space: nowrap; }
 .platform-nav button[aria-current="page"] { color: var(--primary); background: white; box-shadow: 0 1px 5px #183f2612; font-weight: 750; }
-.platform-management-page { width: min(1440px, 100%); }
-.platform-management-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.platform-management-header h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 780; }
+.platform-unseen-badge { display: inline-grid; min-width: 22px; min-height: 22px; padding: 0 5px; place-items: center; border-radius: 999px; color: white; background: var(--primary); font-size: 11px; font-weight: 800; line-height: 1; }
+.platform-management-page { width: min(1440px, 100%); min-height: calc(100dvh - var(--topbar-height, 72px)); background: var(--canvas); border-inline: 1px solid var(--line); box-shadow: 0 16px 48px #10271f14; }
+.platform-management-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.platform-management-header h1 { font-size: clamp(26px, 3vw, 34px); font-weight: 780; }
 .platform-management-header p:last-child { max-width: 720px; margin-top: 8px; color: var(--muted); }
-.platform-school-row { display: grid; gap: 12px; }
+.platform-management-page > .space-y-5 { padding-top: 22px; }
+.platform-management-page .platform-nav { background: var(--surface); }
+.platform-school-form { max-width: 920px; }
+.platform-school-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.platform-school-list { display: grid; gap: 14px; }
+.platform-school-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.platform-school-row h3, .platform-school-row > p { width: 100%; }
+.platform-overview-action { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 18px; }
+.platform-overview-action h2 { font-size: 18px; font-weight: 750; }
+.platform-overview-action p { margin-top: 6px; color: var(--muted); }
+.platform-request-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.platform-request-summary { display: grid; gap: 4px; }
+.platform-request-summary strong { font-size: 16px; }
+.platform-request-summary p { margin: 0; }
 .school-info-card { min-width: 0; }
 .school-info-card > h3 { margin-bottom: 18px; font-size: 18px; font-weight: 700; }
 .school-info-list { display: grid; gap: 4px; width: min(100%, 620px); }
@@ -493,6 +507,9 @@
   .platform-management-header .ui-button { width: 100%; }
   .platform-nav { margin-inline: -4px; }
   .platform-nav button { flex: 0 0 auto; }
+  .platform-management-page .metric-grid { grid-template-columns: 1fr; }
+  .platform-school-fields, .platform-request-list { grid-template-columns: 1fr; }
+  .platform-overview-action { align-items: stretch; flex-direction: column; }
   .dialog-backdrop { padding: 12px; align-items: center; }
   .dialog-panel { max-height: calc(100dvh - 24px); border-radius: 20px; }
   .dialog-heading, .dialog-body { padding: 20px; }
