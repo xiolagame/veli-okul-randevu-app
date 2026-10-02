@@ -253,7 +253,8 @@
 .auth-form-wrap > p { color: var(--muted); margin-bottom: 32px; }
 .auth-divider { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 12px; margin: 26px 0; }
 .auth-divider:before, .auth-divider:after { content: ''; flex: 1; height: 1px; background: var(--line); }
-.auth-help { margin-top: 30px; text-align: center; color: var(--muted); font-size: 12px; }
+.auth-help-link { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 44px; margin-top: 18px; color: var(--ink); font-size: 13px; font-weight: 700; text-align: center; border-radius: var(--radius-control); }
+.auth-help-link:hover { background: #edf4ef; }
 .public-request-cta { display: grid; gap: 16px; margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
 .public-request-cta-copy { display: flex; align-items: flex-start; gap: 12px; color: var(--primary); }
 .public-request-cta-copy h3 { color: var(--ink); font-size: 16px; font-weight: 750; }
@@ -266,6 +267,41 @@
 .public-request-page-copy h1 { font-size: clamp(27px, 5vw, 38px); font-weight: 780; }
 .public-request-page-copy p { max-width: 560px; margin-top: 8px; color: var(--muted); }
 .public-request-page-icon { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; border-radius: 15px; background: #e5f1e9; color: var(--primary); }
+.help-page { min-height: 100dvh; padding: 28px 20px 56px; }
+.help-page-shell { width: min(1120px, 100%); margin: 0 auto; }
+.help-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 32px; }
+.help-hero { display: flex; align-items: flex-start; gap: 20px; padding: clamp(24px, 5vw, 44px); border: 1px solid var(--line); border-radius: 26px; background: #fffffff2; box-shadow: 0 18px 50px #183f2612; }
+.help-hero-icon { display: grid; width: 58px; height: 58px; flex: 0 0 auto; place-items: center; border-radius: 18px; color: var(--primary); background: #e5f1e9; }
+.help-hero h1, .help-guide-heading h1, .help-not-found h1 { font-size: clamp(29px, 5vw, 42px); font-weight: 780; }
+.help-hero > div > p:last-child, .help-guide-heading > p:last-child, .help-not-found p { max-width: 700px; margin-top: 10px; color: var(--muted); }
+.help-category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 24px; }
+.help-category { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: #fff; box-shadow: var(--shadow-card); }
+.help-category > header { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 14px; }
+.help-category > header > span { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: var(--primary); background: #edf4ef; }
+.help-category h2 { font-size: 18px; font-weight: 750; }
+.help-category header p { margin-top: 4px; color: var(--muted); font-size: 13px; }
+.help-category nav { display: grid; gap: 8px; }
+.help-topic-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 12px 13px; border-radius: 12px; color: var(--ink); }
+.help-topic-link:hover { background: #f2f6f3; color: var(--primary); }
+.help-topic-link span { min-width: 0; }
+.help-topic-link strong { display: block; font-size: 14px; }
+.help-topic-link small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.help-back { margin-bottom: 18px; }
+.help-guide { width: min(820px, 100%); margin: 0 auto; overflow: hidden; border: 1px solid var(--line); border-radius: 26px; background: #fffffff5; box-shadow: 0 18px 50px #183f2612; }
+.help-guide-heading { padding: clamp(25px, 5vw, 44px); border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #f9fcfa, #edf5ef); }
+.help-guide-sections { padding: clamp(22px, 5vw, 42px); }
+.help-guide-section + .help-guide-section { margin-top: 34px; padding-top: 34px; border-top: 1px solid var(--line); }
+.help-guide-section h2 { margin-bottom: 12px; font-size: 20px; font-weight: 750; }
+.help-guide-section p { color: var(--muted); }
+.help-guide-section p + p { margin-top: 10px; }
+.help-guide-section ol, .help-guide-section ul { display: grid; gap: 12px; margin-top: 14px; padding-left: 22px; color: #354b41; }
+.help-guide-section ol { list-style: decimal; }
+.help-guide-section ul { list-style: disc; }
+.help-guide-section li { padding-left: 5px; }
+.help-note { margin-top: 20px; padding: 16px 18px; border-left: 4px solid var(--primary); border-radius: 10px; background: #edf7f3; color: #294a3c; font-size: 14px; }
+.help-platform-note { max-width: 760px; margin: 24px auto 0; padding: 14px 18px; border-radius: 12px; color: var(--muted); background: #ffffffc9; text-align: center; font-size: 13px; }
+.help-not-found { padding: 48px; border: 1px solid var(--line); border-radius: 24px; background: white; text-align: center; }
+.help-not-found .ui-button { margin-top: 22px; }
 .public-request-section, .public-request-form { min-width: 0; }
 .request-honeypot { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 .request-list { display: grid; gap: 12px; }
@@ -412,6 +448,14 @@
   .public-request-page-copy { gap: 12px; margin-bottom: 24px; }
   .public-request-page-icon { width: 42px; height: 42px; border-radius: 13px; }
   .public-request-page .form-actions { flex-direction: column-reverse; }
+  .help-page { padding: 20px 14px 42px; }
+  .help-page-header { align-items: flex-start; flex-direction: column; margin-bottom: 24px; }
+  .help-hero { gap: 14px; padding: 22px 18px; border-radius: 20px; }
+  .help-hero-icon { width: 44px; height: 44px; border-radius: 14px; }
+  .help-category-grid { grid-template-columns: 1fr; gap: 14px; }
+  .help-category { padding: 18px 16px; }
+  .help-topic-link { min-height: 68px; padding: 12px 8px; }
+  .help-guide { border-radius: 20px; }
   .request-card { flex-direction: column; }
   .dialog-backdrop { padding: 12px; align-items: center; }
   .dialog-panel { max-height: calc(100dvh - 24px); border-radius: 20px; }

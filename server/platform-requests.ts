@@ -252,7 +252,8 @@ publicRequestRouter.post('/', async (req, res) => {
     if (contactName.length < 2) throw new RequestValidationError(400, 'Lütfen yetkili adını girin.');
     const email = validateEmail(req.body?.email);
     const phone = validatePhone(req.body?.phone);
-    if (!email && !phone) throw new RequestValidationError(400, 'E-posta veya telefon bilgilerinden en az birini girin.');
+    if (!email) throw new RequestValidationError(400, 'Lütfen e-posta adresini girin.');
+    if (!phone) throw new RequestValidationError(400, 'Lütfen telefon numarasını girin.');
     const message = cleanText(req.body?.message, 2000);
     if (typeof req.body?.message === 'string' && req.body.message.trim() && !message) throw new RequestValidationError(400, 'Mesaj en fazla 2000 karakter olabilir.');
     const result = await createRequest({

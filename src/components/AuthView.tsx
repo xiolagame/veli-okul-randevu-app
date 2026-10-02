@@ -12,6 +12,7 @@ interface AuthViewProps {
   onSuccess?: () => void;
   onOpenOnboarding?: () => void;
   onOpenPublicRequest: () => void;
+  onOpenHelp: () => void;
 }
 
 type CodeFlow = 'activation' | 'reset' | null;
@@ -20,7 +21,7 @@ type StaffResetStep = 'request' | 'verify' | 'password' | null;
 type SchoolAdminStep = 'verify' | 'password' | null;
 type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
 
-export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest }) => {
+export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
   const { login } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
@@ -320,7 +321,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest }) => {
           <Button variant="secondary" className="w-full" onClick={() => { setParentFlow('registration'); setCodePhone(phone); }}><Users size={18} />Veli Hesabı Oluştur</Button>
           <button type="button" onClick={() => openCodeFlow('activation')} className="mt-4 w-full text-sm font-semibold text-blue-700">Personel İlk Giriş</button>
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
-          <p className="auth-help">Giriş için yardıma mı ihtiyacınız var?<br />Okul yönetiminizle iletişime geçebilirsiniz.</p>
+          <button type="button" className="auth-help-link" onClick={onOpenHelp}>Yardım, Kullanım Rehberi ve Yasal Bilgiler<ArrowRight size={16} /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
             <Button variant="secondary" className="w-full" onClick={onOpenPublicRequest}>Lisans / İletişim<ArrowRight size={17} /></Button>

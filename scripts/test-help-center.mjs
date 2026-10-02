@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const app = fs.readFileSync('src/App.tsx', 'utf8');
+const authView = fs.readFileSync('src/components/AuthView.tsx', 'utf8');
+const navbar = fs.readFileSync('src/components/Navbar.tsx', 'utf8');
+const helpCenter = fs.readFileSync('src/components/HelpCenterPage.tsx', 'utf8');
+const helpGuide = fs.readFileSync('src/components/HelpGuidePage.tsx', 'utf8');
+const helpContent = fs.readFileSync('src/content/help-content.ts', 'utf8');
+const publicRequest = fs.readFileSync('src/components/PublicRequestSection.tsx', 'utf8');
+const publicRoutes = fs.readFileSync('src/utils/public-request-route.ts', 'utf8');
+const platformRequests = fs.readFileSync('server/platform-requests.ts', 'utf8');
+const stylesheet = fs.readFileSync('src/index.css', 'utf8');
+const appointmentEntry = fs.readFileSync('server/appointment-entry.ts', 'utf8');
+
+assert(publicRoutes.includes("PUBLIC_REQUEST_PATH = '/lisans-iletisim'"));
+assert(publicRoutes.includes("HELP_PATH = '/yardim'"));
+assert(publicRoutes.includes('normalizedPath.startsWith(`${HELP_PATH}/`)'));
+assert(publicRoutes.includes("return '__invalid__'"));
+
+assert(!authView.includes('Giriş için yardıma mı ihtiyacınız var?'));
+assert(authView.includes('Yardım, Kullanım Rehberi ve Yasal Bilgiler'));
+assert(!authView.includes('Yardım, kullanım rehberi ve yasal bilgiler'));
+assert(stylesheet.match(/\.auth-help-link \{[^}]*color: var\(--ink\)/));
+assert(authView.includes('Lisans / İletişim'));
+assert(authView.includes('onOpenHelp'));
+assert(app.includes('isHelpPath(pathname)'));
+assert(app.includes('onOpenHelp={() => navigateStandalonePage(HELP_PATH)}'));
+assert(app.includes("window.addEventListener('popstate', syncLocation)"));
+assert(navbar.includes('Yardım ve Bilgilendirme'));
+assert(navbar.includes('onOpenHelp'));
+
+for (const category of ["id: 'usage'", "id: 'account'", "id: 'legal'", "id: 'support'"]) assert(helpContent.includes(category));
+for (const slug of ["'okul-yoneticisi'", 'ogretmen:', 'veli:', 'guvenlik:']) assert(helpContent.includes(slug));
+assert(!helpContent.includes('Platform Admin Rehberi'));
+assert(helpContent.includes('path: PUBLIC_CONTACT_PATH'));
+assert(helpCenter.includes('const path = item.path ??'));
+assert(!helpContent.includes('Giriş yapmadan iletişim'));
+assert(!helpContent.includes('Veri sahibi başvuruları'));
+assert(!helpContent.includes('destek: {'));
+assert(!helpGuide.includes('help-support-action'));
+assert(app.includes('pathname !== LEGACY_HELP_SUPPORT_PATH'));
+assert(app.includes("window.history.replaceState({ standalonePage: true }, '', PUBLIC_CONTACT_PATH)"));
+assert(app.indexOf('if (pathname === PUBLIC_REQUEST_PATH)') < app.indexOf('if (!currentUser)'));
+assert(helpCenter.includes('isAuthenticated'));
+assert(helpCenter.includes('isPlatformAdmin'));
+assert(publicRequest.includes('E-posta *<input'));
+assert(publicRequest.includes('Telefon *<input'));
+assert(publicRequest.match(/id="request-email"[\s\S]*?<\/label>/)?.[0].includes('required'));
+assert(publicRequest.match(/id="request-phone"[\s\S]*?<\/label>/)?.[0].includes('required'));
+assert(publicRequest.includes("if (!form.email.trim()) return setError('Lütfen e-posta adresini girin.')"));
+assert(publicRequest.includes("if (!form.phone.trim()) return setError('Lütfen telefon numarasını girin.')"));
+assert(!publicRequest.includes('E-posta veya telefondan en az biri zorunludur.'));
+assert(platformRequests.includes("if (!email) throw new RequestValidationError(400, 'Lütfen e-posta adresini girin.')"));
+assert(platformRequests.includes("if (!phone) throw new RequestValidationError(400, 'Lütfen telefon numarasını girin.')"));
+
+assert(!helpContent.toLocaleLowerCase('tr').includes('randevu yeniden planlama'));
+assert(helpContent.includes('Uygulamada ayrı bir randevu değiştirme akışı yoktur'));
+assert(helpContent.includes('randevu başlangıcından 30 dakika önce'));
+assert(helpContent.includes('randevu bitişinden 30 dakika sonra'));
+assert(appointmentEntry.includes('SECURITY_ENTRY_EARLY_MINUTES = 30'));
+assert(appointmentEntry.includes('SECURITY_ENTRY_LATE_MINUTES = 30'));
+
+assert(!helpContent.includes('Bu belge, operasyon ve hukuk doğrulaması tamamlandıktan sonra yayınlanacaktır.'));
+assert(helpContent.includes('taslak bilgilendirmedir'));
+for (const role of ['Kurum / Okul Yöneticisi', 'Personel / Öğretmen', 'Veli ve Öğrenci', 'Güvenlik']) assert(helpContent.includes("title: '" + role + "'"));
+for (const heading of ['Gizlilik yaklaşımımız', 'Kamera kullanımı', 'Hizmetin amacı', 'QR doğrulamanın kapsamı', 'Genel saklama ilkesi', 'Silme ve anonimleştirme yaklaşımı']) assert(helpContent.includes("title: '" + heading + "'"));
+assert(helpContent.includes('Veli Randevu uygulaması fotoğraf veya video kaydı oluşturmaz'));
+assert(helpContent.includes('Resmî veri sahibi başvuru kanalı hukuk ve operasyon doğrulaması tamamlandıktan sonra burada yayınlanacaktır.'));
+assert(!helpContent.includes('destek@kolayokul.com'));
+assert(!helpContent.includes('30 gün'));
+assert(!helpContent.includes('90 gün'));
+assert(!helpContent.includes('1 yıl'));
+assert(!helpContent.includes('5 yıl'));
+assert(!helpCenter.includes('type="checkbox"'));
+assert(!helpGuide.includes('type="checkbox"'));
+assert(!helpContent.includes('KVKK’yı kabul ediyorum'));
+assert(!helpContent.includes('NOTICE_ACKNOWLEDGED'));
+assert(!helpContent.includes('TERMS_ACCEPTED'));
+assert(!helpContent.includes('CONSENT_GRANTED'));
+
+console.log('Help Center content, direct support routing, public contact requirements and legal draft tests PASS.');

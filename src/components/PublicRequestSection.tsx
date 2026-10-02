@@ -14,7 +14,7 @@ const labels: Record<PublicRequestKind, string> = {
 
 const emptyForm = { schoolName: '', contactName: '', email: '', phone: '', message: '', companyWebsite: '' };
 
-export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', onBack }: { initialRequestType?: PublicRequestKind; onBack: () => void }) {
+export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', onBack, backLabel = 'Giriş ekranına dön' }: { initialRequestType?: PublicRequestKind; onBack: () => void; backLabel?: string }) {
   const [requestType, setRequestType] = useState<PublicRequestKind>(initialRequestType);
   const [form, setForm] = useState(emptyForm);
   const [requestToken, setRequestToken] = useState(createRequestToken);
@@ -36,9 +36,10 @@ export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', on
     setError('');
     if (!form.schoolName.trim()) return setError('Lütfen okul adını girin.');
     if (!form.contactName.trim()) return setError('Lütfen yetkili adını girin.');
-    if (!form.email.trim() && !normalizeUserPhoneInput(form.phone)) return setError('E-posta veya telefon bilgilerinden en az birini girin.');
-    if (form.email.trim() && !isBasicEmailAddress(form.email)) return setError('E-posta adresini kontrol edin.');
-    if (form.phone && !normalizeUserPhoneInput(form.phone)) return setError('Telefon numarasını 0XXX XXX XX XX biçiminde girin.');
+    if (!form.email.trim()) return setError('Lütfen e-posta adresini girin.');
+    if (!isBasicEmailAddress(form.email)) return setError('E-posta adresini kontrol edin.');
+    if (!form.phone.trim()) return setError('Lütfen telefon numarasını girin.');
+    if (!normalizeUserPhoneInput(form.phone)) return setError('Telefon numarasını 0XXX XXX XX XX biçiminde girin.');
     setBusy(true);
     try {
       const result = await api.createPublicRequest({
@@ -71,13 +72,13 @@ export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', on
       {!success && <>
         <label className="field" htmlFor="request-school">Okul Adı *<input id="request-school" maxLength={255} autoComplete="organization" value={form.schoolName} onChange={(event) => setForm({ ...form, schoolName: event.target.value })} required /></label>
         <label className="field" htmlFor="request-contact">Yetkili Ad Soyad *<input id="request-contact" maxLength={150} autoComplete="name" value={form.contactName} onChange={(event) => setForm({ ...form, contactName: event.target.value })} required /></label>
-        <label className="field" htmlFor="request-email">E-posta<input id="request-email" type="email" maxLength={254} autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
-        <label className="field" htmlFor="request-phone">Telefon<input id="request-phone" type="tel" inputMode="numeric" maxLength={14} autoComplete="tel" placeholder="0555 123 45 67" value={form.phone} onChange={(event) => setForm({ ...form, phone: formatTurkishPhoneInput(event.target.value) })} /><span className="field-hint">E-posta veya telefondan en az biri zorunludur.</span></label>
+        <label className="field" htmlFor="request-email">E-posta *<input id="request-email" type="email" maxLength={254} autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
+        <label className="field" htmlFor="request-phone">Telefon *<input id="request-phone" type="tel" inputMode="numeric" maxLength={14} autoComplete="tel" placeholder="0555 123 45 67" value={form.phone} onChange={(event) => setForm({ ...form, phone: formatTurkishPhoneInput(event.target.value) })} required /></label>
         <label className="field" htmlFor="request-message">Mesaj<textarea id="request-message" rows={4} maxLength={2000} value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} /></label>
         <label className="request-honeypot" aria-hidden="true">Web sitesi<input tabIndex={-1} autoComplete="off" value={form.companyWebsite} onChange={(event) => setForm({ ...form, companyWebsite: event.target.value })} /></label>
         <div className="form-actions"><Button type="submit" disabled={busy}>{busy ? 'Gönderiliyor…' : <><Send size={17} />Talebi Gönder</>}</Button></div>
       </>}
-      {success && <div className="form-actions"><Button variant="secondary" onClick={onBack}><ArrowLeft size={17} />Giriş ekranına dön</Button><Button onClick={reset}>Yeni talep oluştur</Button></div>}
+      {success && <div className="form-actions"><Button variant="secondary" onClick={onBack}><ArrowLeft size={17} />{backLabel}</Button><Button onClick={reset}>Yeni talep oluştur</Button></div>}
     </form>
   </section>;
 }

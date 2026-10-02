@@ -100,7 +100,7 @@ async function run() {
   check(!schoolRequestSourceForTypes.includes('<option value="MONTHLY_LICENSE">') && schoolRequestSourceForTypes.includes('<option value="YEARLY_LICENSE">') && schoolRequestSourceForTypes.includes('<option value="SUPPORT">'), 'school admin create options are support and yearly license only');
   const platformRequestSource = fs.readFileSync('src/components/PlatformRequestCenter.tsx', 'utf8');
   check(platformRequestSource.includes("activeRequestTypes: PlatformRequestType[] = ['YEARLY_LICENSE', 'CONTACT', 'SUPPORT']") && platformRequestSource.includes("MONTHLY_LICENSE: 'Aylık Lisans (Eski)'"), 'platform filters show current products while preserving legacy monthly label');
-  check(appSource.includes("window.location.pathname !== PUBLIC_REQUEST_PATH") && appSource.includes("window.history.replaceState(null, '', '/')"), 'authenticated public request pathname normalizes to root');
+  check(appSource.indexOf('if (pathname === PUBLIC_REQUEST_PATH)') < appSource.indexOf('if (!currentUser)') && appSource.includes("backLabel={currentUser ? 'Uygulamaya dön' : 'Giriş ekranına dön'}"), 'authenticated help navigation can open the shared public contact page safely');
   const stylesheetSource = fs.readFileSync('src/index.css', 'utf8');
   check(stylesheetSource.includes('.public-request-page-shell { width: min(720px, 100%)') && stylesheetSource.includes('.public-request-page .form-actions { flex-direction: column-reverse; }'), 'public page has bounded desktop width and mobile actions');
 
@@ -125,7 +125,7 @@ async function run() {
     return {
       requestToken: crypto.randomUUID(), requestType: 'YEARLY_LICENSE', schoolName: `Public School ${suffix}`,
       contactName: 'Public Yetkili', email: `public-${crypto.randomBytes(3).toString('hex')}@example.test`,
-      phone: '', message: 'Lisans bilgisi rica ederiz.', companyWebsite: '', ...overrides,
+      phone: '0555 123 45 67', message: 'Lisans bilgisi rica ederiz.', companyWebsite: '', ...overrides,
     };
   }
 
@@ -165,8 +165,8 @@ async function run() {
     check(typeof yearly.body.requestId === 'string', 'public response returns request id');
     const contact = await request('POST', '/public/requests', undefined, publicPayload({ requestType: 'CONTACT' }));
     equal(contact.status, 201, 'valid contact request');
-    equal((await request('POST', '/public/requests', undefined, publicPayload({ email: '', phone: '0555 123 45 67' }))).status, 201, 'phone-only request accepted');
-    equal((await request('POST', '/public/requests', undefined, publicPayload({ phone: '', email: 'email-only@example.test' }))).status, 201, 'email-only request accepted');
+    equal((await request('POST', '/public/requests', undefined, publicPayload({ email: '', phone: '0555 123 45 67' }))).status, 400, 'phone-only forged public request rejected');
+    equal((await request('POST', '/public/requests', undefined, publicPayload({ phone: '', email: 'email-only@example.test' }))).status, 400, 'email-only forged public request rejected');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ phone: '', email: '' }))).status, 400, 'missing contact rejected');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ email: 'not-an-email' }))).status, 400, 'invalid email rejected');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ email: '', phone: '123' }))).status, 400, 'invalid phone rejected');

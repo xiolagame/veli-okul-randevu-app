@@ -4,7 +4,7 @@ import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
 import { Building2, ShieldAlert, QrCode, Shield } from 'lucide-react';
-import { PUBLIC_REQUEST_PATH } from './utils/public-request-route';
+import { HELP_PATH, isHelpPath, LEGACY_HELP_SUPPORT_PATH, PUBLIC_CONTACT_PATH, PUBLIC_REQUEST_PATH } from './utils/public-request-route';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -15,6 +15,7 @@ const NotificationsModal = lazy(() => import('./components/NotificationsModal').
 const OnboardingModal = lazy(() => import('./components/OnboardingModal').then((module) => ({ default: module.OnboardingModal })));
 const AppointmentEmailReview = lazy(() => import('./components/AppointmentEmailReview').then((module) => ({ default: module.AppointmentEmailReview })));
 const PublicRequestPage = lazy(() => import('./components/PublicRequestPage').then((module) => ({ default: module.PublicRequestPage })));
+const HelpCenterPage = lazy(() => import('./components/HelpCenterPage').then((module) => ({ default: module.HelpCenterPage })));
 
 export const AppContent: React.FC = () => {
   const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, platformSchools, switchSchool, refreshPlatformSchools } = useApp();
@@ -23,7 +24,8 @@ export const AppContent: React.FC = () => {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showSchoolManagement, setShowSchoolManagement] = useState(false);
   const [platformManagementSection, setPlatformManagementSection] = useState<'overview' | 'schools'>('overview');
-  const [publicLocation, setPublicLocation] = useState(() => window.location.pathname + window.location.search);
+  const [appLocation, setAppLocation] = useState(() => window.location.pathname + window.location.search);
+  const pathname = appLocation.split('?')[0];
   const canManageSchools = isPlatformAdmin;
   const showPlatformHome = isPlatformAdmin && !platformContextActive && !currentMembership;
   const openPlatformManagement = (section: 'overview' | 'schools' = 'overview') => {
@@ -37,43 +39,57 @@ export const AppContent: React.FC = () => {
   }, [currentUser?.id, currentUser?.role, currentMembership?.id, isPlatformAdmin, platformContextActive]);
 
   useEffect(() => {
-    const syncLocation = () => setPublicLocation(window.location.pathname + window.location.search);
+    const syncLocation = () => setAppLocation(window.location.pathname + window.location.search);
     window.addEventListener('popstate', syncLocation);
     return () => window.removeEventListener('popstate', syncLocation);
   }, []);
 
   useEffect(() => {
-    if (!currentUser || window.location.pathname !== PUBLIC_REQUEST_PATH) return;
-    window.history.replaceState(null, '', '/');
-    setPublicLocation('/');
-  }, [currentUser?.id]);
+    if (pathname !== LEGACY_HELP_SUPPORT_PATH) return;
+    window.history.replaceState({ standalonePage: true }, '', PUBLIC_CONTACT_PATH);
+    setAppLocation(PUBLIC_CONTACT_PATH);
+  }, [pathname]);
 
-  const openPublicRequest = () => {
-    window.history.pushState({ publicRequestPage: true }, '', PUBLIC_REQUEST_PATH);
-    setPublicLocation(PUBLIC_REQUEST_PATH);
+  const navigateStandalonePage = (path: string) => {
+    const nextPathname = path.split('?')[0];
+    window.history.pushState({ standalonePage: true, helpGuidePage: isHelpPath(nextPathname) && nextPathname !== HELP_PATH }, '', path);
+    setAppLocation(path);
   };
 
-  const closePublicRequest = () => {
-    if (window.history.state?.publicRequestPage) {
+  const closeStandalonePage = () => {
+    window.history.replaceState(null, '', '/');
+    setAppLocation('/');
+  };
+
+  const backToHelpCenter = () => {
+    if (window.history.state?.helpGuidePage) {
       window.history.back();
       return;
     }
-    window.history.replaceState(null, '', '/');
-    setPublicLocation('/');
+    window.history.replaceState({ standalonePage: true }, '', HELP_PATH);
+    setAppLocation(HELP_PATH);
   };
 
   if (isLoading) {
     return <div className="page-shell"><Brand /><div className="mt-10"><Skeleton rows={4} /></div></div>;
   }
 
+  if (pathname === PUBLIC_REQUEST_PATH) {
+    return <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}><PublicRequestPage onBack={closeStandalonePage} backLabel={currentUser ? 'Uygulamaya dön' : 'Giriş ekranına dön'} /></Suspense>;
+  }
+
+  if (pathname === LEGACY_HELP_SUPPORT_PATH) {
+    return <div className="page-shell"><Skeleton rows={3} /></div>;
+  }
+
   // If not logged in, show the login/register screen
   if (!currentUser) {
-    if (publicLocation.split('?')[0] === PUBLIC_REQUEST_PATH) {
-      return <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}><PublicRequestPage onBack={closePublicRequest} /></Suspense>;
+    if (isHelpPath(pathname)) {
+      return <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}><HelpCenterPage pathname={pathname} isAuthenticated={false} onBack={closeStandalonePage} onGuideBack={backToHelpCenter} onNavigate={navigateStandalonePage} /></Suspense>;
     }
     return (
       <>
-        <AuthView onOpenOnboarding={() => setShowOnboardingModal(true)} onOpenPublicRequest={openPublicRequest} />
+        <AuthView onOpenOnboarding={() => setShowOnboardingModal(true)} onOpenPublicRequest={() => navigateStandalonePage(PUBLIC_REQUEST_PATH)} onOpenHelp={() => navigateStandalonePage(HELP_PATH)} />
         {showOnboardingModal && <Suspense fallback={<div className="page-shell"><Skeleton rows={2} /></div>}>
           <OnboardingModal
             isOpen={showOnboardingModal}
@@ -82,6 +98,10 @@ export const AppContent: React.FC = () => {
         </Suspense>}
       </>
     );
+  }
+
+  if (isHelpPath(pathname)) {
+    return <Suspense fallback={<div className="page-shell"><Skeleton rows={4} /></div>}><HelpCenterPage pathname={pathname} isAuthenticated isPlatformAdmin={isPlatformAdmin} onBack={closeStandalonePage} onGuideBack={backToHelpCenter} onNavigate={navigateStandalonePage} /></Suspense>;
   }
 
   const reviewLink = window.location.hash.match(/^#appointment-review=([^.]*)\.([A-Za-z0-9_-]{43})$/);
@@ -100,6 +120,7 @@ export const AppContent: React.FC = () => {
         onOpenNotifications={() => setShowNotifications(true)}
         onOpenAdmin={() => { if (isPlatformAdmin) openPlatformManagement('overview'); else setShowAdminModal(true); }}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
+        onOpenHelp={() => navigateStandalonePage(HELP_PATH)}
       />
 
       {platformContextActive && currentSchool && <div className="platform-context-banner"><span><strong>Platform Yönetimi</strong><span aria-hidden="true"> › </span>{currentSchool.name}</span><Button variant="quiet" onClick={() => openPlatformManagement('overview')}>Platform alanına dön</Button></div>}
