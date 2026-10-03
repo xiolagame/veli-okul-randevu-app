@@ -14,6 +14,7 @@ import {
   TenantIsolationTestResult,
 } from '../types';
 import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../platform/api-session-policy';
+import { ApiError } from '../platform/api-error';
 import { authSession } from '../platform/auth-session';
 import { getActiveSchoolId, getPlatformTargetSchoolId } from '../platform/client-preferences';
 
@@ -73,7 +74,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     if (await applyUnauthorizedSessionPolicy(res.status, endpoint, authenticatedRequestToken, authSession)) {
       throw new Error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
     }
-    throw new Error(data.error || data.message || `İşlem başarısız (HTTP ${res.status})`);
+    throw new ApiError(res.status, data.error || data.message || `İşlem başarısız (HTTP ${res.status})`);
   }
 
   return data as T;

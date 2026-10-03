@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { applyUnauthorizedSessionPolicy } from '../src/platform/api-session-policy';
+import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../src/platform/api-session-policy';
 import { AuthSessionManager } from '../src/platform/auth-session';
 import { AUTH_TOKEN_STORAGE_KEY, AuthTokenStore, WebStorageLike, createWebAuthTokenStore } from '../src/platform/auth-token-store';
 import { decideBackNavigation } from '../src/platform/back-navigation';
@@ -7,6 +7,11 @@ import { createBrowserLifecycleAdapter } from '../src/platform/browser-lifecycle
 import { createBrowserNetworkAdapter } from '../src/platform/browser-network';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../src/platform/client-preferences';
 import { PendingNavigationIntentStore, parseNavigationIntent } from '../src/platform/navigation-intent';
+import { ApiError } from '../src/platform/api-error';
+import { performLogin } from '../src/platform/login-flow';
+import { resolveSchoolContext } from '../src/platform/school-resolution';
+import type { School, SchoolMembership } from '../src/types';
+import type { ManagedSchool } from '../src/types/platform';
 
 class MemoryStorage implements WebStorageLike {
   readonly values = new Map<string, string>();
@@ -92,11 +97,120 @@ assert.equal(invalidationEvents, 1);
 const loginStore = new MemoryTokenStore('current-token');
 const loginSession = new AuthSessionManager(loginStore);
 assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/auth/login', 'current-token', loginSession), false);
-assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/public/schools', 'current-token', loginSession), false);
-assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/schools/school-a/appointments/email-review', 'current-token', loginSession), false);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/schools'), true);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/school-context'), false);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/requests'), false);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/school-context?code=SCHOOL'), false);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/school-context-fake'), true);
+assert.equal(isAuthenticatedApiEndpoint('/api/public/schools?refresh=1'), true);
+assert.equal(isAuthenticatedApiEndpoint('/api/schools/school-a/appointments/email-review'), true);
+assert.equal(isAuthenticatedApiEndpoint('/api/schools/school-a/appointments/email-review/approve'), true);
 assert.equal(await loginSession.getToken(), 'current-token');
 assert.equal(await applyUnauthorizedSessionPolicy(403, '/api/user/me', 'current-token', loginSession), false);
 assert.equal(await loginSession.getToken(), 'current-token');
+assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/public/schools', 'current-token', loginSession), true);
+assert.equal(await loginSession.getToken(), null);
+
+const invalidLoginStore = new MemoryTokenStore();
+const invalidLoginSession = new AuthSessionManager(invalidLoginStore);
+let runtimeClearCount = 0;
+const clearRuntimeSession = () => { runtimeClearCount += 1; clearAuthSensitivePreferences(); };
+assert.deepEqual(await performLogin({
+  authenticate: async (): Promise<{ token: string }> => { throw new ApiError(401, 'Invalid credentials'); },
+  bootstrap: async () => { throw new Error('Bootstrap must not run'); },
+  session: invalidLoginSession,
+  clearRuntimeSession,
+}), { ok: false, reason: 'INVALID_CREDENTIALS' });
+assert.equal(await invalidLoginSession.getToken(), null);
+assert.equal(invalidLoginStore.token, null);
+assert.equal(runtimeClearCount, 0);
+
+const successfulLoginStore = new MemoryTokenStore();
+const successfulLoginSession = new AuthSessionManager(successfulLoginStore);
+let bootstrapToken: string | null = null;
+assert.deepEqual(await performLogin({
+  authenticate: async () => ({ token: 'valid-token' }),
+  bootstrap: async () => { bootstrapToken = await successfulLoginSession.getToken(); },
+  session: successfulLoginSession,
+  clearRuntimeSession,
+}), { ok: true });
+assert.equal(bootstrapToken, 'valid-token');
+assert.equal(successfulLoginStore.token, 'valid-token');
+
+for (const bootstrapError of [new Error('network unavailable'), new ApiError(401, 'Unauthorized'), new ApiError(403, 'Forbidden')]) {
+  const failedLoginStore = new MemoryTokenStore();
+  const failedLoginSession = new AuthSessionManager(failedLoginStore);
+  setActiveSchoolId('stale-school');
+  setPlatformTargetSchoolId('stale-target');
+  const clearsBefore = runtimeClearCount;
+  assert.deepEqual(await performLogin({
+    authenticate: async () => ({ token: 'temporary-token' }),
+    bootstrap: async () => { throw bootstrapError; },
+    session: failedLoginSession,
+    clearRuntimeSession,
+  }), { ok: false, reason: 'SESSION_BOOTSTRAP_FAILED' });
+  assert.equal(failedLoginStore.token, null);
+  assert.equal(await failedLoginSession.getToken(), null);
+  assert.equal(await new AuthSessionManager(failedLoginStore).hydrate(), null);
+  assert.equal(getActiveSchoolId(), null);
+  assert.equal(getPlatformTargetSchoolId(), null);
+  assert.equal(runtimeClearCount, clearsBefore + 1);
+}
+assert.deepEqual(await performLogin({
+  authenticate: async (): Promise<{ token: string }> => { throw new Error('network unavailable'); },
+  bootstrap: async () => { throw new Error('Bootstrap must not run'); },
+  session: invalidLoginSession,
+  clearRuntimeSession,
+}), { ok: false, reason: 'SESSION_BOOTSTRAP_FAILED' });
+assert.deepEqual(await performLogin({
+  authenticate: async (): Promise<{ token: string }> => { throw new ApiError(500, 'Server error'); },
+  bootstrap: async () => { throw new Error('Bootstrap must not run'); },
+  session: invalidLoginSession,
+  clearRuntimeSession,
+}), { ok: false, reason: 'SESSION_BOOTSTRAP_FAILED' });
+
+const replacingStore = new MemoryTokenStore();
+const replacingSession = new AuthSessionManager(replacingStore);
+let markBootstrapStarted!: () => void;
+let releaseBootstrap!: () => void;
+const bootstrapStarted = new Promise<void>((resolve) => { markBootstrapStarted = resolve; });
+const bootstrapGate = new Promise<void>((resolve) => { releaseBootstrap = resolve; });
+const staleLogin = performLogin({
+  authenticate: async () => ({ token: 'old-token' }),
+  bootstrap: async () => { markBootstrapStarted(); await bootstrapGate; throw new Error('Old bootstrap failed'); },
+  session: replacingSession,
+  clearRuntimeSession,
+});
+await bootstrapStarted;
+assert.deepEqual(await performLogin({
+  authenticate: async () => ({ token: 'new-token' }),
+  bootstrap: async () => {},
+  session: replacingSession,
+  clearRuntimeSession,
+}), { ok: true });
+const clearsBeforeStaleFailure = runtimeClearCount;
+releaseBootstrap();
+assert.deepEqual(await staleLogin, { ok: false, reason: 'SESSION_BOOTSTRAP_FAILED' });
+assert.equal(await replacingSession.getToken(), 'new-token');
+assert.equal(replacingStore.token, 'new-token');
+assert.equal(runtimeClearCount, clearsBeforeStaleFailure);
+
+const schoolA: School = { id: 'school-a', name: 'School A', code: 'A', city: '', district: '', settings: { schoolName: 'School A', appName: 'Veli Randevu', defaultSlotMinutes: 15, minSlotMinutes: 10, maxBookingDaysAhead: 30, allowParentCancel: true } };
+const schoolB: School = { ...schoolA, id: 'school-b', name: 'School B', code: 'B' };
+const membershipA: SchoolMembership = { id: 'member-a', schoolId: schoolA.id, userId: 'user-a', role: 'admin', status: 'active', joinedAt: '2026-01-01' };
+const inactiveMembershipB: SchoolMembership = { ...membershipA, id: 'member-b', schoolId: schoolB.id, status: 'suspended' };
+const managedSchool: ManagedSchool = { id: 'platform-school', name: 'Platform School', code: 'P', city: '', district: '', disabledAt: null, licenseCode: null, licenseStatus: 'active', licenseExpiresAt: null, adminStatus: 'active', adminName: null };
+const resolve = (memberships: SchoolMembership[], accessibleSchools: School[], isPlatformAdmin = false, managedSchools: ManagedSchool[] = []) =>
+  resolveSchoolContext({ memberships, accessibleSchools, isPlatformAdmin, managedSchools });
+assert.deepEqual(resolve([membershipA], [schoolA]), { kind: 'MEMBERSHIP', school: schoolA, membership: membershipA, schoolId: schoolA.id });
+assert.equal(resolveSchoolContext({ memberships: [membershipA], accessibleSchools: [schoolB, schoolA], managedSchools: [], isPlatformAdmin: false, preferredSchoolId: schoolB.id }).schoolId, schoolA.id);
+assert.equal(resolve([membershipA], []).schoolId, null);
+assert.equal(resolve([], [schoolB]).schoolId, null);
+assert.equal(resolve([inactiveMembershipB], [schoolB]).schoolId, null);
+assert.equal(resolve([], [schoolB]).schoolId, null);
+assert.deepEqual(resolve([], [], true, [managedSchool]), { kind: 'PLATFORM_TARGET', school: managedSchool, membership: null, schoolId: managedSchool.id });
+assert.equal(resolve([membershipA], [schoolA], true, [managedSchool]).membership, null);
+assert.equal(resolve([], [], true, [{ ...managedSchool, disabledAt: '2026-01-01' }]).schoolId, null);
 
 const parallelStore = new MemoryTokenStore('parallel-token');
 const parallelSession = new AuthSessionManager(parallelStore);

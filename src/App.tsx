@@ -159,9 +159,9 @@ export const AppContent: React.FC = () => {
             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
               <QrCode className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-slate-900">Bu Okulda Kayıtlı Değilsiniz</h3>
+            <h3 className="font-bold text-slate-900">Aktif Okul Erişimi Bulunamadı</h3>
             <p className="text-xs text-slate-500">
-              {currentSchool?.name} Erişim almak için okul yönetiminizden aktivasyon kodu isteyin.
+              Erişim için okul yönetiminizle iletişime geçin.
             </p>
             <button
               onClick={() => setShowOnboardingModal(true)}

@@ -3,9 +3,10 @@ export interface RejectedTokenInvalidator {
 }
 
 export function isAuthenticatedApiEndpoint(endpoint: string): boolean {
-  return !endpoint.startsWith('/api/auth/')
-    && !endpoint.startsWith('/api/public/')
-    && !endpoint.includes('/appointments/email-review');
+  const pathname = endpoint.split(/[?#]/, 1)[0];
+  const publicEndpoints = new Set(['/api/public/school-context', '/api/public/requests']);
+  return !pathname.startsWith('/api/auth/')
+    && !publicEndpoints.has(pathname);
 }
 
 export async function applyUnauthorizedSessionPolicy(

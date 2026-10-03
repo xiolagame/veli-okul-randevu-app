@@ -60,7 +60,7 @@
 }
 
 .school-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(#f6f8f755, #f6f8f755), url('/branding/school-background.png') center / cover no-repeat; }
-#root { isolation: isolate; min-height: 100dvh; }
+#root { isolation: isolate; min-height: 100dvh; padding-top: env(safe-area-inset-top, 0); }
 .brand-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
 
 @layer base {
@@ -248,6 +248,9 @@
 .auth-footnote { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #c0d5c9; margin-top: auto; }
 .auth-form-side { display: flex; align-items: center; justify-content: center; padding: 40px 30px; }
 .auth-form-wrap { width: min(100%, 440px); padding: 24px; border-radius: 24px; background: #fffffff2; }
+html[data-runtime-platform="android"] { color-scheme: light; }
+html[data-runtime-platform="android"] .auth-form-wrap { color: var(--ink); background: rgba(255, 255, 255, .94); border: 1px solid rgba(255, 255, 255, .78); box-shadow: 0 24px 60px #10271f2e; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
 .auth-mobile-brand { display: none; }
 .auth-form-wrap h2 { font-size: 32px; font-weight: 750; margin: 10px 0; }
 .auth-form-wrap > p { color: var(--muted); margin-bottom: 32px; }

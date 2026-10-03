@@ -19,6 +19,8 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { authSession } from '../platform/auth-session';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
+import { LoginResult, performLogin } from '../platform/login-flow';
+import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
 
 interface AppContextType {
   refreshSchoolData: () => Promise<void>;
@@ -46,7 +48,7 @@ interface AppContextType {
   isLoading: boolean;
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
-  login: (phone: string, password: string, role?: UserRole) => Promise<boolean>;
+  login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
   logout: () => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
   bookAppointment: (data: {
@@ -85,6 +87,35 @@ const DEFAULT_SETTINGS: SchoolSettings = {
 };
 
 const asSchool = (school: ManagedSchool): School => ({ ...school, settings: DEFAULT_SETTINGS });
+
+type SchoolAccess = {
+  schools: School[];
+  managedSchools: ManagedSchool[];
+  isPlatformAdmin: boolean;
+  resolution: SchoolResolution;
+};
+
+async function fetchSchoolAccess(
+  memberships: SchoolMembership[],
+  preferredSchoolId: string | null,
+  preferredPlatformTargetId: string | null,
+): Promise<SchoolAccess> {
+  const [schoolsResult, capabilities] = await Promise.all([api.getPublicSchools(), api.getPlatformCapabilities()]);
+  const managedSchools = capabilities.manageSchools ? (await api.getManagedSchools()).schools : [];
+  return {
+    schools: schoolsResult.schools,
+    managedSchools,
+    isPlatformAdmin: capabilities.manageSchools,
+    resolution: resolveSchoolContext({
+      memberships,
+      accessibleSchools: schoolsResult.schools,
+      managedSchools,
+      isPlatformAdmin: capabilities.manageSchools,
+      preferredSchoolId,
+      preferredPlatformTargetId,
+    }),
+  };
+}
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -170,6 +201,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRoster(rosterRes.roster);
   }, []);
 
+  const applyAuthenticatedSession = useCallback((user: User, memberships: SchoolMembership[], access: SchoolAccess) => {
+    const { resolution } = access;
+    const platformContext = resolution.kind === 'PLATFORM_TARGET';
+    const activeMembership = resolution.membership;
+    const activeUser: User = {
+      ...user,
+      students: [],
+      role: platformContext ? 'admin' : activeMembership?.role,
+      branch: activeMembership?.branch,
+    };
+    schoolLoadSequence.current += 1;
+    setUsers([]);
+    setUsersError('');
+    setTeachers([]);
+    setAvailability([]);
+    setAppointments([]);
+    setNotifications([]);
+    setSettings(DEFAULT_SETTINGS);
+    setAuditLogs([]);
+    setRoster([]);
+    setIsolationTestResults([]);
+    setSchools(access.schools);
+    setPlatformSchools(access.managedSchools);
+    setIsPlatformAdmin(access.isPlatformAdmin);
+    setUserMemberships(memberships);
+    setPlatformTargetSchoolId(platformContext ? resolution.schoolId : null);
+    setActiveSchoolId(resolution.schoolId);
+    setCurrentSchool(platformContext ? asSchool(resolution.school) : resolution.school);
+    setCurrentMembership(activeMembership);
+    setCurrentUser(activeUser);
+    if (resolution.schoolId) void loadSchoolData(resolution.schoolId, activeUser, activeMembership, platformContext);
+  }, [loadSchoolData]);
+
   // Initial bootstrap from API
   useEffect(() => {
     async function init() {
@@ -178,39 +242,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const token = await authSession.hydrate();
         if (token) {
           try {
-            const [meRes, schoolsRes, capabilities] = await Promise.all([
-              api.getMe(), api.getPublicSchools().catch(() => ({ schools: [] })),
-              api.getPlatformCapabilities().catch(() => ({ manageSchools: false })),
-            ]);
-            const activeUser = meRes.user;
-            setUserMemberships(meRes.memberships);
-            setSchools(schoolsRes.schools);
-            setIsPlatformAdmin(capabilities.manageSchools);
-            const managed = capabilities.manageSchools ? await api.getManagedSchools().then((result) => result.schools).catch(() => []) : [];
-            setPlatformSchools(managed);
-            const savedTargetId = getPlatformTargetSchoolId();
-            const savedTarget = managed.find((school) => school.id === savedTargetId && !school.disabledAt);
-            const activeMemberships = meRes.memberships.filter((membership) => membership.status === 'active' && schoolsRes.schools.some((school) => school.id === membership.schoolId));
-            const activeMembershipSchool = activeMemberships.some((membership) => membership.schoolId === getActiveSchoolId());
-            const targetSchoolId = savedTarget?.id || (activeMembershipSchool ? getActiveSchoolId()! : activeMemberships[0]?.schoolId || managed.find((school) => !school.disabledAt)?.id || schoolsRes.schools[0]?.id || 'sch-kazan-01');
-            const platformContext = !!savedTarget;
-            setPlatformTargetSchoolId(platformContext ? targetSchoolId : null);
-            setActiveSchoolId(targetSchoolId);
-            const activeSchool = platformContext ? asSchool(savedTarget!) : schoolsRes.schools.find((s) => s.id === targetSchoolId) || (managed.find((s) => s.id === targetSchoolId) ? asSchool(managed.find((s) => s.id === targetSchoolId)!) : null);
-            setCurrentSchool(activeSchool);
-
-            const activeMem = meRes.memberships.find((m) => m.schoolId === targetSchoolId && m.status === 'active') || null;
-            setCurrentMembership(activeMem);
-
-            activeUser.role = platformContext ? 'admin' : activeMem?.role;
-            activeUser.branch = activeMem?.branch;
-
-            setCurrentUser(activeUser);
-            void loadSchoolData(targetSchoolId, activeUser, activeMem, platformContext);
+            const meRes = await api.getMe();
+            const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId());
+            if (await authSession.getToken() !== token) return;
+            applyAuthenticatedSession(meRes.user, meRes.memberships, access);
           } catch (err) {
-            // Token expired or invalid
-            await authSession.clearToken();
-            clearRuntimeSession();
+            if (await authSession.clearTokenIfCurrent(token) || !await authSession.getToken()) clearRuntimeSession();
           }
         }
       } catch (err) {
@@ -221,13 +258,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     init();
-  }, [clearRuntimeSession, loadSchoolData]);
+  }, [applyAuthenticatedSession, clearRuntimeSession]);
 
   // Switch Active School
   const switchSchool = async (schoolId: string) => {
     const platformSchool = isPlatformAdmin && platformSchools.find((school) => school.id === schoolId && !school.disabledAt);
     const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active') || null;
-    if (!platformSchool && !membership) return;
+    if (isPlatformAdmin && !platformSchool) return;
+    if (!platformSchool && (!membership || !schools.some((school) => school.id === schoolId))) return;
     if (!isPlatformAdmin && (currentUser?.role === 'teacher' || currentUser?.role === 'security')) return;
     schoolLoadSequence.current += 1;
     setUsers([]);
@@ -246,7 +284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRoster([]);
 
     if (currentUser) {
-      const activeMem = membership;
+      const activeMem = platformSchool ? null : membership;
       setCurrentMembership(activeMem);
 
       const updatedUser = {
@@ -261,7 +299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const returnToPlatform = async () => {
-    const fallback = userMemberships.find((membership) => membership.status === 'active' && schools.some((school) => school.id === membership.schoolId));
+    const fallback = isPlatformAdmin ? null : userMemberships.find((membership) => membership.status === 'active' && schools.some((school) => school.id === membership.schoolId));
     setPlatformTargetSchoolId(null);
     if (fallback) {
       const target = schools.find((school) => school.id === fallback.schoolId) || null;
@@ -277,51 +315,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     else {
       schoolLoadSequence.current += 1;
+      setActiveSchoolId(null);
       setCurrentSchool(null); setCurrentMembership(null); setTeachers([]); setUsers([]); setAvailability([]); setAppointments([]); setNotifications([]); setRoster([]); setAuditLogs([]); setSettings(DEFAULT_SETTINGS); setIsolationTestResults([]);
       if (currentUser) setCurrentUser({ ...currentUser, role: undefined, students: [] });
     }
   };
 
   // Login
-  const login = async (phone: string, password: string, role?: UserRole): Promise<boolean> => {
-    try {
-      const res = await api.login(phone, password, role);
-      await authSession.setToken(res.token);
-      setUserMemberships(res.memberships);
-      const [ownSchoolsResult, capabilities] = await Promise.all([
-        api.getPublicSchools(), api.getPlatformCapabilities().catch(() => ({ manageSchools: false })),
-      ]);
-      const ownSchools = ownSchoolsResult.schools;
-      const managedSchools = capabilities.manageSchools ? await api.getManagedSchools().then((result) => result.schools).catch(() => []) : [];
-      setIsPlatformAdmin(capabilities.manageSchools);
-      setPlatformSchools(managedSchools);
-      setSchools(ownSchools);
-      const activeMembership = res.memberships.find((membership) => membership.status === 'active' && ownSchools.some((school) => school.id === membership.schoolId));
-      const targetSchoolId = activeMembership?.schoolId || (capabilities.manageSchools ? managedSchools.find((school) => !school.disabledAt)?.id : undefined) || ownSchools[0]?.id || 'sch-kazan-01';
-      const platformContext = !activeMembership && capabilities.manageSchools;
-      setPlatformTargetSchoolId(platformContext ? targetSchoolId : null);
-      setActiveSchoolId(targetSchoolId);
-
-      const activeSchool = ownSchools.find((s) => s.id === targetSchoolId) || (managedSchools.find((s) => s.id === targetSchoolId) ? asSchool(managedSchools.find((s) => s.id === targetSchoolId)!) : null);
-      setCurrentSchool(activeSchool);
-
-      const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId && m.status === 'active') || null;
-      setCurrentMembership(activeMem);
-
-      const userWithRole = {
-        ...res.user,
-        role: activeMem?.role || role,
-        branch: activeMem?.branch,
-      };
-
-      setCurrentUser(userWithRole);
-      void loadSchoolData(targetSchoolId, userWithRole, activeMem, platformContext);
-      return true;
-    } catch (err) {
-      console.error('Login error:', err);
-      return false;
-    }
-  };
+  const login = (phone: string, password: string, role?: UserRole): Promise<LoginResult> => performLogin({
+    authenticate: () => api.login(phone, password, role),
+    session: authSession,
+    clearRuntimeSession,
+    bootstrap: async (response) => {
+      const access = await fetchSchoolAccess(response.memberships, null, null);
+      if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+      applyAuthenticatedSession(response.user, response.memberships, access);
+    },
+  });
 
   // Logout
   const logout = async () => {
@@ -334,38 +344,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Quick switch user for instant evaluator testing
   const switchUser = async (userId: string) => {
-    try {
-      const res = await api.quickSwitch(userId);
-      await authSession.setToken(res.token);
-      setUserMemberships(res.memberships);
-      setPlatformTargetSchoolId(null);
-      const capabilities = await api.getPlatformCapabilities().catch(() => ({ manageSchools: false }));
-      setIsPlatformAdmin(capabilities.manageSchools);
-      const managedSchools = capabilities.manageSchools ? await api.getManagedSchools().then((result) => result.schools).catch(() => []) : [];
-      setPlatformSchools(managedSchools);
-      const ownSchools = (await api.getPublicSchools()).schools;
-      setSchools(ownSchools);
-
-      const targetSchoolId = res.memberships.find((membership) => membership.status === 'active' && ownSchools.some((school) => school.id === membership.schoolId))?.schoolId || ownSchools[0]?.id || 'sch-kazan-01';
-      setActiveSchoolId(targetSchoolId);
-
-      const activeSchool = ownSchools.find((s) => s.id === targetSchoolId) || null;
-      setCurrentSchool(activeSchool);
-
-      const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId && m.status === 'active') || null;
-      setCurrentMembership(activeMem);
-
-      const userWithRole = {
-        ...res.user,
-        role: activeMem?.role,
-        branch: activeMem?.branch,
-      };
-
-      setCurrentUser(userWithRole);
-      await loadSchoolData(targetSchoolId, userWithRole, activeMem);
-    } catch (err) {
-      console.error('Switch user error:', err);
-    }
+    const result = await performLogin({
+      authenticate: () => api.quickSwitch(userId),
+      session: authSession,
+      clearRuntimeSession,
+      bootstrap: async (response) => {
+        const access = await fetchSchoolAccess(response.memberships, null, null);
+        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+        applyAuthenticatedSession(response.user, response.memberships, access);
+      },
+    });
+    if (!result.ok) console.error('Switch user failed:', result.reason);
   };
 
   // Book Appointment

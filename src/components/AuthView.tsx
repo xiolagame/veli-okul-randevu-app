@@ -225,8 +225,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     }
     setIsSubmitting(true);
     try {
-      const success = await login(phone, password);
-      if (!success) setError('Telefon numarası veya şifre hatalı.');
+      const result = await login(phone, password);
+      if (!result.ok) {
+        setError(result.reason === 'INVALID_CREDENTIALS'
+          ? 'Telefon numarası veya şifre hatalı.'
+          : 'Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.');
+      }
+    } catch {
+      setError('Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       setIsSubmitting(false);
     }

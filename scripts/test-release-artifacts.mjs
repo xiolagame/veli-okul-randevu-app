@@ -6,6 +6,7 @@ const repositoryRoot = path.resolve(process.cwd());
 const clientRoot = path.join(repositoryRoot, 'dist', 'client');
 const serverRoot = path.join(repositoryRoot, 'dist', 'server');
 const publicRoot = path.join(repositoryRoot, 'public');
+const clientOnly = process.argv.includes('--client-only');
 
 function listFiles(root) {
   if (!fs.existsSync(root)) return [];
@@ -21,7 +22,7 @@ function relativeFiles(root) {
 }
 
 assert(fs.existsSync(clientRoot), 'Client artifact directory is missing.');
-assert(fs.existsSync(serverRoot), 'Server artifact directory is missing.');
+if (!clientOnly) assert(fs.existsSync(serverRoot), 'Server artifact directory is missing.');
 
 const clientFiles = relativeFiles(clientRoot);
 const publicFiles = relativeFiles(publicRoot);
@@ -72,7 +73,9 @@ for (const clientFile of clientFiles) {
 
 assert(!clientFilesLower.includes('server.cjs'), 'server.cjs must not be published with the client artifact.');
 assert(!clientFilesLower.includes('server.cjs.map'), 'server.cjs.map must not be published with the client artifact.');
-assert(fs.existsSync(path.join(serverRoot, 'server.cjs')), 'Server bundle is missing from the server artifact.');
-assert(fs.existsSync(path.join(serverRoot, 'server.cjs.map')), 'Server sourcemap is missing from the server artifact.');
+if (!clientOnly) {
+  assert(fs.existsSync(path.join(serverRoot, 'server.cjs')), 'Server bundle is missing from the server artifact.');
+  assert(fs.existsSync(path.join(serverRoot, 'server.cjs.map')), 'Server sourcemap is missing from the server artifact.');
+}
 
-console.log(`Release artifact safety test PASS (${clientFiles.length} client files, ${relativeFiles(serverRoot).length} server files).`);
+console.log(`Release artifact safety test PASS (${clientFiles.length} client files, ${clientOnly ? 0 : relativeFiles(serverRoot).length} server files).`);

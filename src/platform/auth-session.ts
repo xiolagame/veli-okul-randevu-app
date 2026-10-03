@@ -54,6 +54,15 @@ export class AuthSessionManager {
     await this.mutateStore(() => this.store.remove());
   }
 
+  async clearTokenIfCurrent(expectedToken: string): Promise<boolean> {
+    if (this.token !== expectedToken) return false;
+    this.revision += 1;
+    this.token = null;
+    this.hydrated = true;
+    await this.mutateStore(() => this.store.remove());
+    return true;
+  }
+
   async invalidateRejectedToken(rejectedToken: string): Promise<void> {
     const currentToken = await this.getToken();
     if (!currentToken || currentToken !== rejectedToken) return;
