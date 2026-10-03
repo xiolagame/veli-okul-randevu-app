@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "clean:build": "node scripts/clean-build-artifacts.mjs",
+    "build:client": "vite build",
+    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server/server.cjs",
+    "build": "npm run clean:build && npm run build:client && npm run build:server && npm run test:release-artifacts",
+    "start": "node dist/server/server.cjs",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "tsc --noEmit",
     "test:auth": "tsx scripts/test-activation-auth.ts",
@@ -26,6 +29,7 @@
     "test:platform-unseen": "tsx scripts/test-platform-unseen.ts",
     "test:platform-audit-clear": "tsx scripts/test-platform-audit-clear.ts",
     "test:help-center": "node scripts/test-help-center.mjs",
+    "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"

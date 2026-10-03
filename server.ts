@@ -21,7 +21,7 @@ async function startServer() {
   }
 
   // Vite middleware for development vs static build for production
-  const distPath = path.join(process.cwd(), 'dist');
+  const distPath = path.join(process.cwd(), 'dist', 'client');
   const indexHtmlPath = path.join(distPath, 'index.html');
 
   if (process.env.NODE_ENV !== 'production' || !fs.existsSync(indexHtmlPath)) {
