@@ -15,8 +15,10 @@ import {
   TenantIsolationTestResult,
   SecurityQrVerification,
 } from '../types';
-import { api, setAuthToken, setActiveSchoolId, getAuthToken, getActiveSchoolId, setPlatformTargetSchoolId, getPlatformTargetSchoolId } from '../services/api';
+import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
+import { authSession } from '../platform/auth-session';
+import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
 
 interface AppContextType {
   refreshSchoolData: () => Promise<void>;
@@ -45,7 +47,7 @@ interface AppContextType {
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
   bookAppointment: (data: {
     teacherId: string;
@@ -110,6 +112,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoading, setIsLoading] = useState(true);
   const platformContextActive = !!getPlatformTargetSchoolId() && isPlatformAdmin;
 
+  const clearRuntimeSession = useCallback(() => {
+    schoolLoadSequence.current += 1;
+    clearAuthSensitivePreferences();
+    setUsers([]);
+    setUsersError('');
+    setUsersLoading(false);
+    setCurrentUser(null);
+    setIsPlatformAdmin(false);
+    setPlatformSchools([]);
+    setSchools([]);
+    setCurrentSchool(null);
+    setUserMemberships([]);
+    setCurrentMembership(null);
+    setTeachers([]);
+    setAvailability([]);
+    setAppointments([]);
+    setNotifications([]);
+    setSettings(DEFAULT_SETTINGS);
+    setAuditLogs([]);
+    setRoster([]);
+    setIsolationTestResults([]);
+  }, []);
+
+  useEffect(() => authSession.subscribe(() => clearRuntimeSession()), [clearRuntimeSession]);
+
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
     if (!schoolId) return;
@@ -148,7 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async function init() {
       setIsLoading(true);
       try {
-        const token = getAuthToken();
+        const token = await authSession.hydrate();
         if (token) {
           try {
             const [meRes, schoolsRes, capabilities] = await Promise.all([
@@ -182,8 +209,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             void loadSchoolData(targetSchoolId, activeUser, activeMem, platformContext);
           } catch (err) {
             // Token expired or invalid
-            setAuthToken(null);
-            setCurrentUser(null);
+            await authSession.clearToken();
+            clearRuntimeSession();
           }
         }
       } catch (err) {
@@ -194,7 +221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     init();
-  }, [loadSchoolData]);
+  }, [clearRuntimeSession, loadSchoolData]);
 
   // Switch Active School
   const switchSchool = async (schoolId: string) => {
@@ -259,7 +286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (phone: string, password: string, role?: UserRole): Promise<boolean> => {
     try {
       const res = await api.login(phone, password, role);
-      setAuthToken(res.token);
+      await authSession.setToken(res.token);
       setUserMemberships(res.memberships);
       const [ownSchoolsResult, capabilities] = await Promise.all([
         api.getPublicSchools(), api.getPlatformCapabilities().catch(() => ({ manageSchools: false })),
@@ -297,31 +324,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Logout
-  const logout = () => {
-    schoolLoadSequence.current += 1;
-    setUsers([]);
-    setUsersError('');
-    setUsersLoading(false);
-    setAuthToken(null);
-    setPlatformTargetSchoolId(null);
-    setCurrentUser(null);
-    setIsPlatformAdmin(false);
-    setPlatformSchools([]);
-    setSchools([]);
-    setCurrentSchool(null);
-    setUserMemberships([]);
-    setCurrentMembership(null);
-    setAppointments([]);
-    setNotifications([]);
-    setAuditLogs([]);
-    setRoster([]);
+  const logout = async () => {
+    try {
+      await authSession.clearToken();
+    } finally {
+      clearRuntimeSession();
+    }
   };
 
   // Quick switch user for instant evaluator testing
   const switchUser = async (userId: string) => {
     try {
       const res = await api.quickSwitch(userId);
-      setAuthToken(res.token);
+      await authSession.setToken(res.token);
       setUserMemberships(res.memberships);
       setPlatformTargetSchoolId(null);
       const capabilities = await api.getPlatformCapabilities().catch(() => ({ manageSchools: false }));

@@ -13,49 +13,25 @@ import {
   Student,
   TenantIsolationTestResult,
 } from '../types';
-
-let authToken: string | null = localStorage.getItem('veli_auth_token');
-let currentSchoolId: string | null = localStorage.getItem('veli_active_school_id');
-let platformTargetSchoolId: string | null = localStorage.getItem('veli_platform_target_school_id');
-
-export const setAuthToken = (token: string | null) => {
-  authToken = token;
-  if (token) {
-    localStorage.setItem('veli_auth_token', token);
-  } else {
-    localStorage.removeItem('veli_auth_token');
-  }
-};
-
-export const getAuthToken = () => authToken;
-
-export const setActiveSchoolId = (schoolId: string | null) => {
-  currentSchoolId = schoolId;
-  if (schoolId) {
-    localStorage.setItem('veli_active_school_id', schoolId);
-  } else {
-    localStorage.removeItem('veli_active_school_id');
-  }
-};
-
-export const getActiveSchoolId = () => currentSchoolId;
-export const setPlatformTargetSchoolId = (schoolId: string | null) => {
-  platformTargetSchoolId = schoolId;
-  if (schoolId) localStorage.setItem('veli_platform_target_school_id', schoolId);
-  else localStorage.removeItem('veli_platform_target_school_id');
-};
-export const getPlatformTargetSchoolId = () => platformTargetSchoolId;
+import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../platform/api-session-policy';
+import { authSession } from '../platform/auth-session';
+import { getActiveSchoolId, getPlatformTargetSchoolId } from '../platform/client-preferences';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const REQUEST_TIMEOUT_MS = 20_000;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const requestToken = await authSession.getToken();
+  const authenticatedRequestToken = isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
+  const currentSchoolId = getActiveSchoolId();
+  const platformTargetSchoolId = getPlatformTargetSchoolId();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
+  if (authenticatedRequestToken) {
+    headers['Authorization'] = `Bearer ${authenticatedRequestToken}`;
   }
 
   if (currentSchoolId) {
@@ -66,15 +42,35 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ? `/api/platform-target/${encodeURIComponent(platformTargetSchoolId)}${endpoint.slice(4)}`
     : endpoint;
   const url = `${API_BASE_URL}${targetScopedEndpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+  const abortController = new AbortController();
+  let timedOut = false;
+  const handleExternalAbort = () => abortController.abort(options.signal?.reason);
+  if (options.signal?.aborted) handleExternalAbort();
+  else options.signal?.addEventListener('abort', handleExternalAbort, { once: true });
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut = true;
+    abortController.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+      signal: abortController.signal,
+    });
+  } catch (error) {
+    if (timedOut) throw new Error('İstek zaman aşımına uğradı. Lütfen bağlantınızı kontrol edip tekrar deneyin.');
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', handleExternalAbort);
+  }
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    if (res.status === 401 && endpoint !== '/api/auth/login') {
+    if (await applyUnauthorizedSessionPolicy(res.status, endpoint, authenticatedRequestToken, authSession)) {
       throw new Error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
     }
     throw new Error(data.error || data.message || `İşlem başarısız (HTTP ${res.status})`);

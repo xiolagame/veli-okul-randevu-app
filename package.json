@@ -30,6 +30,7 @@
     "test:platform-audit-clear": "tsx scripts/test-platform-audit-clear.ts",
     "test:help-center": "node scripts/test-help-center.mjs",
     "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
+    "test:mobile-platform": "tsx scripts/test-mobile-platform-foundation.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
