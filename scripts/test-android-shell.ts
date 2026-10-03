@@ -88,6 +88,7 @@ for (const packageName of [
 ]) {
   assert.match(capacitorPackages[packageName] ?? '', /^[~^]?8\./, `${packageName} must remain on Capacitor 8.`);
 }
+assert.equal(packageJson.dependencies['@aparajita/capacitor-secure-storage'], '8.0.1');
 for (const excludedPackage of [
   '@capacitor/ios',
   '@capacitor/camera',
@@ -164,9 +165,18 @@ assert.equal(generatedConfig.appId, 'com.velirandevu.app');
 assert.equal(generatedConfig.appName, 'Veli Randevu');
 assert.equal(generatedConfig.webDir, 'dist/client');
 assert.equal(generatedConfig.server, undefined, 'Generated Capacitor config must not use server.url.');
+const generatedPlugins = JSON.parse(read('android/app/src/main/assets/capacitor.plugins.json')) as Array<{ pkg: string; classpath: string }>;
+assert(generatedPlugins.some((plugin) => plugin.pkg === '@aparajita/capacitor-secure-storage' && plugin.classpath === 'com.aparajita.capacitor.securestorage.SecureStorage'));
+assert(read('android/capacitor.settings.gradle').includes("include ':aparajita-capacitor-secure-storage'"));
+assert(read('android/app/capacitor.build.gradle').includes("implementation project(':aparajita-capacitor-secure-storage')"));
 
 const manifest = read('android/app/src/main/AndroidManifest.xml');
 assert(manifest.includes('android.permission.INTERNET'));
+assert.match(manifest, /android:allowBackup="false"/);
+assert.match(manifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
+const backupRules = read('android/app/src/main/res/xml/data_extraction_rules.xml');
+assert.match(backupRules, /<cloud-backup>[\s\S]*<exclude domain="root" path="\."\s*\/>[\s\S]*<\/cloud-backup>/);
+assert.match(backupRules, /<device-transfer>[\s\S]*<exclude domain="root" path="\."\s*\/>[\s\S]*<\/device-transfer>/);
 const nativeTheme = read('android/app/src/main/res/values/styles.xml');
 assert.match(nativeTheme, /AppTheme\.NoActionBar" parent="Theme\.AppCompat\.Light\.NoActionBar"/);
 assert.match(nativeTheme, /android:forceDarkAllowed">false</);

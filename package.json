@@ -35,12 +35,14 @@
     "test:help-center": "node scripts/test-help-center.mjs",
     "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
     "test:mobile-platform": "tsx scripts/test-mobile-platform-foundation.ts",
+    "test:secure-storage": "tsx scripts/test-native-secure-storage.ts",
     "test:android-shell": "tsx scripts/test-android-shell.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.5.2",

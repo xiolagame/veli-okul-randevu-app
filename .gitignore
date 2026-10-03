@@ -66,8 +66,7 @@ agenthub/agents/youtube/db
 /server/data/postgres_db/
 /.npm-cache/
 
-# The repository uses bun.lock as its dependency lockfile.
-/package-lock.json
+# Keep the npm and Bun lockfiles in sync with package.json.
 
 # Archive files and large assets
 **/*.zip

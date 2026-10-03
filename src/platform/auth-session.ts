@@ -1,4 +1,5 @@
-import { AuthTokenStore, webAuthTokenStore } from './auth-token-store';
+import { AuthTokenStore } from './auth-token-store';
+import { runtimeAuthTokenStore } from './auth-token-store-selection';
 
 export type SessionInvalidationReason = 'unauthorized';
 export type SessionInvalidationListener = (reason: SessionInvalidationReason) => void;
@@ -18,7 +19,9 @@ export class AuthSessionManager {
     if (this.hydrated) return this.token;
     if (!this.hydrationPromise) {
       const hydrationRevision = this.revision;
-      this.hydrationPromise = this.storeMutation.then(() => this.store.get()).then((token) => {
+      const hydrationRead = this.storeMutation.then(() => this.store.get());
+      this.storeMutation = hydrationRead.then(() => {}, () => {});
+      this.hydrationPromise = hydrationRead.then((token) => {
         if (this.revision === hydrationRevision) {
           this.token = token;
           this.hydrated = true;
@@ -48,10 +51,16 @@ export class AuthSessionManager {
   }
 
   async clearToken(): Promise<void> {
-    this.revision += 1;
+    const previousToken = this.token;
+    const revision = ++this.revision;
     this.token = null;
     this.hydrated = true;
-    await this.mutateStore(() => this.store.remove());
+    try {
+      await this.mutateStore(() => this.store.remove());
+    } catch (error) {
+      if (this.revision === revision) this.token = previousToken;
+      throw error;
+    }
   }
 
   async clearTokenIfCurrent(expectedToken: string): Promise<boolean> {
@@ -98,4 +107,4 @@ export class AuthSessionManager {
   }
 }
 
-export const authSession = new AuthSessionManager(webAuthTokenStore);
+export const authSession = new AuthSessionManager(runtimeAuthTokenStore);

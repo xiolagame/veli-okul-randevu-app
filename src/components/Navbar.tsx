@@ -15,6 +15,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const { currentUser, currentSchool, schools, platformSchools, isPlatformAdmin, platformContextActive, userMemberships, switchSchool, switchUser, logout, unreadNotificationCount } = useApp();
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const canSwitchSchool = isPlatformAdmin || currentUser?.role === 'parent';
   const ownSchools = schools.filter((school) => userMemberships.some((membership) => membership.schoolId === school.id && membership.status === 'active'));
   const schoolOptions = isPlatformAdmin ? platformSchools : ownSchools;
@@ -65,7 +67,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
       {showPersonaMenu && <Dialog title="Hesabım" onClose={() => setShowPersonaMenu(false)}>
         <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
-        <Button variant="secondary" className="w-full" onClick={() => { setShowPersonaMenu(false); logout(); }}><LogOut size={18} />Oturumu kapat</Button>
+        <Button variant="secondary" className="w-full" disabled={isLoggingOut} onClick={() => {
+          setLogoutError('');
+          setIsLoggingOut(true);
+          void logout().then(() => setShowPersonaMenu(false)).catch(() => {
+            setLogoutError('Güvenli oturum kapatılamadı. Lütfen tekrar deneyin.');
+          }).finally(() => setIsLoggingOut(false));
+        }}><LogOut size={18} />Oturumu kapat</Button>
+        {logoutError && <p role="alert" className="mt-2 text-sm text-red-700">{logoutError}</p>}
         {onManageSchools && <Button variant="secondary" className="w-full mt-3" onClick={() => { setShowPersonaMenu(false); onManageSchools(); }}><Building2 size={18} />Platform Yönetimi</Button>}
         {import.meta.env.DEV && <details className="mt-6"><summary className="text-xs text-slate-500 cursor-pointer">Yerel test hesapları</summary><div className="space-y-1 mt-3">{DEMO_PERSONAS.map((persona) => <button type="button" key={persona.id} className="w-full text-left p-2 text-sm hover:bg-slate-50 rounded-lg" onClick={() => { void switchUser(persona.id); setShowPersonaMenu(false); }}>{persona.name}<span className="block text-xs text-slate-500">{persona.desc}</span></button>)}</div></details>}
       </Dialog>}

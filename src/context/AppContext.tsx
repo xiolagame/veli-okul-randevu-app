@@ -46,6 +46,7 @@ interface AppContextType {
   isolationTestResults: TenantIsolationTestResult[];
   unreadNotificationCount: number;
   isLoading: boolean;
+  authStorageError: boolean;
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
@@ -141,6 +142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [roster, setRoster] = useState<SchoolRosterRecord[]>([]);
   const [isolationTestResults, setIsolationTestResults] = useState<TenantIsolationTestResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authStorageError, setAuthStorageError] = useState(false);
   const platformContextActive = !!getPlatformTargetSchoolId() && isPlatformAdmin;
 
   const clearRuntimeSession = useCallback(() => {
@@ -250,8 +252,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (await authSession.clearTokenIfCurrent(token) || !await authSession.getToken()) clearRuntimeSession();
           }
         }
-      } catch (err) {
-        console.error('Initialization error:', err);
+      } catch {
+        clearRuntimeSession();
+        setAuthStorageError(true);
       } finally {
         setIsLoading(false);
       }
@@ -322,24 +325,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Login
-  const login = (phone: string, password: string, role?: UserRole): Promise<LoginResult> => performLogin({
-    authenticate: () => api.login(phone, password, role),
-    session: authSession,
-    clearRuntimeSession,
-    bootstrap: async (response) => {
-      const access = await fetchSchoolAccess(response.memberships, null, null);
-      if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-      applyAuthenticatedSession(response.user, response.memberships, access);
-    },
-  });
+  const login = async (phone: string, password: string, role?: UserRole): Promise<LoginResult> => {
+    const result = await performLogin({
+      authenticate: () => api.login(phone, password, role),
+      session: authSession,
+      clearRuntimeSession,
+      bootstrap: async (response) => {
+        const access = await fetchSchoolAccess(response.memberships, null, null);
+        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+        applyAuthenticatedSession(response.user, response.memberships, access);
+      },
+    });
+    if (result.ok) setAuthStorageError(false);
+    return result;
+  };
 
   // Logout
   const logout = async () => {
-    try {
-      await authSession.clearToken();
-    } finally {
-      clearRuntimeSession();
-    }
+    await authSession.clearToken();
+    clearRuntimeSession();
   };
 
   // Quick switch user for instant evaluator testing
@@ -540,6 +544,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isolationTestResults,
         unreadNotificationCount,
         isLoading,
+        authStorageError,
         switchSchool,
         returnToPlatform,
         login,

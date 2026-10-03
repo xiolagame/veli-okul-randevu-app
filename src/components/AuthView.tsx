@@ -22,7 +22,7 @@ type SchoolAdminStep = 'verify' | 'password' | null;
 type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
 
 export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
-  const { login } = useApp();
+  const { login, authStorageError } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -229,10 +229,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       if (!result.ok) {
         setError(result.reason === 'INVALID_CREDENTIALS'
           ? 'Telefon numarası veya şifre hatalı.'
-          : 'Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.');
+          : 'Güvenli oturum başlatılamadı. Bağlantınızı kontrol edip tekrar deneyin.');
       }
     } catch {
-      setError('Giriş işlemi tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.');
+      setError('Güvenli oturum başlatılamadı. Lütfen tekrar deneyin.');
     } finally {
       setIsSubmitting(false);
     }
@@ -310,6 +310,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <h2>Tekrar merhaba.</h2>
           <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
+          {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
