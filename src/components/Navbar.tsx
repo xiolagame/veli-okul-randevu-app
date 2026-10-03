@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp } from 'lucide-react';
 import { Brand, Button, Dialog } from './ui';
+import { androidPush, canUseAndroidPush, PushStatus } from '../platform/android-push';
+import { appLifecycle } from '../platform/lifecycle';
 
 interface NavbarProps {
   onManageSchools?: () => void;
@@ -12,7 +14,20 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin, onOpenOnboarding, onOpenHelp, onManageSchools }) => {
-  const { currentUser, currentSchool, schools, platformSchools, isPlatformAdmin, platformContextActive, userMemberships, switchSchool, switchUser, logout, unreadNotificationCount } = useApp();
+  const { currentUser, currentSchool, schools, platformSchools, isPlatformAdmin, platformContextActive, userMemberships, switchSchool, switchUser, logout, unreadNotificationCount, refreshMobileData } = useApp();
+  const [pushStatus, setPushStatus] = useState<PushStatus>('off');
+  const [dismissedPushIntro, setDismissedPushIntro] = useState(false);
+  const refreshMobileDataRef = useRef(refreshMobileData);
+  refreshMobileDataRef.current = refreshMobileData;
+  useEffect(() => {
+    if (!currentUser?.id || !canUseAndroidPush(currentUser.role)) return;
+    void androidPush.start(currentUser.id, currentUser.role, () => {
+      void refreshMobileDataRef.current().catch(() => {});
+    }, setPushStatus);
+    return appLifecycle.subscribe((state) => {
+      if (state === 'ACTIVE') void androidPush.refreshPermission();
+    });
+  }, [currentUser?.id, currentUser?.role]);
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [logoutError, setLogoutError] = useState('');
@@ -67,6 +82,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
       {showPersonaMenu && <Dialog title="Hesabım" onClose={() => setShowPersonaMenu(false)}>
         <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
+        {canUseAndroidPush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
+          <strong>Randevu bildirimleri</strong>
+          <p className="text-slate-600 mt-1">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler kapalı.'}</p>
+          {pushStatus !== 'ready' && !dismissedPushIntro && <>
+            <p className="text-slate-600 mt-2">Randevu talepleri ve sonuçları için cihaz bildirimi almak ister misiniz? İzin vermeseniz de uygulama bildirimlerini görebilirsiniz.</p>
+            <div className="flex gap-2 mt-3"><Button variant="secondary" onClick={() => setDismissedPushIntro(true)}>Şimdi değil</Button><Button onClick={() => {
+              setPushStatus('preparing');
+              void androidPush.enable().then(setPushStatus);
+            }}>Bildirimleri aç</Button></div>
+          </>}
+        </div>}
         <Button variant="secondary" className="w-full" disabled={isLoggingOut} onClick={() => {
           setLogoutError('');
           setIsLoggingOut(true);

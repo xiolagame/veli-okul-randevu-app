@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "NODE_ENV=development tsx server.ts",
     "clean:build": "node scripts/clean-build-artifacts.mjs",
@@ -37,6 +40,7 @@
     "test:mobile-platform": "tsx scripts/test-mobile-platform-foundation.ts",
     "test:secure-storage": "tsx scripts/test-native-secure-storage.ts",
     "test:android-shell": "tsx scripts/test-android-shell.ts",
+    "test:push-notifications": "tsx scripts/test-push-notifications.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
     "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
@@ -48,6 +52,7 @@
     "@capacitor/core": "8.5.2",
     "@capacitor/keyboard": "8.0.6",
     "@capacitor/network": "8.0.1",
+    "@capacitor/push-notifications": "8.1.3",
     "@capacitor/splash-screen": "8.0.2",
     "@capacitor/status-bar": "8.0.4",
     "@electric-sql/pglite": "^0.5.8",
@@ -57,6 +62,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "firebase-admin": "14.5.0",
     "lucide-react": "^1.16.0",
     "motion": "^12.4.7",
     "pg": "^8.23.0",

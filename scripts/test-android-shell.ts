@@ -46,6 +46,10 @@ function assertSafeClientTree(root: string, label: string): void {
     'DATABASE_URL',
     'JWT_SECRET',
     'AUTH_CODE_SECRET',
+    'FCM_FIREBASE_PROJECT_ID',
+    'FCM_FIREBASE_CLIENT_EMAIL',
+    'FCM_FIREBASE_PRIVATE_KEY',
+    'firebase-admin',
     'RESEND_API_KEY',
     '-----BEGIN PRIVATE KEY-----',
     'server.cjs',
@@ -89,11 +93,11 @@ for (const packageName of [
   assert.match(capacitorPackages[packageName] ?? '', /^[~^]?8\./, `${packageName} must remain on Capacitor 8.`);
 }
 assert.equal(packageJson.dependencies['@aparajita/capacitor-secure-storage'], '8.0.1');
+assert.equal(packageJson.dependencies['@capacitor/push-notifications'], '8.1.3');
 for (const excludedPackage of [
   '@capacitor/ios',
   '@capacitor/camera',
   '@capacitor/filesystem',
-  '@capacitor/push-notifications',
   '@capacitor/geolocation',
   '@capacitor-community/secure-storage',
 ]) {
@@ -167,11 +171,13 @@ assert.equal(generatedConfig.webDir, 'dist/client');
 assert.equal(generatedConfig.server, undefined, 'Generated Capacitor config must not use server.url.');
 const generatedPlugins = JSON.parse(read('android/app/src/main/assets/capacitor.plugins.json')) as Array<{ pkg: string; classpath: string }>;
 assert(generatedPlugins.some((plugin) => plugin.pkg === '@aparajita/capacitor-secure-storage' && plugin.classpath === 'com.aparajita.capacitor.securestorage.SecureStorage'));
+assert(generatedPlugins.some((plugin) => plugin.pkg === '@capacitor/push-notifications'));
 assert(read('android/capacitor.settings.gradle').includes("include ':aparajita-capacitor-secure-storage'"));
 assert(read('android/app/capacitor.build.gradle').includes("implementation project(':aparajita-capacitor-secure-storage')"));
 
 const manifest = read('android/app/src/main/AndroidManifest.xml');
 assert(manifest.includes('android.permission.INTERNET'));
+assert(manifest.includes('android.permission.POST_NOTIFICATIONS'));
 assert.match(manifest, /android:allowBackup="false"/);
 assert.match(manifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
 const backupRules = read('android/app/src/main/res/xml/data_extraction_rules.xml');
@@ -187,7 +193,6 @@ assert.match(authStyles, /html\[data-runtime-platform="android"\] \.auth-form-si
 assert(!read('src/context/AppContext.tsx').includes("'sch-kazan-01'"), 'Authenticated sessions must not use a hard-coded school fallback.');
 for (const forbiddenPermission of [
   'android.permission.CAMERA',
-  'android.permission.POST_NOTIFICATIONS',
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.RECORD_AUDIO',
@@ -200,7 +205,6 @@ for (const forbiddenPermission of [
 ]) {
   assert(!manifest.includes(forbiddenPermission), `Unexpected Phase 3A permission: ${forbiddenPermission}`);
 }
-assert(!fs.existsSync(path.join(androidRoot, 'app', 'google-services.json')), 'Firebase configuration is outside Phase 3A scope.');
 
 const brandSource = path.join(repositoryRoot, 'public', 'branding', 'veli-randevu-logo.png');
 const androidBrand = path.join(androidRoot, 'app', 'src', 'main', 'res', 'drawable-nodpi', 'veli_randevu_logo.png');

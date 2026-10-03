@@ -1,10 +1,13 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
 import { Building2, ShieldAlert, QrCode, Shield } from 'lucide-react';
 import { HELP_PATH, isHelpPath, LEGACY_HELP_SUPPORT_PATH, PUBLIC_CONTACT_PATH, PUBLIC_REQUEST_PATH } from './utils/public-request-route';
+import { api } from './services/api';
+import { pendingNavigationIntent } from './platform/navigation-intent';
+import { AppointmentNavigationResolver } from './platform/appointment-navigation';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -18,13 +21,18 @@ const PublicRequestPage = lazy(() => import('./components/PublicRequestPage').th
 const HelpCenterPage = lazy(() => import('./components/HelpCenterPage').then((module) => ({ default: module.HelpCenterPage })));
 
 export const AppContent: React.FC = () => {
-  const { currentUser, currentSchool, currentMembership, isLoading, isPlatformAdmin, platformContextActive, platformSchools, switchSchool, refreshPlatformSchools } = useApp();
+  const { currentUser, currentSchool, currentMembership, userMemberships, schools, isLoading, isPlatformAdmin, platformContextActive, platformSchools, switchSchool, refreshPlatformSchools, refreshMobileData } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showSchoolManagement, setShowSchoolManagement] = useState(false);
   const [platformManagementSection, setPlatformManagementSection] = useState<'overview' | 'schools'>('overview');
   const [appLocation, setAppLocation] = useState(() => window.location.pathname + window.location.search);
+  const [pushAppointmentIntent, setPushAppointmentIntent] = useState<{ id: string; sequence: number } | null>(null);
+  const appointmentNavigation = useRef(new AppointmentNavigationResolver());
+  const sessionKey = `${currentUser?.id || ''}:${currentSchool?.id || ''}:${currentMembership?.id || ''}`;
+  const sessionKeyRef = useRef(sessionKey);
+  sessionKeyRef.current = sessionKey;
   const pathname = appLocation.split('?')[0];
   const canManageSchools = isPlatformAdmin;
   const showPlatformHome = isPlatformAdmin && !platformContextActive && !currentMembership;
@@ -37,6 +45,46 @@ export const AppContent: React.FC = () => {
   useEffect(() => {
     setShowAdminModal(currentUser?.role === 'admin' && (!isPlatformAdmin || platformContextActive || !!currentMembership));
   }, [currentUser?.id, currentUser?.role, currentMembership?.id, isPlatformAdmin, platformContextActive]);
+
+  useEffect(() => { setPushAppointmentIntent(null); }, [currentUser?.id, currentSchool?.id]);
+
+  useEffect(() => {
+    if (isLoading || !currentUser || !currentSchool || isPlatformAdmin || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;
+    const schoolId = currentSchool.id;
+    const resolverSessionKey = sessionKey;
+    const accessibleSchoolIds = userMemberships
+      .filter((membership) => membership.status === 'active'
+        && ['parent', 'teacher'].includes(membership.role)
+        && schools.some((school) => school.id === membership.schoolId))
+      .map((membership) => membership.schoolId);
+    const handleIntent = () => {
+      const intent = pendingNavigationIntent.peek();
+      if (!intent) return;
+      if (intent.type === 'NOTIFICATIONS') {
+        pendingNavigationIntent.consume(intent);
+        setShowNotifications(true);
+      } else if (intent.type === 'APPOINTMENT') {
+        void appointmentNavigation.current.resolve({
+          store: pendingNavigationIntent,
+          currentSchoolId: schoolId,
+          accessibleSchoolIds,
+          getAppointmentIds: async (candidateSchoolId) => (await api.getAppointments(candidateSchoolId)).appointments.map((appointment) => appointment.id),
+          switchSchool,
+          isCurrent: () => sessionKeyRef.current === resolverSessionKey,
+          navigate: async (appointmentId) => {
+            await refreshMobileData();
+            setPushAppointmentIntent((previous) => ({ id: appointmentId, sequence: (previous?.sequence || 0) + 1 }));
+          },
+        }).catch(() => {});
+      } else {
+        pendingNavigationIntent.consume(intent);
+      }
+    };
+    handleIntent();
+    window.addEventListener('veli:navigation-intent', handleIntent);
+    return () => window.removeEventListener('veli:navigation-intent', handleIntent);
+  }, [isLoading, currentUser?.id, currentSchool?.id, currentMembership?.id, currentMembership?.role,
+    isPlatformAdmin, userMemberships, schools]);
 
   useEffect(() => {
     const syncLocation = () => setAppLocation(window.location.pathname + window.location.search);
@@ -151,8 +199,8 @@ export const AppContent: React.FC = () => {
           : <>
         {showPlatformHome && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Building2} title={platformSchools.length ? 'Yönetilecek okulu seçin' : 'Henüz okul bulunmuyor'} description={platformSchools.length ? 'Okul seçmek veya platform ayarlarını yönetmek için Platform Yönetimi alanını açın.' : 'Platformu kullanmaya başlamak için ilk okul kaydını oluşturun.'} action={<Button onClick={() => openPlatformManagement(platformSchools.length ? 'overview' : 'schools')}>{platformSchools.length ? 'Platform Yönetimi' : 'Yeni Okul Oluştur'}</Button>} /></div></main>}
         {!showPlatformHome && currentUser.role === 'admin' && !showAdminModal && <main id="main-content" className="page-shell"><div className="surface"><EmptyState icon={Shield} title="Okulunuzun yönetim alanı" description="Personeli, veli kayıtlarını ve okul görüşmelerini buradan yönetin." action={<Button onClick={() => setShowAdminModal(true)}>Yönetim panelini aç</Button>} /></div></main>}
-        {currentUser.role === 'parent' && <ParentView />}
-        {currentUser.role === 'teacher' && <TeacherView />}
+        {currentUser.role === 'parent' && <ParentView pushAppointmentIntent={pushAppointmentIntent} />}
+        {currentUser.role === 'teacher' && <TeacherView pushAppointmentIntent={pushAppointmentIntent} />}
         {currentUser.role === 'security' && <SecurityView key={currentSchool?.id} />}
         {!isPlatformAdmin && !currentUser.role && (
           <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl shadow-md border border-slate-200 text-center space-y-4">

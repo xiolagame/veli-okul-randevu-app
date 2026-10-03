@@ -20,10 +20,13 @@ import { ManagedSchool } from '../types/platform';
 import { authSession } from '../platform/auth-session';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
 import { LoginResult, performLogin } from '../platform/login-flow';
+import { androidPush } from '../platform/android-push';
+import { pendingNavigationIntent } from '../platform/navigation-intent';
 import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
 
 interface AppContextType {
   refreshSchoolData: () => Promise<void>;
+  refreshMobileData: () => Promise<void>;
   refreshPlatformSchools: () => Promise<void>;
   currentUser: User | null;
   users: User[];
@@ -269,7 +272,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active') || null;
     if (isPlatformAdmin && !platformSchool) return;
     if (!platformSchool && (!membership || !schools.some((school) => school.id === schoolId))) return;
-    if (!isPlatformAdmin && (currentUser?.role === 'teacher' || currentUser?.role === 'security')) return;
+    if (!isPlatformAdmin && currentUser?.role === 'security') return;
     schoolLoadSequence.current += 1;
     setUsers([]);
     setUsersError('');
@@ -342,7 +345,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = async () => {
+    await androidPush.beforeLogout();
     await authSession.clearToken();
+    pendingNavigationIntent.clear();
     clearRuntimeSession();
   };
 
@@ -498,6 +503,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        refreshMobileData: async () => {
+          if (!currentSchool || !currentUser || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;
+          const schoolId = currentSchool.id;
+          const [notificationResult, appointmentResult] = await Promise.all([
+            api.getNotifications(schoolId), api.getAppointments(schoolId),
+          ]);
+          if (schoolId !== getActiveSchoolId()) return;
+          setNotifications(notificationResult.notifications);
+          setAppointments(appointmentResult.appointments);
+        },
         refreshSchoolData: async () => {
           const schoolId = currentSchool?.id;
           if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;

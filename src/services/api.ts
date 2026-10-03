@@ -81,6 +81,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  registerPushDevice: (data: { installationId: string; platform: 'ANDROID'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string }) =>
+    request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
+  deactivatePushDevice: (installationId: string) =>
+    request<{ success: boolean }>(`/api/mobile/push/devices/${encodeURIComponent(installationId)}`, { method: 'DELETE' }),
   getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
   importRoster: (schoolId: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
     request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ records, preview }) }),

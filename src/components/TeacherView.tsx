@@ -1,5 +1,5 @@
 import { formatDate, getIstanbulDate } from '../utils/dates';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge } from './ui';
@@ -16,7 +16,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 
-export const TeacherView: React.FC = () => {
+export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; sequence: number } | null }> = ({ pushAppointmentIntent }) => {
   const {
     currentUser,
     teachers,
@@ -33,6 +33,21 @@ export const TeacherView: React.FC = () => {
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'availability' | 'profile'>('home');
+  useEffect(() => {
+    if (!pushAppointmentIntent) return;
+    setAppointmentFilter('all');
+    setActiveTab('appointments');
+  }, [pushAppointmentIntent?.sequence]);
+  useEffect(() => {
+    if (activeTab !== 'appointments' || !pushAppointmentIntent) return;
+    const frame = requestAnimationFrame(() => {
+      const card = Array.from(document.querySelectorAll<HTMLElement>('[data-appointment-id]'))
+        .find((element) => element.dataset.appointmentId === pushAppointmentIntent.id);
+      card?.scrollIntoView({ block: 'center' });
+      card?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, pushAppointmentIntent?.sequence, appointments]);
   const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'today' | 'pending' | 'approved'>('all');
   const [rejectingAptId, setRejectingAptId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
@@ -104,7 +119,7 @@ export const TeacherView: React.FC = () => {
     setActiveTab('appointments');
   };
   const appointmentCard = (appointment: Appointment) => (
-    <article key={appointment.id} className="appointment-card">
+    <article key={appointment.id} className="appointment-card" data-appointment-id={appointment.id} tabIndex={-1}>
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{appointment.studentName}</h3><p>{appointment.className} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div>

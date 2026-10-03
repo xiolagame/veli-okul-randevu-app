@@ -64,6 +64,12 @@ export class PendingNavigationIntentStore {
     return intent;
   }
 
+  consume(intent: NavigationIntent): boolean {
+    if (this.pendingIntent !== intent) return false;
+    this.pendingIntent = null;
+    return true;
+  }
+
   clear(): void {
     this.pendingIntent = null;
   }

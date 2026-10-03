@@ -4,6 +4,7 @@ import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
 import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
 import crypto from 'crypto';
+import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice } from './push-notifications';
 import {
   AuthenticatedRequest,
   authMiddleware,
@@ -57,6 +58,30 @@ const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> 
 };
 
 export const apiRouter = Router();
+apiRouter.post('/mobile/push/devices', authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!await withinAuthRateLimit(`push-device:${req.user!.id}`, 30, 15)) {
+      return res.status(429).json({ error: 'Cihaz kaydı için çok fazla istek gönderildi.' });
+    }
+    const db = await getDb();
+    const eligible = await db.query(`SELECT 1 FROM school_memberships sm JOIN schools s ON s.id=sm.school_id
+      WHERE sm.user_id=$1 AND sm.status='active' AND sm.role IN ('parent','teacher')
+      AND s.disabled_at IS NULL LIMIT 1`, [req.user!.id]);
+    if (!eligible.rows.length) return res.status(403).json({ error: 'Bu hesap için mobil bildirim kullanılamıyor.' });
+    if (!await registerPushDevice(req.user!.id, req.body)) return res.status(400).json({ error: 'Geçersiz cihaz kaydı.' });
+    return res.status(200).json({ success: true });
+  } catch {
+    return res.status(500).json({ error: 'Cihaz kaydı tamamlanamadı.' });
+  }
+});
+apiRouter.delete('/mobile/push/devices/:installationId', authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    await deactivatePushDevice(req.user!.id, String(req.params.installationId));
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ error: 'Cihaz kaydı kapatılamadı.' });
+  }
+});
 apiRouter.use('/auth', (req, res, next) => {
   if (req.method !== 'GET' && req.body && typeof req.body === 'object') {
     if ('phone' in req.body && !normalizeTurkishPhone(req.body.phone)) {
@@ -1577,7 +1602,7 @@ apiRouter.post(
 
         // Notification to teacher
         const teacherUserId = teacher.userId!;
-        await notificationRepository.createNotification(
+        const teacherNotification = await notificationRepository.createNotification(
           {
             schoolId,
             userId: teacherUserId,
@@ -1587,6 +1612,8 @@ apiRouter.post(
           },
           tx
         );
+        await enqueueAppointmentPush(tx, { notificationId: teacherNotification.id, schoolId,
+          userId: teacherUserId, appointmentId: created.id, eventType: 'APPOINTMENT_REQUESTED' });
 
         // Audit Log
         await auditLogRepository.createAuditLog(
@@ -1616,6 +1643,7 @@ apiRouter.post(
         }
       }
 
+      await dispatchPushDeliveries(undefined, 50, newApt.id).catch(() => {});
       res.json({ success: true, appointment: req.membership!.role === 'parent' ? newApt : withoutQrToken(newApt) });
     } catch (err: any) {
       if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
@@ -1637,11 +1665,15 @@ async function approvePendingAppointment(tx: TransactionClient, schoolId: string
   const updatedApt = await appointmentRepository.transitionStatus(schoolId, appointmentId, 'pending', 'booked',
     { approvedAt: new Date().toISOString(), approvedBy: actorId }, tx);
   if (!updatedApt) return null;
-  if (updatedApt.parentId) await notificationRepository.createNotification({
+  if (updatedApt.parentId) {
+    const parentNotification = await notificationRepository.createNotification({
     schoolId, userId: updatedApt.parentId, title: 'Randevunuz Onaylandı!',
     message: `${updatedApt.teacherName} ile ${updatedApt.date} ${updatedApt.startTime} randevunuz onaylandı. Okul Giriş Kodunuz: ${updatedApt.entryCode}`,
     appointmentId: updatedApt.id,
-  }, tx);
+    }, tx);
+    await enqueueAppointmentPush(tx, { notificationId: parentNotification.id, schoolId,
+      userId: updatedApt.parentId, appointmentId: updatedApt.id, eventType: 'APPOINTMENT_APPROVED' });
+  }
   await auditLogRepository.createAuditLog({ schoolId, action: 'Randevu Onayı',
     actorName: updatedApt.teacherName, details: `${updatedApt.parentName} için randevu onaylandı.` }, tx);
   return updatedApt;
@@ -1688,10 +1720,11 @@ apiRouter.post('/schools/:schoolId/appointments/email-review/approve', authMiddl
       if (!approved) return { status: 409 as const };
       await tx.query(`UPDATE invitations SET consumed_at=NOW(),is_active=FALSE WHERE id=$1 AND school_id=$2`,
         [invitation.id, schoolId]);
-      return { status: 200 as const };
+      return { status: 200 as const, appointmentId: approved.id };
     });
     if (updated.status === 404) return res.status(404).json({ error: 'Bağlantı geçersiz veya süresi dolmuş.' });
     if (updated.status === 409) return res.status(409).json({ error: 'Bu randevu artık onay beklemiyor.' });
+    await dispatchPushDeliveries(undefined, 50, updated.appointmentId).catch(() => {});
     return res.json({ success: true, message: 'Randevu onaylandı.' });
   } catch {
     console.error('[Appointment email approval]: İşlem tamamlanamadı.');
@@ -1730,6 +1763,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
+      await dispatchPushDeliveries(undefined, 50, updated.id).catch(() => {});
       res.json({ success: true, appointment: withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/approve Error]:', err);
@@ -1775,7 +1809,7 @@ apiRouter.post(
         );
         if (!updatedApt) return null;
 
-        await notificationRepository.createNotification(
+        const parentNotification = await notificationRepository.createNotification(
           {
             schoolId,
             userId: updatedApt.parentId,
@@ -1785,6 +1819,8 @@ apiRouter.post(
           },
           tx
         );
+        await enqueueAppointmentPush(tx, { notificationId: parentNotification.id, schoolId,
+          userId: updatedApt.parentId, appointmentId: updatedApt.id, eventType: 'APPOINTMENT_REJECTED' });
 
         await auditLogRepository.createAuditLog(
           {
@@ -1803,6 +1839,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
+      await dispatchPushDeliveries(undefined, 50, updated.id).catch(() => {});
       res.json({ success: true, appointment: withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/reject Error]:', err);

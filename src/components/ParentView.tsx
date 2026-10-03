@@ -34,7 +34,7 @@ function formatBookingDate(date: string) {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
-export const ParentView: React.FC = () => {
+export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequence: number } | null }> = ({ pushAppointmentIntent }) => {
   const {
     currentUser,
     currentSchool,
@@ -54,6 +54,17 @@ export const ParentView: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'home' | 'teachers' | 'appointments' | 'notifications' | 'profile'>('home');
+  useEffect(() => { if (pushAppointmentIntent) setActiveTab('appointments'); }, [pushAppointmentIntent?.sequence]);
+  useEffect(() => {
+    if (activeTab !== 'appointments' || !pushAppointmentIntent) return;
+    const frame = requestAnimationFrame(() => {
+      const card = Array.from(document.querySelectorAll<HTMLElement>('[data-appointment-id]'))
+        .find((element) => element.dataset.appointmentId === pushAppointmentIntent.id);
+      card?.scrollIntoView({ block: 'center' });
+      card?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, pushAppointmentIntent?.sequence, appointments]);
   const [selectedPassAppointment, setSelectedPassAppointment] = useState<Appointment | null>(null);
 
   // Booking Modal State
@@ -108,6 +119,9 @@ export const ParentView: React.FC = () => {
   const upcomingAppointments = parentAppointments.filter(
     (a) => (a.status === 'booked' || a.status === 'pending' || a.status === 'checked_in') && a.date >= getIstanbulDate()
   );
+  const pushedAppointment = pushAppointmentIntent
+    ? parentAppointments.find((appointment) => appointment.id === pushAppointmentIntent.id)
+    : undefined;
 
   // Next imminent appointment
   const nextAppointment = upcomingAppointments[0];
@@ -233,7 +247,7 @@ export const ParentView: React.FC = () => {
   ];
 
   const appointmentCard = (appointment: Appointment) => (
-    <article className="appointment-card" key={appointment.id}>
+    <article className="appointment-card" key={appointment.id} data-appointment-id={appointment.id} tabIndex={-1}>
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{normalizePersonName(appointment.teacherName)}</h3><p>{appointment.teacherBranch}</p></div><StatusBadge status={appointment.status} /></div>
@@ -282,6 +296,8 @@ export const ParentView: React.FC = () => {
       </section>}
 
       {activeTab === 'appointments' && <div className="space-y-8">
+        {pushedAppointment && !upcomingAppointments.some((appointment) => appointment.id === pushedAppointment.id)
+          && <section><div className="section-heading"><h2>Bildirimdeki randevu</h2></div>{appointmentCard(pushedAppointment)}</section>}
         <section><div className="section-heading"><h2>Yaklaşan görüşmeler <span className="text-slate-500">({upcomingAppointments.length})</span></h2></div>
           {upcomingAppointments.length ? <div className="space-y-4">{upcomingAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Henüz randevunuz yok" description="Öğretmeninizle görüşme planlamak için yeni bir randevu oluşturabilirsiniz." action={<Button onClick={() => setActiveTab('teachers')}>Randevu oluştur<ArrowRight size={17} /></Button>} /></div>}
         </section>

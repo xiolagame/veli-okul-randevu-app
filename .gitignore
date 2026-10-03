@@ -88,5 +88,7 @@ android-sdk/
 .env.*
 *.env
 credentials.json
+**/*service-account*.json
+**/*firebase-admin*.json
 *.key
 .credentials
