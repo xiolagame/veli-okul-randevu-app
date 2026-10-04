@@ -2,7 +2,8 @@ import { PushNotifications, PushNotificationsPlugin } from '@capacitor/push-noti
 import type { PluginListenerHandle } from '@capacitor/core';
 import { getRuntimePlatform, RuntimePlatform } from './runtime-platform';
 import { canUseAndroidPush } from './push-eligibility';
-import { parseNavigationIntent, pendingNavigationIntent } from './navigation-intent';
+import { NavigationIntent, parseNavigationIntent, pendingNavigationIntent } from './navigation-intent';
+import { AndroidNotificationSettings, androidNotificationSettings } from './android-notification-settings';
 
 export type PushStatus = 'unavailable' | 'off' | 'ready' | 'preparing';
 
@@ -44,18 +45,29 @@ export class AndroidPushManager {
   private registrations = new Set<Promise<void>>();
   private nativeRegistration: Promise<void> | null = null;
   private permissionGranted = false;
+  private backendRegistered = false;
+  private status: PushStatus = 'off';
+  private navigationHandle: PluginListenerHandle | null = null;
+  private navigationStarting: Promise<void> | null = null;
+  private sessionIdentity: (() => Promise<string | null>) | null = null;
+  private sessionCleanup: Promise<void> | null = null;
 
   constructor(
     private readonly native: PushNotificationsPlugin = PushNotifications,
     private readonly deviceApi: DeviceApi = defaultDeviceApi,
     private readonly runtimePlatform: () => RuntimePlatform = getRuntimePlatform,
     private readonly getInstallationId: () => string = installationId,
+    private readonly notificationSettings: AndroidNotificationSettings = androidNotificationSettings,
   ) {}
 
   async start(userId: string, role: string | undefined, onForeground: () => void, onStatus: (status: PushStatus) => void): Promise<void> {
     if (!canUseAndroidPush(role, this.runtimePlatform())) return;
+    if (this.sessionCleanup) await this.sessionCleanup.catch(() => {});
     this.closing = false;
-    if (this.userId !== userId) this.permissionGranted = false;
+    if (this.userId !== userId) {
+      this.permissionGranted = false;
+      this.backendRegistered = false;
+    }
     this.userId = userId;
     this.onForeground = onForeground;
     this.onStatus = onStatus;
@@ -64,7 +76,7 @@ export class AndroidPushManager {
     try { await this.starting; } catch {
       await Promise.all(this.handles.map((handle) => handle.remove().catch(() => {})));
       this.handles = [];
-      onStatus('unavailable');
+      this.emitStatus('unavailable');
       return;
     } finally { this.starting = null; }
     if (this.closing || this.userId !== userId) return;
@@ -76,16 +88,26 @@ export class AndroidPushManager {
     this.handles.push(await this.native.addListener('registration', ({ value }) => {
       const owner = this.userId;
       if (!owner || this.closing) return;
+      this.backendRegistered = false;
       const registration = this.deviceApi.registerPushDevice({ installationId: this.getInstallationId(), platform: 'ANDROID', provider: 'FCM',
         targetKind: 'REGISTRATION_TOKEN', providerTarget: value, appId: 'com.velirandevu.app' })
-        .then(() => { if (this.userId === owner) this.onStatus?.('ready'); })
-        .catch(() => { if (this.userId === owner) this.onStatus?.('unavailable'); });
+        .then(() => {
+          if (this.userId !== owner || this.closing) return;
+          this.backendRegistered = true;
+          this.emitStatus('ready');
+        })
+        .catch(() => {
+          if (this.userId !== owner || this.closing) return;
+          this.backendRegistered = false;
+          this.emitStatus('unavailable');
+        });
       this.registrations.add(registration);
       void registration.finally(() => this.registrations.delete(registration));
     }));
     this.handles.push(await this.native.addListener('registrationError', () => {
       this.permissionGranted = false;
-      this.onStatus?.('unavailable');
+      this.backendRegistered = false;
+      this.emitStatus('unavailable');
     }));
     this.handles.push(await this.native.addListener('pushNotificationReceived', (notification) => {
       const notificationId = typeof notification.data?.notificationId === 'string' ? notification.data.notificationId : '';
@@ -99,13 +121,46 @@ export class AndroidPushManager {
       this.refreshQueued = true;
       queueMicrotask(() => { this.refreshQueued = false; this.onForeground?.(); });
     }));
-    this.handles.push(await this.native.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      const route = typeof notification.data?.route === 'string' ? notification.data.route : '';
-      const intent = parseNavigationIntent(route, CANONICAL_ORIGIN);
-      if (!intent) return;
-      pendingNavigationIntent.set(intent);
-      window.dispatchEvent(new Event('veli:navigation-intent'));
-    }));
+  }
+
+  async startNavigationCapture(getSessionIdentity: () => Promise<string | null>): Promise<void> {
+    if (this.runtimePlatform() !== 'ANDROID') return;
+    this.sessionIdentity = getSessionIdentity;
+    if (this.navigationHandle) return;
+    if (!this.navigationStarting) {
+      this.navigationStarting = this.native.addListener('pushNotificationActionPerformed', ({ notification }) => {
+        const route = typeof notification.data?.route === 'string' ? notification.data.route : '';
+        const intent = parseNavigationIntent(route, CANONICAL_ORIGIN);
+        if (!intent) return;
+        void this.captureNavigationIntent(intent);
+      }).then(async (handle) => {
+        if (!this.sessionIdentity) await handle.remove().catch(() => {});
+        else this.navigationHandle = handle;
+      }).finally(() => { this.navigationStarting = null; });
+    }
+    await this.navigationStarting;
+  }
+
+  async stopNavigationCapture(): Promise<void> {
+    this.sessionIdentity = null;
+    if (this.navigationStarting) await this.navigationStarting.catch(() => {});
+    const handle = this.navigationHandle;
+    this.navigationHandle = null;
+    if (handle) await handle.remove().catch(() => {});
+  }
+
+  private async captureNavigationIntent(intent: NavigationIntent): Promise<void> {
+    const getSessionIdentity = this.sessionIdentity;
+    if (!getSessionIdentity) return;
+    const identity = await getSessionIdentity().catch(() => null);
+    if (!identity || await getSessionIdentity().catch(() => null) !== identity) return;
+    pendingNavigationIntent.set(intent);
+    window.dispatchEvent(new Event('veli:navigation-intent'));
+  }
+
+  private emitStatus(status: PushStatus): void {
+    this.status = status;
+    this.onStatus?.(status);
   }
 
   private async register(): Promise<void> {
@@ -118,25 +173,35 @@ export class AndroidPushManager {
     try { await this.nativeRegistration; } finally { this.nativeRegistration = null; }
   }
 
+  private async disablePush(status: Extract<PushStatus, 'off' | 'unavailable'>): Promise<void> {
+    this.permissionGranted = false;
+    this.backendRegistered = false;
+    this.emitStatus(status);
+    await this.deviceApi.deactivatePushDevice(this.getInstallationId()).catch(() => {});
+    await this.native.unregister().catch(() => {});
+  }
+
   async refreshPermission(): Promise<void> {
     if (!this.userId || this.closing || this.runtimePlatform() !== 'ANDROID') return;
     try {
       const permission = await this.native.checkPermissions();
       if (permission.receive !== 'granted') {
-        this.permissionGranted = false;
-        this.onStatus?.('off');
-        await this.deviceApi.deactivatePushDevice(this.getInstallationId()).catch(() => {});
-        await this.native.unregister().catch(() => {});
+        await this.disablePush('off');
         return;
       }
-      if (!this.permissionGranted) {
-        this.permissionGranted = true;
-        this.onStatus?.('preparing');
-        await this.register();
+      const systemState = await this.notificationSettings.areNotificationsEnabled();
+      if (!systemState.enabled) {
+        await this.disablePush('off');
+        return;
       }
+      this.permissionGranted = true;
+      if (this.backendRegistered) return;
+      if (this.registrations.size) await Promise.all(this.registrations);
+      if (this.backendRegistered || this.closing) return;
+      this.emitStatus('preparing');
+      await this.register();
     } catch {
-      this.permissionGranted = false;
-      this.onStatus?.('unavailable');
+      await this.disablePush('unavailable');
     }
   }
 
@@ -145,35 +210,69 @@ export class AndroidPushManager {
     try {
       const permission = await this.native.requestPermissions();
       if (permission.receive !== 'granted') {
-        await this.refreshPermission();
+        await this.disablePush('off');
+        return 'off';
+      }
+      const systemState = await this.notificationSettings.areNotificationsEnabled();
+      if (!systemState.enabled) {
+        await this.disablePush('off');
         return 'off';
       }
       this.permissionGranted = true;
+      this.emitStatus('preparing');
       await this.register();
-      return 'preparing';
+      if (this.registrations.size) await Promise.all(this.registrations);
+      return this.status;
     } catch {
-      this.permissionGranted = false;
+      await this.disablePush('unavailable');
       return 'unavailable';
     }
   }
 
   async beforeLogout(): Promise<void> {
+    if (this.sessionCleanup) return this.sessionCleanup;
     if (!this.userId || this.runtimePlatform() !== 'ANDROID') return;
-    this.closing = true;
-    if (this.starting) await this.starting.catch(() => {});
-    if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
-    await Promise.all(this.registrations);
-    let backendDeactivated = false;
-    let nativeUnregistered = false;
-    try { await this.deviceApi.deactivatePushDevice(this.getInstallationId()); backendDeactivated = true; } catch {}
-    try { await this.native.unregister(); nativeUnregistered = true; } catch {}
-    if (!backendDeactivated && !nativeUnregistered) {
-      this.closing = false;
-      throw new Error('Push device could not be unregistered');
-    }
-    await this.native.removeAllDeliveredNotifications().catch(() => {});
+    const cleanup = (async () => {
+      this.closing = true;
+      if (this.starting) await this.starting.catch(() => {});
+      if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
+      await Promise.all(this.registrations);
+      let backendDeactivated = false;
+      let nativeUnregistered = false;
+      try { await this.deviceApi.deactivatePushDevice(this.getInstallationId()); backendDeactivated = true; } catch {}
+      try { await this.native.unregister(); nativeUnregistered = true; } catch {}
+      if (!backendDeactivated && !nativeUnregistered) {
+        this.closing = false;
+        throw new Error('Push device could not be unregistered');
+      }
+      await this.native.removeAllDeliveredNotifications().catch(() => {});
+      await this.clearAuthenticatedRuntime();
+    })();
+    this.sessionCleanup = cleanup;
+    try { await cleanup; } finally { if (this.sessionCleanup === cleanup) this.sessionCleanup = null; }
+  }
+
+  async afterSessionInvalidated(): Promise<void> {
+    if (this.sessionCleanup) return this.sessionCleanup;
+    if (!this.userId || this.runtimePlatform() !== 'ANDROID') return;
+    const cleanup = (async () => {
+      this.closing = true;
+      if (this.starting) await this.starting.catch(() => {});
+      if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
+      await Promise.all(this.registrations);
+      await this.native.unregister().catch(() => {});
+      await this.native.removeAllDeliveredNotifications().catch(() => {});
+      await this.clearAuthenticatedRuntime();
+    })();
+    this.sessionCleanup = cleanup;
+    try { await cleanup; } finally { if (this.sessionCleanup === cleanup) this.sessionCleanup = null; }
+  }
+
+  private async clearAuthenticatedRuntime(): Promise<void> {
     this.userId = null;
     this.permissionGranted = false;
+    this.backendRegistered = false;
+    this.status = 'off';
     this.onForeground = null;
     this.onStatus = null;
     await Promise.all(this.handles.map((handle) => handle.remove().catch(() => {})));

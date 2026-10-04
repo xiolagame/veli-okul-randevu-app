@@ -4,6 +4,7 @@ import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, Graduati
 import { Brand, Button, Dialog } from './ui';
 import { androidPush, canUseAndroidPush, PushStatus } from '../platform/android-push';
 import { appLifecycle } from '../platform/lifecycle';
+import { networkHint } from '../platform/network';
 
 interface NavbarProps {
   onManageSchools?: () => void;
@@ -24,9 +25,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
     void androidPush.start(currentUser.id, currentUser.role, () => {
       void refreshMobileDataRef.current().catch(() => {});
     }, setPushStatus);
-    return appLifecycle.subscribe((state) => {
+    const unsubscribeLifecycle = appLifecycle.subscribe((state) => {
       if (state === 'ACTIVE') void androidPush.refreshPermission();
     });
+    const unsubscribeNetwork = networkHint.subscribe((state) => {
+      if (state === 'CONNECTED') void androidPush.refreshPermission();
+    });
+    return () => {
+      unsubscribeLifecycle();
+      unsubscribeNetwork();
+    };
   }, [currentUser?.id, currentUser?.role]);
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);

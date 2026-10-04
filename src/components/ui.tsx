@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Check, CheckCircle2, Clock, LogIn, LogOut, X, XCircle, type LucideIcon } from 'lucide-react';
 import type { AppointmentStatus } from '../types';
+import { registerBackHandler } from '../platform/back-navigation';
 
 export function Brand({ light = false }: { light?: boolean }) {
   return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span></div>;
@@ -69,6 +70,9 @@ export function Dialog({ title, description, onClose, children, wide = false, di
       document.body.style.overflow = 'hidden';
     }
     dialogStack.push(marker);
+    const unregisterBackHandler = registerBackHandler(() => {
+      if (dialogStack.at(-1) === marker && dismissible) close.current();
+    });
     panel.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
       if (dialogStack.at(-1) !== marker) return;
@@ -92,6 +96,7 @@ export function Dialog({ title, description, onClose, children, wide = false, di
     document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('keydown', handleKey);
+      unregisterBackHandler();
       dialogStack.splice(dialogStack.indexOf(marker), 1);
       if (!dialogStack.length) document.body.style.overflow = bodyOverflow;
       if (previousFocus?.isConnected) previousFocus.focus();

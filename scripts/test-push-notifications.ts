@@ -130,16 +130,27 @@ async function testAndroidClient() {
     registerPushDevice: async () => { events.push('backend-register'); },
     deactivatePushDevice: async () => { events.push('backend-deactivate'); },
   };
-  const webManager = new AndroidPushManager(native, deviceApi, () => 'WEB', () => crypto.randomUUID());
+  let notificationSettingsChecks = 0;
+  const enabledNotificationSettings = { areNotificationsEnabled: async () => {
+    notificationSettingsChecks += 1;
+    return { enabled: true };
+  } };
+  const webManager = new AndroidPushManager(native, deviceApi, () => 'WEB', () => crypto.randomUUID(), enabledNotificationSettings);
   await webManager.start('user-web', 'parent', () => {}, () => {});
   assert.equal(listeners.size, 0);
-  const manager = new AndroidPushManager(native, deviceApi, () => 'ANDROID', () => crypto.randomUUID());
+  assert.equal(notificationSettingsChecks, 0);
+  const manager = new AndroidPushManager(native, deviceApi, () => 'ANDROID', () => crypto.randomUUID(), enabledNotificationSettings);
+  let sessionIdentity: string | null = 'teacher-session';
+  await manager.startNavigationCapture(async () => sessionIdentity);
   await manager.start('user-security', 'security', () => {}, () => {});
-  assert.equal(listeners.size, 0);
+  assert.equal(listeners.size, 1);
   await manager.start('user-teacher', 'teacher', () => { refreshed++; }, () => {});
+  const attachedListenerCount = listeners.size;
+  await manager.start('user-teacher', 'teacher', () => { refreshed++; }, () => {});
+  assert.equal(listeners.size, attachedListenerCount);
   assert.equal(registered, 0);
   assert(!events.includes('permission-request'));
-  assert.equal(await manager.enable(), 'preparing');
+  assert.equal(await manager.enable(), 'ready');
   assert.equal(registered, 1);
   assert(events.indexOf('permission-request') < events.indexOf('channel'));
   assert(events.indexOf('channel') < events.indexOf('native-register'));
@@ -147,21 +158,157 @@ async function testAndroidClient() {
   listeners.get('pushNotificationReceived')?.({});
   await Promise.resolve();
   assert.equal(refreshed, 1);
-  const eventWindow = { dispatchEvent: () => { events.push('navigation'); return true; } };
+  let resolveNavigation!: () => void;
+  let navigationDispatched = new Promise<void>((resolve) => { resolveNavigation = resolve; });
+  const eventWindow = { dispatchEvent: () => { events.push('navigation'); resolveNavigation(); return true; } };
   const previousWindow = globalThis.window;
   Object.assign(globalThis, { window: eventWindow });
   try {
     listeners.get('pushNotificationActionPerformed')?.({ notification: { data: { route: 'https://evil.example/app/appointments/apt-1' } } });
+    await Promise.resolve();
     assert.equal(pendingNavigationIntent.peek(), null);
     listeners.get('pushNotificationActionPerformed')?.({ notification: { data: { route: '/app/appointments/apt-1' } } });
+    await navigationDispatched;
     assert.equal(pendingNavigationIntent.take()?.type, 'APPOINTMENT');
+    sessionIdentity = null;
+    navigationDispatched = new Promise<void>((resolve) => { resolveNavigation = resolve; });
+    listeners.get('pushNotificationActionPerformed')?.({ notification: { data: { route: '/app/appointments/apt-logged-out' } } });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(pendingNavigationIntent.peek(), null);
+    assert.equal(events.filter((event) => event === 'navigation').length, 1);
+
+    let releaseHydration!: () => void;
+    const hydrationGate = new Promise<void>((resolve) => { releaseHydration = resolve; });
+    await manager.startNavigationCapture(async () => { await hydrationGate; return 'cold-session'; });
+    navigationDispatched = new Promise<void>((resolve) => { resolveNavigation = resolve; });
+    listeners.get('pushNotificationActionPerformed')?.({ notification: { data: { route: '/app/appointments/apt-cold' } } });
+    assert.equal(pendingNavigationIntent.peek(), null);
+    releaseHydration();
+    await navigationDispatched;
+    assert.equal(pendingNavigationIntent.take()?.type, 'APPOINTMENT');
+
+    let identityRead = 0;
+    await manager.startNavigationCapture(async () => ++identityRead === 1 ? 'old-session' : 'new-session');
+    listeners.get('pushNotificationActionPerformed')?.({ notification: { data: { route: '/app/appointments/apt-stale' } } });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(pendingNavigationIntent.peek(), null);
   } finally {
     Object.assign(globalThis, { window: previousWindow });
   }
   await manager.beforeLogout();
   assert(events.lastIndexOf('backend-deactivate') < events.lastIndexOf('native-unregister'));
   assert(events.includes('delivered-clear'));
+  assert.equal(listeners.size, 1);
+  await manager.stopNavigationCapture();
   assert.equal(listeners.size, 0);
+
+  const reconnectListeners = new Map<string, (event: unknown) => void>();
+  let reconnectRegistrations = 0;
+  let backendAttempts = 0;
+  let reconnectDeactivations = 0;
+  let reconnectUnregisters = 0;
+  let reconnectPermission: 'denied' | 'granted' = 'granted';
+  let reconnectSystemEnabled = true;
+  const reconnectNative = {
+    addListener: async (name: string, listener: (event: unknown) => void) => {
+      reconnectListeners.set(name, listener);
+      return { remove: async () => { reconnectListeners.delete(name); } };
+    },
+    checkPermissions: async () => ({ receive: reconnectPermission }),
+    requestPermissions: async () => ({ receive: reconnectPermission }),
+    createChannel: async () => {},
+    register: async () => {
+      reconnectRegistrations += 1;
+      reconnectListeners.get('registration')?.({ value: 'retry-fcm-token' });
+    },
+    unregister: async () => { reconnectUnregisters += 1; },
+    removeAllDeliveredNotifications: async () => {},
+  } as unknown as PushNotificationsPlugin;
+  const reconnectStatuses: string[] = [];
+  const reconnectManager = new AndroidPushManager(reconnectNative, {
+    registerPushDevice: async () => {
+      backendAttempts += 1;
+      if (backendAttempts === 1) throw new Error('offline');
+    },
+    deactivatePushDevice: async () => { reconnectDeactivations += 1; },
+  }, () => 'ANDROID', () => crypto.randomUUID(), {
+    areNotificationsEnabled: async () => ({ enabled: reconnectSystemEnabled }),
+  });
+  await reconnectManager.start('reconnect-user', 'parent', () => {}, (status) => reconnectStatuses.push(status));
+  assert.equal(backendAttempts, 1);
+  assert.equal(reconnectStatuses.at(-1), 'unavailable');
+  await reconnectManager.refreshPermission();
+  assert.equal(backendAttempts, 2);
+  assert.equal(reconnectRegistrations, 2);
+  assert.equal(reconnectStatuses.at(-1), 'ready');
+  reconnectPermission = 'denied';
+  await reconnectManager.refreshPermission();
+  assert.equal(reconnectStatuses.at(-1), 'off');
+  reconnectPermission = 'granted';
+  reconnectSystemEnabled = false;
+  assert.equal(await reconnectManager.enable(), 'off');
+  assert.equal(reconnectStatuses.at(-1), 'off');
+  assert.equal(backendAttempts, 2);
+  assert(reconnectDeactivations >= 2);
+  assert(reconnectUnregisters >= 2);
+  reconnectSystemEnabled = true;
+  await reconnectManager.refreshPermission();
+  assert.equal(backendAttempts, 3);
+  assert.equal(reconnectStatuses.at(-1), 'ready');
+  await reconnectManager.afterSessionInvalidated();
+  assert.equal(reconnectListeners.size, 0);
+
+  const unavailableStatuses: string[] = [];
+  let unavailableDeactivations = 0;
+  let unavailableUnregisters = 0;
+  const unavailableManager = new AndroidPushManager({
+    ...reconnectNative,
+    unregister: async () => { unavailableUnregisters += 1; },
+  } as PushNotificationsPlugin, {
+    registerPushDevice: async () => { throw new Error('must not register'); },
+    deactivatePushDevice: async () => { unavailableDeactivations += 1; },
+  }, () => 'ANDROID', () => crypto.randomUUID(), {
+    areNotificationsEnabled: async () => { throw new Error('native plugin unavailable'); },
+  });
+  await unavailableManager.start('unavailable-user', 'teacher', () => {}, (status) => unavailableStatuses.push(status));
+  assert.equal(unavailableStatuses.at(-1), 'unavailable');
+  assert.equal(unavailableDeactivations, 1);
+  assert.equal(unavailableUnregisters, 1);
+  await unavailableManager.afterSessionInvalidated();
+
+  const cleanupListeners = new Map<string, (event: unknown) => void>();
+  let releaseCleanup!: () => void;
+  let markCleanupStarted!: () => void;
+  const cleanupGate = new Promise<void>((resolve) => { releaseCleanup = resolve; });
+  const cleanupStarted = new Promise<void>((resolve) => { markCleanupStarted = resolve; });
+  let cleanupRegistrations = 0;
+  const cleanupNative = {
+    addListener: async (name: string, listener: (event: unknown) => void) => {
+      cleanupListeners.set(name, listener);
+      return { remove: async () => { cleanupListeners.delete(name); } };
+    },
+    checkPermissions: async () => ({ receive: 'granted' as const }),
+    requestPermissions: async () => ({ receive: 'granted' as const }),
+    createChannel: async () => {},
+    register: async () => { cleanupListeners.get('registration')?.({ value: 'cleanup-race-token' }); },
+    unregister: async () => { markCleanupStarted(); await cleanupGate; },
+    removeAllDeliveredNotifications: async () => {},
+  } as unknown as PushNotificationsPlugin;
+  const cleanupManager = new AndroidPushManager(cleanupNative, {
+    registerPushDevice: async () => { cleanupRegistrations += 1; },
+    deactivatePushDevice: async () => {},
+  }, () => 'ANDROID', () => crypto.randomUUID(), enabledNotificationSettings);
+  await cleanupManager.start('old-account', 'teacher', () => {}, () => {});
+  assert.equal(cleanupRegistrations, 1);
+  const staleCleanup = cleanupManager.afterSessionInvalidated();
+  await cleanupStarted;
+  const newSessionStart = cleanupManager.start('new-account', 'parent', () => {}, () => {});
+  await Promise.resolve();
+  assert.equal(cleanupRegistrations, 1);
+  releaseCleanup();
+  await Promise.all([staleCleanup, newSessionStart]);
+  assert.equal(cleanupRegistrations, 2);
+  await cleanupManager.beforeLogout();
 
   permission = 'granted';
   const raceEvents: string[] = [];
@@ -170,7 +317,7 @@ async function testAndroidClient() {
   const raceManager = new AndroidPushManager(native, {
     registerPushDevice: async () => { raceEvents.push('register-start'); await blockedRegistration; raceEvents.push('register-end'); },
     deactivatePushDevice: async () => { raceEvents.push('deactivate'); },
-  }, () => 'ANDROID', () => crypto.randomUUID());
+  }, () => 'ANDROID', () => crypto.randomUUID(), enabledNotificationSettings);
   await raceManager.start('user-parent', 'parent', () => {}, () => {});
   const logout = raceManager.beforeLogout();
   assert.equal(raceEvents.includes('deactivate'), false);
@@ -181,7 +328,7 @@ async function testAndroidClient() {
   const failingNative = { ...native, unregister: async () => { throw Error('test'); } } as PushNotificationsPlugin;
   const failingManager = new AndroidPushManager(failingNative, {
     registerPushDevice: async () => {}, deactivatePushDevice: async () => { throw Error('test'); },
-  }, () => 'ANDROID', () => crypto.randomUUID());
+  }, () => 'ANDROID', () => crypto.randomUUID(), enabledNotificationSettings);
   await failingManager.start('user-parent', 'parent', () => {}, () => {});
   await assert.rejects(() => failingManager.beforeLogout());
 }
@@ -392,6 +539,12 @@ async function run() {
     assert.equal((await db.query<{ active: boolean }>('SELECT active FROM mobile_push_devices WHERE installation_id=$1',
       [installationId])).rows[0].active, false);
     assert.equal(await registerPushDevice(parentId, device(otherInstallationId, parentTarget)), true);
+    assert.equal(await registerPushDevice(teacherId, device(otherInstallationId, teacherTarget)), true);
+    assert.equal((await db.query<{ user_id: string }>('SELECT user_id FROM mobile_push_devices WHERE installation_id=$1',
+      [otherInstallationId])).rows[0].user_id, teacherId);
+    assert.equal(await registerPushDevice(parentId, device(otherInstallationId, parentTarget)), true);
+    assert.equal((await db.query<{ user_id: string }>('SELECT user_id FROM mobile_push_devices WHERE installation_id=$1',
+      [otherInstallationId])).rows[0].user_id, parentId);
     const retryNotification = await db.transaction(async (tx) => {
       const notification = await notificationRepository.createNotification({ schoolId, userId: parentId,
         title: 'Fixture', message: 'Fixture', appointmentId }, tx);

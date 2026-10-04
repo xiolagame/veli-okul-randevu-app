@@ -23,6 +23,9 @@ import { LoginResult, performLogin } from '../platform/login-flow';
 import { androidPush } from '../platform/android-push';
 import { pendingNavigationIntent } from '../platform/navigation-intent';
 import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
+import { networkHint } from '../platform/network';
+import { restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';
+import { appLifecycle } from '../platform/lifecycle';
 
 interface AppContextType {
   refreshSchoolData: () => Promise<void>;
@@ -146,6 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isolationTestResults, setIsolationTestResults] = useState<TenantIsolationTestResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authStorageError, setAuthStorageError] = useState(false);
+  const sessionRestore = useRef<Promise<SessionRestoreResult> | null>(null);
   const platformContextActive = !!getPlatformTargetSchoolId() && isPlatformAdmin;
 
   const clearRuntimeSession = useCallback(() => {
@@ -171,7 +175,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsolationTestResults([]);
   }, []);
 
-  useEffect(() => authSession.subscribe(() => clearRuntimeSession()), [clearRuntimeSession]);
+  useEffect(() => authSession.subscribe(() => {
+    pendingNavigationIntent.clear();
+    void androidPush.afterSessionInvalidated();
+    clearRuntimeSession();
+  }), [clearRuntimeSession]);
 
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
@@ -239,22 +247,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (resolution.schoolId) void loadSchoolData(resolution.schoolId, activeUser, activeMembership, platformContext);
   }, [loadSchoolData]);
 
-  // Initial bootstrap from API
+  const restoreSession = useCallback((): Promise<SessionRestoreResult> => {
+    if (sessionRestore.current) return sessionRestore.current;
+    sessionRestore.current = restoreExistingSession({
+      session: authSession,
+      bootstrap: async (token) => {
+        const meRes = await api.getMe();
+        const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId());
+        if (await authSession.getToken() !== token) throw new Error('Session changed during restore');
+        applyAuthenticatedSession(meRes.user, meRes.memberships, access);
+      },
+    }).finally(() => { sessionRestore.current = null; });
+    return sessionRestore.current;
+  }, [applyAuthenticatedSession]);
+
+  // Initial bootstrap from secure storage. Transient API/network failures preserve the token for reconnect.
   useEffect(() => {
     async function init() {
       setIsLoading(true);
       try {
-        const token = await authSession.hydrate();
-        if (token) {
-          try {
-            const meRes = await api.getMe();
-            const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId());
-            if (await authSession.getToken() !== token) return;
-            applyAuthenticatedSession(meRes.user, meRes.memberships, access);
-          } catch (err) {
-            if (await authSession.clearTokenIfCurrent(token) || !await authSession.getToken()) clearRuntimeSession();
-          }
-        }
+        await restoreSession();
       } catch {
         clearRuntimeSession();
         setAuthStorageError(true);
@@ -263,8 +275,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    init();
-  }, [applyAuthenticatedSession, clearRuntimeSession]);
+    void init();
+  }, [clearRuntimeSession, restoreSession]);
+
+  useEffect(() => {
+    const retryRestore = () => {
+      if (!currentUser) void restoreSession().catch(() => setAuthStorageError(true));
+    };
+    const unsubscribeNetwork = networkHint.subscribe((state) => {
+      if (state === 'CONNECTED') retryRestore();
+    });
+    const unsubscribeLifecycle = appLifecycle.subscribe((state) => {
+      if (state === 'ACTIVE') retryRestore();
+    });
+    return () => {
+      unsubscribeNetwork();
+      unsubscribeLifecycle();
+    };
+  }, [currentUser?.id, restoreSession]);
 
   // Switch Active School
   const switchSchool = async (schoolId: string) => {

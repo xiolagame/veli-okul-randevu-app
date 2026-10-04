@@ -115,6 +115,14 @@ assert.match(appGradle, /applicationId\s+["']com\.velirandevu\.app["']/);
 assert.match(appGradle, /versionCode\s+1\b/);
 assert.match(appGradle, /versionName\s+["']1\.0\.0["']/);
 
+const mainActivity = read('android/app/src/main/java/com/velirandevu/app/MainActivity.java');
+const notificationSettingsPlugin = read('android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java');
+assert(mainActivity.includes('registerPlugin(NotificationSettingsPlugin.class)'));
+assert(notificationSettingsPlugin.includes('@CapacitorPlugin(name = "NotificationSettings")'));
+assert(notificationSettingsPlugin.includes('NotificationManagerCompat.from(getContext()).areNotificationsEnabled()'));
+assert(notificationSettingsPlugin.includes('result.put("enabled", enabled)'));
+assert(!notificationSettingsPlugin.includes('Logger.'));
+
 assert.equal(typeof viteConfig, 'function', 'Vite configuration must expose a mode-aware build guard.');
 const resolveViteConfig = viteConfig as (environment: { command: 'build'; mode: string; isSsrBuild: boolean; isPreview: boolean }) => unknown;
 const previousApiBase = process.env.VITE_API_BASE_URL;

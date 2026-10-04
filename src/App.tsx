@@ -8,6 +8,10 @@ import { HELP_PATH, isHelpPath, LEGACY_HELP_SUPPORT_PATH, PUBLIC_CONTACT_PATH, P
 import { api } from './services/api';
 import { pendingNavigationIntent } from './platform/navigation-intent';
 import { AppointmentNavigationResolver } from './platform/appointment-navigation';
+import { authSession } from './platform/auth-session';
+import { hasBackHandler, invokeBackHandler } from './platform/back-navigation';
+import { subscribeToNativeBackNavigation } from './platform/native-back-navigation';
+import { androidPush } from './platform/android-push';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -30,6 +34,7 @@ export const AppContent: React.FC = () => {
   const [appLocation, setAppLocation] = useState(() => window.location.pathname + window.location.search);
   const [pushAppointmentIntent, setPushAppointmentIntent] = useState<{ id: string; sequence: number } | null>(null);
   const appointmentNavigation = useRef(new AppointmentNavigationResolver());
+  const nativeBackUi = useRef({ showNotifications: false, showAdminModal: false, showOnboardingModal: false, showSchoolManagement: false, pathname: '/' });
   const sessionKey = `${currentUser?.id || ''}:${currentSchool?.id || ''}:${currentMembership?.id || ''}`;
   const sessionKeyRef = useRef(sessionKey);
   sessionKeyRef.current = sessionKey;
@@ -108,6 +113,32 @@ export const AppContent: React.FC = () => {
     window.history.replaceState(null, '', '/');
     setAppLocation('/');
   };
+
+  nativeBackUi.current = { showNotifications, showAdminModal, showOnboardingModal, showSchoolManagement, pathname };
+
+  useEffect(() => {
+    void androidPush.startNavigationCapture(() => authSession.getToken()).catch(() => {});
+    return () => { void androidPush.stopNavigationCapture(); };
+  }, []);
+
+  useEffect(() => subscribeToNativeBackNavigation(
+    () => ({
+      hasOpenModal: hasBackHandler() || nativeBackUi.current.showNotifications || nativeBackUi.current.showAdminModal || nativeBackUi.current.showOnboardingModal,
+      hasOpenDetail: nativeBackUi.current.showSchoolManagement || nativeBackUi.current.pathname !== '/',
+      hasSecondaryRoleView: false,
+    }),
+    (decision) => {
+      if (decision === 'CLOSE_MODAL') {
+        if (invokeBackHandler()) return;
+        if (nativeBackUi.current.showNotifications) setShowNotifications(false);
+        else if (nativeBackUi.current.showOnboardingModal) setShowOnboardingModal(false);
+        else if (nativeBackUi.current.showAdminModal) setShowAdminModal(false);
+      } else if (decision === 'BACK_TO_LIST') {
+        if (nativeBackUi.current.showSchoolManagement) setShowSchoolManagement(false);
+        else closeStandalonePage();
+      }
+    },
+  ), []);
 
   const backToHelpCenter = () => {
     if (window.history.state?.helpGuidePage) {

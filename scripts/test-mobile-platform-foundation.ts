@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../src/platform/api-session-policy';
 import { AuthSessionManager } from '../src/platform/auth-session';
 import { AUTH_TOKEN_STORAGE_KEY, AuthTokenStore, WebStorageLike, createWebAuthTokenStore } from '../src/platform/auth-token-store';
-import { decideBackNavigation } from '../src/platform/back-navigation';
+import { decideBackNavigation, hasBackHandler, invokeBackHandler, registerBackHandler } from '../src/platform/back-navigation';
 import { createBrowserLifecycleAdapter } from '../src/platform/browser-lifecycle';
 import { createBrowserNetworkAdapter } from '../src/platform/browser-network';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../src/platform/client-preferences';
@@ -10,6 +10,8 @@ import { PendingNavigationIntentStore, parseNavigationIntent } from '../src/plat
 import { ApiError } from '../src/platform/api-error';
 import { performLogin } from '../src/platform/login-flow';
 import { resolveSchoolContext } from '../src/platform/school-resolution';
+import { restoreExistingSession } from '../src/platform/session-restore';
+import { subscribeToNativeBackNavigation } from '../src/platform/native-back-navigation';
 import type { School, SchoolMembership } from '../src/types';
 import type { ManagedSchool } from '../src/types/platform';
 
@@ -85,6 +87,32 @@ assert.equal(await anonymousSession.hydrate(), null);
 
 const storedSession = new AuthSessionManager(new MemoryTokenStore('stored-token'));
 assert.equal(await storedSession.hydrate(), 'stored-token');
+
+const offlineRestoreStore = new MemoryTokenStore('offline-token');
+const offlineRestoreSession = new AuthSessionManager(offlineRestoreStore);
+assert.equal(await restoreExistingSession({
+  session: offlineRestoreSession,
+  bootstrap: async () => { throw new Error('network unavailable'); },
+}), 'RETRYABLE_FAILURE');
+assert.equal(await offlineRestoreSession.getToken(), 'offline-token');
+assert.equal(offlineRestoreStore.token, 'offline-token');
+let restoredToken = '';
+assert.equal(await restoreExistingSession({
+  session: offlineRestoreSession,
+  bootstrap: async (token) => { restoredToken = token; },
+}), 'RESTORED');
+assert.equal(restoredToken, 'offline-token');
+
+const rejectedRestoreStore = new MemoryTokenStore('rejected-token');
+const rejectedRestoreSession = new AuthSessionManager(rejectedRestoreStore);
+assert.equal(await restoreExistingSession({
+  session: rejectedRestoreSession,
+  bootstrap: async (token) => {
+    await rejectedRestoreSession.invalidateRejectedToken(token);
+    throw new ApiError(401, 'Unauthorized');
+  },
+}), 'SESSION_CHANGED');
+assert.equal(await rejectedRestoreSession.getToken(), null);
 
 const protectedStore = new MemoryTokenStore('protected-token');
 const protectedSession = new AuthSessionManager(protectedStore);
@@ -305,5 +333,48 @@ assert.equal(decideBackNavigation({ hasOpenModal: true, hasOpenDetail: true, has
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: true, hasSecondaryRoleView: true }), 'BACK_TO_LIST');
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: false, hasSecondaryRoleView: true }), 'BACK_TO_ROLE_HOME');
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: false, hasSecondaryRoleView: false }), 'DEFER_TO_NATIVE_SHELL');
+
+let stackedBackCalls = 0;
+const removeFirstBackHandler = registerBackHandler(() => { stackedBackCalls += 1; });
+const removeSecondBackHandler = registerBackHandler(() => { stackedBackCalls += 10; });
+assert.equal(hasBackHandler(), true);
+assert.equal(invokeBackHandler(), true);
+assert.equal(stackedBackCalls, 10);
+removeSecondBackHandler();
+assert.equal(invokeBackHandler(), true);
+assert.equal(stackedBackCalls, 11);
+removeFirstBackHandler();
+assert.equal(hasBackHandler(), false);
+
+let nativeBackListener: ((event: { canGoBack: boolean }) => void) | null = null;
+let nativeBackRemoved = 0;
+let nativeBackExited = 0;
+let browserBackCalls = 0;
+const nativeBackDecisions: string[] = [];
+let nativeBackState = { hasOpenModal: true, hasOpenDetail: false, hasSecondaryRoleView: false };
+const unsubscribeNativeBack = subscribeToNativeBackNavigation(
+  () => nativeBackState,
+  (decision) => nativeBackDecisions.push(decision),
+  {
+    addListener: async (_event, listener) => {
+      nativeBackListener = listener;
+      return { remove: async () => { nativeBackRemoved += 1; } };
+    },
+    exitApp: async () => { nativeBackExited += 1; },
+  },
+  () => 'ANDROID',
+  () => { browserBackCalls += 1; },
+);
+nativeBackListener?.({ canGoBack: true });
+assert.deepEqual(nativeBackDecisions, ['CLOSE_MODAL']);
+nativeBackState = { hasOpenModal: false, hasOpenDetail: false, hasSecondaryRoleView: false };
+nativeBackListener?.({ canGoBack: true });
+assert.equal(browserBackCalls, 1);
+nativeBackListener?.({ canGoBack: false });
+await Promise.resolve();
+assert.equal(nativeBackExited, 1);
+unsubscribeNativeBack();
+await Promise.resolve();
+assert.equal(nativeBackRemoved, 1);
 
 console.log('Mobile platform auth store, session policy, lifecycle, network, navigation intent and back contract tests PASS.');
