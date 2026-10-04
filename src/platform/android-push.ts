@@ -229,6 +229,11 @@ export class AndroidPushManager {
     }
   }
 
+  async openNotificationSettings(): Promise<void> {
+    if (this.runtimePlatform() !== 'ANDROID') return;
+    await this.notificationSettings.openNotificationSettings();
+  }
+
   async beforeLogout(): Promise<void> {
     if (this.sessionCleanup) return this.sessionCleanup;
     if (!this.userId || this.runtimePlatform() !== 'ANDROID') return;

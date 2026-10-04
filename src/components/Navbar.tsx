@@ -18,8 +18,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const { currentUser, currentSchool, schools, platformSchools, isPlatformAdmin, platformContextActive, userMemberships, switchSchool, switchUser, logout, unreadNotificationCount, refreshMobileData } = useApp();
   const [pushStatus, setPushStatus] = useState<PushStatus>('off');
   const [dismissedPushIntro, setDismissedPushIntro] = useState(false);
+  const [pushSettingsRequired, setPushSettingsRequired] = useState(false);
+  const [pushActionPending, setPushActionPending] = useState(false);
+  const [pushError, setPushError] = useState('');
   const refreshMobileDataRef = useRef(refreshMobileData);
   refreshMobileDataRef.current = refreshMobileData;
+  useEffect(() => {
+    setPushStatus('off');
+    setDismissedPushIntro(false);
+    setPushSettingsRequired(false);
+    setPushActionPending(false);
+    setPushError('');
+  }, [currentUser?.id, currentUser?.role]);
   useEffect(() => {
     if (!currentUser?.id || !canUseAndroidPush(currentUser.role)) return;
     void androidPush.start(currentUser.id, currentUser.role, () => {
@@ -36,6 +46,45 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
       unsubscribeNetwork();
     };
   }, [currentUser?.id, currentUser?.role]);
+  useEffect(() => {
+    if (pushStatus !== 'ready') return;
+    setPushSettingsRequired(false);
+    setPushError('');
+  }, [pushStatus]);
+  const enablePushNotifications = async () => {
+    setPushError('');
+    setPushActionPending(true);
+    setPushStatus('preparing');
+    try {
+      const status = await androidPush.enable();
+      setPushStatus(status);
+      if (status === 'ready') {
+        setPushSettingsRequired(false);
+      } else if (status === 'off') {
+        setPushSettingsRequired(true);
+      } else {
+        setPushSettingsRequired(false);
+        setPushError('Bildirimler şu anda etkinleştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      }
+    } catch {
+      setPushStatus('unavailable');
+      setPushSettingsRequired(false);
+      setPushError('Bildirimler şu anda etkinleştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+    } finally {
+      setPushActionPending(false);
+    }
+  };
+  const openPushNotificationSettings = async () => {
+    setPushError('');
+    setPushActionPending(true);
+    try {
+      await androidPush.openNotificationSettings();
+    } catch {
+      setPushError('Bildirim ayarları açılamadı. Cihaz ayarlarından Veli Randevu bildirimlerini açın.');
+    } finally {
+      setPushActionPending(false);
+    }
+  };
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [logoutError, setLogoutError] = useState('');
@@ -76,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
           </button>
         </div>
         <div className="topbar-actions">
-          {(isPlatformAdmin || currentUser?.role === 'admin') && <Button variant="quiet" className="admin-open" onClick={onOpenAdmin} aria-label={isPlatformAdmin ? 'Platform Yönetimini aç' : 'Yönetim panelini aç'}><Shield size={18} /><span>{isPlatformAdmin ? 'Platform Yönetimi' : 'Yönetim paneli'}</span></Button>}
+          {isPlatformAdmin && <Button variant="quiet" className="admin-open" onClick={onOpenAdmin} aria-label="Platform Yönetimini aç"><Shield size={18} /><span>Platform Yönetimi</span></Button>}
           <button type="button" onClick={onOpenNotifications} className="icon-button" aria-label={`Bildirimler, ${unreadNotificationCount} okunmamış`}><Bell size={21} />{unreadNotificationCount > 0 && <span className="nav-count" style={{ top: 3, right: 3 }}>{unreadNotificationCount}</span>}</button>
           <button type="button" className="profile-trigger" onClick={() => setShowPersonaMenu(true)} aria-haspopup="dialog" aria-label="Hesap menüsü"><span className="avatar"><RoleIcon size={20} aria-hidden="true" /></span><span className="profile-label"><strong>{currentUser?.firstName} {currentUser?.lastName}</strong><small>{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'}</small></span></button>
         </div>
@@ -92,13 +141,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
         {canUseAndroidPush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
           <strong>Randevu bildirimleri</strong>
-          <p className="text-slate-600 mt-1">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler kapalı.'}</p>
+          <p className="text-slate-600 mt-1" aria-live="polite">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler kapalı.'}</p>
           {pushStatus !== 'ready' && !dismissedPushIntro && <>
-            <p className="text-slate-600 mt-2">Randevu talepleri ve sonuçları için cihaz bildirimi almak ister misiniz? İzin vermeseniz de uygulama bildirimlerini görebilirsiniz.</p>
-            <div className="flex gap-2 mt-3"><Button variant="secondary" onClick={() => setDismissedPushIntro(true)}>Şimdi değil</Button><Button onClick={() => {
-              setPushStatus('preparing');
-              void androidPush.enable().then(setPushStatus);
-            }}>Bildirimleri aç</Button></div>
+            <p className="text-slate-600 mt-2">{pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı. Bildirimleri kullanmak için uygulama bildirim ayarlarından izin verin.' : 'Randevu talepleri ve sonuçları için cihaz bildirimi almak ister misiniz? İzin vermeseniz de uygulama bildirimlerini görebilirsiniz.'}</p>
+            <div className="flex gap-2 mt-3"><Button variant="secondary" disabled={pushActionPending} onClick={() => setDismissedPushIntro(true)}>Şimdi değil</Button><Button disabled={pushActionPending || pushStatus === 'preparing'} onClick={() => void (pushSettingsRequired ? openPushNotificationSettings() : enablePushNotifications())}>{pushSettingsRequired ? 'Bildirim ayarlarını aç' : pushActionPending || pushStatus === 'preparing' ? 'Hazırlanıyor…' : 'Bildirimleri aç'}</Button></div>
+            {pushError && <p role="alert" className="mt-2 text-sm text-red-700">{pushError}</p>}
           </>}
         </div>}
         <Button variant="secondary" className="w-full" disabled={isLoggingOut} onClick={() => {

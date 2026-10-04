@@ -131,14 +131,17 @@ async function testAndroidClient() {
     deactivatePushDevice: async () => { events.push('backend-deactivate'); },
   };
   let notificationSettingsChecks = 0;
+  let notificationSettingsOpens = 0;
   const enabledNotificationSettings = { areNotificationsEnabled: async () => {
     notificationSettingsChecks += 1;
     return { enabled: true };
-  } };
+  }, openNotificationSettings: async () => { notificationSettingsOpens += 1; } };
   const webManager = new AndroidPushManager(native, deviceApi, () => 'WEB', () => crypto.randomUUID(), enabledNotificationSettings);
   await webManager.start('user-web', 'parent', () => {}, () => {});
   assert.equal(listeners.size, 0);
   assert.equal(notificationSettingsChecks, 0);
+  await webManager.openNotificationSettings();
+  assert.equal(notificationSettingsOpens, 0, 'Web runtime must not call native notification settings');
   const manager = new AndroidPushManager(native, deviceApi, () => 'ANDROID', () => crypto.randomUUID(), enabledNotificationSettings);
   let sessionIdentity: string | null = 'teacher-session';
   await manager.startNavigationCapture(async () => sessionIdentity);
@@ -154,6 +157,8 @@ async function testAndroidClient() {
   assert.equal(registered, 1);
   assert(events.indexOf('permission-request') < events.indexOf('channel'));
   assert(events.indexOf('channel') < events.indexOf('native-register'));
+  await manager.openNotificationSettings();
+  assert.equal(notificationSettingsOpens, 1, 'Android runtime must delegate to native notification settings');
   listeners.get('pushNotificationReceived')?.({});
   listeners.get('pushNotificationReceived')?.({});
   await Promise.resolve();
@@ -233,6 +238,7 @@ async function testAndroidClient() {
     deactivatePushDevice: async () => { reconnectDeactivations += 1; },
   }, () => 'ANDROID', () => crypto.randomUUID(), {
     areNotificationsEnabled: async () => ({ enabled: reconnectSystemEnabled }),
+    openNotificationSettings: async () => {},
   });
   await reconnectManager.start('reconnect-user', 'parent', () => {}, (status) => reconnectStatuses.push(status));
   assert.equal(backendAttempts, 1);
@@ -269,11 +275,13 @@ async function testAndroidClient() {
     deactivatePushDevice: async () => { unavailableDeactivations += 1; },
   }, () => 'ANDROID', () => crypto.randomUUID(), {
     areNotificationsEnabled: async () => { throw new Error('native plugin unavailable'); },
+    openNotificationSettings: async () => { throw new Error('settings unavailable'); },
   });
   await unavailableManager.start('unavailable-user', 'teacher', () => {}, (status) => unavailableStatuses.push(status));
   assert.equal(unavailableStatuses.at(-1), 'unavailable');
   assert.equal(unavailableDeactivations, 1);
   assert.equal(unavailableUnregisters, 1);
+  await assert.rejects(() => unavailableManager.openNotificationSettings(), /settings unavailable/);
   await unavailableManager.afterSessionInvalidated();
 
   const cleanupListeners = new Map<string, (event: unknown) => void>();

@@ -9,10 +9,16 @@ assert(app.includes('const showPlatformHome = isPlatformAdmin && !platformContex
 assert(app.includes("title={platformSchools.length ? 'Yönetilecek okulu seçin' : 'Henüz okul bulunmuyor'}"));
 assert(app.includes("openPlatformManagement(platformSchools.length ? 'overview' : 'schools')"));
 assert(app.includes("onOpenAdmin={() => { if (isPlatformAdmin) openPlatformManagement('overview'); else setShowAdminModal(true); }}"));
+assert(app.includes('setShowAdminModal(true)}>Yönetim panelini aç</Button>'));
 assert(app.includes('{!isPlatformAdmin && !currentUser.role && ('));
 assert(app.includes('{!isPlatformAdmin && !currentMembership && !platformContextActive && currentSchool && ('));
-assert(navbar.includes("(isPlatformAdmin || currentUser?.role === 'admin')"));
-assert(navbar.includes("isPlatformAdmin ? 'Platform Yönetimi' : 'Yönetim paneli'"));
+assert.match(navbar, /\{isPlatformAdmin && <Button[^>]*className="admin-open"/);
+assert(!navbar.includes("(isPlatformAdmin || currentUser?.role === 'admin')"));
+assert(!navbar.includes('>Yönetim paneli</span>'));
+assert(navbar.includes('androidPush.openNotificationSettings()'));
+assert(navbar.includes('Bildirim ayarlarını aç'));
+assert(navbar.includes('Bildirim ayarları açılamadı. Cihaz ayarlarından Veli Randevu bildirimlerini açın.'));
+assert(navbar.includes('role="alert"'));
 assert(navbar.includes("isPlatformAdmin && !schoolOptions.length"));
 assert(navbar.includes("!isPlatformAdmin && onOpenOnboarding"));
 assert(schoolManagement.includes("initialSection = 'overview'"));
