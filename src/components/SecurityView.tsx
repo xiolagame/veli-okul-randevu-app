@@ -5,9 +5,21 @@ import { useApp } from '../context/AppContext';
 import { getTodayDateString } from '../data/mockData';
 import { SecurityQrVerification } from '../types';
 import QrScanner from 'qr-scanner';
-import { AlertTriangle, Camera, CheckCircle2, QrCode, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, QrCode, Settings, ShieldCheck, X } from 'lucide-react';
+import { CameraPermissionAdapter, CameraPermissionState, androidCameraPermission } from '../platform/android-camera-permission';
+import { appLifecycle } from '../platform/lifecycle';
+import type { LifecycleAdapter } from '../platform/browser-lifecycle';
+import { registerBackHandler } from '../platform/back-navigation';
 
-export const SecurityView: React.FC = () => {
+interface SecurityViewProps {
+  cameraPermission?: CameraPermissionAdapter;
+  lifecycle?: LifecycleAdapter;
+}
+
+export const SecurityView: React.FC<SecurityViewProps> = ({
+  cameraPermission = androidCameraPermission,
+  lifecycle = appLifecycle,
+}) => {
   const { verifySecurityQr, settings } = useApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -15,26 +27,34 @@ export const SecurityView: React.FC = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [cameraPermissionState, setCameraPermissionState] = useState<CameraPermissionState | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
   const scanHandledRef = useRef(false);
   const verificationInProgressRef = useRef(false);
+  const verificationRunRef = useRef(0);
   const startingRef = useRef(false);
+  const startOperationRef = useRef<Promise<void> | null>(null);
+  const cameraActiveRef = useRef(false);
   const cameraRunRef = useRef(0);
+  const resumeOnActiveRef = useRef(false);
+  const resumeAfterSettingsRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  const stopCamera = () => {
+  const stopCamera = (clearResumeIntent = true) => {
     cameraRunRef.current += 1;
     startingRef.current = false;
+    cameraActiveRef.current = false;
+    if (clearResumeIntent) {
+      resumeOnActiveRef.current = false;
+      resumeAfterSettingsRef.current = false;
+    }
     scannerRef.current?.stop();
-    setCameraActive(false);
-    setCameraStarting(false);
+    if (mountedRef.current) {
+      setCameraActive(false);
+      setCameraStarting(false);
+    }
   };
-
-  useEffect(() => () => {
-    cameraRunRef.current += 1;
-    scannerRef.current?.destroy();
-    scannerRef.current = null;
-  }, []);
 
   const getCameraError = (cause: unknown) => {
     const cameraFailure = typeof cause === 'object' && cause !== null
@@ -49,79 +69,183 @@ export const SecurityView: React.FC = () => {
     return 'Kamera başlatılamadı. Lütfen tekrar deneyin.';
   };
 
+  const showPermissionFailure = (state: CameraPermissionState) => {
+    cameraActiveRef.current = false;
+    setCameraActive(false);
+    setCameraPermissionState(state);
+    setCameraError(state === 'permanently-denied'
+      ? 'Kamera izni kalıcı olarak reddedildi. Ayarlardan kamera erişimine izin verin.'
+      : 'Kamera izni verilmedi. QR kod taramak için tekrar deneyebilirsiniz.');
+  };
+
   const verifyCode = async (code: string) => {
     const cleanCode = code.trim();
     if (!cleanCode || verificationInProgressRef.current) return;
     verificationInProgressRef.current = true;
     scanHandledRef.current = true;
+    resumeOnActiveRef.current = false;
+    resumeAfterSettingsRef.current = false;
+    const verificationRun = ++verificationRunRef.current;
     stopCamera();
     setBusy(true);
     setError('');
     try {
-      setVerifyResult(await verifySecurityQr(cleanCode));
+      const result = await verifySecurityQr(cleanCode);
+      if (mountedRef.current && verificationRun === verificationRunRef.current) setVerifyResult(result);
     } catch {
-      setVerifyResult(null);
-      setError('QR kod doğrulanamadı. Bağlantınızı kontrol edip yeniden deneyin.');
+      if (mountedRef.current && verificationRun === verificationRunRef.current) {
+        setVerifyResult(null);
+        setError('QR kod doğrulanamadı. Bağlantınızı kontrol edip yeniden deneyin.');
+      }
     } finally {
-      setBusy(false);
+      if (mountedRef.current && verificationRun === verificationRunRef.current) setBusy(false);
     }
   };
 
   const resetResult = () => {
+    verificationRunRef.current += 1;
     verificationInProgressRef.current = false;
     scanHandledRef.current = false;
+    resumeOnActiveRef.current = false;
+    resumeAfterSettingsRef.current = false;
+    setBusy(false);
     setVerifyResult(null);
     setError('');
     setCameraError('');
+    setCameraPermissionState(null);
   };
 
-  const startCamera = async () => {
-    if (startingRef.current) return;
-    setCameraError('');
-    if (!window.isSecureContext) {
-      setCameraError('Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.');
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Bu tarayıcı QR taramayı desteklemiyor.');
-      return;
-    }
-    if (!videoRef.current) {
-      setCameraError('Kamera başlatılamadı. Lütfen tekrar deneyin.');
-      return;
-    }
+  const startCamera = (allowPermissionRequest = true): Promise<void> => {
+    if (startOperationRef.current) return startOperationRef.current;
+    if (cameraActiveRef.current) return Promise.resolve();
+    const operation = (async () => {
+      resumeOnActiveRef.current = false;
+      setCameraError('');
+      setCameraPermissionState(null);
+      startingRef.current = true;
+      const run = ++cameraRunRef.current;
+      setCameraStarting(true);
 
-    startingRef.current = true;
-    const run = ++cameraRunRef.current;
-    setCameraStarting(true);
-    setCameraActive(true);
-    try {
-      const scanner: QrScanner = scannerRef.current || new QrScanner(videoRef.current, (result) => {
-        if (scannerRef.current !== scanner || scanHandledRef.current) return;
-        const code = typeof result === 'string' ? result : result.data;
-        scanHandledRef.current = true;
-        void verifyCode(code.trim());
-      }, { preferredCamera: 'environment', returnDetailedScanResult: true });
-      scannerRef.current = scanner;
-      await scanner.start();
-      if (run !== cameraRunRef.current) return;
-      startingRef.current = false;
-      setCameraStarting(false);
-    } catch (cause) {
-      if (run !== cameraRunRef.current) return;
-      scannerRef.current?.stop();
-      startingRef.current = false;
-      setCameraActive(false);
-      setCameraStarting(false);
-      let denied = false;
       try {
-        denied = (await navigator.permissions?.query({ name: 'camera' as PermissionName }))?.state === 'denied';
-      } catch {}
-      if (run === cameraRunRef.current) {
-        setCameraError(denied ? 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.' : getCameraError(cause));
+        if (cameraPermission.requiresNativePermission()) {
+          let permission = await cameraPermission.check();
+          if (run !== cameraRunRef.current || !mountedRef.current) return;
+          if (permission.state !== 'granted' && allowPermissionRequest && permission.state !== 'permanently-denied') {
+            permission = await cameraPermission.request();
+          }
+          if (run !== cameraRunRef.current || !mountedRef.current) return;
+          if (permission.state !== 'granted') {
+            showPermissionFailure(permission.state);
+            return;
+          }
+        } else {
+          if (!window.isSecureContext) {
+            setCameraError('Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.');
+            return;
+          }
+          if (!navigator.mediaDevices?.getUserMedia) {
+            setCameraError('Bu tarayıcı QR taramayı desteklemiyor.');
+            return;
+          }
+        }
+
+        if (!videoRef.current) {
+          setCameraError('Kamera başlatılamadı. Lütfen tekrar deneyin.');
+          return;
+        }
+
+        setCameraActive(true);
+        const scanner: QrScanner = scannerRef.current || new QrScanner(videoRef.current, (result) => {
+          if (scannerRef.current !== scanner || scanHandledRef.current) return;
+          const code = typeof result === 'string' ? result : result.data;
+          scanHandledRef.current = true;
+          void verifyCode(code.trim());
+        }, { preferredCamera: 'environment', returnDetailedScanResult: true });
+        scannerRef.current = scanner;
+        await scanner.start();
+        if (run !== cameraRunRef.current || !mountedRef.current) {
+          scanner.stop();
+          return;
+        }
+        cameraActiveRef.current = true;
+      } catch (cause) {
+        if (run !== cameraRunRef.current || !mountedRef.current) return;
+        scannerRef.current?.stop();
+        cameraActiveRef.current = false;
+        setCameraActive(false);
+        let denied = false;
+        try {
+          denied = (await navigator.permissions?.query({ name: 'camera' as PermissionName }))?.state === 'denied';
+        } catch {}
+        if (run === cameraRunRef.current && mountedRef.current) {
+          setCameraError(denied ? 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.' : getCameraError(cause));
+        }
+      } finally {
+        if (run === cameraRunRef.current && mountedRef.current) {
+          startingRef.current = false;
+          setCameraStarting(false);
+        }
       }
+    })();
+    startOperationRef.current = operation;
+    void operation.finally(() => {
+      if (startOperationRef.current === operation) startOperationRef.current = null;
+    });
+    return operation;
+  };
+
+  const openCameraSettings = async () => {
+    resumeAfterSettingsRef.current = true;
+    try {
+      await cameraPermission.openSettings();
+    } catch {
+      resumeAfterSettingsRef.current = false;
+      setCameraError('Uygulama ayarları açılamadı. Lütfen cihaz ayarlarından kamera iznini etkinleştirin.');
     }
   };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const unsubscribeLifecycle = lifecycle.subscribe((state) => {
+      if (state === 'INACTIVE') {
+        if (cameraActiveRef.current || startingRef.current) resumeOnActiveRef.current = true;
+        stopCamera(false);
+        return;
+      }
+      if (!resumeOnActiveRef.current && !resumeAfterSettingsRef.current) return;
+      void (async () => {
+        const pendingStart = startOperationRef.current;
+        if (pendingStart) await pendingStart.catch(() => {});
+        if (!mountedRef.current || lifecycle.getCurrentState() !== 'ACTIVE') return;
+        if (!resumeOnActiveRef.current && !resumeAfterSettingsRef.current) return;
+        resumeOnActiveRef.current = false;
+        resumeAfterSettingsRef.current = false;
+        await startCamera(false);
+      })();
+    });
+    return () => {
+      mountedRef.current = false;
+      unsubscribeLifecycle();
+      cameraRunRef.current += 1;
+      verificationRunRef.current += 1;
+      startingRef.current = false;
+      startOperationRef.current = null;
+      cameraActiveRef.current = false;
+      resumeOnActiveRef.current = false;
+      resumeAfterSettingsRef.current = false;
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
+    };
+  }, [cameraPermission, lifecycle]);
+
+  useEffect(() => {
+    const hasDismissiblePanel = Boolean(verifyResult || error || cameraError);
+    if (!hasDismissiblePanel && !cameraActive && !cameraStarting) return;
+    return registerBackHandler(() => {
+      if (hasDismissiblePanel) resetResult();
+      else stopCamera();
+    });
+  }, [cameraActive, cameraStarting, cameraError, error, verifyResult]);
 
   const resultTone = verifyResult?.allowed ? 'success' : verifyResult?.decision === 'TOO_EARLY' || verifyResult?.decision === 'PENDING_APPROVAL' ? 'warning' : 'danger';
   const showAppointmentDetails = verifyResult?.appointment && ['APPROVED', 'TOO_EARLY', 'ALREADY_CHECKED_IN'].includes(verifyResult.decision);
@@ -149,7 +273,7 @@ export const SecurityView: React.FC = () => {
           {cameraActive && <div className="camera-reticle" aria-hidden="true" />}
         </>}
       </div>
-      {cameraError && <Alert tone="danger">{cameraError}</Alert>}
+      {cameraError && <Alert tone="danger"><p>{cameraError}</p>{cameraPermissionState === 'permanently-denied' && <Button type="button" variant="secondary" onClick={() => void openCameraSettings()}><Settings size={18} />Ayarları Aç</Button>}</Alert>}
       {!verifyResult && !error && !busy && <Button type="button" variant={cameraActive ? 'secondary' : 'primary'} disabled={cameraStarting} onClick={() => cameraActive ? stopCamera() : void startCamera()}>
         <Camera size={19} />{cameraStarting ? 'Kamera açılıyor…' : cameraActive ? 'Taramayı durdur' : 'QR Kod Tara'}
       </Button>}

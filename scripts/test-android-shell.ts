@@ -117,11 +117,20 @@ assert.match(appGradle, /versionName\s+["']1\.0\.0["']/);
 
 const mainActivity = read('android/app/src/main/java/com/velirandevu/app/MainActivity.java');
 const notificationSettingsPlugin = read('android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java');
+const cameraPermissionPlugin = read('android/app/src/main/java/com/velirandevu/app/CameraPermissionPlugin.java');
 assert(mainActivity.includes('registerPlugin(NotificationSettingsPlugin.class)'));
+assert(mainActivity.includes('registerPlugin(CameraPermissionPlugin.class)'));
 assert(notificationSettingsPlugin.includes('@CapacitorPlugin(name = "NotificationSettings")'));
 assert(notificationSettingsPlugin.includes('NotificationManagerCompat.from(getContext()).areNotificationsEnabled()'));
 assert(notificationSettingsPlugin.includes('result.put("enabled", enabled)'));
 assert(!notificationSettingsPlugin.includes('Logger.'));
+assert(cameraPermissionPlugin.includes('name = "CameraPermission"'));
+assert(cameraPermissionPlugin.includes('Manifest.permission.CAMERA'));
+assert(cameraPermissionPlugin.includes('alias = CameraPermissionPlugin.CAMERA_PERMISSION'));
+assert(cameraPermissionPlugin.includes('requestPermissionForAlias(CAMERA_PERMISSION'));
+assert(cameraPermissionPlugin.includes('Settings.ACTION_APPLICATION_DETAILS_SETTINGS'));
+assert(!cameraPermissionPlugin.includes('Logger.'));
+assert.doesNotMatch(cameraPermissionPlugin, /qrToken|Authorization|JWT|video|frame|blob/i);
 
 assert.equal(typeof viteConfig, 'function', 'Vite configuration must expose a mode-aware build guard.');
 const resolveViteConfig = viteConfig as (environment: { command: 'build'; mode: string; isSsrBuild: boolean; isPreview: boolean }) => unknown;
@@ -186,6 +195,7 @@ assert(read('android/app/capacitor.build.gradle').includes("implementation proje
 const manifest = read('android/app/src/main/AndroidManifest.xml');
 assert(manifest.includes('android.permission.INTERNET'));
 assert(manifest.includes('android.permission.POST_NOTIFICATIONS'));
+assert(manifest.includes('android.permission.CAMERA'));
 assert.match(manifest, /android:allowBackup="false"/);
 assert.match(manifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
 const backupRules = read('android/app/src/main/res/xml/data_extraction_rules.xml');
@@ -200,7 +210,6 @@ assert.match(authStyles, /html\[data-runtime-platform="android"\] \.auth-form-wr
 assert.match(authStyles, /html\[data-runtime-platform="android"\] \.auth-form-side \{[^}]*safe-area-inset-bottom/);
 assert(!read('src/context/AppContext.tsx').includes("'sch-kazan-01'"), 'Authenticated sessions must not use a hard-coded school fallback.');
 for (const forbiddenPermission of [
-  'android.permission.CAMERA',
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.RECORD_AUDIO',

@@ -53,10 +53,10 @@ assertVerification(evaluateSecurityQr({ ...appointment, status: 'cancelled' }), 
   decision: 'CANCELLED', allowed: false, title: 'RANDEVU İPTAL EDİLMİŞ', message: 'Bu randevu iptal edilmiş.',
 });
 assertVerification(evaluateSecurityQr({ ...appointment, status: 'rejected' }), {
-  decision: 'REJECTED', allowed: false, title: 'RANDEVU REDDEDİLMİŞ', message: 'Bu randevu öğretmen tarafından onaylanmamış.',
+  decision: 'REJECTED', allowed: false, title: 'RANDEVU REDDEDİLMİŞ', message: 'Bu randevu öğretmen tarafından onaylanmamıştır.',
 });
 assertVerification(evaluateSecurityQr({ ...appointment, status: 'pending' }), {
-  decision: 'PENDING_APPROVAL', allowed: false, title: 'RANDEVU HENÜZ ONAYLANMADI', message: 'Randevu henüz öğretmen onayı bekliyor.',
+  decision: 'PENDING_APPROVAL', allowed: false, title: 'RANDEVU HENÜZ ONAYLANMADI', message: 'Öğretmen onayı bekleniyor.',
 });
 assertVerification(invalidQrVerification(), {
   decision: 'INVALID', allowed: false, title: 'GEÇERSİZ QR KODU', message: 'Bu QR koduyla geçerli bir randevu bulunamadı.',
