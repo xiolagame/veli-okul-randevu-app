@@ -11,10 +11,37 @@ export interface PushPayload {
 
 export type PushSendResult =
   | { status: 'SENT'; messageId: string }
-  | { status: 'INVALID_TARGET' | 'CONFIG_NOT_AVAILABLE' | 'RETRYABLE_FAILURE' };
+  | { status: 'INVALID_TARGET' | 'CONFIG_NOT_AVAILABLE' }
+  | { status: 'RETRYABLE_FAILURE'; errorCode: string };
 
 export interface PushProvider {
   send(target: string, payload: PushPayload): Promise<PushSendResult>;
+}
+
+const SAFE_FCM_CODE = /^[A-Za-z0-9/._:-]+$/;
+
+export function getSafeFcmErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'UNKNOWN_FCM_ERROR';
+  const record = error as Record<string, unknown>;
+  const errorInfo = record.errorInfo && typeof record.errorInfo === 'object'
+    ? record.errorInfo as Record<string, unknown>
+    : null;
+  const candidates = [errorInfo?.code, record.code];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const code = candidate.trim();
+      if (code && SAFE_FCM_CODE.test(code)) return code.slice(0, 128);
+    }
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 100 && candidate <= 599) {
+      return `HTTP_${candidate}`;
+    }
+  }
+  for (const candidate of [record.status, record.statusCode, record.httpStatus]) {
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 100 && candidate <= 599) {
+      return `HTTP_${candidate}`;
+    }
+  }
+  return 'UNKNOWN_FCM_ERROR';
 }
 
 const messages: Record<PushEventType, { title: string; body: string; role: 'teacher' | 'parent' }> = {
@@ -33,30 +60,37 @@ export function createPushPayload(eventType: PushEventType, appointmentId: strin
 }
 
 export class FirebasePushProvider implements PushProvider {
+  constructor(private readonly sendMessage?: (target: string, payload: PushPayload) => Promise<string>) {}
+
   async send(target: string, payload: PushPayload): Promise<PushSendResult> {
     const projectId = process.env.FCM_FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FCM_FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FCM_FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!projectId || !clientEmail || !privateKey) return { status: 'CONFIG_NOT_AVAILABLE' };
+    if (!this.sendMessage && (!projectId || !clientEmail || !privateKey)) return { status: 'CONFIG_NOT_AVAILABLE' };
     try {
-      const { cert, getApps, initializeApp } = await import('firebase-admin/app');
-      const { getMessaging } = await import('firebase-admin/messaging');
-      const app = getApps().find((existing) => existing.name === 'veli-push') || initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-      }, 'veli-push');
-      const messageId = await getMessaging(app).send({
-        token: target,
-        notification: { title: payload.title, body: payload.body },
-        data: payload.data,
-        android: { notification: { channelId: 'veli_randevu_appointments' } },
-      });
+      let messageId: string;
+      if (this.sendMessage) {
+        messageId = await this.sendMessage(target, payload);
+      } else {
+        const { cert, getApps, initializeApp } = await import('firebase-admin/app');
+        const { getMessaging } = await import('firebase-admin/messaging');
+        const app = getApps().find((existing) => existing.name === 'veli-push') || initializeApp({
+          credential: cert({ projectId: projectId!, clientEmail: clientEmail!, privateKey: privateKey! }),
+        }, 'veli-push');
+        messageId = await getMessaging(app).send({
+          token: target,
+          notification: { title: payload.title, body: payload.body },
+          data: payload.data,
+          android: { notification: { channelId: 'veli_randevu_appointments' } },
+        });
+      }
       return { status: 'SENT', messageId };
     } catch (error) {
-      const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
-      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+      const errorCode = getSafeFcmErrorCode(error);
+      if (errorCode === 'messaging/registration-token-not-registered' || errorCode === 'messaging/invalid-registration-token') {
         return { status: 'INVALID_TARGET' };
       }
-      return { status: 'RETRYABLE_FAILURE' };
+      return { status: 'RETRYABLE_FAILURE', errorCode };
     }
   }
 }
@@ -196,7 +230,7 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
       sendResult = await provider.send(delivery.provider_target,
         createPushPayload(delivery.event_type, delivery.appointment_id, delivery.notification_id));
     } catch {
-      sendResult = { status: 'RETRYABLE_FAILURE' };
+      sendResult = { status: 'RETRYABLE_FAILURE', errorCode: 'UNKNOWN_FCM_ERROR' };
     }
     if (sendResult.status === 'CONFIG_NOT_AVAILABLE') {
       result.unavailable++;
@@ -223,8 +257,8 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
       result.failed++;
       await db.query(`UPDATE notification_deliveries SET status='FAILED',
         next_attempt_at=NOW()+(INTERVAL '1 minute' * LEAST(60,POWER(2,attempt_count))),
-        last_error_code='RETRYABLE_FAILURE',claimed_until=NULL,updated_at=NOW()
-        WHERE id=$1 AND status='SENDING'`, [delivery.id]);
+        last_error_code=$2,claimed_until=NULL,updated_at=NOW()
+        WHERE id=$1 AND status='SENDING'`, [delivery.id, sendResult.errorCode]);
     }
   }
   return result;

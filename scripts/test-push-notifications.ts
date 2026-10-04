@@ -196,7 +196,7 @@ async function run() {
   const { createToken } = await import('../server/auth');
   const { apiRouter } = await import('../server/api');
   const { createPushPayload, dispatchPushDeliveries, enqueueAppointmentPush, FirebasePushProvider,
-    registerPushDevice } = await import('../server/push-notifications');
+    getSafeFcmErrorCode, registerPushDevice } = await import('../server/push-notifications');
   const { notificationRepository } = await import('../server/repositories');
   const { hashSetupToken } = await import('../server/activation-codes');
   const db = await getDb();
@@ -250,6 +250,23 @@ async function run() {
     for (const forbidden of ['qr', 'phone', 'email', 'birth', 'notes', 'student', 'parent', 'license', 'activation', 'reset', 'jwt', 'password']) {
       assert(!JSON.stringify(payload).toLowerCase().includes(forbidden));
     }
+    assert.equal(getSafeFcmErrorCode({ errorInfo: { code: 'messaging/mismatched-credential' } }),
+      'messaging/mismatched-credential');
+    assert.equal(getSafeFcmErrorCode({ code: 'app/invalid-credential' }), 'app/invalid-credential');
+    assert.equal(getSafeFcmErrorCode({ status: 403 }), 'HTTP_403');
+    assert.equal(getSafeFcmErrorCode({ errorInfo: { code: 'unsafe code\nTOKEN=value' } }), 'UNKNOWN_FCM_ERROR');
+    assert.equal(getSafeFcmErrorCode({ code: 'A'.repeat(256) }).length, 128);
+    const unknownErrorCode = getSafeFcmErrorCode(new Error('SECRET TOKEN abc123'));
+    assert.equal(unknownErrorCode, 'UNKNOWN_FCM_ERROR');
+    assert(!unknownErrorCode.includes('SECRET') && !unknownErrorCode.includes('TOKEN'));
+    assert.deepEqual(await new FirebasePushProvider(async () => {
+      throw { errorInfo: { code: 'messaging/registration-token-not-registered' } };
+    }).send(teacherTarget, payload), { status: 'INVALID_TARGET' });
+    assert.deepEqual(await new FirebasePushProvider(async () => {
+      throw { errorInfo: { code: 'messaging/mismatched-credential' } };
+    }).send(teacherTarget, payload), {
+      status: 'RETRYABLE_FAILURE', errorCode: 'messaging/mismatched-credential',
+    });
     const previousProject = process.env.FCM_FIREBASE_PROJECT_ID;
     try {
       delete process.env.FCM_FIREBASE_PROJECT_ID;
@@ -382,9 +399,18 @@ async function run() {
         appointmentId, eventType: 'APPOINTMENT_REJECTED' });
       return notification;
     });
-    assert.equal((await dispatchPushDeliveries({ send: async () => ({ status: 'RETRYABLE_FAILURE' }) })).failed, 1);
-    assert.equal((await db.query<{ status: string; attempt_count: number }>(
-      'SELECT status,attempt_count FROM notification_deliveries WHERE notification_id=$1', [retryNotification.id])).rows[0].attempt_count, 1);
+    const safeRetryCode = 'messaging/mismatched-credential';
+    assert.equal((await dispatchPushDeliveries({
+      send: async () => ({ status: 'RETRYABLE_FAILURE', errorCode: safeRetryCode }),
+    })).failed, 1);
+    const failedDelivery = (await db.query<{ status: string; attempt_count: number; last_error_code: string;
+      next_attempt_at: string; last_attempt_at: string }>(
+      `SELECT status,attempt_count,last_error_code,next_attempt_at,last_attempt_at
+       FROM notification_deliveries WHERE notification_id=$1`, [retryNotification.id])).rows[0];
+    assert.equal(failedDelivery.status, 'FAILED');
+    assert.equal(failedDelivery.attempt_count, 1);
+    assert.equal(failedDelivery.last_error_code, safeRetryCode);
+    assert(new Date(failedDelivery.next_attempt_at).getTime() > new Date(failedDelivery.last_attempt_at).getTime());
     await db.query('UPDATE notification_deliveries SET next_attempt_at=NOW() WHERE notification_id=$1', [retryNotification.id]);
     let retrySends = 0;
     const retryProvider = { send: async () => { retrySends++; return { status: 'SENT' as const, messageId: 'fake-retry' }; } };
