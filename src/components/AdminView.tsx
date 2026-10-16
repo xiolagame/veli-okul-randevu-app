@@ -8,7 +8,6 @@ import {
   Calendar,
   Settings as SettingsIcon,
   FileText,
-  X,
   CheckCircle2,
   Clock,
   GraduationCap,
@@ -31,10 +30,9 @@ import { SchoolRequestCenter } from './SchoolRequestCenter';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
-  onClose: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
   const {
     currentSchool,
     refreshSchoolData,
@@ -154,18 +152,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose, onManageSchools }
     ...(isPlatformAdmin ? [{ id: 'isolation' as const, label: 'Sistem Güvenliği', icon: CheckCircle2 }] : []),
   ];
 
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('[role="dialog"]') && !showUploadModal) onClose();
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose, showUploadModal]);
-
   return (
     <div className="admin-backdrop">
       <section className="admin-panel" aria-label="Okul yönetim paneli">
-        <header className="admin-header"><div><h2>{navigation.find((item) => item.id === activeTab)?.label}</h2><p>{platformContextActive ? `Platform Yönetimi · ${currentSchool?.name}` : currentSchool?.name}</p></div><button type="button" onClick={onClose} className="icon-button" aria-label="Yönetim panelini kapat"><X size={22} /></button></header>
+        <header className="admin-header"><div><h2>{navigation.find((item) => item.id === activeTab)?.label}</h2><p>{platformContextActive ? `Platform Yönetimi · ${currentSchool?.name}` : currentSchool?.name}</p></div></header>
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">{platformContextActive ? 'SEÇİLİ OKUL YÖNETİMİ' : 'OKUL YÖNETİMİ'}</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <label className="admin-mobile-nav" htmlFor="admin-section"><span className="sr-only">Yönetim bölümü</span><select id="admin-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}>{navigation.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <main id="main-content" className="admin-content">

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync('src/App.tsx', 'utf8');
 const navbar = fs.readFileSync('src/components/Navbar.tsx', 'utf8');
+const adminView = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
 const schoolManagement = fs.readFileSync('src/components/SchoolManagement.tsx', 'utf8');
 
 assert(app.includes('const showPlatformHome = isPlatformAdmin && !platformContextActive && !currentMembership;'));
@@ -27,5 +28,9 @@ assert(schoolManagement.includes('<main id="main-content" className="page-shell 
 assert(!schoolManagement.includes('return <Dialog wide title="Platform Yönetimi"'));
 assert(app.includes('{canManageSchools && showSchoolManagement'));
 assert(!app.includes('{canManageSchools && showSchoolManagement && <SchoolManagement'));
+assert(!adminView.includes('aria-label="Yönetim panelini kapat"'));
+assert(!adminView.includes('event.key === \'Escape\''));
+assert(!app.includes('<AdminView onClose='));
+assert(schoolManagement.includes('>Platform alanından çık</Button>'));
 
 console.log('Platform Admin navigation, no-school empty state, CTA routing and normal-user separation tests PASS.');

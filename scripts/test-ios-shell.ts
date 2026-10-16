@@ -6,6 +6,7 @@ const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
 const capacitorConfig = fs.readFileSync('capacitor.config.ts', 'utf8');
+const generatedCapacitorConfig = fs.readFileSync('ios/App/App/capacitor.config.json', 'utf8');
 const viteConfig = fs.readFileSync('vite.config.ts', 'utf8');
 const infoPlist = fs.readFileSync('ios/App/App/Info.plist', 'utf8');
 const privacyManifest = fs.readFileSync('ios/App/App/PrivacyInfo.xcprivacy', 'utf8');
@@ -29,6 +30,8 @@ assert.match(capacitorConfig, /appId:\s*'com\.velirandevu\.app'/);
 assert.match(capacitorConfig, /appName:\s*'Veli Randevu'/);
 assert.match(capacitorConfig, /webDir:\s*'dist\/client'/);
 assert.doesNotMatch(capacitorConfig, /server\s*:/);
+assert.match(capacitorConfig, /StatusBar:\s*\{[\s\S]*style:\s*'LIGHT'/);
+assert.match(generatedCapacitorConfig, /"StatusBar"[\s\S]*"style":\s*"LIGHT"/);
 assert.match(viteConfig, /\['android', 'ios'\]\.includes\(mode\)/);
 assert.match(viteConfig, /https:\/\/velirandevu\.com/);
 
@@ -36,6 +39,7 @@ assert.match(infoPlist, /<key>NSCameraUsageDescription<\/key>\s*<string>Veli Ran
 assert.doesNotMatch(infoPlist, /NSMicrophoneUsageDescription/);
 assert.doesNotMatch(infoPlist, /NSAllowsArbitraryLoads/);
 assert.match(infoPlist, /<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/);
+assert.match(infoPlist, /<key>UIViewControllerBasedStatusBarAppearance<\/key>\s*<true\/>/);
 assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = com\.velirandevu\.app;/g);
 assert.match(xcodeProject, /MARKETING_VERSION = 1\.0\.0;/g);
 assert.match(xcodeProject, /CURRENT_PROJECT_VERSION = 1;/g);

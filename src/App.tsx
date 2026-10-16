@@ -261,7 +261,7 @@ export const AppContent: React.FC = () => {
       )}
 
       {showAdminModal && (
-        <AdminView onClose={() => setShowAdminModal(false)} onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined} />
+        <AdminView onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined} />
       )}
 
       {showOnboardingModal && (
