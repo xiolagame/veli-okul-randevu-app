@@ -253,6 +253,16 @@ export const api = {
       })[];
     }>('/api/user/me'),
 
+  deleteOwnAccount: (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) =>
+    request<{
+      success: true;
+      completed: true;
+      completedAt: string;
+      alreadyCompleted: boolean;
+      notificationSent: boolean;
+      message: string;
+    }>('/api/user/me/deletion', { method: 'POST', body: JSON.stringify(data) }),
+
   // Onboarding
   checkRoster: (schoolId: string) =>
     request<{

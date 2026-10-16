@@ -69,10 +69,11 @@ export function createNativeSecureAuthTokenStore(
       try {
         await secureStorage.removeItem(NATIVE_AUTH_TOKEN_KEY);
         if (await secureStorage.getItem(NATIVE_AUTH_TOKEN_KEY) !== null) throw new SecureAuthStorageError();
-        resolveLegacyStorage()?.removeItem(AUTH_TOKEN_STORAGE_KEY);
       } catch {
+        resolveLegacyStorage()?.removeItem(AUTH_TOKEN_STORAGE_KEY);
         throw new SecureAuthStorageError();
       }
+      resolveLegacyStorage()?.removeItem(AUTH_TOKEN_STORAGE_KEY);
     },
   };
 }

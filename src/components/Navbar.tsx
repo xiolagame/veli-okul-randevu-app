@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp } from 'lucide-react';
+import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp, Trash2 } from 'lucide-react';
 import { Brand, Button, Dialog } from './ui';
 import { androidPush, canUseAndroidPush, PushStatus } from '../platform/android-push';
 import { appLifecycle } from '../platform/lifecycle';
 import { networkHint } from '../platform/network';
+import { DeleteAccountDialog } from './DeleteAccountDialog';
 
 interface NavbarProps {
   onManageSchools?: () => void;
@@ -87,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   };
   const [showSchoolMenu, setShowSchoolMenu] = useState(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [logoutError, setLogoutError] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const canSwitchSchool = isPlatformAdmin || currentUser?.role === 'parent';
@@ -156,9 +158,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
           }).finally(() => setIsLoggingOut(false));
         }}><LogOut size={18} />Oturumu kapat</Button>
         {logoutError && <p role="alert" className="mt-2 text-sm text-red-700">{logoutError}</p>}
+        <section className="account-danger-zone" aria-labelledby="account-danger-title">
+          <div><h3 id="account-danger-title">Hesap ve gizlilik</h3><p>Hesabınızı ve kişisel giriş bilgilerinizi kalıcı olarak silebilirsiniz.</p></div>
+          <Button variant="danger" className="w-full" onClick={() => { setShowPersonaMenu(false); setShowDeleteAccount(true); }}><Trash2 size={18} />Hesabımı sil</Button>
+        </section>
         {onManageSchools && <Button variant="secondary" className="w-full mt-3" onClick={() => { setShowPersonaMenu(false); onManageSchools(); }}><Building2 size={18} />Platform Yönetimi</Button>}
         {import.meta.env.DEV && <details className="mt-6"><summary className="text-xs text-slate-500 cursor-pointer">Yerel test hesapları</summary><div className="space-y-1 mt-3">{DEMO_PERSONAS.map((persona) => <button type="button" key={persona.id} className="w-full text-left p-2 text-sm hover:bg-slate-50 rounded-lg" onClick={() => { void switchUser(persona.id); setShowPersonaMenu(false); }}>{persona.name}<span className="block text-xs text-slate-500">{persona.desc}</span></button>)}</div></details>}
       </Dialog>}
+      {showDeleteAccount && <DeleteAccountDialog onClose={() => setShowDeleteAccount(false)} />}
     </header>
   );
 };

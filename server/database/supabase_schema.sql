@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS school_roster (
     student_number VARCHAR(50),
     birth_date DATE,
     is_claimed BOOLEAN DEFAULT FALSE NOT NULL,
+    parent_account_deleted_at TIMESTAMPTZ,
     claimed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
@@ -142,6 +143,7 @@ CREATE TABLE IF NOT EXISTS teacher_profiles (
     branch VARCHAR(100) NOT NULL,
     email VARCHAR(150),
     phone VARCHAR(20),
+    account_deleted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT uq_teachers_school_id UNIQUE (school_id, id)
@@ -184,9 +186,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     notes TEXT,
     rejection_reason TEXT,
     approved_at TIMESTAMPTZ,
-    approved_by TEXT REFERENCES users(id),
+    approved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     check_in_time VARCHAR(30),
-    checked_in_by TEXT REFERENCES users(id),
+    checked_in_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     checked_in_at TIMESTAMPTZ,
     check_out_time VARCHAR(30),
     checked_out_at TIMESTAMPTZ,
@@ -239,6 +241,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp VARCHAR(50) NOT NULL,
     action VARCHAR(100) NOT NULL,
     actor_name VARCHAR(150) NOT NULL,
+    actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     details TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     audit_scope VARCHAR(16) DEFAULT 'SCHOOL' NOT NULL,
@@ -278,7 +281,7 @@ CREATE TABLE IF NOT EXISTS pending_staff (
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     email VARCHAR(150) NOT NULL,
-    created_by TEXT REFERENCES users(id),
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT uq_pending_staff_school_id UNIQUE (school_id, id)
@@ -290,6 +293,17 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
     window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     blocked_until TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS account_deletion_receipts (
+    request_id UUID PRIMARY KEY,
+    subject_hash CHAR(64) NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+    CONSTRAINT account_deletion_receipts_subject_hash_format CHECK (subject_hash ~ '^[0-9a-f]{64}$')
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_deletion_receipts_expires_at
+ON account_deletion_receipts(expires_at);
 
 CREATE TABLE IF NOT EXISTS platform_requests (
     id TEXT PRIMARY KEY DEFAULT ('req-' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
@@ -313,7 +327,10 @@ CREATE TABLE IF NOT EXISTS platform_requests (
     archived_at TIMESTAMPTZ,
     school_hidden_at TIMESTAMPTZ,
     platform_hidden_at TIMESTAMPTZ,
-    CONSTRAINT platform_requests_contact_required CHECK (email_snapshot IS NOT NULL OR phone_snapshot IS NOT NULL),
+    privacy_anonymized_at TIMESTAMPTZ,
+    CONSTRAINT platform_requests_contact_required CHECK (
+      privacy_anonymized_at IS NOT NULL OR email_snapshot IS NOT NULL OR phone_snapshot IS NOT NULL
+    ),
     CONSTRAINT platform_requests_source_scope CHECK (
       (source = 'PUBLIC' AND school_id IS NULL AND created_by_user_id IS NULL AND request_type <> 'SUPPORT')
       OR source = 'SCHOOL_ADMIN'
@@ -358,12 +375,12 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS checked_in_by TEXT REFERENCES 
 
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS purpose VARCHAR(32);
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_phone VARCHAR(20);
-ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_user_id TEXT REFERENCES users(id);
+ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS target_role VARCHAR(20);
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS code_hash TEXT;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
-ALTER TABLE invitations ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id);
+ALTER TABLE invitations ADD COLUMN IF NOT EXISTS created_by TEXT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE invitations ADD COLUMN IF NOT EXISTS attempts INT DEFAULT 0 NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_invitations_auth_code_lookup
   ON invitations (school_id, target_phone, purpose)
@@ -443,6 +460,7 @@ ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE account_deletion_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_admin_request_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_request_messages ENABLE ROW LEVEL SECURITY;
@@ -501,6 +519,9 @@ ON pending_staff FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access auth_rate_limits"
 ON auth_rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Express backend service full access account_deletion_receipts"
+ON account_deletion_receipts FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access platform_requests"
 ON platform_requests FOR ALL TO service_role USING (true) WITH CHECK (true);

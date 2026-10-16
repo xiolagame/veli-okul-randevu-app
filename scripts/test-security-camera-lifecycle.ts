@@ -107,6 +107,7 @@ vm.runInNewContext(javascript, {
     if (name.includes('mockData')) return { getTodayDateString: () => '2090-01-02' };
     if (name === '../utils/dates') return dates;
     if (name.includes('android-camera-permission')) return { androidCameraPermission: cameraPermission };
+    if (name.includes('runtime-platform')) return { getRuntimePlatform: () => 'ANDROID' };
     if (name.includes('/lifecycle')) return { appLifecycle: lifecycle };
     if (name.includes('back-navigation')) return {
       registerBackHandler(handler: () => void) {

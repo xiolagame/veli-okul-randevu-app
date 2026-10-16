@@ -45,6 +45,11 @@ dump.rdb
 # System files
 .DS_Store
 *.pem
+*.p8
+*.p12
+*.cer
+*.csr
+*.mobileprovision
 
 # Python
 __pycache__/

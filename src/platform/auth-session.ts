@@ -63,6 +63,13 @@ export class AuthSessionManager {
     }
   }
 
+  async clearTokenAfterRemoteInvalidation(): Promise<void> {
+    this.revision += 1;
+    this.token = null;
+    this.hydrated = true;
+    await this.mutateStore(() => this.store.remove());
+  }
+
   async clearTokenIfCurrent(expectedToken: string): Promise<boolean> {
     if (this.token !== expectedToken) return false;
     this.revision += 1;

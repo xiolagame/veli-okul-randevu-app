@@ -84,6 +84,7 @@ for (const packageName of [
   '@capacitor/core',
   '@capacitor/cli',
   '@capacitor/android',
+  '@capacitor/ios',
   '@capacitor/app',
   '@capacitor/network',
   '@capacitor/status-bar',
@@ -95,13 +96,12 @@ for (const packageName of [
 assert.equal(packageJson.dependencies['@aparajita/capacitor-secure-storage'], '8.0.1');
 assert.equal(packageJson.dependencies['@capacitor/push-notifications'], '8.1.3');
 for (const excludedPackage of [
-  '@capacitor/ios',
   '@capacitor/camera',
   '@capacitor/filesystem',
   '@capacitor/geolocation',
   '@capacitor-community/secure-storage',
 ]) {
-  assert.equal(capacitorPackages[excludedPackage], undefined, `${excludedPackage} is outside Phase 3A scope.`);
+  assert.equal(capacitorPackages[excludedPackage], undefined, `${excludedPackage} is outside the mobile shell scope.`);
 }
 
 const variablesGradle = read('android/variables.gradle');

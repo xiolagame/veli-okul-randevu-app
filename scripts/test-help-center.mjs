@@ -68,7 +68,7 @@ for (const heading of ['Gizlilik yaklaşımımız', 'Kamera kullanımı', 'Hizme
 assert(helpContent.includes('Veli Randevu uygulaması fotoğraf veya video kaydı oluşturmaz'));
 assert(helpContent.includes('Resmî veri sahibi başvuru kanalı hukuk ve operasyon doğrulaması tamamlandıktan sonra burada yayınlanacaktır.'));
 assert(!helpContent.includes('destek@kolayokul.com'));
-assert(!helpContent.includes('30 gün'));
+assert(helpContent.includes('tek yönlü bir işlem makbuzu en fazla 30 gün tutulur') || helpContent.includes('tek yönlü işlem makbuzu en fazla 30 gün tutulur'));
 assert(!helpContent.includes('90 gün'));
 assert(!helpContent.includes('1 yıl'));
 assert(!helpContent.includes('5 yıl'));

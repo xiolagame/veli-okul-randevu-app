@@ -53,10 +53,12 @@ interface AppContextType {
   unreadNotificationCount: number;
   isLoading: boolean;
   authStorageError: boolean;
+  accountDeletionNotice: string | null;
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
   logout: () => Promise<void>;
+  deleteAccount: (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
   bookAppointment: (data: {
     teacherId: string;
@@ -149,6 +151,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isolationTestResults, setIsolationTestResults] = useState<TenantIsolationTestResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authStorageError, setAuthStorageError] = useState(false);
+  const [accountDeletionNotice, setAccountDeletionNotice] = useState<string | null>(null);
   const sessionRestore = useRef<Promise<SessionRestoreResult> | null>(null);
   const platformContextActive = !!getPlatformTargetSchoolId() && isPlatformAdmin;
 
@@ -368,6 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
     });
     if (result.ok) setAuthStorageError(false);
+    if (result.ok) setAccountDeletionNotice(null);
     return result;
   };
 
@@ -377,6 +381,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await authSession.clearToken();
     pendingNavigationIntent.clear();
     clearRuntimeSession();
+  };
+
+  const deleteAccount = async (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
+    const result = await api.deleteOwnAccount(data);
+    let localCleanupFailed = false;
+    try {
+      await androidPush.afterSessionInvalidated();
+    } catch {
+      localCleanupFailed = true;
+    }
+    try {
+      await authSession.clearTokenAfterRemoteInvalidation();
+    } catch {
+      try {
+        await authSession.clearTokenAfterRemoteInvalidation();
+      } catch {
+        localCleanupFailed = true;
+      }
+    }
+    pendingNavigationIntent.clear();
+    clearRuntimeSession();
+    setAccountDeletionNotice(result.message);
+    setAuthStorageError(localCleanupFailed);
   };
 
   // Quick switch user for instant evaluator testing
@@ -588,10 +615,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unreadNotificationCount,
         isLoading,
         authStorageError,
+        accountDeletionNotice,
         switchSchool,
         returnToPlatform,
         login,
         logout,
+        deleteAccount,
         switchUser,
         bookAppointment,
         approveAppointment,

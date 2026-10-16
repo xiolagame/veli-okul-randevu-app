@@ -48,6 +48,7 @@ export interface SchoolRosterRecord {
   studentNumber?: string;
   birthDate?: string;
   isClaimed: boolean;
+  parentAccountDeletedAt?: string;
 }
 
 export interface Student {

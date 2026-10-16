@@ -2,14 +2,14 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-const ANDROID_PRODUCTION_API_ORIGIN = 'https://velirandevu.com';
+const MOBILE_PRODUCTION_API_ORIGIN = 'https://velirandevu.com';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const apiBaseUrl = (process.env.VITE_API_BASE_URL || env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-  if (mode === 'android' && apiBaseUrl !== ANDROID_PRODUCTION_API_ORIGIN) {
-    throw new Error(`Android build requires VITE_API_BASE_URL=${ANDROID_PRODUCTION_API_ORIGIN}`);
+  if (['android', 'ios'].includes(mode) && apiBaseUrl !== MOBILE_PRODUCTION_API_ORIGIN) {
+    throw new Error(`${mode === 'ios' ? 'iOS' : 'Android'} build requires VITE_API_BASE_URL=${MOBILE_PRODUCTION_API_ORIGIN}`);
   }
 
   return {

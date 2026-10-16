@@ -37,6 +37,10 @@ export function isPlatformAdmin(userId: string | undefined): boolean {
   return !!userId && (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean).includes(userId);
 }
 
+export function createAccountDeletionSubjectHash(userId: string): string {
+  return crypto.createHmac('sha256', SECRET_KEY).update(`account-deletion:${userId}`).digest('hex');
+}
+
 // Token helper using base64url HMAC-SHA256
 export function createToken(payload: AuthTokenPayload, expiresInSeconds = 86400): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');

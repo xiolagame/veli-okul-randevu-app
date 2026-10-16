@@ -10,6 +10,7 @@ import { CameraPermissionAdapter, CameraPermissionState, androidCameraPermission
 import { appLifecycle } from '../platform/lifecycle';
 import type { LifecycleAdapter } from '../platform/browser-lifecycle';
 import { registerBackHandler } from '../platform/back-navigation';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 
 interface SecurityViewProps {
   cameraPermission?: CameraPermissionAdapter;
@@ -62,7 +63,9 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
       : null;
     const name = typeof cameraFailure?.name === 'string' ? cameraFailure.name : '';
     const message = typeof cause === 'string' ? cause.toLowerCase() : typeof cameraFailure?.message === 'string' ? cameraFailure.message.toLowerCase() : '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return getRuntimePlatform() === 'IOS'
+      ? 'Kamera izni verilmedi. Ayarlar > Veli Randevu > Kamera bölümünden erişime izin verin.'
+      : 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.';
     if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || message.includes('camera not found')) return 'Bu cihazda kullanılabilir kamera bulunamadı.';
     if (name === 'SecurityError') return 'Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.';
     if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') return 'Kamera başka bir uygulama tarafından kullanılıyor olabilir.';

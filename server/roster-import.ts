@@ -28,7 +28,7 @@ async function inspect(tx: TransactionClient, schoolId: string, records: unknown
   });
 }
 
-export async function processRosterImport(schoolId: string, records: unknown, preview: boolean, actorName: string) {
+export async function processRosterImport(schoolId: string, records: unknown, preview: boolean, actorName: string, actorUserId?: string) {
   if (!Array.isArray(records) || records.length === 0 || records.length > MAX_ROSTER_ROWS) throw new RosterImportError('1–500 kayıt yükleyin.');
   const db = await getDb();
   return db.transaction(async (tx) => {
@@ -45,7 +45,7 @@ export async function processRosterImport(schoolId: string, records: unknown, pr
         addedCount++;
       }
       const classNames = [...new Set(rows.filter((row) => row.status === 'valid').map((row) => row.record.className))];
-      await auditLogRepository.createAuditLog({ schoolId, action: 'roster.bulk_imported', actorName, details: JSON.stringify({ classNames, addedCount }) }, tx);
+      await auditLogRepository.createAuditLog({ schoolId, action: 'roster.bulk_imported', actorName, actorUserId, details: JSON.stringify({ classNames, addedCount }) }, tx);
     }
     return { success: true, rows, addedCount, skippedCount: rows.filter((row) => row.status === 'duplicate').length };
   });

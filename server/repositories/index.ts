@@ -723,7 +723,7 @@ export const relationRepository = {
 export const rosterRepository = {
   async getRoster(schoolId: string): Promise<SchoolRosterRecord[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
        FROM school_roster
        WHERE school_id = $1
        ORDER BY class_name ASC, student_name ASC;`,
@@ -739,6 +739,7 @@ export const rosterRepository = {
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
+      parentAccountDeletedAt: r.parent_account_deleted_at || undefined,
     }));
   },
 
@@ -746,9 +747,10 @@ export const rosterRepository = {
     const lookupDigits = getTurkishPhoneLookupDigits(parentPhone);
     if (!lookupDigits) return [];
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
        FROM school_roster
-       WHERE school_id = $1 AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4);`,
+       WHERE school_id = $1 AND parent_account_deleted_at IS NULL
+         AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4);`,
       [schoolId, ...lookupDigits],
       client
     );
@@ -762,12 +764,13 @@ export const rosterRepository = {
       studentNumber: r.student_number || undefined,
       birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
+      parentAccountDeletedAt: r.parent_account_deleted_at || undefined,
     }));
   },
 
   async getById(schoolId: string, rosterId: string, client?: TransactionClient): Promise<SchoolRosterRecord | null> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
        FROM school_roster WHERE school_id = $1 AND id = $2;`,
       [schoolId, rosterId],
       client
@@ -784,6 +787,7 @@ export const rosterRepository = {
       studentNumber: roster.student_number || undefined,
       birthDate: roster.birth_date ? String(roster.birth_date).slice(0,10) : undefined,
       isClaimed: roster.is_claimed,
+      parentAccountDeletedAt: roster.parent_account_deleted_at || undefined,
     };
   },
 
@@ -791,7 +795,7 @@ export const rosterRepository = {
     const res = await execQuery<any>(
       `UPDATE school_roster
        SET is_claimed = TRUE, claimed_at = NOW(), updated_at = NOW()
-       WHERE school_id = $1 AND id = $2;`,
+       WHERE school_id = $1 AND id = $2 AND parent_account_deleted_at IS NULL;`,
       [schoolId, rosterId],
       client
     );
@@ -820,7 +824,8 @@ export const rosterRepository = {
       // Check if already in roster
       const exists = await execQuery<any>(
         `SELECT id FROM school_roster 
-         WHERE school_id = $1 AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4) AND student_name = $5;`,
+         WHERE school_id = $1 AND parent_account_deleted_at IS NULL
+           AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4) AND student_name = $5;`,
         [schoolId, ...lookupDigits, item.studentName],
         client
       );
@@ -855,6 +860,7 @@ export const teacherRepository = {
     const res = await execQuery<any>(
       `SELECT tp.id, tp.school_id, tp.user_id, tp.first_name, tp.last_name, tp.branch, tp.email, tp.phone,
          CASE
+           WHEN tp.account_deleted_at IS NOT NULL THEN 'inactive'
            WHEN NULLIF(u.password_hash, '') IS NULL THEN 'pending'
            WHEN EXISTS (
              SELECT 1 FROM school_memberships sm
@@ -895,7 +901,7 @@ export const teacherRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
        FROM teacher_profiles
-       WHERE school_id = $1 AND (id = $2 OR user_id = $2);`,
+       WHERE school_id = $1 AND account_deleted_at IS NULL AND (id = $2 OR user_id = $2);`,
       [schoolId, teacherId],
       client
     );
@@ -907,7 +913,7 @@ export const teacherRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
        FROM teacher_profiles
-       WHERE school_id = $1 AND user_id = $2
+       WHERE school_id = $1 AND account_deleted_at IS NULL AND user_id = $2
        LIMIT 1;`,
       [schoolId, userId],
       client
@@ -921,7 +927,7 @@ export const teacherRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
        FROM teacher_profiles
-       WHERE school_id = $1
+       WHERE school_id = $1 AND account_deleted_at IS NULL
          AND regexp_replace(phone, '[^0-9]', '', 'g') IN ($2, $3, $4)
        LIMIT 1;`,
       [schoolId, ...lookupDigits],
@@ -934,7 +940,7 @@ export const teacherRepository = {
     const res = await execQuery<any>(
       `UPDATE teacher_profiles
        SET user_id = $3, updated_at = NOW()
-       WHERE school_id = $1 AND id = $2 AND (user_id IS NULL OR user_id = $3)
+       WHERE school_id = $1 AND id = $2 AND account_deleted_at IS NULL AND (user_id IS NULL OR user_id = $3)
        RETURNING id;`,
       [schoolId, teacherId, userId],
       client
@@ -1472,6 +1478,7 @@ export const auditLogRepository = {
       timestamp?: string;
       action: string;
       actorName: string;
+      actorUserId?: string;
       details: string;
       auditScope?: 'SCHOOL' | 'PLATFORM';
     },
@@ -1483,10 +1490,10 @@ export const auditLogRepository = {
       new Date().toISOString();
 
     const res = await execQuery<any>(
-      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, details, audit_scope)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, actor_user_id, details, audit_scope)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, school_id, timestamp, action, actor_name, details;`,
-      [id, log.schoolId, time, log.action, log.actorName, log.details, log.auditScope || 'SCHOOL'],
+      [id, log.schoolId, time, log.action, log.actorName, log.actorUserId || null, log.details, log.auditScope || 'SCHOOL'],
       client
     );
     const r = res.rows[0];

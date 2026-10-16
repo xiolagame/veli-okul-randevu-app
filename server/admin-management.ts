@@ -149,7 +149,7 @@ adminManagementRouter.post('/admins', async (req: AuthenticatedRequest, res) => 
         targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
         createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_invited', actorName: 'Okul yönetimi',
-        details: `Okul yöneticisi ${userId} için aktivasyon daveti oluşturuldu.` }, tx);
+        actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} için aktivasyon daveti oluşturuldu.` }, tx);
       return { userId, schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
     });
     const emailSent = await deliverSchoolAdminCode(identity.email, target.schoolName, target.schoolCode, identity.fullName, code);
@@ -187,7 +187,7 @@ adminManagementRouter.post('/admins/:id/resend', async (req: AuthenticatedReques
         targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
         createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_resent', actorName: 'Okul yönetimi',
-        details: `Okul yöneticisi ${userId} için aktivasyon daveti yeniden oluşturuldu.` }, tx);
+        actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} için aktivasyon daveti yeniden oluşturuldu.` }, tx);
       return { ...user.rows[0], schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
     });
     const emailSent = await deliverSchoolAdminCode(target.email!, target.schoolName, target.schoolCode,
@@ -232,7 +232,7 @@ adminManagementRouter.patch('/admins/:id', async (req: AuthenticatedRequest, res
         WHERE school_id=$1 AND target_user_id=$2 AND purpose IN ('school_admin_activation','school_admin_activation_setup')
           AND consumed_at IS NULL AND revoked_at IS NULL`, [schoolId, userId]);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_updated', actorName: 'Okul yönetimi',
-        details: `Okul yöneticisi ${userId} bilgileri güncellendi.` }, tx);
+        actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} bilgileri güncellendi.` }, tx);
       return identityChanged;
     });
     return res.json({ success: true, invitationRevoked, message: invitationRevoked
@@ -286,7 +286,7 @@ adminManagementRouter.delete('/admins/:id', async (req: AuthenticatedRequest, re
             AND consumed_at IS NULL AND revoked_at IS NULL)`, [userId, schoolId]);
       }
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_removed', actorName: 'Okul yönetimi',
-        details: `Okul yöneticisi ${userId} okul yetkisinden kaldırıldı.` }, tx);
+        actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} okul yetkisinden kaldırıldı.` }, tx);
     });
     return res.json({ success: true });
   } catch (cause) {
@@ -413,6 +413,7 @@ adminManagementRouter.delete('/students/:id/removal', async (req: AuthenticatedR
       }
       await auditLogRepository.createAuditLog({ schoolId, action: 'Öğrenci Okuldan Kaldırıldı',
         actorName: normalizePersonName(`${req.user!.firstName} ${req.user!.lastName}`),
+        actorUserId: req.user!.id,
         details: `${normalizePersonName(record.name)} okuldan kaldırıldı. ${deletedAccounts} veli hesabı silindi, ${preservedAccounts} veli hesabı korundu.` }, tx);
       return { deletedAccounts, preservedAccounts };
     });
@@ -654,7 +655,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
       }
       await auditLogRepository.createAuditLog({
         schoolId, action: kind === 'teacher' && removing ? 'teacher_deleted' : `${kind}.${removing ? 'removed' : 'updated'}`,
-        actorName: 'Okul yönetimi', details: JSON.stringify({ id, ...(kind === 'teacher' && removing
+        actorName: 'Okul yönetimi', actorUserId: req.user!.id, details: JSON.stringify({ id, ...(kind === 'teacher' && removing
           ? { deletedAppointments: cancelledAppointments, reason: 'Öğretmen ve ilişkili kayıtlar silindi.' } : {}) }),
       }, tx);
     });

@@ -240,6 +240,18 @@ export const helpGuides = {
       },
     ],
   },
+  'hesap-silme': {
+    eyebrow: 'HESAP VE GÜVENLİK',
+    title: 'Hesabımı Silme',
+    description: 'Hesabınızı uygulama içinden güvenli ve kalıcı olarak silin.',
+    sections: [
+      { title: 'Silme yoluna nasıl ulaşılır?', paragraphs: ['Sağ üstteki Hesabım menüsünü açın, “Hesap ve gizlilik” bölümünden “Hesabımı sil” seçeneğine dokunun. Bu işlem için telefon, e-posta veya destek formu kullanmanız gerekmez.'] },
+      { title: 'Güvenlik doğrulaması', paragraphs: ['Silme ekranı, mevcut parolanızı ve HESABIMI SİL onay metnini ister. Parola doğrulanamazsa veya sunucu işlemi tamamlayamazsa hiçbir veri değiştirilmez ve oturumunuz açık kalır.'] },
+      { title: 'Kalıcı olarak silinenler', bullets: ['Ad, telefon, e-posta, parola özeti ve hesap güvenliği bilgileri', 'Okul üyelikleri ve veli-öğrenci bağlantıları', 'Push cihaz kayıtları, tokenlar ve aktif oturum erişimi', 'Kullanıcının kişisel destek içeriği ve randevu notları'] },
+      { title: 'Anonim olarak korunabilenler', paragraphs: ['Okulun öğrenci kaydı ile zorunlu randevu, işlem ve güvenlik kayıtları kurumsal kayıt bütünlüğü için korunabilir. Bu kayıtlarda kullanıcı kimliği, iletişim bilgileri ve eski kullanıcı bağlantısı kaldırılır; kişi “Silinmiş Kullanıcı” veya “Silinmiş Veli” olarak gösterilir. Öğrenci kaydı yalnız veli hesabı silindiği için silinmez.'] },
+      { title: 'Tamamlanma ve bildirim', paragraphs: ['Silme işlemi tek bir sunucu işlemi içinde tamamlanır. Başarı yanıtından sonra bu cihazdaki güvenli oturum temizlenir ve eski oturum anahtarları hesabı kullanamaz. Kayıtlı e-posta varsa tamamlanma bildirimi gönderilmeye çalışılır; e-posta gönderilememesi tamamlanmış silme işlemini geri almaz. Güvenli tekrar denemeleri için kullanıcı kimliğini içermeyen, tek yönlü bir işlem makbuzu en fazla 30 gün tutulur.'] },
+    ],
+  },
   'kvkk-aydinlatma': {
     eyebrow: 'GİZLİLİK VE YASAL',
     title: 'KVKK Aydınlatma Metinleri',
@@ -309,7 +321,7 @@ export const helpGuides = {
       { title: 'Hesap ve işlem güvenliği', paragraphs: ['JWT tabanlı oturum, aktif okul üyeliği, rol yetkisi ve okul kapsamlı veri erişimi birlikte uygulanır. Hesap, yönetim ve randevu işlemleri güvenlik ve izlenebilirlik amacıyla işlem kayıtlarına konu olabilir.'] },
       { title: 'Destek talepleri', paragraphs: ['Public iletişim ve yıllık lisans formunda okul, yetkili, e-posta, telefon ve isteğe bağlı mesaj bilgileri alınır. Okul yöneticisinin destek alanından oluşturduğu talepler okul ve kullanıcı bağlamıyla ilişkilendirilir.'] },
       { title: 'Hizmet sağlayıcıları ve altyapı', paragraphs: ['Uygulamanın barındırma, veritabanı ve e-posta gönderimi gibi teknik ihtiyaçlarında hizmet sağlayıcı altyapıları kullanılabilir. Alıcı grupları, veri lokasyonu ve aktarım koşulları operasyon ve hukuk doğrulaması tamamlanmadan kesin hukuki beyan olarak sunulmamaktadır.'] },
-      { title: 'Veri saklama ve silme', paragraphs: ['Veriler hizmetin yürütülmesi, güvenlik, operasyon ve uygulanabilir hukuki yükümlülüklerin gerektirdiği süre boyunca saklanmalıdır. Kesin süreler ve silme ya da anonimleştirme kuralları veri envanteri ile hukuk ve operasyon doğrulaması sonrasında kesinleştirilecektir.'] },
+      { title: 'Veri saklama ve silme', paragraphs: ['Kullanıcı, Hesabım menüsünden hesabını kalıcı olarak silebilir. Hesap kimliği, iletişim bilgileri, parola özeti, üyelikler, cihaz tokenları ve kişisel içerikler silinir; okulun zorunlu öğrenci, randevu ve güvenlik kayıtları kullanıcı kimliğinden ayrıştırılarak anonimleştirilir. Güvenli tekrar denemeleri için kullanıcı kimliğini içermeyen tek yönlü işlem makbuzu en fazla 30 gün tutulur. Kurumsal kayıtların kesin saklama süreleri veri envanteri ile hukuk ve operasyon doğrulamasına tabidir.'] },
       { title: 'Kullanıcı hakları ve iletişim', paragraphs: ['Resmî veri sahibi başvuru kanalı hukuk ve operasyon doğrulaması tamamlandıktan sonra burada yayınlanacaktır. Uygulamadaki genel destek kanalı, doğrulanmış resmî veri sahibi başvuru kanalı olarak sunulmamaktadır.'] },
     ],
   },
@@ -340,14 +352,14 @@ export const helpGuides = {
     sections: [
       { title: 'Taslak bilgilendirme', paragraphs: [legalDraftNotice] },
       { title: 'Genel saklama ilkesi', paragraphs: ['Veriler yalnızca hizmetin yürütülmesi, güvenlik, operasyon ve uygulanabilir hukuki yükümlülüklerin gerektirdiği süre boyunca saklanmalıdır. Kesin süreler veri envanteri ve hukuk/operasyon doğrulaması sonrasında kesinleştirilecektir.'] },
-      { title: 'Hesap verileri', paragraphs: ['Telefon, e-posta, ad soyad, parola özeti ve hesap güvenliğiyle ilgili kayıtlar hesabın oluşturulması, doğrulanması, kullanılması ve korunması için işlenir. Hesap kapatma ve silme kuralları nihai saklama politikasıyla kesinleştirilecektir.'] },
+      { title: 'Hesap verileri', paragraphs: ['Telefon, e-posta, ad soyad, parola özeti ve hesap güvenliğiyle ilgili kayıtlar hesabın oluşturulması, doğrulanması, kullanılması ve korunması için işlenir. Kullanıcı uygulama içinden hesabını sildiğinde bu kimlik ve giriş verileri kalıcı olarak kaldırılır.'] },
       { title: 'Okul üyelik ve yetkilendirme verileri', paragraphs: ['Okul üyeliği, rol ve lisans ilişkileri kullanıcının hangi okul ve özelliklere erişebileceğini belirler. Eski veya pasif ilişkilerin ne kadar süre tutulacağı operasyonel ihtiyaçlar ve hukuki yükümlülükler doğrulandıktan sonra belirlenecektir.'] },
       { title: 'Öğrenci-veli ilişki kayıtları', paragraphs: ['Öğrenci ve veli kayıtları hesap doğrulama, yetkili erişim ve randevu süreçleri için okul kapsamında kullanılır. Bu kayıtların silinmesi, bağlı hesap ve randevu ilişkileri dikkate alınarak yetkili süreçlerle yürütülmelidir.'] },
       { title: 'Randevu kayıtları', paragraphs: ['Randevu tarihi, saati, tarafları, durumu ve ilgili işlem bilgileri randevu akışının yürütülmesi ve güvenli biçimde izlenmesi için tutulur. Kesin saklama süresi henüz belirlenmemiştir.'] },
       { title: 'Güvenlik ve QR doğrulama kayıtları', paragraphs: ['QR doğrulama ve giriş işlemleri, okul giriş sürecinin güvenliği ve işlem izlenebilirliği amacıyla kayda konu olabilir. Bu kayıtların kapsamı ve saklama süresi hukuk ve operasyon doğrulamasıyla kesinleştirilecektir.'] },
       { title: 'Destek talepleri', paragraphs: ['İletişim, lisans ve teknik destek taleplerinde okul, yetkili, e-posta, telefon, mesaj, durum ve işlem bilgileri talebin değerlendirilmesi için tutulur. Eski talep kayıtlarının saklama ve silme kuralları ayrıca kesinleştirilecektir.'] },
       { title: 'İşlem kayıtları ve e-posta süreçleri', paragraphs: ['Güvenlik ve denetim amacıyla işlem kayıtları; aktivasyon, parola sıfırlama, randevu ve destek süreçlerinde ise e-posta gönderim bilgileri oluşabilir. Bu kayıtların kesin saklama süreleri veri envanteri tamamlandıktan sonra belirlenecektir.'] },
-      { title: 'Silme ve anonimleştirme yaklaşımı', paragraphs: ['Kullanıcılar hesaplarının ve ilişkili kişisel verilerinin silinmesini talep etmek için uygulama içindeki veya web sitesindeki iletişim bölümünden başvuru gönderebilir. Talepte ad soyad, kayıtlı telefon numarası, okul adı ve kullanıcı rolü belirtilmelidir. Talep doğrulandıktan sonra hesap ve ilişkili veriler, yasal saklama yükümlülükleri ve okul kayıt bütünlüğü gereksinimleri dikkate alınarak silinir veya anonimleştirilir.'] },
+      { title: 'Silme ve anonimleştirme yaklaşımı', paragraphs: ['Kullanıcı, sağ üstteki Hesabım menüsünde “Hesap ve gizlilik” altında bulunan “Hesabımı sil” işlemini doğrudan başlatır. Mevcut parola ve açık onay metni doğrulandıktan sonra hesap kimliği, giriş verileri, üyelikler, push cihaz kayıtları ve kişisel içerikler aynı sunucu işlemi içinde silinir. Veli hesabının silinmesi okulun öğrenci kaydını silmez. Zorunlu kurumsal randevu, işlem ve güvenlik kayıtları korunuyorsa ad, telefon, e-posta ve eski kullanıcı bağlantısı kaldırılarak “Silinmiş Kullanıcı” biçiminde anonimleştirilir. İşlem başarısız olursa veri değişmez ve oturum açık kalır.'] },
     ],
   },
 } satisfies Record<string, HelpGuide>;
@@ -384,6 +396,7 @@ export const helpCategories: HelpCategory[] = [
       { slug: 'ilk-giris', title: 'İlk giriş ve hesap aktivasyonu', description: 'Veli, personel ve okul yöneticisi için farklı ilk giriş yolları.' },
       { slug: 'parolami-unuttum', title: 'Parolamı unuttum', description: 'Hesap türünüze uygun güvenli parola sıfırlama adımları.' },
       { slug: 'hesap-guvenligi', title: 'Hesap güvenliği', description: 'Parola, tek kullanımlık kod ve ortak cihaz güvenliği.' },
+      { slug: 'hesap-silme', title: 'Hesabımı silme', description: 'Uygulama içinden kalıcı silme, doğrulama ve anonimleştirme.' },
     ],
   },
   {

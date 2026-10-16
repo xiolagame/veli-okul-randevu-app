@@ -3,6 +3,7 @@ import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
 import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
+import { accountDeletionRouter } from './account-deletion';
 import crypto from 'crypto';
 import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice } from './push-notifications';
 import {
@@ -94,6 +95,7 @@ apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
 apiRouter.use('/public/requests', publicRequestRouter);
 apiRouter.use('/schools/:schoolId/requests', schoolRequestRouter);
 apiRouter.use('/platform', platformManagementRouter);
+apiRouter.use(accountDeletionRouter);
 
 // ==========================================
 // PRODUCTION HEALTH CHECK (PostgreSQL Status)
@@ -888,7 +890,7 @@ apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']
       return { id,email,firstName,lastName:last.join(' '),phone };
     });
     await emailStaffActivation({ ...staff, schoolId, role, adminId: req.user!.id });
-    await auditLogRepository.createAuditLog({ schoolId, action: 'admin_staff_created', actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(), details: `${role} ${staff.id} için aktivasyon e-postası gönderildi.` });
+    await auditLogRepository.createAuditLog({ schoolId, action: 'admin_staff_created', actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(), actorUserId: req.user!.id, details: `${role} ${staff.id} için aktivasyon e-postası gönderildi.` });
     return res.status(201).json({ success: true, message: 'Personel eklendi. Aktivasyon e-postası gönderildi.' });
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu öğretmen başka bir okulda kayıtlı.' });
@@ -922,7 +924,7 @@ apiRouter.post('/schools/:schoolId/staff/:role/:id/resend-activation', authMiddl
     const recent = await db.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_phone=$2 AND purpose='staff_activation' AND created_at > NOW()-INTERVAL '60 seconds' LIMIT 1`,[schoolId,normalizeTurkishPhone(staff.phone)]);
     if (recent.rows.length) return res.status(429).json({error:'Yeni aktivasyon e-postası göndermeden önce kısa süre bekleyin.'});
     await emailStaffActivation({...staff,schoolId,role,adminId:req.user!.id});
-    await auditLogRepository.createAuditLog({schoolId,action:'staff_activation_email_resent',actorName:`${req.user!.firstName} ${req.user!.lastName}`.trim(),details:`${role} ${id} için aktivasyon e-postası yeniden gönderildi.`});
+    await auditLogRepository.createAuditLog({schoolId,action:'staff_activation_email_resent',actorName:`${req.user!.firstName} ${req.user!.lastName}`.trim(),actorUserId:req.user!.id,details:`${role} ${id} için aktivasyon e-postası yeniden gönderildi.`});
     return res.json({success:true,message:'Aktivasyon e-postası gönderildi.'});
   } catch { return res.status(503).json({error:'Aktivasyon e-postası gönderilemedi.'}); }
 });
@@ -1136,6 +1138,7 @@ apiRouter.post('/onboarding/claim-students', authMiddleware, async (req: Authent
           schoolId,
           action: 'Veli Kaydı (Onboarding)',
           actorName: `${currentFirstName || 'Veli'} ${currentLastName || ''} (Veli)`.trim(),
+          actorUserId: userId,
           details: `${addedStudents.map((s) => s.name).join(', ')} için kütük eşleştirmesi onaylandı.`,
         },
         tx
@@ -1243,6 +1246,7 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
         schoolId,
         action: 'teacher.created',
         actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(),
+        actorUserId: req.user!.id,
         details: `Öğretmen profili ${created.id} oluşturuldu; hesap aktivasyon bekliyor.`,
       }, tx);
       return { ...created, accountStatus: 'pending' as const };
@@ -1621,6 +1625,7 @@ apiRouter.post(
             schoolId,
             action: 'Randevu Talebi',
             actorName: created.parentName,
+            actorUserId: req.user!.id,
             details: `${created.teacherName} ile ${date} ${startTime} randevu talebi oluşturuldu.`,
           },
           tx
@@ -1675,7 +1680,7 @@ async function approvePendingAppointment(tx: TransactionClient, schoolId: string
       userId: updatedApt.parentId, appointmentId: updatedApt.id, eventType: 'APPOINTMENT_APPROVED' });
   }
   await auditLogRepository.createAuditLog({ schoolId, action: 'Randevu Onayı',
-    actorName: updatedApt.teacherName, details: `${updatedApt.parentName} için randevu onaylandı.` }, tx);
+    actorName: updatedApt.teacherName, actorUserId: actorId, details: `${updatedApt.parentName} için randevu onaylandı.` }, tx);
   return updatedApt;
 }
 
@@ -1827,6 +1832,7 @@ apiRouter.post(
             schoolId,
             action: 'Randevu Reddi',
             actorName: updatedApt.teacherName,
+            actorUserId: req.user!.id,
             details: `${updatedApt.parentName} talebi reddedildi. Sebep: ${reason || 'Belirtilmedi'}`,
           },
           tx
@@ -1888,6 +1894,7 @@ apiRouter.post(
             schoolId,
             action: 'Randevu İptali',
             actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Kullanıcı',
+            actorUserId: req.user!.id,
             details: `${updatedApt.teacherName} ile ${updatedApt.date} randevusu iptal edildi.`,
           },
           tx
@@ -2095,6 +2102,7 @@ apiRouter.post(
         schoolId,
         action: purpose === 'ACCOUNT_ACTIVATION' ? 'Aktivasyon Kodu Oluşturuldu' : 'Parola Sıfırlama Kodu Oluşturuldu',
         actorName: `${req.user!.firstName} ${req.user!.lastName} (Yönetici)`.trim(),
+        actorUserId: req.user!.id,
         details: `${targetRole} hedefi ${targetLabel} için tek kullanımlık güvenlik kodu oluşturuldu.`,
       });
 
@@ -2121,7 +2129,7 @@ apiRouter.post(
 
     try {
       const result = await processRosterImport(schoolId, records, preview === true,
-        `${req.user!.firstName} ${req.user!.lastName}`.trim());
+        `${req.user!.firstName} ${req.user!.lastName}`.trim(), req.user!.id);
       res.json(result);
     } catch (err: any) {
       if (err instanceof RosterImportError) return res.status(400).json({ error: err.message });

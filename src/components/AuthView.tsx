@@ -22,7 +22,7 @@ type SchoolAdminStep = 'verify' | 'password' | null;
 type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
 
 export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
-  const { login, authStorageError } = useApp();
+  const { login, authStorageError, accountDeletionNotice } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -310,6 +310,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <h2>Tekrar merhaba.</h2>
           <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
+          {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
           <form onSubmit={handleLogin} className="form-stack">

@@ -5,6 +5,7 @@ import ts from 'typescript';
 import * as dates from '../src/utils/dates';
 import * as filters from '../src/utils/admin-filters';
 import * as phone from '../src/utils/phone';
+import * as schoolSettings from '../src/utils/school-settings';
 
 interface ElementNode { type: unknown; props: Record<string, unknown>; children: unknown[] }
 function nodes(tree: unknown): ElementNode[] {
@@ -53,10 +54,11 @@ function harness(file: string, context: object, api: object = {}) {
       if (name === '../utils/dates') return dates;
       if (name === '../utils/admin-filters') return filters;
       if (name === '../utils/phone') return phone;
-      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement'].includes(name)) {
+      if (name === '../utils/school-settings') return schoolSettings;
+      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement','./SchoolRequestCenter'].includes(name)) {
         return new Proxy({}, { get: (_, key) => String(key) });
       }
-      throw new Error('Unexpected component dependency');
+      throw new Error(`Unexpected component dependency: ${name}`);
     },
     document: { addEventListener() {}, removeEventListener() {} },
   });

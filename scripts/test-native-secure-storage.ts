@@ -252,6 +252,17 @@ await assert.rejects(() => removalFailSession.clearToken(), SecureAuthStorageErr
 assertToken(await removalFailSession.getToken(), 'active-token');
 assertToken(removalFailSecure.values.get(NATIVE_AUTH_TOKEN_KEY), 'active-token');
 
+const deletedAccountSecure = new MemorySecureStorage();
+deletedAccountSecure.values.set(NATIVE_AUTH_TOKEN_KEY, 'server-revoked-token');
+deletedAccountSecure.failRemove = true;
+const deletedAccountLegacy = new MemoryLegacyStorage();
+deletedAccountLegacy.setItem(AUTH_TOKEN_STORAGE_KEY, 'stale-web-copy');
+const deletedAccountSession = new AuthSessionManager(createNativeSecureAuthTokenStore(deletedAccountSecure, deletedAccountLegacy));
+assertToken(await deletedAccountSession.hydrate(), 'server-revoked-token');
+await assert.rejects(() => deletedAccountSession.clearTokenAfterRemoteInvalidation(), SecureAuthStorageError);
+assertToken(await deletedAccountSession.getToken(), null);
+assertToken(deletedAccountLegacy.getItem(AUTH_TOKEN_STORAGE_KEY), null);
+
 const delayedSecure = new DelayedSecureStorage();
 delayedSecure.values.set(NATIVE_AUTH_TOKEN_KEY, 'old-token');
 const delayedSession = new AuthSessionManager(createNativeSecureAuthTokenStore(delayedSecure, new MemoryLegacyStorage()));

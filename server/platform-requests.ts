@@ -235,6 +235,7 @@ async function createSupportMessage(input: {
         schoolId: request.schoolId,
         action: 'support.message_sent',
         actorName: input.senderKind === 'PLATFORM_ADMIN' ? 'Veli Randevu Destek' : input.senderName,
+        actorUserId: input.senderUserId,
         details: JSON.stringify({ requestId: request.id, senderKind: input.senderKind, actorUserId: input.senderUserId }),
         auditScope: input.senderKind === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'SCHOOL',
       }, tx);
@@ -263,6 +264,7 @@ async function hideSupportRequest(input: {
         schoolId: request.schoolId,
         action: 'support.hidden',
         actorName: input.actorName,
+        actorUserId: input.userId,
         details: JSON.stringify({ requestId: request.id, hiddenFor: input.access.hiddenFor, actorUserId: input.userId }),
         auditScope: input.access.hiddenFor === 'platform' ? 'PLATFORM' : 'SCHOOL',
       }, tx);
@@ -767,6 +769,7 @@ platformRequestRouter.patch('/:id/status', async (req: AuthenticatedRequest, res
           schoolId: current.schoolId,
           action: current.requestType === 'SUPPORT' && nextStatus === 'RESOLVED' ? 'support.resolved' : 'platform_request.status_changed',
           actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(),
+          actorUserId: req.user!.id,
           details: JSON.stringify({ requestId: current.id, from: current.status, to: nextStatus }),
           auditScope: 'PLATFORM',
         }, tx);
