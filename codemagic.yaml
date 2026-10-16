@@ -90,3 +90,95 @@ workflows:
       - build/logs/*.log
       - build/DerivedData/Build/Products/Release-iphonesimulator/App.app
       - ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+  ios-signed-ipa:
+    name: iOS Signed IPA (manual)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: "Codemagic Veli Randevu"
+    environment:
+      xcode: 26.6
+      node: 24.17.0
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.velirandevu.app
+      vars:
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+        SOURCE_PACKAGES_PATH: "build/SourcePackages"
+        XCODE_LOG_PATH: "build/logs"
+    scripts:
+      - name: Show pinned tool versions
+        script: |
+          set -euo pipefail
+          node --version
+          npm --version
+          xcodebuild -version
+          swift --version
+
+      - name: Install locked JavaScript dependencies
+        script: |
+          set -euo pipefail
+          npm ci
+          npx cap --version
+
+      - name: Run TypeScript and focused regression checks
+        script: |
+          set -euo pipefail
+          npm run lint
+          npm run test:mobile-platform
+          npm run test:secure-storage
+          npm run test:ios-shell
+          npm run test:push-notifications
+          npm run test:account-deletion
+
+      - name: Build production web and server artifacts
+        script: |
+          set -euo pipefail
+          npm run build
+
+      - name: Build and sync the Capacitor iOS shell
+        script: |
+          set -euo pipefail
+          npm run ios:sync
+
+      - name: Verify Capacitor sync preserved native project settings
+        script: |
+          set -euo pipefail
+          git diff --exit-code -- \
+            ios/App/App.xcodeproj/project.pbxproj \
+            ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme \
+            ios/App/App/Info.plist \
+            ios/App/App/PrivacyInfo.xcprivacy \
+            ios/App/App/AppDelegate.swift \
+            ios/App/App/SceneDelegate.swift \
+            ios/App/CapApp-SPM/Package.swift
+
+      - name: Resolve Swift packages
+        script: |
+          set -euo pipefail
+          mkdir -p "$CM_BUILD_DIR/$XCODE_LOG_PATH"
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/$SOURCE_PACKAGES_PATH" \
+            2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/spm-resolution.log"
+
+      - name: Apply App Store signing profile
+        script: |
+          set -euo pipefail
+          xcode-project use-profiles
+
+      - name: Build signed IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/logs/*.log
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
