@@ -98,6 +98,8 @@ workflows:
     integrations:
       app_store_connect: "Codemagic Veli Randevu"
     environment:
+      groups:
+        - firebase_credentials
       xcode: 26.6
       node: 24.17.0
       ios_signing:
@@ -128,6 +130,18 @@ workflows:
         script: |
           set -euo pipefail
           npm run ios:sync
+
+      - name: Require Firebase iOS config for signed IPA
+        script: |
+          set -euo pipefail
+          if [ -z "${FCM_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "Required Codemagic secret FCM_GOOGLE_SERVICE_INFO_PLIST is unavailable."
+            exit 1
+          fi
+          PLIST_PATH="$CM_BUILD_DIR/ios/App/App/GoogleService-Info.plist"
+          umask 077
+          printf '%s' "$FCM_GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$PLIST_PATH"
+          plutil -lint "$PLIST_PATH" >/dev/null
 
       - name: Run TypeScript and focused regression checks
         script: |

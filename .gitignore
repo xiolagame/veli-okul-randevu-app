@@ -95,5 +95,6 @@ android-sdk/
 credentials.json
 **/*service-account*.json
 **/*firebase-admin*.json
+ios/App/App/GoogleService-Info.plist
 *.key
 .credentials
