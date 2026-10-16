@@ -20,12 +20,12 @@ workflows:
           npm --version
           xcodebuild -version
           swift --version
-          npx cap --version
 
       - name: Install locked JavaScript dependencies
         script: |
           set -euo pipefail
           npm ci
+          npx cap --version
 
       - name: Run TypeScript and focused regression checks
         script: |
