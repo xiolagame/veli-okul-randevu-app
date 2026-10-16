@@ -106,6 +106,7 @@ workflows:
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
+        APP_STORE_APPLE_ID: "6823597940"
         SOURCE_PACKAGES_PATH: "build/SourcePackages"
         XCODE_LOG_PATH: "build/logs"
     scripts:
@@ -166,6 +167,15 @@ workflows:
             -clonedSourcePackagesDirPath "$CM_BUILD_DIR/$SOURCE_PACKAGES_PATH" \
             2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/spm-resolution.log"
 
+      - name: Set unique App Store build number
+        script: |
+          set -euo pipefail
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID")
+          NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          cd "$CM_BUILD_DIR/ios/App"
+          agvtool new-version -all "$NEXT_BUILD_NUMBER"
+          echo "Using App Store build number $NEXT_BUILD_NUMBER"
+
       - name: Apply App Store signing profile
         script: |
           set -euo pipefail
@@ -182,3 +192,8 @@ workflows:
       - build/logs/*.log
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
