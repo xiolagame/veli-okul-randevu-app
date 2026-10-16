@@ -27,6 +27,11 @@ workflows:
           npm ci
           npx cap --version
 
+      - name: Build and sync the Capacitor iOS shell
+        script: |
+          set -euo pipefail
+          npm run ios:sync
+
       - name: Run TypeScript and focused regression checks
         script: |
           set -euo pipefail
@@ -41,11 +46,6 @@ workflows:
         script: |
           set -euo pipefail
           npm run build
-
-      - name: Build and sync the Capacitor iOS shell
-        script: |
-          set -euo pipefail
-          npm run ios:sync
 
       - name: Verify Capacitor sync preserved native project settings
         script: |
@@ -124,6 +124,11 @@ workflows:
           npm ci
           npx cap --version
 
+      - name: Build and sync the Capacitor iOS shell
+        script: |
+          set -euo pipefail
+          npm run ios:sync
+
       - name: Run TypeScript and focused regression checks
         script: |
           set -euo pipefail
@@ -138,11 +143,6 @@ workflows:
         script: |
           set -euo pipefail
           npm run build
-
-      - name: Build and sync the Capacitor iOS shell
-        script: |
-          set -euo pipefail
-          npm run ios:sync
 
       - name: Verify Capacitor sync preserved native project settings
         script: |
