@@ -514,6 +514,11 @@ async function run() {
     assert.equal(Number(deleteFirstTombstone.revoked_through_generation), 1);
     assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
       device(deleteFirstId, logoutRaceOldTarget, 'IOS', 2))).status, 200);
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${deleteFirstId}?registrationGeneration=2`, teacherId)).status, 200);
+    const deleteFirstRevoked = (await db.query<{ active: boolean; revoked_through_generation: string | number }>(
+      'SELECT active,revoked_through_generation FROM mobile_push_devices WHERE installation_id=$1', [deleteFirstId])).rows[0];
+    assert.equal(deleteFirstRevoked.active, false);
+    assert.equal(Number(deleteFirstRevoked.revoked_through_generation), 2);
 
     const concurrentId = crypto.randomUUID();
     const [concurrentPost, concurrentDelete] = await Promise.all([
