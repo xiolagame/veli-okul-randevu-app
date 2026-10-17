@@ -183,8 +183,8 @@ export class IosPushManager {
   private enableInProgress = false;
   private lastFailureStage: ActivationStage | null = null;
   private readonly statusListeners = new Set<(status: PushStatus) => void>();
-  private nativePromise: Promise<IosPushNative> | null = null;
-  private fcmPromise: Promise<FirebaseMessagingNative> | null = null;
+  private nativePromise: Promise<{ plugin: IosPushNative }> | null = null;
+  private fcmPromise: Promise<{ plugin: FirebaseMessagingNative }> | null = null;
 
   constructor(
     private readonly deviceApi: DeviceApi = defaultDeviceApi,
@@ -228,15 +228,16 @@ export class IosPushManager {
     if (this.starting === starting) this.starting = null;
   }
 
-  private async native(): Promise<IosPushNative> {
-    if (this.nativeOverride) return this.nativeOverride;
-    if (!this.nativePromise) this.nativePromise = import('@capacitor/push-notifications').then(({ PushNotifications }) => PushNotifications as unknown as IosPushNative);
+  private native(): Promise<{ plugin: IosPushNative }> {
+    // Capacitor plugin proxies expose `then`; never resolve a Promise with the proxy itself.
+    if (this.nativeOverride) return Promise.resolve({ plugin: this.nativeOverride });
+    if (!this.nativePromise) this.nativePromise = import('@capacitor/push-notifications').then(({ PushNotifications }) => ({ plugin: PushNotifications as unknown as IosPushNative }));
     return this.nativePromise;
   }
 
-  private async firebaseMessaging(): Promise<FirebaseMessagingNative> {
-    if (this.fcmOverride) return this.fcmOverride;
-    if (!this.fcmPromise) this.fcmPromise = import('@capacitor-community/fcm').then(({ FCM }) => FCM);
+  private firebaseMessaging(): Promise<{ plugin: FirebaseMessagingNative }> {
+    if (this.fcmOverride) return Promise.resolve({ plugin: this.fcmOverride });
+    if (!this.fcmPromise) this.fcmPromise = import('@capacitor-community/fcm').then(({ FCM }) => ({ plugin: FCM }));
     return this.fcmPromise;
   }
 
@@ -255,8 +256,8 @@ export class IosPushManager {
       catch (error) { abandoned = true; throw error; }
     };
     try {
-      const native = await this.awaitActivationStage('listener-apns-registration', this.native());
-      const fcm = await this.awaitActivationStage('listener-fcm-token', this.firebaseMessaging());
+      const { plugin: native } = await this.awaitActivationStage('listener-apns-registration', this.native());
+      const { plugin: fcm } = await this.awaitActivationStage('listener-fcm-token', this.firebaseMessaging());
       if (!await addHandle('listener-fcm-token', fcm.addListener('tokenReceived', ({ token }) => {
       if (epoch !== this.listenerEpoch) return;
       if (!this.permissionGranted || this.closing || this.nativeRetryBlocked || this.backendRetryInProgress || !isFcmToken(token)) return;
@@ -303,7 +304,7 @@ export class IosPushManager {
     if (!owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration) return;
     try {
       this.activationStage = 'fcm-token';
-      const fcm = await this.awaitActivationStage('fcm-token', this.firebaseMessaging());
+      const { plugin: fcm } = await this.awaitActivationStage('fcm-token', this.firebaseMessaging());
       const { token } = await this.awaitActivationStage('fcm-token', fcm.getToken());
       if (this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration || !isFcmToken(token)) return;
       if (token === this.currentFcmToken) return;
@@ -368,7 +369,7 @@ export class IosPushManager {
     this.sessionIdentity = getSessionIdentity;
     if (this.navigationHandle) return;
     if (!this.navigationStarting) {
-      const listener = this.native().then((native) => native.addListener('pushNotificationActionPerformed', ({ notification }) => {
+      const listener = this.native().then(({ plugin: native }) => native.addListener('pushNotificationActionPerformed', ({ notification }) => {
         const route = typeof notification.data?.route === 'string' ? notification.data.route : '';
         const intent = parseNavigationIntent(route, CANONICAL_ORIGIN);
         if (intent) void this.captureNavigationIntent(intent);
@@ -449,7 +450,7 @@ export class IosPushManager {
   private async nativeRegister(): Promise<void> {
     if (this.nativeRegistration) return this.nativeRegistration;
     const registration = (async () => {
-      if (!this.closing) await (await this.native()).register();
+      if (!this.closing) await (await this.native()).plugin.register();
     })();
     this.nativeRegistration = registration;
     try { await registration; } finally { if (this.nativeRegistration === registration) this.nativeRegistration = null; }
@@ -457,7 +458,7 @@ export class IosPushManager {
 
   private unregisterNative(): Promise<void> {
     if (this.nativeUnregistration) return this.nativeUnregistration;
-    const operation = this.native().then((native) => native.unregister());
+    const operation = this.native().then(({ plugin: native }) => native.unregister());
     this.nativeUnregistration = operation;
     void operation.finally(() => { if (this.nativeUnregistration === operation) this.nativeUnregistration = null; }).catch(() => {});
     return operation;
@@ -465,7 +466,7 @@ export class IosPushManager {
 
   private deleteFcmInstance(): Promise<unknown> {
     if (this.fcmDeletion) return this.fcmDeletion;
-    const operation = this.firebaseMessaging().then((fcm) => fcm.deleteInstance());
+    const operation = this.firebaseMessaging().then(({ plugin: fcm }) => fcm.deleteInstance());
     this.fcmDeletion = operation;
     void operation.finally(() => { if (this.fcmDeletion === operation) this.fcmDeletion = null; }).catch(() => {});
     return operation;
@@ -494,7 +495,7 @@ export class IosPushManager {
       const results = await Promise.allSettled([
         revokedGeneration === null ? Promise.reject(new Error('Push generation unavailable'))
           : this.awaitActivationStage('cleanup', this.deviceApi.deactivatePushDevice(this.getInstallationId(), revokedGeneration)),
-        this.awaitActivationStage('cleanup', this.firebaseMessaging().then((fcm) => fcm.setAutoInit({ enabled: false }))),
+        this.awaitActivationStage('cleanup', this.firebaseMessaging().then(({ plugin: fcm }) => fcm.setAutoInit({ enabled: false }))),
         this.awaitActivationStage('cleanup', this.unregisterNative()),
       ]);
       this.emitStatus(results[0].status === 'fulfilled' ? status : 'unavailable');
@@ -508,7 +509,7 @@ export class IosPushManager {
     const owner = this.userId;
     const generation = this.activationGeneration;
     try {
-      const native = await this.awaitActivationStage('permission-check', this.native());
+      const { plugin: native } = await this.awaitActivationStage('permission-check', this.native());
       const permission = await this.awaitActivationStage('permission-check', native.checkPermissions());
       if (this.userId !== owner || this.closing || generation !== this.activationGeneration) return;
       if (permission.receive === 'denied') {
@@ -518,7 +519,7 @@ export class IosPushManager {
       if (permission.receive !== 'granted') {
         this.permissionGranted = false;
         this.emitStatus('off');
-        await this.awaitActivationStage('cleanup', this.firebaseMessaging().then((fcm) => fcm.setAutoInit({ enabled: false }))).catch(() => {});
+        await this.awaitActivationStage('cleanup', this.firebaseMessaging().then(({ plugin: fcm }) => fcm.setAutoInit({ enabled: false }))).catch(() => {});
         return;
       }
       if (this.nativeRetryBlocked || (this.lastFailureStage && this.lastFailureStage !== 'device-registration')) { this.emitStatus('unavailable'); return; }
@@ -542,7 +543,7 @@ export class IosPushManager {
     this.enableInProgress = true;
     this.emitStatus('preparing');
     try {
-      const native = await this.awaitActivationStage('permission-check', this.native());
+      const { plugin: native } = await this.awaitActivationStage('permission-check', this.native());
       const permission = await this.awaitActivationStage('permission-check', native.checkPermissions());
       if (permission.receive === 'denied') {
         await this.awaitActivationStage('cleanup', this.disablePush('denied'));
@@ -560,7 +561,7 @@ export class IosPushManager {
       if (this.userId !== owner || this.closing || generation !== this.activationGeneration) return this.status;
       this.permissionGranted = true;
       this.emitStatus('preparing');
-      const fcm = await this.awaitActivationStage('fcm-init', this.firebaseMessaging());
+      const { plugin: fcm } = await this.awaitActivationStage('fcm-init', this.firebaseMessaging());
       await this.awaitActivationStage('fcm-init', fcm.setAutoInit({ enabled: true }));
       if (!retryBackend && !this.apnsRegistered) await this.awaitActivationStage('apns-register', this.nativeRegister());
       if (this.currentFcmToken) await this.awaitActivationStage('device-registration', this.registerToken(this.currentFcmToken, this.userId, generation));
@@ -654,7 +655,7 @@ export class IosPushManager {
         const unregistered = needsNativeCleanup ? nativeRegistration.catch(() => {}).then(() =>
           this.awaitActivationStage('cleanup', this.unregisterNative())) : Promise.resolve();
         const deleted = needsNativeCleanup ? this.awaitActivationStage('cleanup', this.deleteFcmInstance()) : Promise.resolve();
-        const delivered = needsNativeCleanup ? this.awaitActivationStage('cleanup', this.native().then((native) => native.removeAllDeliveredNotifications())) : Promise.resolve();
+        const delivered = needsNativeCleanup ? this.awaitActivationStage('cleanup', this.native().then(({ plugin: native }) => native.removeAllDeliveredNotifications())) : Promise.resolve();
         const [startingResult, nativeRegistrationResult, registrationsResult, backendResult, unregisteredResult, deletedResult] = await Promise.allSettled([
           starting, nativeRegistration, registrations, backend, unregistered, deleted, delivered,
           this.awaitActivationStage('cleanup', this.clearAuthenticatedRuntime()),

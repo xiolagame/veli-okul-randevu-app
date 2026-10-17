@@ -13,6 +13,7 @@ function createNative(permission: 'prompt' | 'granted' | 'denied' = 'prompt') {
   const events: string[] = [];
   const listeners = new Map<string, Listener>();
   let currentPermission = permission;
+  let checkCount = 0;
   let requestCount = 0;
   const fire = (name: string, event: unknown) => listeners.get(name)?.(event as never);
   const native = {
@@ -20,7 +21,7 @@ function createNative(permission: 'prompt' | 'granted' | 'denied' = 'prompt') {
       listeners.set(name, listener);
       return { remove: async () => { if (listeners.get(name) === listener) listeners.delete(name); } };
     },
-    checkPermissions: async () => ({ receive: currentPermission }),
+    checkPermissions: async () => { checkCount++; return { receive: currentPermission }; },
     requestPermissions: async () => {
       requestCount++;
       events.push('permission-request');
@@ -42,8 +43,21 @@ function createNative(permission: 'prompt' | 'granted' | 'denied' = 'prompt') {
     listeners,
     fire,
     requestCount: () => requestCount,
+    checkCount: () => checkCount,
     setPermission: (value: 'prompt' | 'granted' | 'denied') => { currentPermission = value; },
   };
+}
+
+function capacitorThenable<T extends object>(plugin: T, onThenAccess: () => void): T {
+  return new Proxy(plugin, {
+    get(target, property, receiver) {
+      if (property === 'then') {
+        onThenAccess();
+        return () => {}; // Mimics a native plugin method that never settles Promise adoption.
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
 }
 
 function createFcm(events: string[], token = 'fcm-registration-token-initial-123456') {
@@ -76,6 +90,7 @@ function createManager(options: {
   activationTimeoutMs?: number;
   generationState?: { value: number };
   persistentIdentity?: boolean;
+  capacitorThenableProxies?: boolean;
 } = {}) {
   const nativeFixture = createNative(options.initialPermission);
   const fcmFixture = createFcm(nativeFixture.events);
@@ -85,6 +100,7 @@ function createManager(options: {
   const deactivationGenerations: number[] = [];
   const generationState = options.generationState ?? { value: 1 };
   const lifecycle: string[] = [];
+  const proxyThenAccesses: string[] = [];
   let registrationAttempts = 0;
   let settingsOpened = 0;
   const installationId = crypto.randomUUID();
@@ -116,18 +132,31 @@ function createManager(options: {
       if (options.failDeactivation) throw new Error('offline');
     },
   }, () => options.platform || 'IOS', options.persistentIdentity ? undefined : () => installationId,
-  nativeFixture.native as unknown as ConstructorParameters<typeof IosPushManager>[3],
-  fcmFixture.fcm as unknown as ConstructorParameters<typeof IosPushManager>[4],
+  (options.capacitorThenableProxies ? capacitorThenable(nativeFixture.native, () => proxyThenAccesses.push('apns')) : nativeFixture.native) as unknown as ConstructorParameters<typeof IosPushManager>[3],
+  (options.capacitorThenableProxies ? capacitorThenable(fcmFixture.fcm, () => proxyThenAccesses.push('fcm')) : fcmFixture.fcm) as unknown as ConstructorParameters<typeof IosPushManager>[4],
   async () => { settingsOpened++; }, options.activationTimeoutMs,
   options.persistentIdentity ? undefined : () => generationState.value,
   options.persistentIdentity ? undefined : () => { generationState.value += 1; });
   return {
     manager, nativeFixture, fcmFixture, registrations, registrationGenerations, registrationInstallations,
-    deactivationGenerations, generationState, lifecycle,
+    deactivationGenerations, generationState, lifecycle, proxyThenAccesses,
     registrationAttempts: () => registrationAttempts,
     waitForAttempts,
     settingsOpened: () => settingsOpened,
   };
+}
+
+async function testCapacitorPluginProxyIsNotAwaited() {
+  const fixture = createManager({ capacitorThenableProxies: true, activationTimeoutMs: 20 });
+  await fixture.manager.start('ios-teacher', 'teacher', () => {}, () => {});
+  assert.equal(fixture.nativeFixture.checkCount(), 1, 'startup must reach native checkPermissions');
+  assert.equal(fixture.nativeFixture.requestCount(), 0, 'startup must not prompt');
+  assert.equal(await fixture.manager.enable(), 'ready');
+  assert.equal(fixture.nativeFixture.checkCount(), 2, 'enable must reach native checkPermissions');
+  assert.equal(fixture.nativeFixture.requestCount(), 1, 'enable must request iOS permission');
+  assert.equal(fixture.registrationAttempts(), 1, 'ready requires backend registration');
+  assert.deepEqual(fixture.proxyThenAccesses, [], 'neither Capacitor plugin proxy may be adopted as a Promise');
+  await fixture.manager.beforeLogout();
 }
 
 async function waitForStatus(statuses: string[], expected: string): Promise<void> {
@@ -831,6 +860,7 @@ async function testLogoutDoesNotWaitForeverForNativeCleanup() {
 }
 
 async function run() {
+  await testCapacitorPluginProxyIsNotAwaited();
   await testIosPermissionAndTokenLifecycle();
   await testIosDeniedAndSettings();
   await testReconnectRetryKeepsFcmTokenInMemory();
