@@ -18,7 +18,7 @@ function createNative(permission: 'prompt' | 'granted' | 'denied' = 'prompt') {
   const native = {
     addListener: async (name: string, listener: Listener) => {
       listeners.set(name, listener);
-      return { remove: async () => { listeners.delete(name); } };
+      return { remove: async () => { if (listeners.get(name) === listener) listeners.delete(name); } };
     },
     checkPermissions: async () => ({ receive: currentPermission }),
     requestPermissions: async () => {
@@ -51,7 +51,7 @@ function createFcm(events: string[], token = 'fcm-registration-token-initial-123
   const fcm = {
     addListener: async (name: string, listener: Listener) => {
       listeners.set(name, listener);
-      return { remove: async () => { listeners.delete(name); } };
+      return { remove: async () => { if (listeners.get(name) === listener) listeners.delete(name); } };
     },
     getToken: async () => ({ token }),
     setAutoInit: async ({ enabled }: { enabled: boolean }) => { events.push(`auto-init-${enabled}`); },
@@ -280,7 +280,7 @@ async function testPermissionRevocationWaitsForRegistration() {
 }
 
 async function expectActivationStage(work: Promise<unknown>, stage: IosPushActivationError['stage']): Promise<void> {
-  await assert.rejects(work, (error: unknown) => error instanceof IosPushActivationError && error.stage === stage && !error.userMessage.includes('token'), `Expected activation failure at ${stage}`);
+  await assert.rejects(work, (error: unknown) => error instanceof IosPushActivationError && error.stage === stage && !error.userMessage.includes('sensitive-value'), `Expected activation failure at ${stage}`);
 }
 
 async function testTimedOutPermissionCallsCanRetry() {
@@ -476,7 +476,7 @@ async function testStuckRegistrationDoesNotBlockLogoutOrBindNextAccount() {
     assert(fixture.nativeFixture.events.includes('backend-deactivate'));
     assert(fixture.nativeFixture.events.includes('delete-instance'));
     await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
-    assert.equal(statuses.at(-1), 'unavailable');
+    await waitForStatus(statuses, 'unavailable');
     assert.equal(fixture.registrationAttempts(), 1, 'new account cannot register while old request is unsettled');
     release();
     await enable;
@@ -508,7 +508,9 @@ async function testFailedCleanupStillFinishesLogoutAndRetriesOnNextLaunch() {
     const statuses: string[] = [];
     next.fcmFixture.fcm.deleteInstance = async () => { throw new Error('still unavailable'); };
     await next.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
-    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(statuses.at(-1), 'off');
+    await expectActivationStage(next.manager.enable(), 'cleanup-fcm-delete');
+    assert.equal(next.nativeFixture.requestCount(), 1, 'permission is requested before cleanup recovery, but no token is registered');
     assert.equal(next.registrationAttempts(), 0);
     next.fcmFixture.fcm.deleteInstance = deleteInstance;
     assert.equal(await next.manager.enable(), 'ready');
@@ -545,7 +547,7 @@ async function testAccountSwitchQuarantinesLateRegistration() {
     const oldEnable = fixture.manager.enable().catch(() => {});
     await fixture.waitForAttempts(1);
     await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
-    assert.equal(statuses.at(-1), 'unavailable');
+    await waitForStatus(statuses, 'unavailable');
     assert.equal(fixture.registrationAttempts(), 1);
     release();
     await oldEnable;
@@ -590,6 +592,208 @@ async function testIosEmptyDeleteResponseAllowsNextLoginToEnablePush() {
     assert.deepEqual(fixture.registrationGenerations, [1, 2]);
     await fixture.manager.afterSessionInvalidated();
   });
+}
+
+async function testNeverEnabledLogoutDoesNotCreateCleanupBarrier() {
+  await withPushStorage(async (storage) => {
+    const fixture = createManager({ persistentIdentity: true, activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    fixture.nativeFixture.native.unregister = async () => { throw new Error('must not unregister an unused device'); };
+    fixture.fcmFixture.fcm.deleteInstance = async () => { throw new Error('must not delete an unused Firebase instance'); };
+    await fixture.manager.beforeLogout();
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false);
+    assert.deepEqual(fixture.deactivationGenerations, [1], 'logout still creates the backend tombstone');
+    assert(!fixture.nativeFixture.events.includes('native-unregister'));
+    assert(!fixture.nativeFixture.events.includes('delete-instance'));
+    const native = createNative().native;
+    fixture.nativeFixture.native.unregister = native.unregister;
+    const fcm = createFcm(fixture.nativeFixture.events).fcm;
+    fixture.fcmFixture.fcm.deleteInstance = fcm.deleteInstance;
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, () => {});
+    assert.equal(await fixture.manager.enable(), 'ready');
+    assert.deepEqual(fixture.registrationGenerations, [2]);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testCleanupFailuresAreClassifiedAfterPermissionWithoutRegistration() {
+  await withPushStorage(async (storage) => {
+    storage.set('veli.ios.push-cleanup-pending', '1');
+    const fixture = createManager({ activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    const unregister = fixture.nativeFixture.native.unregister;
+    fixture.nativeFixture.native.unregister = async () => { throw { code: 'UNAVAILABLE', message: 'sensitive-value' }; };
+    await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+      && error.stage === 'cleanup-unregister' && error.kind === 'plugin-unavailable'
+      && !error.message.includes('sensitive-value') && !error.userMessage.includes('sensitive-value'));
+    assert.equal(fixture.nativeFixture.requestCount(), 1, 'permission request precedes cleanup recovery');
+    assert.equal(fixture.registrationAttempts(), 0);
+    assert(!fixture.nativeFixture.events.includes('native-register'));
+    fixture.nativeFixture.native.unregister = unregister;
+    const deleteInstance = fixture.fcmFixture.fcm.deleteInstance;
+    fixture.fcmFixture.fcm.deleteInstance = async () => { throw new Error('sensitive-value'); };
+    await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+      && error.stage === 'cleanup-fcm-delete' && error.kind === 'rejected'
+      && !error.message.includes('sensitive-value') && !error.userMessage.includes('sensitive-value'));
+    assert.equal(fixture.registrationAttempts(), 0);
+    fixture.fcmFixture.fcm.deleteInstance = deleteInstance;
+    assert.equal(await fixture.manager.enable(), 'ready');
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testStuckNativeCleanupIsSingleFlightAcrossRetry() {
+  await withPushStorage(async (storage) => {
+    storage.set('veli.ios.push-cleanup-pending', '1');
+    const fixture = createManager({ activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    let release!: () => void;
+    let calls = 0;
+    fixture.nativeFixture.native.unregister = async () => {
+      calls++;
+      await new Promise<void>((resolve) => { release = resolve; });
+    };
+    await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+      && error.stage === 'cleanup-unregister' && error.kind === 'timeout');
+    await expectActivationStage(fixture.manager.enable(), 'cleanup-unregister');
+    assert.equal(calls, 1, 'timed-out unregister must not overlap with a second native unregister');
+    assert.equal(fixture.registrationAttempts(), 0);
+    fixture.nativeFixture.native.unregister = async () => {};
+    release();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(await fixture.manager.enable(), 'ready');
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testLogoutCleanupCannotOverlapDifferentAccountRegistration() {
+  await withPushStorage(async (storage) => {
+    const fixture = createManager({ initialPermission: 'granted', activationTimeoutMs: 20 });
+    const statuses: string[] = [];
+    await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+    await waitForStatus(statuses, 'ready');
+    let release!: () => void;
+    let calls = 0;
+    fixture.nativeFixture.native.unregister = async () => {
+      calls++;
+      await new Promise<void>((resolve) => { release = resolve; });
+    };
+    await fixture.manager.beforeLogout();
+    assert.equal(storage.get('veli.ios.push-cleanup-pending'), '1');
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+    await waitForStatus(statuses, 'unavailable');
+    await expectActivationStage(fixture.manager.enable(), 'cleanup-unregister');
+    assert.equal(calls, 1, 'new account must await the old native unregister');
+    assert.equal(fixture.registrationAttempts(), 1, 'new account cannot register before cleanup settles');
+    fixture.nativeFixture.native.unregister = async () => {};
+    release();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(await fixture.manager.enable(), 'ready');
+    assert.deepEqual(fixture.registrationGenerations, [1, 2]);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testEveryListenerFailureIsDistinctAndRetryable() {
+  const cases = [
+    { event: 'tokenReceived', stage: 'listener-fcm-token', firebase: true },
+    { event: 'registration', stage: 'listener-apns-registration', firebase: false },
+    { event: 'registrationError', stage: 'listener-apns-error', firebase: false },
+    { event: 'pushNotificationReceived', stage: 'listener-notification-received', firebase: false },
+  ] as const;
+  for (const testCase of cases) {
+    const fixture = createManager({ activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    const target = testCase.firebase ? fixture.fcmFixture.fcm : fixture.nativeFixture.native;
+    const original = target.addListener;
+    (target as { addListener: typeof original }).addListener = async (name, listener) => {
+      if (name === testCase.event) throw { code: 'UNIMPLEMENTED', message: 'sensitive-value' };
+      return original(name as never, listener as never);
+    };
+    await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+      && error.stage === testCase.stage && error.kind === 'plugin-unavailable'
+      && !error.userMessage.includes('sensitive-value'));
+    assert.equal(fixture.registrationAttempts(), 0);
+    assert.equal(fixture.nativeFixture.listeners.size, 0, 'partial listeners must be removed');
+    assert.equal(fixture.fcmFixture.listeners.size, 0, 'partial FCM listeners must be removed');
+    (target as { addListener: typeof original }).addListener = original;
+    assert.equal(await fixture.manager.enable(), 'ready');
+    await fixture.manager.afterSessionInvalidated();
+  }
+}
+
+async function testGrantedStartupListenerFailureRemainsRetryable() {
+  const fixture = createManager({ initialPermission: 'granted', activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  const addListener = fixture.nativeFixture.native.addListener;
+  fixture.nativeFixture.native.addListener = async (name, listener) => {
+    if (name === 'registration') throw new Error('sensitive-value');
+    return addListener(name, listener);
+  };
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await waitForStatus(statuses, 'unavailable');
+  assert.equal(fixture.registrationAttempts(), 0);
+  fixture.nativeFixture.native.addListener = addListener;
+  assert.equal(await fixture.manager.enable(), 'ready');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testTimedOutListenerCannotAttachAfterRetry() {
+  const fixture = createManager({ activationTimeoutMs: 20 });
+  await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+  const addListener = fixture.nativeFixture.native.addListener;
+  let resolveLate!: (handle: { remove: () => Promise<void> }) => void;
+  let lateHandleRemoved = false;
+  fixture.nativeFixture.native.addListener = async (name, listener) => {
+    if (name === 'registration') return new Promise((resolve) => { resolveLate = resolve; });
+    return addListener(name, listener);
+  };
+  await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+    && error.stage === 'listener-apns-registration' && error.kind === 'timeout');
+  assert.equal(fixture.registrationAttempts(), 0);
+  fixture.nativeFixture.native.addListener = addListener;
+  assert.equal(await fixture.manager.enable(), 'ready');
+  resolveLate({ remove: async () => { lateHandleRemoved = true; } });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(lateHandleRemoved, true, 'late listener handle must be removed after the timed-out attempt');
+  assert.equal(fixture.nativeFixture.listeners.has('registration'), true, 'current listener must survive old handle cleanup');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testCleanupMarkerStorageFailureIsDistinct() {
+  await withPushStorage(async () => {
+    const fixture = createManager({ activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    const getItem = localStorage.getItem.bind(localStorage);
+    localStorage.getItem = (key: string) => {
+      if (key === 'veli.ios.push-cleanup-pending') throw new Error('sensitive-value');
+      return getItem(key);
+    };
+    await assert.rejects(fixture.manager.enable(), (error: unknown) => error instanceof IosPushActivationError
+      && error.stage === 'cleanup-marker' && error.kind === 'storage-unavailable'
+      && !error.userMessage.includes('sensitive-value'));
+    assert.equal(fixture.nativeFixture.requestCount(), 1);
+    assert.equal(fixture.registrationAttempts(), 0);
+    localStorage.getItem = getItem;
+    assert.equal(await fixture.manager.enable(), 'ready');
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testNavigationListenerFailureIsClassified() {
+  const fixture = createManager({ activationTimeoutMs: 20 });
+  const addListener = fixture.nativeFixture.native.addListener;
+  fixture.nativeFixture.native.addListener = async (name, listener) => {
+    if (name === 'pushNotificationActionPerformed') throw { code: 'UNAVAILABLE', message: 'sensitive-value' };
+    return addListener(name, listener);
+  };
+  await assert.rejects(fixture.manager.startNavigationCapture(async () => 'session'), (error: unknown) => error instanceof IosPushActivationError
+    && error.stage === 'listener-notification-action' && error.kind === 'plugin-unavailable'
+    && !error.userMessage.includes('sensitive-value'));
+  fixture.nativeFixture.native.addListener = addListener;
+  await fixture.manager.startNavigationCapture(async () => 'session');
+  await fixture.manager.stopNavigationCapture();
 }
 
 async function testLogoutOverlapsBackendRevocationAndStuckRegistration() {
@@ -648,6 +852,19 @@ async function run() {
   await testAccountSwitchQuarantinesLateRegistration();
   await testRegistrationGenerationSurvivesAppRestart();
   await testIosEmptyDeleteResponseAllowsNextLoginToEnablePush();
+  for (const [name, test] of [
+    ['never-enabled logout', testNeverEnabledLogoutDoesNotCreateCleanupBarrier],
+    ['classified cleanup', testCleanupFailuresAreClassifiedAfterPermissionWithoutRegistration],
+    ['single-flight cleanup', testStuckNativeCleanupIsSingleFlightAcrossRetry],
+    ['cross-account cleanup', testLogoutCleanupCannotOverlapDifferentAccountRegistration],
+    ['listener stages', testEveryListenerFailureIsDistinctAndRetryable],
+    ['granted startup listener', testGrantedStartupListenerFailureRemainsRetryable],
+    ['timed-out listener', testTimedOutListenerCannotAttachAfterRetry],
+    ['cleanup marker', testCleanupMarkerStorageFailureIsDistinct],
+    ['navigation listener', testNavigationListenerFailureIsClassified],
+  ] as const) {
+    try { await test(); } catch (error) { console.error(`iOS push regression case failed: ${name}`); throw error; }
+  }
   await testLogoutOverlapsBackendRevocationAndStuckRegistration();
   await testLogoutClearsAuthAfterBoundedPushCleanup();
   await testLogoutDoesNotWaitForeverForNativeCleanup();
@@ -655,6 +872,6 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error(error instanceof assert.AssertionError ? `iOS push assertion failed: ${error.message}` : error instanceof IosPushActivationError ? `iOS push activation failed at ${error.stage}` : `iOS push tests failed at ${error instanceof Error ? error.stack?.split('\n')[1]?.trim() : 'unknown location'}.`);
+  console.error(error instanceof assert.AssertionError ? `iOS push assertion failed at ${error.stack?.split('\n').find((line) => /^\s+at /.test(line))?.trim()}` : error instanceof IosPushActivationError ? `iOS push activation failed at ${error.stage}` : `iOS push tests failed at ${error instanceof Error ? error.stack?.split('\n')[1]?.trim() : 'unknown location'}.`);
   process.exitCode = 1;
 });
