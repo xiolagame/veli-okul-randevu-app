@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { IosPushManager } from '../src/platform/ios-push';
+import { IosPushActivationError, IosPushManager } from '../src/platform/ios-push';
 import { canUseAndroidPush, canUseMobilePush } from '../src/platform/push-eligibility';
 import { pendingNavigationIntent } from '../src/platform/navigation-intent';
 
@@ -66,6 +66,8 @@ function createManager(options: {
   initialPermission?: 'prompt' | 'granted' | 'denied';
   failFirstRegistration?: boolean;
   registrationGate?: Promise<void>;
+  registrationGates?: Promise<void>[];
+  activationTimeoutMs?: number;
 } = {}) {
   const nativeFixture = createNative(options.initialPermission);
   const fcmFixture = createFcm(nativeFixture.events);
@@ -87,7 +89,8 @@ function createManager(options: {
       registrationAttempts++;
       for (const waiter of [...attemptWaiters]) waiter();
       nativeFixture.events.push('backend-register');
-      if (options.registrationGate) await options.registrationGate;
+      const registrationGate = options.registrationGates?.[registrationAttempts - 1] ?? options.registrationGate;
+      if (registrationGate) await registrationGate;
       if (options.failFirstRegistration && registrationAttempts === 1) throw new Error('offline');
       registrations.push({ platform: input.platform, provider: input.provider, providerTarget: input.providerTarget });
     },
@@ -95,7 +98,7 @@ function createManager(options: {
   }, () => options.platform || 'IOS', () => crypto.randomUUID(),
   nativeFixture.native as unknown as ConstructorParameters<typeof IosPushManager>[3],
   fcmFixture.fcm as unknown as ConstructorParameters<typeof IosPushManager>[4],
-  async () => { settingsOpened++; });
+  async () => { settingsOpened++; }, options.activationTimeoutMs);
   return {
     manager, nativeFixture, fcmFixture, registrations, lifecycle,
     registrationAttempts: () => registrationAttempts,
@@ -245,6 +248,115 @@ async function testPermissionRevocationWaitsForRegistration() {
   assert.equal(fixture.nativeFixture.events.at(-1), 'native-unregister');
 }
 
+async function expectActivationStage(work: Promise<unknown>, stage: IosPushActivationError['stage']): Promise<void> {
+  await assert.rejects(work, (error: unknown) => error instanceof IosPushActivationError && error.stage === stage && !error.userMessage.includes('token'), `Expected activation failure at ${stage}`);
+}
+
+async function testTimedOutPermissionCallsCanRetry() {
+  const fixture = createManager({ activationTimeoutMs: 20 });
+  await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+  const checkPermissions = fixture.nativeFixture.native.checkPermissions;
+  fixture.nativeFixture.native.checkPermissions = async () => new Promise<never>(() => {});
+  await expectActivationStage(fixture.manager.enable(), 'permission-check');
+  fixture.nativeFixture.native.checkPermissions = checkPermissions;
+  const requestPermissions = fixture.nativeFixture.native.requestPermissions;
+  let finishRequest!: (value: { receive: 'granted' }) => void;
+  fixture.nativeFixture.native.requestPermissions = async () => new Promise<{ receive: 'granted' }>((resolve) => { finishRequest = resolve; });
+  await expectActivationStage(fixture.manager.enable(), 'permission-request');
+  await expectActivationStage(fixture.manager.enable(), 'permission-request');
+  finishRequest({ receive: 'granted' });
+  fixture.nativeFixture.setPermission('granted');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  fixture.nativeFixture.native.requestPermissions = requestPermissions;
+  assert.equal(await fixture.manager.enable(), 'ready');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testTimedOutApnsAndFcmStages() {
+  const fixture = createManager({ activationTimeoutMs: 20 });
+  await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+  const setAutoInit = fixture.fcmFixture.fcm.setAutoInit;
+  fixture.fcmFixture.fcm.setAutoInit = async () => new Promise<never>(() => {});
+  await expectActivationStage(fixture.manager.enable(), 'fcm-init');
+  fixture.fcmFixture.fcm.setAutoInit = setAutoInit;
+  fixture.nativeFixture.native.register = async () => {
+    fixture.nativeFixture.events.push('native-register');
+    return new Promise<never>(() => {});
+  };
+  await expectActivationStage(fixture.manager.enable(), 'apns-register');
+  await expectActivationStage(fixture.manager.enable(), 'apns-register');
+  assert.equal(fixture.nativeFixture.events.filter((event) => event === 'native-register').length, 1);
+  await fixture.manager.afterSessionInvalidated();
+
+  const noCallback = createManager({ activationTimeoutMs: 20 });
+  await noCallback.manager.start('ios-parent', 'parent', () => {}, () => {});
+  noCallback.nativeFixture.native.register = async () => { noCallback.nativeFixture.events.push('native-register'); };
+  await expectActivationStage(noCallback.manager.enable(), 'apns-callback');
+  await expectActivationStage(noCallback.manager.enable(), 'apns-callback');
+  assert.equal(noCallback.nativeFixture.events.filter((event) => event === 'native-register').length, 1);
+  await noCallback.manager.afterSessionInvalidated();
+
+  const noFcm = createManager({ activationTimeoutMs: 20 });
+  await noFcm.manager.start('ios-parent', 'parent', () => {}, () => {});
+  noFcm.nativeFixture.native.register = async () => { noFcm.nativeFixture.fire('registration', { value: 'not-a-stored-token' }); };
+  noFcm.fcmFixture.fcm.getToken = async () => new Promise<never>(() => {});
+  await expectActivationStage(noFcm.manager.enable(), 'fcm-token');
+  await expectActivationStage(noFcm.manager.enable(), 'fcm-token');
+  await noFcm.manager.afterSessionInvalidated();
+}
+
+async function testTimedOutBackendRegistrationDoesNotReportReady() {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const fixture = createManager({ registrationGate: gate, activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await expectActivationStage(fixture.manager.enable(), 'device-registration');
+  release();
+  await Promise.resolve();
+  assert.equal(statuses.at(-1), 'unavailable');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testLateFirstBackendResultCannotCompleteOverlappingRetry() {
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  const secondGate = new Promise<void>((resolve) => { releaseSecond = resolve; });
+  const fixture = createManager({ registrationGates: [firstGate, secondGate], activationTimeoutMs: 100 });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await expectActivationStage(fixture.manager.enable(), 'device-registration');
+  let secondSettled = false;
+  const second = fixture.manager.enable().finally(() => { secondSettled = true; });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  fixture.nativeFixture.fire('registration', { value: 'stale-apns-event' });
+  fixture.fcmFixture.fireToken('stale-fcm-registration-token-123456');
+  await Promise.resolve();
+  assert.equal(fixture.registrationAttempts(), 1);
+  assert.equal(statuses.at(-1), 'preparing');
+  releaseFirst();
+  await fixture.waitForAttempts(2);
+  assert.equal(statuses.at(-1), 'preparing');
+  assert.equal(secondSettled, false);
+  assert.equal(fixture.nativeFixture.events.filter((event) => event === 'native-register').length, 1);
+  releaseSecond();
+  assert.equal(await second, 'ready');
+  assert.equal(statuses.at(-1), 'ready');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testLateFcmLookupCannotDowngradeReadyRegistration() {
+  const fixture = createManager({ activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  fixture.fcmFixture.fcm.getToken = async () => new Promise<never>(() => {});
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  assert.equal(await fixture.manager.enable(), 'ready');
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(statuses.at(-1), 'ready');
+  await fixture.manager.afterSessionInvalidated();
+}
+
 async function run() {
   await testIosPermissionAndTokenLifecycle();
   await testIosDeniedAndSettings();
@@ -252,6 +364,11 @@ async function run() {
   await testNavigationAndPlatformGuards();
   await testLogoutWaitsForInFlightRegistration();
   await testPermissionRevocationWaitsForRegistration();
+  await testTimedOutPermissionCallsCanRetry();
+  await testTimedOutApnsAndFcmStages();
+  await testTimedOutBackendRegistrationDoesNotReportReady();
+  await testLateFirstBackendResultCannotCompleteOverlappingRetry();
+  await testLateFcmLookupCannotDowngradeReadyRegistration();
   console.log('iOS push token, permission, lifecycle, logout, navigation and web guard tests passed.');
 }
 

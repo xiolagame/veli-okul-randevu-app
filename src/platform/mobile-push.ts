@@ -13,6 +13,7 @@ function getManager(): MobilePushManager | null {
 }
 
 export { canUseMobilePush };
+export { IosPushActivationError } from './ios-push';
 export type { PushStatus };
 
 export const mobilePush = {

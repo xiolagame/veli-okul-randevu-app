@@ -11,6 +11,26 @@ const CANONICAL_ORIGIN = 'https://velirandevu.com';
 const INSTALLATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FCM_TOKEN_PATTERN = /^\S{20,4096}$/;
 
+type ActivationStage = 'permission-check' | 'permission-request' | 'fcm-init' | 'apns-register' | 'apns-callback' | 'fcm-token' | 'device-registration' | 'cleanup';
+
+export class IosPushActivationError extends Error {
+  constructor(readonly stage: ActivationStage) {
+    super(`iOS push activation did not complete at ${stage}`);
+    this.name = 'IosPushActivationError';
+  }
+
+  get userMessage(): string {
+    if (this.stage === 'permission-check') return 'Bildirim izni durumu okunamadı. Biraz sonra yeniden deneyin.';
+    if (this.stage === 'permission-request') return 'iOS bildirim izni isteği tamamlanmadı. İzin penceresi açıksa yanıtlayın; ardından yeniden deneyin.';
+    if (this.stage === 'apns-register') return 'iPhone bildirim kaydı tamamlanmadı. Uygulamayı tamamen kapatıp yeniden açın.';
+    if (this.stage === 'apns-callback') return 'iPhone bildirim kaydından yanıt alınamadı. Uygulamayı tamamen kapatıp yeniden açın.';
+    if (this.stage === 'fcm-init') return 'Bildirim hizmeti başlatılamadı. Biraz sonra yeniden deneyin.';
+    if (this.stage === 'fcm-token') return 'Bildirim hizmetinden cihaz yanıtı alınamadı. Uygulamayı tamamen kapatıp yeniden açın.';
+    if (this.stage === 'device-registration') return 'Cihaz kaydı tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyin.';
+    return 'Bildirim ayarları tamamlanamadı. Uygulamayı yeniden açıp tekrar deneyin.';
+  }
+}
+
 function isFcmToken(token: string): boolean {
   return FCM_TOKEN_PATTERN.test(token) && !/^[a-f0-9]{64}$/i.test(token);
 }
@@ -69,9 +89,11 @@ export class IosPushManager {
   private sessionIdentity: (() => Promise<string | null>) | null = null;
   private starting: Promise<void> | null = null;
   private nativeRegistration: Promise<void> | null = null;
+  private permissionRequest: Promise<{ receive: 'prompt' | 'granted' | 'denied' }> | null = null;
   private sessionCleanup: Promise<void> | null = null;
   private registrations = new Set<Promise<void>>();
-  private registrationByToken = new Map<string, Promise<void>>();
+  private lastRegistration: Promise<void> = Promise.resolve();
+  private registrationByToken = new Map<string, { generation: number; promise: Promise<void> }>();
   private currentFcmToken: string | null = null;
   private registeredFcmToken: string | null = null;
   private apnsRegistered = false;
@@ -83,6 +105,13 @@ export class IosPushManager {
   private onForeground: (() => void) | null = null;
   private onStatus: ((status: PushStatus) => void) | null = null;
   private status: PushStatus = 'off';
+  private activationStage: ActivationStage = 'permission-check';
+  private activationGeneration = 0;
+  private nativeRetryBlocked = false;
+  private backendRetryInProgress = false;
+  private enableInProgress = false;
+  private lastFailureStage: ActivationStage | null = null;
+  private readonly statusListeners = new Set<(status: PushStatus) => void>();
   private nativePromise: Promise<IosPushNative> | null = null;
   private fcmPromise: Promise<FirebaseMessagingNative> | null = null;
 
@@ -93,6 +122,7 @@ export class IosPushManager {
     private readonly nativeOverride?: IosPushNative,
     private readonly fcmOverride?: FirebaseMessagingNative,
     private readonly openSettingsOverride?: () => Promise<void>,
+    private readonly activationTimeoutOverrideMs?: number,
   ) {}
 
   async start(userId: string, role: string | undefined, onForeground: () => void, onStatus: (status: PushStatus) => void): Promise<void> {
@@ -100,6 +130,7 @@ export class IosPushManager {
     if (this.sessionCleanup) await this.sessionCleanup.catch(() => {});
     this.closing = false;
     if (this.userId !== userId) {
+      this.activationGeneration++;
       this.currentFcmToken = null;
       this.registeredFcmToken = null;
       this.permissionGranted = false;
@@ -141,17 +172,20 @@ export class IosPushManager {
     const native = await this.native();
     const fcm = await this.firebaseMessaging();
     this.handles.push(await fcm.addListener('tokenReceived', ({ token }) => {
-      if (!this.permissionGranted || this.closing || !isFcmToken(token)) return;
-      this.acceptFcmToken(token, this.userId);
+      if (!this.permissionGranted || this.closing || this.nativeRetryBlocked || this.backendRetryInProgress || !isFcmToken(token)) return;
+      this.acceptFcmToken(token, this.userId, this.activationGeneration);
     }));
     this.handles.push(await native.addListener('registration', () => {
-      if (!this.userId || this.closing || !this.permissionGranted) return;
+      if (!this.userId || this.closing || !this.permissionGranted || this.nativeRetryBlocked || this.backendRetryInProgress) return;
       this.apnsRegistered = true;
-      void this.resolveFcmRegistrationToken();
+      this.activationStage = 'fcm-token';
+      void this.resolveFcmRegistrationToken(this.activationGeneration);
     }));
     this.handles.push(await native.addListener('registrationError', () => {
+      if (this.closing || this.nativeRetryBlocked || this.backendRetryInProgress) return;
       this.apnsRegistered = false;
       this.backendRegistered = false;
+      this.activationStage = 'apns-callback';
       this.emitStatus('unavailable');
     }));
     this.handles.push(await native.addListener('pushNotificationReceived', (notification) => {
@@ -168,15 +202,18 @@ export class IosPushManager {
     }));
   }
 
-  private async resolveFcmRegistrationToken(): Promise<void> {
+  private async resolveFcmRegistrationToken(generation = this.activationGeneration): Promise<void> {
     const owner = this.userId;
-    if (!owner || this.closing || !this.permissionGranted) return;
+    if (!owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration) return;
     try {
-      const { token } = await (await this.firebaseMessaging()).getToken();
-      if (this.userId !== owner || this.closing || !this.permissionGranted || !isFcmToken(token)) return;
-      this.acceptFcmToken(token, owner);
+      this.activationStage = 'fcm-token';
+      const fcm = await this.awaitActivationStage('fcm-token', this.firebaseMessaging());
+      const { token } = await this.awaitActivationStage('fcm-token', fcm.getToken());
+      if (this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration || !isFcmToken(token)) return;
+      if (token === this.currentFcmToken) return;
+      this.acceptFcmToken(token, owner, generation);
     } catch {
-      if (this.userId === owner && !this.closing) this.emitStatus('unavailable');
+      if (this.userId === owner && !this.closing && generation === this.activationGeneration && !this.backendRegistered) this.emitStatus('unavailable');
     }
   }
 
@@ -185,41 +222,48 @@ export class IosPushManager {
     void registration.finally(() => this.registrations.delete(registration));
   }
 
-  private acceptFcmToken(token: string, owner: string | null): void {
-    if (!owner || this.userId !== owner || this.closing || !this.permissionGranted) return;
+  private acceptFcmToken(token: string, owner: string | null, generation: number): void {
+    if (!owner || this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration) return;
     if (token === this.registeredFcmToken) return;
-    if (token === this.currentFcmToken && (this.backendRegistered || this.registrationByToken.has(`${owner}:${token}`))) return;
+    if (token === this.currentFcmToken && (this.backendRegistered || this.registrationByToken.get(`${owner}:${token}`)?.generation === generation)) return;
     this.currentFcmToken = token;
     this.backendRegistered = false;
-    void this.registerToken(token, owner);
+    void this.registerToken(token, owner, generation);
   }
 
-  private registerToken(token: string, owner: string | null): Promise<void> {
-    if (!owner || this.userId !== owner || this.closing || !this.permissionGranted) return Promise.resolve();
+  private registerToken(token: string, owner: string | null, generation = this.activationGeneration): Promise<void> {
+    if (!owner || this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration) return Promise.resolve();
     if (token === this.registeredFcmToken) return Promise.resolve();
     const key = `${owner}:${token}`;
     const existing = this.registrationByToken.get(key);
-    if (existing) return existing;
-    const registration = this.performTokenRegistration(token, owner);
-    this.registrationByToken.set(key, registration);
+    if (existing?.generation === generation) return existing.promise;
+    const previous = this.lastRegistration;
+    const registration = (async () => {
+      await previous;
+      if (this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration || token === this.registeredFcmToken) return;
+      await this.performTokenRegistration(token, owner, generation);
+    })();
+    this.lastRegistration = registration;
+    this.registrationByToken.set(key, { generation, promise: registration });
     this.trackRegistration(registration);
     void registration.finally(() => {
-      if (this.registrationByToken.get(key) === registration) this.registrationByToken.delete(key);
+      if (this.registrationByToken.get(key)?.promise === registration) this.registrationByToken.delete(key);
     });
     return registration;
   }
 
-  private async performTokenRegistration(token: string, owner: string): Promise<void> {
+  private async performTokenRegistration(token: string, owner: string, generation: number): Promise<void> {
+    this.activationStage = 'device-registration';
     this.emitStatus('preparing');
     try {
       await this.deviceApi.registerPushDevice({ installationId: this.getInstallationId(), platform: 'IOS', provider: 'FCM',
         targetKind: 'REGISTRATION_TOKEN', providerTarget: token, appId: APP_ID });
-      if (this.userId !== owner || this.closing || !this.permissionGranted) return;
+      if (this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration || token !== this.currentFcmToken) return;
       this.registeredFcmToken = token;
       this.backendRegistered = true;
       this.emitStatus('ready');
     } catch {
-      if (this.userId !== owner || this.closing) return;
+      if (this.userId !== owner || this.closing || generation !== this.activationGeneration) return;
       this.backendRegistered = false;
       this.emitStatus('unavailable');
     }
@@ -262,6 +306,43 @@ export class IosPushManager {
   private emitStatus(status: PushStatus): void {
     this.status = status;
     this.onStatus?.(status);
+    for (const listener of this.statusListeners) listener(status);
+  }
+
+  private stageTimeoutMs(stage: ActivationStage): number {
+    if (this.activationTimeoutOverrideMs !== undefined) return this.activationTimeoutOverrideMs;
+    return stage === 'permission-request' ? 60_000 : stage === 'device-registration' ? 30_000 : 20_000;
+  }
+
+  private async awaitActivationStage<T>(stage: ActivationStage, work: Promise<T>): Promise<T> {
+    this.activationStage = stage;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([work, new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new IosPushActivationError(stage)), this.stageTimeoutMs(stage));
+      })]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  private async awaitActivationResult(): Promise<void> {
+    if (this.status === 'ready') return;
+    if (this.status !== 'preparing') throw new IosPushActivationError(this.activationStage);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => finish(new IosPushActivationError(this.activationStage)), this.stageTimeoutMs('device-registration'));
+      const listener = (status: PushStatus) => {
+        if (status === 'ready') finish();
+        else if (status !== 'preparing') finish(new IosPushActivationError(this.activationStage));
+      };
+      const finish = (error?: IosPushActivationError) => {
+        clearTimeout(timer);
+        this.statusListeners.delete(listener);
+        if (error) reject(error);
+        else resolve();
+      };
+      this.statusListeners.add(listener);
+    });
   }
 
   private async nativeRegister(): Promise<void> {
@@ -271,6 +352,14 @@ export class IosPushManager {
     })();
     this.nativeRegistration = registration;
     try { await registration; } finally { if (this.nativeRegistration === registration) this.nativeRegistration = null; }
+  }
+
+  private requestNativePermission(native: IosPushNative): Promise<{ receive: 'prompt' | 'granted' | 'denied' }> {
+    if (this.permissionRequest) return this.permissionRequest;
+    const request = native.requestPermissions();
+    this.permissionRequest = request;
+    void request.finally(() => { if (this.permissionRequest === request) this.permissionRequest = null; }).catch(() => {});
+    return request;
   }
 
   private async disablePush(status: 'off' | 'denied' | 'unavailable'): Promise<void> {
@@ -288,12 +377,15 @@ export class IosPushManager {
 
   async refreshPermission(): Promise<void> {
     if (!this.userId || this.closing || this.runtimePlatform() !== 'IOS') return;
+    if (this.enableInProgress) return;
+    if (this.nativeRetryBlocked) { this.emitStatus('unavailable'); return; }
     try {
       const permission = await (await this.native()).checkPermissions();
       if (permission.receive === 'denied') {
         await this.disablePush('denied');
         return;
       }
+      if (this.lastFailureStage) { this.emitStatus('unavailable'); return; }
       if (permission.receive !== 'granted') {
         this.permissionGranted = false;
         this.emitStatus('off');
@@ -320,28 +412,48 @@ export class IosPushManager {
 
   async enable(): Promise<PushStatus> {
     if (!this.userId || this.runtimePlatform() !== 'IOS') return 'unavailable';
+    if (this.enableInProgress) throw new IosPushActivationError(this.activationStage);
+    if (this.nativeRetryBlocked) throw new IosPushActivationError(this.lastFailureStage ?? 'apns-callback');
+    if (this.permissionRequest) throw new IosPushActivationError('permission-request');
+    const generation = ++this.activationGeneration;
+    const retryBackend = this.lastFailureStage === 'device-registration' && !!this.currentFcmToken && this.apnsRegistered;
+    this.backendRetryInProgress = retryBackend;
+    this.enableInProgress = true;
     try {
-      const native = await this.native();
-      const permission = await native.checkPermissions();
+      const native = await this.awaitActivationStage('permission-check', this.native());
+      const permission = await this.awaitActivationStage('permission-check', native.checkPermissions());
       if (permission.receive === 'denied') {
-        await this.disablePush('denied');
+        await this.awaitActivationStage('cleanup', this.disablePush('denied'));
         return this.status;
       }
-      const requested = permission.receive === 'granted' ? permission : await native.requestPermissions();
+      const requested = permission.receive === 'granted' ? permission : await this.awaitActivationStage('permission-request', this.requestNativePermission(native));
       if (requested.receive !== 'granted') {
-        await this.disablePush(requested.receive === 'denied' ? 'denied' : 'off');
+        await this.awaitActivationStage('cleanup', this.disablePush(requested.receive === 'denied' ? 'denied' : 'off'));
         return this.status;
       }
       this.permissionGranted = true;
       this.emitStatus('preparing');
-      await (await this.firebaseMessaging()).setAutoInit({ enabled: true });
-      await this.nativeRegister();
-      if (this.currentFcmToken) await this.registerToken(this.currentFcmToken, this.userId);
-      await Promise.all(this.registrations);
+      const fcm = await this.awaitActivationStage('fcm-init', this.firebaseMessaging());
+      await this.awaitActivationStage('fcm-init', fcm.setAutoInit({ enabled: true }));
+      if (!retryBackend) await this.awaitActivationStage('apns-register', this.nativeRegister());
+      if (this.currentFcmToken) await this.awaitActivationStage('device-registration', this.registerToken(this.currentFcmToken, this.userId, generation));
+      else this.activationStage = this.apnsRegistered ? 'fcm-token' : 'apns-callback';
+      await this.awaitActivationResult();
+      this.backendRetryInProgress = false;
+      this.lastFailureStage = null;
       return this.status;
-    } catch {
-      await this.disablePush('unavailable');
-      return this.status;
+    } catch (error) {
+      if (this.closing || generation !== this.activationGeneration || (this.status === 'denied' && this.activationStage !== 'permission-check' && this.activationStage !== 'permission-request')) return this.status;
+      const stage = error instanceof IosPushActivationError ? error.stage : this.activationStage;
+      this.activationGeneration++;
+      this.lastFailureStage = stage;
+      this.nativeRetryBlocked = stage === 'apns-register' || stage === 'apns-callback' || stage === 'fcm-token';
+      this.backendRetryInProgress = false;
+      this.permissionGranted = false;
+      this.emitStatus('unavailable');
+      throw error instanceof IosPushActivationError ? error : new IosPushActivationError(stage);
+    } finally {
+      this.enableInProgress = false;
     }
   }
 
@@ -358,8 +470,14 @@ export class IosPushManager {
     if (!this.userId || this.runtimePlatform() !== 'IOS') return;
     const cleanup = (async () => {
       this.closing = true;
+      this.activationGeneration++;
+      this.backendRetryInProgress = false;
+      this.emitStatus('off');
       if (this.starting) await this.starting.catch(() => {});
-      if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
+      if (this.nativeRegistration) await this.awaitActivationStage('cleanup', this.nativeRegistration).catch(() => {
+        this.nativeRetryBlocked = true;
+        this.lastFailureStage = 'apns-register';
+      });
       await Promise.all(this.registrations);
       let backendDeactivated = false;
       let nativeCleared = false;
@@ -382,8 +500,14 @@ export class IosPushManager {
     if (!this.userId || this.runtimePlatform() !== 'IOS') return;
     const cleanup = (async () => {
       this.closing = true;
+      this.activationGeneration++;
+      this.backendRetryInProgress = false;
+      this.emitStatus('off');
       if (this.starting) await this.starting.catch(() => {});
-      if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
+      if (this.nativeRegistration) await this.awaitActivationStage('cleanup', this.nativeRegistration).catch(() => {
+        this.nativeRetryBlocked = true;
+        this.lastFailureStage = 'apns-register';
+      });
       await Promise.all(this.registrations);
       await (await this.native()).unregister().catch(() => {});
       await (await this.firebaseMessaging()).deleteInstance().catch(() => {});
@@ -400,6 +524,7 @@ export class IosPushManager {
   }
 
   private async clearAuthenticatedRuntime(): Promise<void> {
+    this.activationGeneration++;
     this.userId = null;
     this.currentFcmToken = null;
     this.registeredFcmToken = null;
@@ -407,6 +532,8 @@ export class IosPushManager {
     this.permissionGranted = false;
     this.backendRegistered = false;
     this.registrationByToken.clear();
+    this.lastRegistration = Promise.resolve();
+    this.lastFailureStage = this.nativeRetryBlocked ? 'apns-register' : null;
     this.status = 'off';
     this.onForeground = null;
     this.onStatus = null;

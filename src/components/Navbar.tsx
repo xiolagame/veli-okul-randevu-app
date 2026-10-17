@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp, Trash2 } from 'lucide-react';
 import { Brand, Button, Dialog } from './ui';
-import { mobilePush, canUseMobilePush, PushStatus } from '../platform/mobile-push';
+import { mobilePush, canUseMobilePush, PushStatus, IosPushActivationError } from '../platform/mobile-push';
 import { appLifecycle } from '../platform/lifecycle';
 import { networkHint } from '../platform/network';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
@@ -70,10 +70,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         setPushSettingsRequired(false);
         setPushError('Bildirimler şu anda etkinleştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
       }
-    } catch {
+    } catch (error) {
       setPushStatus('unavailable');
       setPushSettingsRequired(false);
-      setPushError('Bildirimler şu anda etkinleştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      setPushError(error instanceof IosPushActivationError ? error.userMessage : 'Bildirimler şu anda etkinleştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
     } finally {
       setPushActionPending(false);
     }
