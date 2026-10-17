@@ -392,8 +392,9 @@ async function run() {
       body: body ? JSON.stringify(body) : undefined });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
-  const device = (id: string, providerTarget: string, platform: 'ANDROID' | 'IOS' = 'ANDROID') => ({ installationId: id, platform, provider: 'FCM',
-    targetKind: 'REGISTRATION_TOKEN', providerTarget, appId: 'com.velirandevu.app' });
+  const device = (id: string, providerTarget: string, platform: 'ANDROID' | 'IOS' = 'ANDROID', registrationGeneration?: number) => ({ installationId: id, platform, provider: 'FCM',
+    targetKind: 'REGISTRATION_TOKEN', providerTarget, appId: 'com.velirandevu.app',
+    ...(registrationGeneration === undefined ? {} : { registrationGeneration }) });
   const deliveryCount = async (notificationId: string) => Number((await db.query<{ count: string }>(
     'SELECT COUNT(*)::text AS count FROM notification_deliveries WHERE notification_id=$1', [notificationId])).rows[0].count);
   try {
@@ -459,6 +460,9 @@ async function run() {
     assert.deepEqual(Object.keys(registered.body), ['success']);
     assert(!JSON.stringify(registered.body).includes(teacherTarget));
     assert.equal(validDeviceInput(device(iosInstallationId, iosTeacherTarget, 'IOS')), true);
+    assert.equal(validDeviceInput(device(iosInstallationId, iosTeacherTarget, 'IOS', 1)), true);
+    assert.equal(validDeviceInput(device(iosInstallationId, iosTeacherTarget, 'IOS', 0)), false);
+    assert.equal(validDeviceInput(device(installationId, teacherTarget, 'ANDROID', 1)), false);
     assert.equal(validDeviceInput({ ...device(iosInstallationId, iosTeacherTarget, 'IOS'), provider: 'APNS' }), false);
     const rawApnsTarget = 'a'.repeat(64);
     assert.equal(validDeviceInput(device(iosInstallationId, rawApnsTarget, 'IOS')), false);
@@ -471,6 +475,57 @@ async function run() {
     const iosDevice = (await db.query<{ platform: string; provider: string }>(
       'SELECT platform,provider FROM mobile_push_devices WHERE installation_id=$1', [iosInstallationId])).rows[0];
     assert.deepEqual(iosDevice, { platform: 'IOS', provider: 'FCM' });
+
+    // DELETE must fence a late POST, including when DELETE reached the server before any POST.
+    const logoutRaceInstallationId = crypto.randomUUID();
+    const logoutRaceOldTarget = `fcm-race-old-${suffix}`;
+    const logoutRaceNewTarget = `fcm-race-new-${suffix}`;
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(logoutRaceInstallationId, logoutRaceOldTarget, 'IOS', 1))).status, 200);
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${logoutRaceInstallationId}?registrationGeneration=1`, teacherId)).status, 200);
+    assert.equal((await db.query<{ active: boolean }>(
+      'SELECT active FROM mobile_push_devices WHERE installation_id=$1', [logoutRaceInstallationId])).rows[0].active, false);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(logoutRaceInstallationId, logoutRaceOldTarget, 'IOS', 1))).status, 409);
+    assert.equal((await db.query<{ active: boolean }>(
+      'SELECT active FROM mobile_push_devices WHERE installation_id=$1', [logoutRaceInstallationId])).rows[0].active, false);
+    assert.equal((await request('POST', '/api/mobile/push/devices', parentId,
+      device(logoutRaceInstallationId, logoutRaceNewTarget, 'IOS', 2))).status, 200);
+    assert.equal((await request('POST', '/api/mobile/push/devices', parentId,
+      device(logoutRaceInstallationId, logoutRaceNewTarget, 'IOS', 2))).status, 200);
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${logoutRaceInstallationId}`, parentId)).status, 200);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(logoutRaceInstallationId, logoutRaceOldTarget, 'IOS', 1))).status, 409);
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${logoutRaceInstallationId}?registrationGeneration=1`, teacherId)).status, 200);
+    assert.deepEqual((await db.query<{ user_id: string; active: boolean }>(
+      'SELECT user_id,active FROM mobile_push_devices WHERE installation_id=$1', [logoutRaceInstallationId])).rows[0],
+    { user_id: parentId, active: true });
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${logoutRaceInstallationId}?registrationGeneration=2`, parentId)).status, 200);
+
+    const deleteFirstId = crypto.randomUUID();
+    assert.equal((await request('DELETE', `/api/mobile/push/devices/${deleteFirstId}?registrationGeneration=1`, teacherId)).status, 200);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(deleteFirstId, logoutRaceOldTarget, 'IOS', 1))).status, 409);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(deleteFirstId, logoutRaceOldTarget, 'IOS'))).status, 409);
+    const deleteFirstTombstone = (await db.query<{ active: boolean; revoked_through_generation: string | number }>(
+      'SELECT active,revoked_through_generation FROM mobile_push_devices WHERE installation_id=$1', [deleteFirstId])).rows[0];
+    assert.equal(deleteFirstTombstone.active, false);
+    assert.equal(Number(deleteFirstTombstone.revoked_through_generation), 1);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(deleteFirstId, logoutRaceOldTarget, 'IOS', 2))).status, 200);
+
+    const concurrentId = crypto.randomUUID();
+    const [concurrentPost, concurrentDelete] = await Promise.all([
+      request('POST', '/api/mobile/push/devices', teacherId, device(concurrentId, logoutRaceOldTarget, 'IOS', 1)),
+      request('DELETE', `/api/mobile/push/devices/${concurrentId}?registrationGeneration=1`, teacherId),
+    ]);
+    assert([200, 409].includes(concurrentPost.status));
+    assert.equal(concurrentDelete.status, 200);
+    assert.equal((await db.query<{ active: boolean }>(
+      'SELECT active FROM mobile_push_devices WHERE installation_id=$1', [concurrentId])).rows[0].active, false);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(concurrentId, logoutRaceOldTarget, 'IOS', 1))).status, 409);
     assert.equal((await request('POST', '/api/mobile/push/devices', teacherId, device(installationId, teacherTarget))).status, 200);
     assert.equal((await db.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM mobile_push_devices WHERE installation_id=$1',
       [installationId])).rows[0].count, '1');

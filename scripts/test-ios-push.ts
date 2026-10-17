@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { IosPushActivationError, IosPushManager } from '../src/platform/ios-push';
 import { canUseAndroidPush, canUseMobilePush } from '../src/platform/push-eligibility';
 import { pendingNavigationIntent } from '../src/platform/navigation-intent';
+import { AuthSessionManager } from '../src/platform/auth-session';
+import { pushPromptState } from '../src/components/push-prompt-state';
 
 type Listener = (event: never) => void;
 
@@ -67,14 +70,23 @@ function createManager(options: {
   failFirstRegistration?: boolean;
   registrationGate?: Promise<void>;
   registrationGates?: Promise<void>[];
+  deactivationGate?: Promise<void>;
+  failDeactivation?: boolean;
   activationTimeoutMs?: number;
+  generationState?: { value: number };
+  persistentIdentity?: boolean;
 } = {}) {
   const nativeFixture = createNative(options.initialPermission);
   const fcmFixture = createFcm(nativeFixture.events);
   const registrations: Array<{ platform: string; provider: string; providerTarget: string }> = [];
+  const registrationGenerations: number[] = [];
+  const registrationInstallations: string[] = [];
+  const deactivationGenerations: number[] = [];
+  const generationState = options.generationState ?? { value: 1 };
   const lifecycle: string[] = [];
   let registrationAttempts = 0;
   let settingsOpened = 0;
+  const installationId = crypto.randomUUID();
   const attemptWaiters: Array<() => void> = [];
   const waitForAttempts = (expected: number) => registrationAttempts >= expected
     ? Promise.resolve()
@@ -86,6 +98,8 @@ function createManager(options: {
   };
   const manager = new IosPushManager({
     registerPushDevice: async (input) => {
+      registrationGenerations.push(input.registrationGeneration);
+      registrationInstallations.push(input.installationId);
       registrationAttempts++;
       for (const waiter of [...attemptWaiters]) waiter();
       nativeFixture.events.push('backend-register');
@@ -94,17 +108,32 @@ function createManager(options: {
       if (options.failFirstRegistration && registrationAttempts === 1) throw new Error('offline');
       registrations.push({ platform: input.platform, provider: input.provider, providerTarget: input.providerTarget });
     },
-    deactivatePushDevice: async () => { nativeFixture.events.push('backend-deactivate'); },
-  }, () => options.platform || 'IOS', () => crypto.randomUUID(),
+    deactivatePushDevice: async (_installationId, generation) => {
+      deactivationGenerations.push(generation);
+      nativeFixture.events.push('backend-deactivate');
+      if (options.deactivationGate) await options.deactivationGate;
+      if (options.failDeactivation) throw new Error('offline');
+    },
+  }, () => options.platform || 'IOS', options.persistentIdentity ? undefined : () => installationId,
   nativeFixture.native as unknown as ConstructorParameters<typeof IosPushManager>[3],
   fcmFixture.fcm as unknown as ConstructorParameters<typeof IosPushManager>[4],
-  async () => { settingsOpened++; }, options.activationTimeoutMs);
+  async () => { settingsOpened++; }, options.activationTimeoutMs,
+  options.persistentIdentity ? undefined : () => generationState.value,
+  options.persistentIdentity ? undefined : () => { generationState.value += 1; });
   return {
-    manager, nativeFixture, fcmFixture, registrations, lifecycle,
+    manager, nativeFixture, fcmFixture, registrations, registrationGenerations, registrationInstallations,
+    deactivationGenerations, generationState, lifecycle,
     registrationAttempts: () => registrationAttempts,
     waitForAttempts,
     settingsOpened: () => settingsOpened,
   };
+}
+
+async function waitForStatus(statuses: string[], expected: string): Promise<void> {
+  for (let attempt = 0; attempt < 100 && statuses.at(-1) !== expected; attempt++) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(statuses.at(-1), expected);
 }
 
 async function testIosPermissionAndTokenLifecycle() {
@@ -171,11 +200,12 @@ async function testReconnectRetryKeepsFcmTokenInMemory() {
   await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
   await fixture.waitForAttempts(1);
   assert.equal(fixture.registrationAttempts(), 1);
-  assert.equal(statuses.at(-1), 'unavailable');
+  await waitForStatus(statuses, 'unavailable');
   await fixture.manager.refreshPermission();
+  await fixture.waitForAttempts(2);
+  await waitForStatus(statuses, 'ready');
   assert.equal(fixture.registrationAttempts(), 2);
   assert.equal(fixture.registrations.at(-1)?.providerTarget, 'fcm-registration-token-initial-123456');
-  assert.equal(statuses.at(-1), 'ready');
   await fixture.manager.afterSessionInvalidated();
 }
 
@@ -357,6 +387,210 @@ async function testLateFcmLookupCannotDowngradeReadyRegistration() {
   await fixture.manager.afterSessionInvalidated();
 }
 
+async function testGrantedPermissionWithoutApnsCallbackDoesNotStayPreparing() {
+  const fixture = createManager({ initialPermission: 'granted', activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  fixture.nativeFixture.native.register = async () => { fixture.nativeFixture.events.push('native-register'); };
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await waitForStatus(statuses, 'unavailable');
+  assert.equal(fixture.nativeFixture.events.filter((event) => event === 'native-register').length, 1);
+  await expectActivationStage(fixture.manager.enable(), 'apns-callback');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testDeferredPromptKeepsEnableActionAvailable() {
+  assert.deepEqual(pushPromptState('off', true), { showAction: true, showExplanation: false });
+  assert.deepEqual(pushPromptState('unavailable', true), { showAction: true, showExplanation: false });
+  assert.deepEqual(pushPromptState('ready', true), { showAction: false, showExplanation: false });
+}
+
+async function testPermissionRevocationWaitsForBackendDeactivation() {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const fixture = createManager({ initialPermission: 'granted', deactivationGate: gate, activationTimeoutMs: 100 });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await waitForStatus(statuses, 'ready');
+  fixture.nativeFixture.setPermission('denied');
+  const refresh = fixture.manager.refreshPermission();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(statuses.at(-1), 'preparing');
+  assert(fixture.nativeFixture.events.includes('backend-deactivate'));
+  release();
+  await refresh;
+  assert.equal(statuses.at(-1), 'denied');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function testUnconfirmedDeactivationIsNotReportedAsOff() {
+  const fixture = createManager({ initialPermission: 'granted', deactivationGate: new Promise<void>(() => {}), activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await waitForStatus(statuses, 'ready');
+  fixture.nativeFixture.setPermission('denied');
+  await fixture.manager.refreshPermission();
+  assert.equal(statuses.at(-1), 'unavailable');
+  await fixture.manager.afterSessionInvalidated();
+}
+
+async function withPushStorage(runTest: (values: Map<string, string>) => Promise<void>): Promise<void> {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  } });
+  try { await runTest(values); } finally {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+}
+
+async function testStuckRegistrationDoesNotBlockLogoutOrBindNextAccount() {
+  await withPushStorage(async (storage) => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const fixture = createManager({ registrationGates: [gate, Promise.resolve()], activationTimeoutMs: 20 });
+    const statuses: string[] = [];
+    await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+    const enable = fixture.manager.enable().catch(() => {});
+    await fixture.waitForAttempts(1);
+    const oldApns = fixture.nativeFixture.listeners.get('registration');
+    const oldFcm = fixture.fcmFixture.listeners.get('tokenReceived');
+    let storedToken: string | null = null;
+    const session = new AuthSessionManager({
+      get: async () => storedToken,
+      set: async (value: string) => { storedToken = value; },
+      remove: async () => { storedToken = null; },
+    });
+    await session.setToken('test-session');
+    await fixture.manager.beforeLogout();
+    await session.clearToken(); // This is the same order used by AppContext.logout.
+    assert.equal(await session.getToken(), null);
+    assert.equal(storedToken, null);
+    assert.deepEqual(fixture.deactivationGenerations, [1]);
+    assert.equal(fixture.generationState.value, 2);
+    assert.equal(storage.get('veli.ios.push-cleanup-pending'), '1');
+    assert(fixture.nativeFixture.events.includes('backend-deactivate'));
+    assert(fixture.nativeFixture.events.includes('delete-instance'));
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(fixture.registrationAttempts(), 1, 'new account cannot register while old request is unsettled');
+    release();
+    await enable;
+    oldApns?.({ value: 'late-apns-callback' } as never);
+    oldFcm?.({ token: 'late-old-account-fcm-token-123456' } as never);
+    await Promise.resolve();
+    assert.equal(fixture.registrationAttempts(), 1);
+    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(await fixture.manager.enable(), 'ready');
+    assert.equal(fixture.registrationAttempts(), 2);
+    assert.deepEqual(fixture.registrationGenerations, [1, 2]);
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testFailedCleanupStillFinishesLogoutAndRetriesOnNextLaunch() {
+  await withPushStorage(async (storage) => {
+    const first = createManager({ initialPermission: 'granted', failDeactivation: true, activationTimeoutMs: 20 });
+    const firstStatuses: string[] = [];
+    await first.manager.start('ios-parent', 'parent', () => {}, (status) => firstStatuses.push(status));
+    await waitForStatus(firstStatuses, 'ready');
+    const deleteInstance = first.fcmFixture.fcm.deleteInstance;
+    first.fcmFixture.fcm.deleteInstance = async () => { throw new Error('native cleanup unavailable'); };
+    await first.manager.beforeLogout();
+    assert.equal(storage.get('veli.ios.push-cleanup-pending'), '1');
+    assert(first.nativeFixture.events.includes('backend-deactivate'));
+    const next = createManager({ activationTimeoutMs: 20, generationState: first.generationState });
+    const statuses: string[] = [];
+    next.fcmFixture.fcm.deleteInstance = async () => { throw new Error('still unavailable'); };
+    await next.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(next.registrationAttempts(), 0);
+    next.fcmFixture.fcm.deleteInstance = deleteInstance;
+    assert.equal(await next.manager.enable(), 'ready');
+    assert.deepEqual(next.registrationGenerations, [2]);
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false);
+    await next.manager.afterSessionInvalidated();
+  });
+}
+
+async function testBackendDeactivationFailureAllowsGuardedNextRegistration() {
+  await withPushStorage(async (storage) => {
+    const fixture = createManager({ failDeactivation: true, activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    assert.equal(await fixture.manager.enable(), 'ready');
+    await fixture.manager.beforeLogout();
+    assert.equal(storage.get('veli.ios.push-cleanup-pending'), '1');
+    const statuses: string[] = [];
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+    await waitForStatus(statuses, 'ready');
+    assert.equal(fixture.registrationAttempts(), 2);
+    assert.deepEqual(fixture.registrationGenerations, [1, 2]);
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testAccountSwitchQuarantinesLateRegistration() {
+  await withPushStorage(async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const fixture = createManager({ registrationGates: [gate, Promise.resolve()], activationTimeoutMs: 20 });
+    const statuses: string[] = [];
+    await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+    const oldEnable = fixture.manager.enable().catch(() => {});
+    await fixture.waitForAttempts(1);
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(fixture.registrationAttempts(), 1);
+    release();
+    await oldEnable;
+    assert.equal(statuses.at(-1), 'unavailable');
+    assert.equal(await fixture.manager.enable(), 'ready');
+    assert.equal(fixture.registrationAttempts(), 2);
+    assert.deepEqual(fixture.registrationGenerations, [1, 2]);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testRegistrationGenerationSurvivesAppRestart() {
+  await withPushStorage(async (storage) => {
+    const first = createManager({ persistentIdentity: true, activationTimeoutMs: 20 });
+    await first.manager.start('ios-parent', 'parent', () => {}, () => {});
+    assert.equal(await first.manager.enable(), 'ready');
+    const installationId = first.registrationInstallations[0];
+    assert.deepEqual(first.registrationGenerations, [1]);
+    await first.manager.beforeLogout();
+    assert.equal(storage.get('veli.ios.registration-generation'), '2');
+
+    const reopened = createManager({ persistentIdentity: true, activationTimeoutMs: 20 });
+    await reopened.manager.start('ios-teacher', 'teacher', () => {}, () => {});
+    assert.equal(await reopened.manager.enable(), 'ready');
+    assert.equal(reopened.registrationInstallations[0], installationId);
+    assert.deepEqual(reopened.registrationGenerations, [2]);
+    await reopened.manager.afterSessionInvalidated();
+  });
+}
+
+async function testLogoutClearsAuthAfterBoundedPushCleanup() {
+  const source = readFileSync(new URL('../src/context/AppContext.tsx', import.meta.url), 'utf8');
+  assert.match(source, /const logout = async \(\) => \{\s*await mobilePush\.beforeLogout\(\);\s*await authSession\.clearToken\(\);/);
+}
+
+async function testLogoutDoesNotWaitForeverForNativeCleanup() {
+  const fixture = createManager({ initialPermission: 'granted', activationTimeoutMs: 20 });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-parent', 'parent', () => {}, (status) => statuses.push(status));
+  await waitForStatus(statuses, 'ready');
+  fixture.nativeFixture.native.unregister = async () => new Promise<never>(() => {});
+  await fixture.manager.beforeLogout();
+  assert(fixture.nativeFixture.events.includes('backend-deactivate'));
+  assert(fixture.nativeFixture.events.includes('delete-instance'));
+}
+
 async function run() {
   await testIosPermissionAndTokenLifecycle();
   await testIosDeniedAndSettings();
@@ -369,10 +603,21 @@ async function run() {
   await testTimedOutBackendRegistrationDoesNotReportReady();
   await testLateFirstBackendResultCannotCompleteOverlappingRetry();
   await testLateFcmLookupCannotDowngradeReadyRegistration();
+  await testGrantedPermissionWithoutApnsCallbackDoesNotStayPreparing();
+  await testDeferredPromptKeepsEnableActionAvailable();
+  await testPermissionRevocationWaitsForBackendDeactivation();
+  await testUnconfirmedDeactivationIsNotReportedAsOff();
+  await testStuckRegistrationDoesNotBlockLogoutOrBindNextAccount();
+  await testFailedCleanupStillFinishesLogoutAndRetriesOnNextLaunch();
+  await testBackendDeactivationFailureAllowsGuardedNextRegistration();
+  await testAccountSwitchQuarantinesLateRegistration();
+  await testRegistrationGenerationSurvivesAppRestart();
+  await testLogoutClearsAuthAfterBoundedPushCleanup();
+  await testLogoutDoesNotWaitForeverForNativeCleanup();
   console.log('iOS push token, permission, lifecycle, logout, navigation and web guard tests passed.');
 }
 
 run().catch((error) => {
-  console.error(error instanceof assert.AssertionError ? `iOS push assertion failed: ${error.message}` : 'iOS push tests failed.');
+  console.error(error instanceof assert.AssertionError ? `iOS push assertion failed: ${error.message}` : error instanceof IosPushActivationError ? `iOS push activation failed at ${error.stage}` : `iOS push tests failed at ${error instanceof Error ? error.stack?.split('\n')[1]?.trim() : 'unknown location'}.`);
   process.exitCode = 1;
 });

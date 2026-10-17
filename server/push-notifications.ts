@@ -97,29 +97,53 @@ export class FirebasePushProvider implements PushProvider {
 
 const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APP_ID = 'com.velirandevu.app';
+const validGeneration = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
+
+export class StalePushRegistrationError extends Error {
+  constructor() { super('Stale push registration'); }
+}
 
 export function validDeviceInput(input: unknown): input is {
-  installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string;
+  installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string;
+  appId: string; registrationGeneration?: number;
 } {
   if (!input || typeof input !== 'object') return false;
   const device = input as Record<string, unknown>;
-  return Object.keys(device).every((key) => ['installationId', 'platform', 'provider', 'targetKind', 'providerTarget', 'appId'].includes(key))
+  return Object.keys(device).every((key) => ['installationId', 'platform', 'provider', 'targetKind', 'providerTarget', 'appId', 'registrationGeneration'].includes(key))
     && typeof device.installationId === 'string' && INSTALLATION_ID.test(device.installationId)
     && (device.platform === 'ANDROID' || device.platform === 'IOS')
     && device.provider === 'FCM' && device.targetKind === 'REGISTRATION_TOKEN'
     && typeof device.providerTarget === 'string' && device.providerTarget.length >= 20 && device.providerTarget.length <= 4096
     && (device.platform !== 'IOS' || !/^[a-f0-9]{64}$/i.test(device.providerTarget))
-    && !/\s/.test(device.providerTarget) && device.appId === APP_ID;
+    && !/\s/.test(device.providerTarget) && device.appId === APP_ID
+    && (device.platform === 'IOS'
+      ? (device.registrationGeneration === undefined || validGeneration(device.registrationGeneration))
+      : device.registrationGeneration === undefined);
 }
 
 export async function registerPushDevice(userId: string, input: unknown): Promise<boolean> {
   if (!validDeviceInput(input)) return false;
   const db = await getDb();
   const targetHash = crypto.createHash('sha256').update(input.providerTarget).digest('hex');
+  const generation = input.registrationGeneration ?? 0;
   await db.transaction(async (tx) => {
     await tx.query('LOCK TABLE mobile_push_devices IN SHARE ROW EXCLUSIVE MODE');
     const owner = await tx.query<{ auth_version: number }>('SELECT auth_version FROM users WHERE id=$1', [userId]);
     if (!owner.rows.length) throw new Error('Push owner unavailable');
+    const previous = await tx.query<{ id: string; user_id: string; target_hash: string; platform: string;
+      registration_generation: string | number; revoked_through_generation: string | number }>(
+      `SELECT id,user_id,target_hash,platform,registration_generation,revoked_through_generation
+       FROM mobile_push_devices WHERE installation_id=$1 FOR UPDATE`, [input.installationId]);
+    if (previous.rows.length) {
+      const device = previous.rows[0];
+      const acceptedGeneration = BigInt(device.registration_generation);
+      const revokedThrough = BigInt(device.revoked_through_generation);
+      const incomingGeneration = BigInt(generation);
+      if (incomingGeneration < acceptedGeneration || (revokedThrough > 0n && incomingGeneration <= revokedThrough)
+        || (generation > 0 && incomingGeneration === acceptedGeneration && device.user_id !== userId)) {
+        throw new StalePushRegistrationError();
+      }
+    }
     const conflicting = await tx.query<{ id: string }>(
       'SELECT id FROM mobile_push_devices WHERE target_hash=$1 AND installation_id<>$2 AND active=TRUE',
       [targetHash, input.installationId]);
@@ -128,8 +152,6 @@ export async function registerPushDevice(userId: string, input: unknown): Promis
       await tx.query(`UPDATE notification_deliveries SET status='CANCELLED',updated_at=NOW()
         WHERE device_id=$1 AND status IN ('PENDING','FAILED','SENDING')`, [row.id]);
     }
-    const previous = await tx.query<{ id: string; user_id: string; target_hash: string }>(
-      'SELECT id,user_id,target_hash FROM mobile_push_devices WHERE installation_id=$1 FOR UPDATE', [input.installationId]);
     if (previous.rows.length) {
       const device = previous.rows[0];
       if (device.user_id !== userId || device.target_hash !== targetHash) {
@@ -137,29 +159,52 @@ export async function registerPushDevice(userId: string, input: unknown): Promis
           WHERE device_id=$1 AND status IN ('PENDING','FAILED','SENDING')`, [device.id]);
       }
       await tx.query(`UPDATE mobile_push_devices SET user_id=$2,platform=$6,provider_target=$3,target_hash=$4,auth_version=$5,active=TRUE,
+        registration_generation=$7,
         deactivated_at=NULL,last_registered_at=NOW(),updated_at=NOW() WHERE id=$1`,
-      [device.id, userId, input.providerTarget, targetHash, owner.rows[0].auth_version, input.platform]);
+      [device.id, userId, input.providerTarget, targetHash, owner.rows[0].auth_version, input.platform, generation]);
     } else {
       await tx.query(`INSERT INTO mobile_push_devices
-        (id,user_id,auth_version,installation_id,platform,provider,target_kind,provider_target,target_hash,app_id)
-        VALUES ($1,$2,$3,$4,$5,'FCM','REGISTRATION_TOKEN',$6,$7,$8)`,
-      [crypto.randomUUID(), userId, owner.rows[0].auth_version, input.installationId, input.platform, input.providerTarget, targetHash, APP_ID]);
+        (id,user_id,auth_version,installation_id,platform,provider,target_kind,provider_target,target_hash,app_id,registration_generation)
+        VALUES ($1,$2,$3,$4,$5,'FCM','REGISTRATION_TOKEN',$6,$7,$8,$9)`,
+      [crypto.randomUUID(), userId, owner.rows[0].auth_version, input.installationId, input.platform, input.providerTarget, targetHash, APP_ID, generation]);
     }
   });
   return true;
 }
 
-export async function deactivatePushDevice(userId: string, installationId: string): Promise<void> {
+export async function deactivatePushDevice(userId: string, installationId: string, registrationGeneration?: number): Promise<void> {
   if (!INSTALLATION_ID.test(installationId)) return;
+  if (registrationGeneration !== undefined && !validGeneration(registrationGeneration)) throw new Error('Invalid push generation');
   const db = await getDb();
   await db.transaction(async (tx) => {
-    const device = await tx.query<{ id: string }>(
-      'SELECT id FROM mobile_push_devices WHERE installation_id=$1 AND user_id=$2 FOR UPDATE', [installationId, userId]);
-    if (!device.rows.length) return;
-    await tx.query(`UPDATE mobile_push_devices SET active=FALSE,provider_target='',deactivated_at=NOW(),updated_at=NOW()
-      WHERE id=$1`, [device.rows[0].id]);
+    await tx.query('LOCK TABLE mobile_push_devices IN SHARE ROW EXCLUSIVE MODE');
+    const device = await tx.query<{ id: string; user_id: string; platform: string;
+      registration_generation: string | number }>(
+      `SELECT id,user_id,platform,registration_generation,revoked_through_generation
+       FROM mobile_push_devices WHERE installation_id=$1 FOR UPDATE`, [installationId]);
+    if (!device.rows.length) {
+      if (registrationGeneration === undefined) return;
+      const owner = await tx.query<{ auth_version: number }>('SELECT auth_version FROM users WHERE id=$1', [userId]);
+      if (!owner.rows.length) throw new Error('Push owner unavailable');
+      await tx.query(`INSERT INTO mobile_push_devices
+        (id,user_id,auth_version,installation_id,platform,provider,target_kind,provider_target,target_hash,app_id,
+         active,registration_generation,revoked_through_generation,deactivated_at)
+        VALUES ($1,$2,$3,$4,'IOS','FCM','REGISTRATION_TOKEN','','',$5,FALSE,0,$6,NOW())`,
+      [crypto.randomUUID(), userId, owner.rows[0].auth_version, installationId, APP_ID, registrationGeneration]);
+      return;
+    }
+    const current = device.rows[0];
+    if (current.user_id !== userId) return;
+    if (registrationGeneration === undefined) {
+      if (BigInt(current.registration_generation) > 0n) return;
+    } else {
+      if (current.platform !== 'IOS' || BigInt(registrationGeneration) < BigInt(current.registration_generation)) return;
+    }
+    await tx.query(`UPDATE mobile_push_devices SET active=FALSE,provider_target='',deactivated_at=NOW(),updated_at=NOW(),
+      revoked_through_generation=GREATEST(revoked_through_generation,$2::bigint) WHERE id=$1`,
+    [current.id, registrationGeneration ?? 0]);
     await tx.query(`UPDATE notification_deliveries SET status='CANCELLED',updated_at=NOW()
-      WHERE device_id=$1 AND status IN ('PENDING','FAILED','SENDING')`, [device.rows[0].id]);
+      WHERE device_id=$1 AND status IN ('PENDING','FAILED','SENDING')`, [current.id]);
   });
 }
 

@@ -5,7 +5,7 @@ import { platformManagementRouter } from './platform-management';
 import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
 import { accountDeletionRouter } from './account-deletion';
 import crypto from 'crypto';
-import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice } from './push-notifications';
+import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice, StalePushRegistrationError } from './push-notifications';
 import {
   AuthenticatedRequest,
   authMiddleware,
@@ -71,13 +71,20 @@ apiRouter.post('/mobile/push/devices', authMiddleware, async (req: Authenticated
     if (!eligible.rows.length) return res.status(403).json({ error: 'Bu hesap için mobil bildirim kullanılamıyor.' });
     if (!await registerPushDevice(req.user!.id, req.body)) return res.status(400).json({ error: 'Geçersiz cihaz kaydı.' });
     return res.status(200).json({ success: true });
-  } catch {
+  } catch (error) {
+    if (error instanceof StalePushRegistrationError) return res.status(409).json({ error: 'Cihaz kaydı artık geçerli değil.' });
     return res.status(500).json({ error: 'Cihaz kaydı tamamlanamadı.' });
   }
 });
 apiRouter.delete('/mobile/push/devices/:installationId', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    await deactivatePushDevice(req.user!.id, String(req.params.installationId));
+    const rawGeneration = req.query.registrationGeneration;
+    const generation = rawGeneration === undefined ? undefined : Number(rawGeneration);
+    if (rawGeneration !== undefined && (typeof rawGeneration !== 'string' || !/^[1-9]\d*$/.test(rawGeneration)
+      || !Number.isSafeInteger(generation) || generation <= 0)) {
+      return res.status(400).json({ error: 'Geçersiz cihaz kaydı.' });
+    }
+    await deactivatePushDevice(req.user!.id, String(req.params.installationId), generation);
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: 'Cihaz kaydı kapatılamadı.' });

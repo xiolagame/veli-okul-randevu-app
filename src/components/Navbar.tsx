@@ -6,6 +6,7 @@ import { mobilePush, canUseMobilePush, PushStatus, IosPushActivationError } from
 import { appLifecycle } from '../platform/lifecycle';
 import { networkHint } from '../platform/network';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { pushPromptState } from './push-prompt-state';
 
 interface NavbarProps {
   onManageSchools?: () => void;
@@ -22,6 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const [pushSettingsRequired, setPushSettingsRequired] = useState(false);
   const [pushActionPending, setPushActionPending] = useState(false);
   const [pushError, setPushError] = useState('');
+  const pushPrompt = pushPromptState(pushStatus, dismissedPushIntro);
   const refreshMobileDataRef = useRef(refreshMobileData);
   refreshMobileDataRef.current = refreshMobileData;
   useEffect(() => {
@@ -146,10 +148,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
         {canUseMobilePush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
           <strong>Randevu bildirimleri</strong>
-          <p className="text-slate-600 mt-1" aria-live="polite">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler kapalı.'}</p>
-          {pushStatus !== 'ready' && !dismissedPushIntro && <>
-            <p className="text-slate-600 mt-2">{pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı. Bildirimleri kullanmak için uygulama bildirim ayarlarından izin verin.' : 'Randevu talepleri ve sonuçları için cihaz bildirimi almak ister misiniz? İzin vermeseniz de uygulama bildirimlerini görebilirsiniz.'}</p>
-            <div className="flex gap-2 mt-3"><Button variant="secondary" disabled={pushActionPending} onClick={() => setDismissedPushIntro(true)}>Şimdi değil</Button><Button disabled={pushActionPending || pushStatus === 'preparing'} onClick={() => void (pushSettingsRequired ? openPushNotificationSettings() : enablePushNotifications())}>{pushSettingsRequired ? 'Bildirim ayarlarını aç' : pushActionPending || pushStatus === 'preparing' ? 'Hazırlanıyor…' : 'Bildirimleri aç'}</Button></div>
+          <p className="text-slate-600 mt-1" aria-live="polite">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler etkin değil.'}</p>
+          {pushPrompt.showAction && <>
+            {pushPrompt.showExplanation && <p className="text-slate-600 mt-2">{pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı. Bildirimleri kullanmak için uygulama bildirim ayarlarından izin verin.' : 'Randevu talepleri ve sonuçları için cihaz bildirimi almak ister misiniz? İzin vermeseniz de uygulama bildirimlerini görebilirsiniz.'}</p>}
+            <div className="flex gap-2 mt-3">{pushPrompt.showExplanation && <Button variant="secondary" disabled={pushActionPending} onClick={() => setDismissedPushIntro(true)}>Şimdi değil</Button>}<Button disabled={pushActionPending || pushStatus === 'preparing'} onClick={() => void (pushSettingsRequired ? openPushNotificationSettings() : enablePushNotifications())}>{pushSettingsRequired ? 'Bildirim ayarlarını aç' : pushActionPending || pushStatus === 'preparing' ? 'Hazırlanıyor…' : 'Bildirimleri aç'}</Button></div>
             {pushError && <p role="alert" className="mt-2 text-sm text-red-700">{pushError}</p>}
           </>}
         </div>}
