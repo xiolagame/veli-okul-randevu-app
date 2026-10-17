@@ -5,11 +5,20 @@ interface ExistingSession {
   getToken(): Promise<string | null>;
 }
 
+export function loadVerifiedSessionPrerequisites<TIdentity, TAccess>(
+  identity: () => Promise<TIdentity>,
+  access: () => Promise<TAccess>,
+): Promise<[TIdentity, TAccess]> {
+  return Promise.all([identity(), access()]);
+}
+
 export async function restoreExistingSession(options: {
   session: ExistingSession;
   bootstrap: (token: string) => Promise<void>;
+  onHydrationDuration?: (durationMs: number) => void;
 }): Promise<SessionRestoreResult> {
-  const token = await options.session.hydrate();
+  const hydrationStarted = performance.now();
+  const token = await options.session.hydrate().finally(() => options.onHydrationDuration?.(performance.now() - hydrationStarted));
   if (!token) return 'NO_SESSION';
 
   try {

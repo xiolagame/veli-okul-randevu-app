@@ -24,7 +24,7 @@ import { mobilePush } from '../platform/mobile-push';
 import { pendingNavigationIntent } from '../platform/navigation-intent';
 import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
 import { networkHint } from '../platform/network';
-import { restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';
+import { loadVerifiedSessionPrerequisites, restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';
 import { appLifecycle } from '../platform/lifecycle';
 
 interface AppContextType {
@@ -104,12 +104,22 @@ type SchoolAccess = {
   resolution: SchoolResolution;
 };
 
+function recordStartupDuration(stage: 'secure-storage' | 'me' | 'school-access' | 'first-school-data', started: number): void {
+  try { performance.measure(`veli.startup.${stage}`, { start: started, end: performance.now() }); }
+  catch { /* Diagnostics must not affect authentication. */ }
+}
+
+function fetchSchoolAccessBase() {
+  return Promise.all([api.getPublicSchools(), api.getPlatformCapabilities()]);
+}
+
 async function fetchSchoolAccess(
   memberships: SchoolMembership[],
   preferredSchoolId: string | null,
   preferredPlatformTargetId: string | null,
+  baseRequest = fetchSchoolAccessBase(),
 ): Promise<SchoolAccess> {
-  const [schoolsResult, capabilities] = await Promise.all([api.getPublicSchools(), api.getPlatformCapabilities()]);
+  const [schoolsResult, capabilities] = await baseRequest;
   const managedSchools = capabilities.manageSchools ? (await api.getManagedSchools()).schools : [];
   return {
     schools: schoolsResult.schools,
@@ -134,6 +144,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
   const schoolLoadSequence = useRef(0);
+  const firstSchoolLoadMeasured = useRef(false);
   const [schools, setSchools] = useState<School[]>([]);
   const [platformSchools, setPlatformSchools] = useState<ManagedSchool[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -187,6 +198,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
     if (!schoolId) return;
+    const dataStarted = performance.now();
     const sequence = ++schoolLoadSequence.current;
     setUsers([]);
     setUsersError('');
@@ -196,15 +208,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [teachersRes, usersRes, studentsRes, availRes, aptsRes, notifsRes, settingsRes, auditRes, rosterRes] = await Promise.all([
       api.getTeachers(schoolId).catch(() => { if (isAdmin) setUsersError('Öğretmen listesi yüklenemedi. Lütfen tekrar deneyin.'); return { teachers: [] }; }),
       isAdmin ? api.getSecurityUsers(schoolId).catch(() => { setUsersError('Güvenlik personeli yüklenemedi. Lütfen tekrar deneyin.'); return { users: [] }; }) : Promise.resolve({ users: [] }),
-      api.getStudents(schoolId).catch(() => ({ students: [] })),
+      api.getStudents(schoolId).catch(() => ({ students: [] })).then((result) => {
+        if (sequence === schoolLoadSequence.current && user) setCurrentUser((current) => current?.id === user.id ? { ...current, students: result.students } : current);
+        return result;
+      }),
       api.getAvailability(schoolId).catch(() => ({ availability: [] })),
-      role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] })),
-      api.getNotifications(schoolId).catch(() => ({ notifications: [] })),
+      (role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
+        if (sequence === schoolLoadSequence.current) setAppointments(result.appointments);
+        return result;
+      }),
+      api.getNotifications(schoolId).catch(() => ({ notifications: [] })).then((result) => {
+        if (sequence === schoolLoadSequence.current) setNotifications(result.notifications);
+        return result;
+      }),
       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
       role === 'admin' || role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
       isAdmin ? api.getRoster(schoolId).catch(() => ({ roster: [] })) : Promise.resolve({ roster: [] }),
     ]);
     if (sequence !== schoolLoadSequence.current) return;
+    if (!firstSchoolLoadMeasured.current) {
+      firstSchoolLoadMeasured.current = true;
+      recordStartupDuration('first-school-data', dataStarted);
+    }
     setTeachers(teachersRes.teachers);
     setUsers(usersRes.users);
     setUsersLoading(false);
@@ -254,9 +279,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (sessionRestore.current) return sessionRestore.current;
     sessionRestore.current = restoreExistingSession({
       session: authSession,
+      onHydrationDuration: (durationMs) => recordStartupDuration('secure-storage', performance.now() - durationMs),
       bootstrap: async (token) => {
-        const meRes = await api.getMe();
-        const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId());
+        const meStarted = performance.now();
+        const accessStarted = performance.now();
+        const [meRes, accessBase] = await loadVerifiedSessionPrerequisites(
+          () => api.getMe().finally(() => recordStartupDuration('me', meStarted)),
+          fetchSchoolAccessBase,
+        );
+        const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId(), Promise.resolve(accessBase))
+          .finally(() => recordStartupDuration('school-access', accessStarted));
         if (await authSession.getToken() !== token) throw new Error('Session changed during restore');
         applyAuthenticatedSession(meRes.user, meRes.memberships, access);
       },

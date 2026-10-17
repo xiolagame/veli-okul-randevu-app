@@ -55,7 +55,8 @@ function createFcm(events: string[], token = 'fcm-registration-token-initial-123
     },
     getToken: async () => ({ token }),
     setAutoInit: async ({ enabled }: { enabled: boolean }) => { events.push(`auto-init-${enabled}`); },
-    deleteInstance: async () => { events.push('delete-instance'); return true; },
+    // iOS Plugin.swift calls call.resolve(), which Capacitor bridges as undefined.
+    deleteInstance: async () => { events.push('delete-instance'); },
   };
   return {
     fcm,
@@ -575,6 +576,40 @@ async function testRegistrationGenerationSurvivesAppRestart() {
   });
 }
 
+async function testIosEmptyDeleteResponseAllowsNextLoginToEnablePush() {
+  await withPushStorage(async (storage) => {
+    const fixture = createManager({ persistentIdentity: true, activationTimeoutMs: 20 });
+    await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+    assert.equal(await fixture.manager.enable(), 'ready');
+    await fixture.manager.beforeLogout();
+    assert.equal(storage.has('veli.ios.push-cleanup-pending'), false, 'empty iOS delete response completes cleanup');
+    const nextStatuses: string[] = [];
+    await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => nextStatuses.push(status));
+    await waitForStatus(nextStatuses, 'ready');
+    assert.equal(nextStatuses.at(-1), 'ready', 'next login can enable notifications');
+    assert.deepEqual(fixture.registrationGenerations, [1, 2]);
+    await fixture.manager.afterSessionInvalidated();
+  });
+}
+
+async function testLogoutOverlapsBackendRevocationAndStuckRegistration() {
+  const never = new Promise<void>(() => {});
+  const fixture = createManager({ registrationGate: never, deactivationGate: never, activationTimeoutMs: 80 });
+  await fixture.manager.start('ios-parent', 'parent', () => {}, () => {});
+  const enable = fixture.manager.enable().catch(() => {});
+  await fixture.waitForAttempts(1);
+  const started = performance.now();
+  const logout = fixture.manager.beforeLogout();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert(fixture.nativeFixture.events.includes('backend-deactivate'), 'revocation starts while old POST remains unsettled');
+  await logout;
+  const elapsed = performance.now() - started;
+  assert(elapsed < 150, `parallel cleanup exceeded a single timeout window: ${Math.round(elapsed)} ms`);
+  await enable;
+  console.log(`iOS logout stuck-request fixture: ${Math.round(elapsed)} ms with 80 ms stage timeout.`);
+}
+
 async function testLogoutClearsAuthAfterBoundedPushCleanup() {
   const source = readFileSync(new URL('../src/context/AppContext.tsx', import.meta.url), 'utf8');
   assert.match(source, /const logout = async \(\) => \{\s*await mobilePush\.beforeLogout\(\);\s*await authSession\.clearToken\(\);/);
@@ -612,6 +647,8 @@ async function run() {
   await testBackendDeactivationFailureAllowsGuardedNextRegistration();
   await testAccountSwitchQuarantinesLateRegistration();
   await testRegistrationGenerationSurvivesAppRestart();
+  await testIosEmptyDeleteResponseAllowsNextLoginToEnablePush();
+  await testLogoutOverlapsBackendRevocationAndStuckRegistration();
   await testLogoutClearsAuthAfterBoundedPushCleanup();
   await testLogoutDoesNotWaitForeverForNativeCleanup();
   console.log('iOS push token, permission, lifecycle, logout, navigation and web guard tests passed.');

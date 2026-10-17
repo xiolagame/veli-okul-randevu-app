@@ -53,7 +53,8 @@ interface FirebaseMessagingNative {
   addListener(eventName: 'tokenReceived', listener: (event: { token: string }) => void): Promise<PluginListenerHandle>;
   getToken(): Promise<{ token: string }>;
   setAutoInit(options: { enabled: boolean }): Promise<void>;
-  deleteInstance(): Promise<boolean>;
+  // iOS resolves an empty plugin call on success; the declared boolean is not returned there.
+  deleteInstance(): Promise<unknown>;
 }
 
 type DeviceRegistration = {
@@ -542,7 +543,7 @@ export class IosPushManager {
       this.awaitActivationStage('cleanup', this.native().then((native) => native.unregister())),
       this.awaitActivationStage('cleanup', this.firebaseMessaging().then((fcm) => fcm.deleteInstance())),
     ]);
-    this.cleanupRecoveryBlocked = unregistered.status !== 'fulfilled' || deleted.status !== 'fulfilled' || (deleted.status === 'fulfilled' && deleted.value !== true);
+    this.cleanupRecoveryBlocked = unregistered.status !== 'fulfilled' || deleted.status !== 'fulfilled';
     if (!this.cleanupRecoveryBlocked) {
       this.nativeRetryBlocked = false;
       this.lastFailureStage = null;
@@ -563,27 +564,32 @@ export class IosPushManager {
       setCleanupPending(true);
       try {
         this.emitStatus('unavailable');
-        if (this.starting) await this.awaitActivationStage('cleanup', this.starting.catch(() => {})).catch(() => {});
-        let nativeRegistrationSettled = true;
-        if (this.nativeRegistration) await this.awaitActivationStage('cleanup', this.nativeRegistration).catch(() => { nativeRegistrationSettled = false; });
-        let registrationsSettled = true;
-        await this.awaitActivationStage('cleanup', Promise.all(this.registrations)).catch(() => { registrationsSettled = false; });
-        const [backend, unregistered, deleted] = await Promise.allSettled([
-          deactivateBackend && revokedGeneration !== null
-            ? this.awaitActivationStage('cleanup', Promise.resolve().then(() => this.deviceApi.deactivatePushDevice(this.getInstallationId(), revokedGeneration)))
-            : Promise.resolve(),
-          this.awaitActivationStage('cleanup', this.native().then((native) => native.unregister())),
-          this.awaitActivationStage('cleanup', this.firebaseMessaging().then((fcm) => fcm.deleteInstance())),
+        // The server's generation tombstone makes DELETE safe even when an older POST is still in flight.
+        // Start it immediately instead of adding each native/registration timeout to logout latency.
+        const starting = this.starting ? this.awaitActivationStage('cleanup', this.starting.catch(() => {})) : Promise.resolve();
+        const nativeRegistration = this.nativeRegistration ? this.awaitActivationStage('cleanup', this.nativeRegistration) : Promise.resolve();
+        const registrations = this.awaitActivationStage('cleanup', Promise.all(this.registrations));
+        const backend = deactivateBackend && revokedGeneration !== null
+          ? this.awaitActivationStage('cleanup', Promise.resolve().then(() => this.deviceApi.deactivatePushDevice(this.getInstallationId(), revokedGeneration)))
+          : Promise.resolve();
+        const unregistered = nativeRegistration.catch(() => {}).then(() =>
+          this.awaitActivationStage('cleanup', this.native().then((native) => native.unregister())));
+        const deleted = this.awaitActivationStage('cleanup', this.firebaseMessaging().then((fcm) => fcm.deleteInstance()));
+        const delivered = this.awaitActivationStage('cleanup', this.native().then((native) => native.removeAllDeliveredNotifications()));
+        const [startingResult, nativeRegistrationResult, registrationsResult, backendResult, unregisteredResult, deletedResult] = await Promise.allSettled([
+          starting, nativeRegistration, registrations, backend, unregistered, deleted, delivered,
+          this.awaitActivationStage('cleanup', this.clearAuthenticatedRuntime()),
         ]);
-        await this.awaitActivationStage('cleanup', this.native().then((native) => native.removeAllDeliveredNotifications())).catch(() => {});
-        if (registrationsSettled && nativeRegistrationSettled && deactivateBackend && revokedGeneration !== null && backend.status === 'fulfilled' && unregistered.status === 'fulfilled' && deleted.status === 'fulfilled' && deleted.value === true) {
+        if (startingResult.status === 'fulfilled' && registrationsResult.status === 'fulfilled' && nativeRegistrationResult.status === 'fulfilled'
+          && deactivateBackend && revokedGeneration !== null && backendResult.status === 'fulfilled'
+          && unregisteredResult.status === 'fulfilled' && deletedResult.status === 'fulfilled') {
           setCleanupPending(false);
           this.nativeRetryBlocked = false;
           this.cleanupRecoveryBlocked = false;
           this.lastFailureStage = null;
         }
       } catch { /* No push failure may retain the authenticated session. */ }
-      finally { await this.awaitActivationStage('cleanup', this.clearAuthenticatedRuntime()).catch(() => {}); }
+      finally { if (this.userId) await this.awaitActivationStage('cleanup', this.clearAuthenticatedRuntime()).catch(() => {}); }
     })();
     this.sessionCleanup = cleanup;
     try { await cleanup; } finally { if (this.sessionCleanup === cleanup) this.sessionCleanup = null; }

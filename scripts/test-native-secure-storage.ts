@@ -7,6 +7,7 @@ import { selectAuthTokenStore } from '../src/platform/auth-token-store-selection
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../src/platform/client-preferences';
 import { performLogin } from '../src/platform/login-flow';
 import { createNativeSecureAuthTokenStore, NATIVE_AUTH_TOKEN_KEY, SecureAuthStorageError, SecureStringStore } from '../src/platform/native-secure-auth-token-store';
+import { loadVerifiedSessionPrerequisites, restoreExistingSession } from '../src/platform/session-restore';
 
 function assertToken(actual: string | null | undefined, expected: string | null): void {
   assert((actual ?? null) === expected, 'Token state mismatch');
@@ -277,5 +278,41 @@ await Promise.all([staleInvalidation, newLogin]);
 assertToken(await delayedSession.getToken(), 'new-token');
 assertToken(delayedSecure.values.get(NATIVE_AUTH_TOKEN_KEY), 'new-token');
 assert.equal(delayedUnauthorizedEvents, 0);
+
+let releaseIdentity!: (value: { verified: boolean }) => void;
+let releaseAccess!: (value: { available: boolean }) => void;
+let identityStarted = false;
+let accessStarted = false;
+const prerequisites = loadVerifiedSessionPrerequisites(
+  () => { identityStarted = true; return new Promise<{ verified: boolean }>((resolve) => { releaseIdentity = resolve; }); },
+  () => { accessStarted = true; return new Promise<{ available: boolean }>((resolve) => { releaseAccess = resolve; }); },
+);
+assert(identityStarted && accessStarted, 'identity and school access requests start together');
+let prerequisitesSettled = false;
+void prerequisites.then(() => { prerequisitesSettled = true; });
+releaseAccess({ available: true });
+await Promise.resolve();
+assert.equal(prerequisitesSettled, false, 'school data alone cannot establish a session');
+releaseIdentity({ verified: true });
+assert.deepEqual(await prerequisites, [{ verified: true }, { available: true }]);
+
+const parallelStarted = performance.now();
+await loadVerifiedSessionPrerequisites(
+  () => new Promise<void>((resolve) => setTimeout(resolve, 100)),
+  () => new Promise<void>((resolve) => setTimeout(resolve, 100)),
+);
+const parallelElapsed = performance.now() - parallelStarted;
+assert(parallelElapsed < 180, `independent startup requests ran serially: ${Math.round(parallelElapsed)} ms`);
+console.log(`Startup parallel-request fixture: ${Math.round(parallelElapsed)} ms for two 100 ms requests.`);
+
+const restoreStorage = new MemorySecureStorage();
+restoreStorage.values.set(NATIVE_AUTH_TOKEN_KEY, 'restored-token');
+let hydrationDuration = -1;
+assert.equal(await restoreExistingSession({
+  session: new AuthSessionManager(createNativeSecureAuthTokenStore(restoreStorage, new MemoryLegacyStorage())),
+  bootstrap: async () => {},
+  onHydrationDuration: (durationMs) => { hydrationDuration = durationMs; },
+}), 'RESTORED');
+assert(hydrationDuration >= 0, 'secure-storage hydration duration is measured');
 
 console.log('Native secure JWT storage, migration, login, logout, 401 and race tests PASS.');
