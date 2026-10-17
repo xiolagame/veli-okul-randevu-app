@@ -32,7 +32,7 @@ const readPngDimensions = (path: string): { width: number; height: number } => {
 assert.equal(packageJson.dependencies['@capacitor/ios'], '8.5.2');
 assert.equal(packageJson.dependencies['@capacitor-community/fcm'], '8.2.2');
 assert.equal(packageJson.dependencies['@capacitor/app-launcher'], '8.0.0');
-assert.equal(packageJson.scripts['ios:sync'], 'npm run build:ios && cap sync ios');
+assert.equal(packageJson.scripts['ios:sync'], 'node scripts/sanitize-fcm-ios-logs.mjs && npm run build:ios && cap sync ios');
 assert.equal(packageJson.scripts['test:ios-push'], 'tsx scripts/test-ios-push.ts');
 assert.match(capacitorConfig, /appId:\s*'com\.velirandevu\.app'/);
 assert.match(capacitorConfig, /appName:\s*'Veli Randevu'/);

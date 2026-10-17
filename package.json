@@ -15,7 +15,7 @@
     "build:android": "node scripts/build-android-client.mjs",
     "build:ios": "node scripts/build-ios-client.mjs",
     "android:sync": "npm run build:android && cap sync android",
-    "ios:sync": "npm run build:ios && cap sync ios",
+    "ios:sync": "node scripts/sanitize-fcm-ios-logs.mjs && npm run build:ios && cap sync ios",
     "android:open": "cap open android",
     "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "start": "node dist/server/server.cjs",
