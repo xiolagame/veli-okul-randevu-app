@@ -7,6 +7,9 @@ const config: CapacitorConfig = {
   loggingBehavior: 'debug',
   backgroundColor: '#f6f8f7',
   plugins: {
+    PushNotifications: {
+      presentationOptions: ['banner', 'list', 'sound'],
+    },
     StatusBar: {
       overlaysWebView: false,
       style: 'LIGHT',

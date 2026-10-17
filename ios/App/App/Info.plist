@@ -26,6 +26,8 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Veli Randevu, öğrenci teslim QR kodunu doğrulamak için kamerayı kullanır.</string>
 	<key>UIApplicationSceneManifest</key>

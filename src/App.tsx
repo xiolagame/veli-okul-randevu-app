@@ -11,7 +11,7 @@ import { AppointmentNavigationResolver } from './platform/appointment-navigation
 import { authSession } from './platform/auth-session';
 import { hasBackHandler, invokeBackHandler } from './platform/back-navigation';
 import { subscribeToNativeBackNavigation } from './platform/native-back-navigation';
-import { androidPush } from './platform/android-push';
+import { mobilePush } from './platform/mobile-push';
 
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
@@ -117,8 +117,8 @@ export const AppContent: React.FC = () => {
   nativeBackUi.current = { showNotifications, showAdminModal, showOnboardingModal, showSchoolManagement, pathname };
 
   useEffect(() => {
-    void androidPush.startNavigationCapture(() => authSession.getToken()).catch(() => {});
-    return () => { void androidPush.stopNavigationCapture(); };
+    void mobilePush.startNavigationCapture(() => authSession.getToken()).catch(() => {});
+    return () => { void mobilePush.stopNavigationCapture(); };
   }, []);
 
   useEffect(() => subscribeToNativeBackNavigation(

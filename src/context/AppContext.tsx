@@ -20,7 +20,7 @@ import { ManagedSchool } from '../types/platform';
 import { authSession } from '../platform/auth-session';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
 import { LoginResult, performLogin } from '../platform/login-flow';
-import { androidPush } from '../platform/android-push';
+import { mobilePush } from '../platform/mobile-push';
 import { pendingNavigationIntent } from '../platform/navigation-intent';
 import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
 import { networkHint } from '../platform/network';
@@ -180,7 +180,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => authSession.subscribe(() => {
     pendingNavigationIntent.clear();
-    void androidPush.afterSessionInvalidated();
+    void mobilePush.afterSessionInvalidated();
     clearRuntimeSession();
   }), [clearRuntimeSession]);
 
@@ -377,7 +377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = async () => {
-    await androidPush.beforeLogout();
+    await mobilePush.beforeLogout();
     await authSession.clearToken();
     pendingNavigationIntent.clear();
     clearRuntimeSession();
@@ -387,7 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const result = await api.deleteOwnAccount(data);
     let localCleanupFailed = false;
     try {
-      await androidPush.afterSessionInvalidated();
+      await mobilePush.afterSessionInvalidated();
     } catch {
       localCleanupFailed = true;
     }

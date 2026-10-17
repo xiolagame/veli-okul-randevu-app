@@ -290,7 +290,9 @@ async function run() {
     check(dialogSource.includes('Kalıcı olarak silinecekler') && dialogSource.includes('Anonim olarak korunabilecekler'), 'UI explains deleted and retained data');
     const contextSource = fs.readFileSync('src/context/AppContext.tsx', 'utf8');
     const deletionContextSource = contextSource.slice(contextSource.indexOf('const deleteAccount'));
-    check(deletionContextSource.indexOf('api.deleteOwnAccount') < deletionContextSource.indexOf('androidPush.afterSessionInvalidated'), 'client clears session and push only after backend acceptance');
+    const backendAcceptanceIndex = deletionContextSource.indexOf('api.deleteOwnAccount');
+    const pushCleanupIndex = deletionContextSource.indexOf('mobilePush.afterSessionInvalidated');
+    check(backendAcceptanceIndex >= 0 && pushCleanupIndex > backendAcceptanceIndex, 'client clears session and push only after backend acceptance');
     check(deletionContextSource.indexOf('api.deleteOwnAccount') < deletionContextSource.indexOf('authSession.clearTokenAfterRemoteInvalidation'), 'client does not clear secure token before backend acceptance');
     const helpSource = fs.readFileSync('src/content/help-content.ts', 'utf8');
     check(helpSource.includes('Hesabımı Sil') && helpSource.includes('30 gün'), 'local privacy content documents the real deletion flow and receipt retention');

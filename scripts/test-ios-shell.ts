@@ -16,6 +16,11 @@ const cameraSource = fs.readFileSync('src/components/SecurityView.tsx', 'utf8');
 const cameraAdapter = fs.readFileSync('src/platform/android-camera-permission.ts', 'utf8');
 const notificationAdapter = fs.readFileSync('src/platform/android-notification-settings.ts', 'utf8');
 const pushSource = fs.readFileSync('src/platform/android-push.ts', 'utf8');
+const iosPushSource = fs.readFileSync('src/platform/ios-push.ts', 'utf8');
+const nativeFcmSource = fs.readFileSync('node_modules/@capacitor-community/fcm/ios/Plugin/Plugin.swift', 'utf8');
+const appDelegate = fs.readFileSync('ios/App/App/AppDelegate.swift', 'utf8');
+const entitlements = fs.readFileSync('ios/App/App/App.entitlements', 'utf8');
+const codemagic = fs.readFileSync('codemagic.yaml', 'utf8');
 const tokenSelection = fs.readFileSync('src/platform/auth-token-store-selection.ts', 'utf8');
 
 const readPngDimensions = (path: string): { width: number; height: number } => {
@@ -25,13 +30,18 @@ const readPngDimensions = (path: string): { width: number; height: number } => {
 };
 
 assert.equal(packageJson.dependencies['@capacitor/ios'], '8.5.2');
+assert.equal(packageJson.dependencies['@capacitor-community/fcm'], '8.2.2');
+assert.equal(packageJson.dependencies['@capacitor/app-launcher'], '8.0.0');
 assert.equal(packageJson.scripts['ios:sync'], 'npm run build:ios && cap sync ios');
+assert.equal(packageJson.scripts['test:ios-push'], 'tsx scripts/test-ios-push.ts');
 assert.match(capacitorConfig, /appId:\s*'com\.velirandevu\.app'/);
 assert.match(capacitorConfig, /appName:\s*'Veli Randevu'/);
 assert.match(capacitorConfig, /webDir:\s*'dist\/client'/);
 assert.doesNotMatch(capacitorConfig, /server\s*:/);
 assert.match(capacitorConfig, /StatusBar:\s*\{[\s\S]*style:\s*'LIGHT'/);
+assert.match(capacitorConfig, /PushNotifications:\s*\{[\s\S]*presentationOptions:\s*\['banner', 'list', 'sound'\]/);
 assert.match(generatedCapacitorConfig, /"StatusBar"[\s\S]*"style":\s*"LIGHT"/);
+assert.match(generatedCapacitorConfig, /"PushNotifications"[\s\S]*"presentationOptions":\s*\[[\s\S]*"banner"[\s\S]*"list"[\s\S]*"sound"/);
 assert.match(viteConfig, /\['android', 'ios'\]\.includes\(mode\)/);
 assert.match(viteConfig, /https:\/\/velirandevu\.com/);
 
@@ -44,7 +54,18 @@ assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = com\.velirandevu\.app;/g
 assert.match(xcodeProject, /MARKETING_VERSION = 1\.0\.0;/g);
 assert.match(xcodeProject, /CURRENT_PROJECT_VERSION = 1;/g);
 assert.match(xcodeProject, /IPHONEOS_DEPLOYMENT_TARGET = 15\.0;/g);
+assert.match(xcodeProject, /com\.apple\.Push = \{\s*enabled = 1;/);
+assert.match(xcodeProject, /CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g);
+assert.match(xcodeProject, /Embed Firebase iOS configuration when available/);
+assert.match(entitlements, /<key>aps-environment<\/key>\s*<string>\$\(APS_ENVIRONMENT\)<\/string>/);
+assert.match(xcodeProject, /APS_ENVIRONMENT = development;/);
+assert.match(xcodeProject, /APS_ENVIRONMENT = production;/);
 assert.match(swiftPackage, /platforms:\s*\[\.iOS\(\.v15\)\]/);
+assert.match(swiftPackage, /CapacitorCommunityFcm/);
+assert.match(swiftPackage, /CapacitorAppLauncher/);
+assert.match(appDelegate, /didRegisterForRemoteNotificationsWithDeviceToken/);
+assert.match(appDelegate, /didFailToRegisterForRemoteNotificationsWithError/);
+assert.match(infoPlist, /<key>FirebaseMessagingAutoInitEnabled<\/key>\s*<false\/>/);
 
 assert.match(privacyManifest, /<key>NSPrivacyTracking<\/key>\s*<false\/>/);
 assert.match(privacyManifest, /NSPrivacyCollectedDataTypeName/);
@@ -58,9 +79,18 @@ assert.match(cameraSource, /Ayarlar > Veli Randevu > Kamera/);
 assert.match(cameraAdapter, /runtimePlatform\(\) === 'ANDROID'/);
 assert.match(pushSource, /runtimePlatform\(\) !== 'ANDROID'/);
 assert.match(pushSource, /platform:\s*'ANDROID'/);
+assert.match(iosPushSource, /platform:\s*'IOS', provider:\s*'FCM'/);
+assert.match(iosPushSource, /FCM_TOKEN_PATTERN/);
+assert.doesNotMatch(iosPushSource, /providerTarget:\s*value/);
+assert.match(iosPushSource, /getToken\(\)/);
+assert.match(iosPushSource, /tokenReceived/);
+assert.doesNotMatch(nativeFcmSource, /print\([^\n]*(?:token|error)/i);
+assert.match(nativeFcmSource, /messaging\(_ messaging: Messaging, didReceiveRegistrationToken/);
+assert.match(nativeFcmSource, /notifyListeners\("tokenReceived"/);
+assert.match(codemagic, /Require Firebase iOS config for signed IPA/);
+assert.match(codemagic, /FCM_GOOGLE_SERVICE_INFO_PLIST/);
 assert.doesNotMatch(notificationAdapter, /getRuntimePlatform|IOS/);
 assert.match(tokenSelection, /platform === 'WEB'[\s\S]*createNativeSecureAuthTokenStore/);
-assert.doesNotMatch(xcodeProject, /CODE_SIGN_ENTITLEMENTS|aps-environment/);
 
 assert.deepEqual(
   readPngDimensions('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'),

@@ -5,7 +5,7 @@ import { canUseAndroidPush } from './push-eligibility';
 import { NavigationIntent, parseNavigationIntent, pendingNavigationIntent } from './navigation-intent';
 import { AndroidNotificationSettings, androidNotificationSettings } from './android-notification-settings';
 
-export type PushStatus = 'unavailable' | 'off' | 'ready' | 'preparing';
+export type PushStatus = 'unavailable' | 'off' | 'ready' | 'preparing' | 'denied';
 
 const INSTALLATION_KEY = 'veli.android.installation-id';
 const CHANNEL_ID = 'veli_randevu_appointments';

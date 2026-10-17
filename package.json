@@ -43,6 +43,7 @@
     "test:secure-storage": "tsx scripts/test-native-secure-storage.ts",
     "test:android-shell": "tsx scripts/test-android-shell.ts",
     "test:ios-shell": "node scripts/test-ios-shell.ts",
+    "test:ios-push": "tsx scripts/test-ios-push.ts",
     "test:push-notifications": "tsx scripts/test-push-notifications.ts",
     "test:account-deletion": "tsx scripts/test-account-deletion.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
@@ -51,8 +52,10 @@
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.1",
+    "@capacitor-community/fcm": "8.2.2",
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "8.1.2",
+    "@capacitor/app-launcher": "8.0.0",
     "@capacitor/core": "8.5.2",
     "@capacitor/ios": "8.5.2",
     "@capacitor/keyboard": "8.0.6",

@@ -99,14 +99,16 @@ const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f
 const APP_ID = 'com.velirandevu.app';
 
 export function validDeviceInput(input: unknown): input is {
-  installationId: string; platform: 'ANDROID'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string;
+  installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string;
 } {
   if (!input || typeof input !== 'object') return false;
   const device = input as Record<string, unknown>;
   return Object.keys(device).every((key) => ['installationId', 'platform', 'provider', 'targetKind', 'providerTarget', 'appId'].includes(key))
     && typeof device.installationId === 'string' && INSTALLATION_ID.test(device.installationId)
-    && device.platform === 'ANDROID' && device.provider === 'FCM' && device.targetKind === 'REGISTRATION_TOKEN'
+    && (device.platform === 'ANDROID' || device.platform === 'IOS')
+    && device.provider === 'FCM' && device.targetKind === 'REGISTRATION_TOKEN'
     && typeof device.providerTarget === 'string' && device.providerTarget.length >= 20 && device.providerTarget.length <= 4096
+    && (device.platform !== 'IOS' || !/^[a-f0-9]{64}$/i.test(device.providerTarget))
     && !/\s/.test(device.providerTarget) && device.appId === APP_ID;
 }
 
@@ -134,14 +136,14 @@ export async function registerPushDevice(userId: string, input: unknown): Promis
         await tx.query(`UPDATE notification_deliveries SET status='CANCELLED',updated_at=NOW()
           WHERE device_id=$1 AND status IN ('PENDING','FAILED','SENDING')`, [device.id]);
       }
-      await tx.query(`UPDATE mobile_push_devices SET user_id=$2,provider_target=$3,target_hash=$4,auth_version=$5,active=TRUE,
+      await tx.query(`UPDATE mobile_push_devices SET user_id=$2,platform=$6,provider_target=$3,target_hash=$4,auth_version=$5,active=TRUE,
         deactivated_at=NULL,last_registered_at=NOW(),updated_at=NOW() WHERE id=$1`,
-      [device.id, userId, input.providerTarget, targetHash, owner.rows[0].auth_version]);
+      [device.id, userId, input.providerTarget, targetHash, owner.rows[0].auth_version, input.platform]);
     } else {
       await tx.query(`INSERT INTO mobile_push_devices
         (id,user_id,auth_version,installation_id,platform,provider,target_kind,provider_target,target_hash,app_id)
-        VALUES ($1,$2,$3,$4,'ANDROID','FCM','REGISTRATION_TOKEN',$5,$6,$7)`,
-      [crypto.randomUUID(), userId, owner.rows[0].auth_version, input.installationId, input.providerTarget, targetHash, APP_ID]);
+        VALUES ($1,$2,$3,$4,$5,'FCM','REGISTRATION_TOKEN',$6,$7,$8)`,
+      [crypto.randomUUID(), userId, owner.rows[0].auth_version, input.installationId, input.platform, input.providerTarget, targetHash, APP_ID]);
     }
   });
   return true;
@@ -169,7 +171,7 @@ export async function enqueueAppointmentPush(tx: TransactionClient, input: {
     JOIN users u ON u.id=d.user_id AND u.auth_version=d.auth_version
     JOIN school_memberships sm ON sm.user_id=d.user_id AND sm.school_id=$2 AND sm.role=$6 AND sm.status='active'
     JOIN schools s ON s.id=sm.school_id AND s.disabled_at IS NULL
-    WHERE d.user_id=$3 AND d.active=TRUE AND d.platform='ANDROID' AND d.provider='FCM'
+    WHERE d.user_id=$3 AND d.active=TRUE AND d.platform IN ('ANDROID','IOS') AND d.provider='FCM'
       AND EXISTS (SELECT 1 FROM notifications n
         JOIN appointments a ON a.school_id=n.school_id AND a.id=n.appointment_id
         LEFT JOIN teacher_profiles tp ON tp.school_id=a.school_id AND tp.id=a.teacher_id

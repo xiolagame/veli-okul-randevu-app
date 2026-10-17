@@ -81,7 +81,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
-  registerPushDevice: (data: { installationId: string; platform: 'ANDROID'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string }) =>
+  registerPushDevice: (data: { installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string }) =>
     request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
   deactivatePushDevice: (installationId: string) =>
     request<{ success: boolean }>(`/api/mobile/push/devices/${encodeURIComponent(installationId)}`, { method: 'DELETE' }),

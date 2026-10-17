@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp, Trash2 } from 'lucide-react';
 import { Brand, Button, Dialog } from './ui';
-import { androidPush, canUseAndroidPush, PushStatus } from '../platform/android-push';
+import { mobilePush, canUseMobilePush, PushStatus } from '../platform/mobile-push';
 import { appLifecycle } from '../platform/lifecycle';
 import { networkHint } from '../platform/network';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
@@ -32,15 +32,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
     setPushError('');
   }, [currentUser?.id, currentUser?.role]);
   useEffect(() => {
-    if (!currentUser?.id || !canUseAndroidPush(currentUser.role)) return;
-    void androidPush.start(currentUser.id, currentUser.role, () => {
+    if (!currentUser?.id || !canUseMobilePush(currentUser.role)) return;
+    void mobilePush.start(currentUser.id, currentUser.role, () => {
       void refreshMobileDataRef.current().catch(() => {});
     }, setPushStatus);
     const unsubscribeLifecycle = appLifecycle.subscribe((state) => {
-      if (state === 'ACTIVE') void androidPush.refreshPermission();
+      if (state === 'ACTIVE') void mobilePush.refreshPermission();
     });
     const unsubscribeNetwork = networkHint.subscribe((state) => {
-      if (state === 'CONNECTED') void androidPush.refreshPermission();
+      if (state === 'CONNECTED') void mobilePush.refreshPermission();
     });
     return () => {
       unsubscribeLifecycle();
@@ -52,16 +52,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
     setPushSettingsRequired(false);
     setPushError('');
   }, [pushStatus]);
+  useEffect(() => {
+    if (pushStatus === 'denied') setPushSettingsRequired(true);
+  }, [pushStatus]);
   const enablePushNotifications = async () => {
     setPushError('');
     setPushActionPending(true);
     setPushStatus('preparing');
     try {
-      const status = await androidPush.enable();
+      const status = await mobilePush.enable();
       setPushStatus(status);
       if (status === 'ready') {
         setPushSettingsRequired(false);
-      } else if (status === 'off') {
+      } else if (status === 'off' || status === 'denied') {
         setPushSettingsRequired(true);
       } else {
         setPushSettingsRequired(false);
@@ -79,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
     setPushError('');
     setPushActionPending(true);
     try {
-      await androidPush.openNotificationSettings();
+      await mobilePush.openNotificationSettings();
     } catch {
       setPushError('Bildirim ayarları açılamadı. Cihaz ayarlarından Veli Randevu bildirimlerini açın.');
     } finally {
@@ -141,7 +144,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
       {showPersonaMenu && <Dialog title="Hesabım" onClose={() => setShowPersonaMenu(false)}>
         <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
-        {canUseAndroidPush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
+        {canUseMobilePush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
           <strong>Randevu bildirimleri</strong>
           <p className="text-slate-600 mt-1" aria-live="polite">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler kapalı.'}</p>
           {pushStatus !== 'ready' && !dismissedPushIntro && <>

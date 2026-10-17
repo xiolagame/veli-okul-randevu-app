@@ -351,7 +351,7 @@ async function run() {
   const { createToken } = await import('../server/auth');
   const { apiRouter } = await import('../server/api');
   const { createPushPayload, dispatchPushDeliveries, enqueueAppointmentPush, FirebasePushProvider,
-    getSafeFcmErrorCode, registerPushDevice } = await import('../server/push-notifications');
+    getSafeFcmErrorCode, registerPushDevice, validDeviceInput } = await import('../server/push-notifications');
   const { notificationRepository } = await import('../server/repositories');
   const { hashSetupToken } = await import('../server/activation-codes');
   const db = await getDb();
@@ -374,8 +374,10 @@ async function run() {
   const profileId = `push-profile-${suffix}`;
   const appointmentId = `push-apt-${suffix}`;
   const installationId = crypto.randomUUID();
+  const iosInstallationId = crypto.randomUUID();
   const otherInstallationId = crypto.randomUUID();
   const teacherTarget = `fcm-test-teacher-${suffix}`;
+  const iosTeacherTarget = `fcm-test-ios-teacher-${suffix}`;
   const parentTarget = `fcm-test-parent-${suffix}`;
   const app = express();
   app.use(express.json());
@@ -390,7 +392,7 @@ async function run() {
       body: body ? JSON.stringify(body) : undefined });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
-  const device = (id: string, providerTarget: string) => ({ installationId: id, platform: 'ANDROID', provider: 'FCM',
+  const device = (id: string, providerTarget: string, platform: 'ANDROID' | 'IOS' = 'ANDROID') => ({ installationId: id, platform, provider: 'FCM',
     targetKind: 'REGISTRATION_TOKEN', providerTarget, appId: 'com.velirandevu.app' });
   const deliveryCount = async (notificationId: string) => Number((await db.query<{ count: string }>(
     'SELECT COUNT(*)::text AS count FROM notification_deliveries WHERE notification_id=$1', [notificationId])).rows[0].count);
@@ -456,6 +458,19 @@ async function run() {
     assert.equal(registered.status, 200);
     assert.deepEqual(Object.keys(registered.body), ['success']);
     assert(!JSON.stringify(registered.body).includes(teacherTarget));
+    assert.equal(validDeviceInput(device(iosInstallationId, iosTeacherTarget, 'IOS')), true);
+    assert.equal(validDeviceInput({ ...device(iosInstallationId, iosTeacherTarget, 'IOS'), provider: 'APNS' }), false);
+    const rawApnsTarget = 'a'.repeat(64);
+    assert.equal(validDeviceInput(device(iosInstallationId, rawApnsTarget, 'IOS')), false);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      { ...device(iosInstallationId, iosTeacherTarget, 'IOS'), provider: 'APNS' })).status, 400);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(iosInstallationId, rawApnsTarget, 'IOS'))).status, 400);
+    assert.equal((await request('POST', '/api/mobile/push/devices', teacherId,
+      device(iosInstallationId, iosTeacherTarget, 'IOS'))).status, 200);
+    const iosDevice = (await db.query<{ platform: string; provider: string }>(
+      'SELECT platform,provider FROM mobile_push_devices WHERE installation_id=$1', [iosInstallationId])).rows[0];
+    assert.deepEqual(iosDevice, { platform: 'IOS', provider: 'FCM' });
     assert.equal((await request('POST', '/api/mobile/push/devices', teacherId, device(installationId, teacherTarget))).status, 200);
     assert.equal((await db.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM mobile_push_devices WHERE installation_id=$1',
       [installationId])).rows[0].count, '1');
@@ -492,18 +507,18 @@ async function run() {
         appointmentId, eventType: 'APPOINTMENT_REQUESTED' });
       return notification;
     });
-    assert.equal(await deliveryCount(teacherNotification.id), 1);
+    assert.equal(await deliveryCount(teacherNotification.id), 2);
     await db.transaction((tx) => enqueueAppointmentPush(tx, { notificationId: teacherNotification.id,
       schoolId: otherSchoolId, userId: teacherId, appointmentId, eventType: 'APPOINTMENT_REQUESTED' }));
-    assert.equal(await deliveryCount(teacherNotification.id), 1);
+    assert.equal(await deliveryCount(teacherNotification.id), 2);
     let sent = 0;
     const success = await dispatchPushDeliveries({ send: async (_target, push) => {
       sent++;
       assert.equal(push.data.resourceId, appointmentId);
       return { status: 'SENT', messageId: 'fake-message' };
     } });
-    assert.equal(success.sent, 1);
-    assert.equal(sent, 1);
+    assert.equal(success.sent, 2);
+    assert.equal(sent, 2);
     assert.equal((await dispatchPushDeliveries({ send: async () => { throw Error('duplicate send'); } })).claimed, 0);
 
     const ownershipNotification = await db.transaction(async (tx) => {
@@ -513,7 +528,7 @@ async function run() {
         appointmentId, eventType: 'APPOINTMENT_REQUESTED' });
       return notification;
     });
-    assert.equal(await deliveryCount(ownershipNotification.id), 1);
+    assert.equal(await deliveryCount(ownershipNotification.id), 2);
     await db.query('UPDATE teacher_profiles SET user_id=NULL WHERE id=$1', [profileId]);
     let foreignTeacherSends = 0;
     await dispatchPushDeliveries({ send: async () => { foreignTeacherSends++; return { status: 'SENT', messageId: 'unexpected' }; } });
@@ -532,7 +547,7 @@ async function run() {
         appointmentId, eventType: 'APPOINTMENT_REQUESTED' });
       return notification;
     });
-    assert.equal(await deliveryCount(afterRebind.id), 0);
+    assert.equal(await deliveryCount(afterRebind.id), 1);
 
     const parentNotification = await db.transaction(async (tx) => {
       const notification = await notificationRepository.createNotification({ schoolId, userId: parentId,
@@ -543,7 +558,7 @@ async function run() {
     });
     assert.equal(await deliveryCount(parentNotification.id), 1);
     const invalid = await dispatchPushDeliveries({ send: async () => ({ status: 'INVALID_TARGET' }) });
-    assert.equal(invalid.invalid, 1);
+    assert.equal(invalid.invalid, 2);
     assert.equal((await db.query<{ active: boolean }>('SELECT active FROM mobile_push_devices WHERE installation_id=$1',
       [installationId])).rows[0].active, false);
     assert.equal(await registerPushDevice(parentId, device(otherInstallationId, parentTarget)), true);

@@ -39,6 +39,7 @@ workflows:
           npm run test:mobile-platform
           npm run test:secure-storage
           npm run test:ios-shell
+          npm run test:ios-push
           npm run test:push-notifications
           npm run test:account-deletion
 
@@ -150,6 +151,7 @@ workflows:
           npm run test:mobile-platform
           npm run test:secure-storage
           npm run test:ios-shell
+          npm run test:ios-push
           npm run test:push-notifications
           npm run test:account-deletion
 
