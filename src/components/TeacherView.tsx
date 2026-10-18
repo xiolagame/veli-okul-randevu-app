@@ -15,6 +15,7 @@ import {
   Phone,
   BookOpen,
 } from 'lucide-react';
+import { useHomeRefresh } from './useHomeRefresh';
 
 export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; sequence: number } | null }> = ({ pushAppointmentIntent }) => {
   const {
@@ -28,11 +29,13 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
     cancelAppointment,
     addAvailabilitySlot,
     removeAvailabilitySlot,
+    refreshMobileData,
   } = useApp();
 
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'availability' | 'profile'>('home');
+  const { touchHandlers, control: refreshControl } = useHomeRefresh(activeTab === 'home', refreshMobileData);
   useEffect(() => {
     if (!pushAppointmentIntent) return;
     setAppointmentFilter('all');
@@ -132,14 +135,15 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   );
 
   return (
-    <main id="main-content" className="page-shell">
+    <main id="main-content" className="page-shell" {...touchHandlers}>
       <PageHeader eyebrow={`ÖĞRETMEN ALANI · ${currentUser?.branch || 'GÖRÜŞME PROGRAMI'}`} title={activeTab === 'home' ? `İyi günler, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description="Görüşmelerinizi planlayın. Velilerinizle bağınızı güçlendirin." />
       <RoleNavigation items={navigation} active={activeTab} onChange={(tab) => { if (tab === 'appointments') setAppointmentFilter('all'); setActiveTab(tab); }} />
+      {refreshControl}
       {feedback && <div className="mb-6"><Alert tone={feedback.failed ? 'danger' : 'success'}>{feedback.message}</Alert></div>}
       {activeTab === 'home' && <div className="space-y-7">
         <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => pendingAppointments.length ? showAppointments('pending') : setActiveTab('availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>
         <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü görüşme" value={todayAppointments.length} onClick={() => showAppointments('today')} /><Metric icon={Clock} label="Onay bekleyen" value={pendingAppointments.length} onClick={() => showAppointments('pending')} /><Metric icon={CheckCircle2} label="Onaylanan" value={bookedAppointments.length} onClick={() => showAppointments('approved')} /></div>
-        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p>{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => showAppointments('all')}>Tüm randevular</Button></div>
+        <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p className="teacher-today-date">{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => showAppointments('all')}>Tüm randevular</Button></div>
           {todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşmeniz yok" description="Yaklaşan görüşmelerinizi Randevular ekranında bulabilirsiniz." /></div>}
         </section>
       </div>}

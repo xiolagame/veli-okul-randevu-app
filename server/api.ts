@@ -1974,6 +1974,16 @@ apiRouter.post('/schools/:schoolId/notifications/clear', authMiddleware, tenantG
   } catch { res.status(500).json({ error: 'Bildirim görünümü temizlenemedi.' }); }
 });
 
+apiRouter.delete('/schools/:schoolId/notifications/:notificationId', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
+  try {
+    const hidden = await notificationRepository.hideOne(req.membership!.schoolId, req.user!.id, req.params.notificationId);
+    if (!hidden) return res.status(404).json({ error: 'Bildirim bulunamadı.' });
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ error: 'Bildirim silinemedi.' });
+  }
+});
+
 // Audit Logs
 apiRouter.get(
   '/schools/:schoolId/audit-logs',

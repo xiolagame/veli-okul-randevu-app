@@ -397,6 +397,9 @@ export const api = {
   clearParentNotifications: (schoolId: string) =>
     request<{ success: boolean }>(`/api/schools/${schoolId}/notifications/clear`, { method: 'POST' }),
 
+  deleteNotification: (schoolId: string, notificationId: string) =>
+    request<{ success: boolean }>(`/api/schools/${schoolId}/notifications/${encodeURIComponent(notificationId)}`, { method: 'DELETE' }),
+
   getAuditLogs: (schoolId: string) =>
     request<{ auditLogs: AuditLogItem[] }>(`/api/schools/${schoolId}/audit-logs`),
 

@@ -26,6 +26,7 @@ import { resolveSchoolContext, SchoolResolution } from '../platform/school-resol
 import { networkHint } from '../platform/network';
 import { loadVerifiedSessionPrerequisites, restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';
 import { appLifecycle } from '../platform/lifecycle';
+import { isCurrentMobileRefresh } from '../platform/mobile-refresh-guard';
 
 interface AppContextType {
   refreshSchoolData: () => Promise<void>;
@@ -77,6 +78,7 @@ interface AppContextType {
   createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
   clearParentNotifications: () => Promise<void>;
   clearParentHistory: () => Promise<void>;
   getParentClasses: () => Promise<string[]>;
@@ -144,6 +146,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
   const schoolLoadSequence = useRef(0);
+  const mobileDataRevision = useRef(0);
+  const notificationVisibilityRevision = useRef(0);
+  const mobileRefresh = useRef<{ sequence: number; promise: Promise<void> } | null>(null);
   const firstSchoolLoadMeasured = useRef(false);
   const [schools, setSchools] = useState<School[]>([]);
   const [platformSchools, setPlatformSchools] = useState<ManagedSchool[]>([]);
@@ -200,6 +205,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!schoolId) return;
     const dataStarted = performance.now();
     const sequence = ++schoolLoadSequence.current;
+    const dataRevision = mobileDataRevision.current;
+    const notificationRevision = notificationVisibilityRevision.current;
     setUsers([]);
     setUsersError('');
     const role = platformContext ? 'admin' : membership?.role;
@@ -214,11 +221,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
       api.getAvailability(schoolId).catch(() => ({ availability: [] })),
       (role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
-        if (sequence === schoolLoadSequence.current) setAppointments(result.appointments);
+        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setAppointments(result.appointments);
         return result;
       }),
       api.getNotifications(schoolId).catch(() => ({ notifications: [] })).then((result) => {
-        if (sequence === schoolLoadSequence.current) setNotifications(result.notifications);
+        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current && notificationRevision === notificationVisibilityRevision.current) setNotifications(result.notifications);
         return result;
       }),
       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
@@ -234,9 +241,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(usersRes.users);
     setUsersLoading(false);
     if (user) setCurrentUser({ ...user, students: studentsRes.students });
-    setAvailability(availRes.availability);
-    setAppointments(aptsRes.appointments);
-    setNotifications(notifsRes.notifications);
+    if (dataRevision === mobileDataRevision.current) {
+      setAvailability(availRes.availability);
+      setAppointments(aptsRes.appointments);
+      if (notificationRevision === notificationVisibilityRevision.current) setNotifications(notifsRes.notifications);
+    }
     setSettings(settingsRes.settings);
     setAuditLogs(auditRes.auditLogs);
     setRoster(rosterRes.roster);
@@ -531,9 +540,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  const deleteNotification = async (notificationId: string) => {
+    if (!currentSchool || !currentUser) return;
+    const sequence = schoolLoadSequence.current;
+    const schoolId = currentSchool.id;
+    const userId = currentUser.id;
+    await api.deleteNotification(schoolId, notificationId);
+    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;
+    notificationVisibilityRevision.current += 1;
+    setNotifications((previous) => previous.filter((notification) => notification.id !== notificationId || notification.userId !== userId));
+  };
+
   const clearParentNotifications = async () => {
     if (!currentSchool || currentMembership?.role !== 'parent') return;
-    await api.clearParentNotifications(currentSchool.id);
+    const sequence = schoolLoadSequence.current;
+    const schoolId = currentSchool.id;
+    await api.clearParentNotifications(schoolId);
+    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;
+    notificationVisibilityRevision.current += 1;
     setNotifications((previous) => previous.filter((notification) => notification.userId !== currentUser?.id));
   };
 
@@ -599,12 +623,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshMobileData: async () => {
           if (!currentSchool || !currentUser || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;
           const schoolId = currentSchool.id;
-          const [notificationResult, appointmentResult] = await Promise.all([
-            api.getNotifications(schoolId), api.getAppointments(schoolId),
-          ]);
-          if (schoolId !== getActiveSchoolId()) return;
-          setNotifications(notificationResult.notifications);
-          setAppointments(appointmentResult.appointments);
+          const sequence = schoolLoadSequence.current;
+          if (mobileRefresh.current?.sequence === sequence) return mobileRefresh.current.promise;
+          const revision = mobileDataRevision.current;
+          const notificationRevision = notificationVisibilityRevision.current;
+          const isTeacher = currentMembership?.role === 'teacher';
+          const promise = (async () => {
+            const [notificationResult, appointmentResult, availabilityResult] = await Promise.all([
+              api.getNotifications(schoolId), api.getAppointments(schoolId),
+              isTeacher ? api.getAvailability(schoolId) : Promise.resolve(null),
+            ]);
+            if (!isCurrentMobileRefresh(
+              { sequence, revision, notificationRevision, schoolId },
+              { sequence: schoolLoadSequence.current, revision: mobileDataRevision.current, notificationRevision: notificationVisibilityRevision.current, schoolId: getActiveSchoolId() || '' },
+            )) return;
+            setNotifications(notificationResult.notifications);
+            setAppointments(appointmentResult.appointments);
+            if (availabilityResult) setAvailability(availabilityResult.availability);
+            mobileDataRevision.current += 1;
+          })();
+          mobileRefresh.current = { sequence, promise };
+          try { await promise; } finally {
+            if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;
+          }
         },
         refreshSchoolData: async () => {
           const schoolId = currentSchool?.id;
@@ -669,6 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createTeacher,
         removeAvailabilitySlot,
         markNotificationsAsRead,
+        deleteNotification,
         clearParentNotifications,
         clearParentHistory,
         getParentClasses,

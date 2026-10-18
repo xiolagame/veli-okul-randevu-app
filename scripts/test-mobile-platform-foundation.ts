@@ -3,6 +3,8 @@ import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../s
 import { AuthSessionManager } from '../src/platform/auth-session';
 import { AUTH_TOKEN_STORAGE_KEY, AuthTokenStore, WebStorageLike, createWebAuthTokenStore } from '../src/platform/auth-token-store';
 import { decideBackNavigation, hasBackHandler, invokeBackHandler, registerBackHandler } from '../src/platform/back-navigation';
+import { canStartRefreshGesture, isRefreshPull } from '../src/platform/pull-to-refresh';
+import { isCurrentMobileRefresh } from '../src/platform/mobile-refresh-guard';
 import { createBrowserLifecycleAdapter } from '../src/platform/browser-lifecycle';
 import { createBrowserNetworkAdapter } from '../src/platform/browser-network';
 import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../src/platform/client-preferences';
@@ -333,6 +335,22 @@ assert.equal(decideBackNavigation({ hasOpenModal: true, hasOpenDetail: true, has
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: true, hasSecondaryRoleView: true }), 'BACK_TO_LIST');
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: false, hasSecondaryRoleView: true }), 'BACK_TO_ROLE_HOME');
 assert.equal(decideBackNavigation({ hasOpenModal: false, hasOpenDetail: false, hasSecondaryRoleView: false }), 'DEFER_TO_NATIVE_SHELL');
+
+assert.equal(isRefreshPull(0, 72), true);
+assert.equal(isRefreshPull(60, 72), false, 'horizontal gestures do not refresh');
+assert.equal(isRefreshPull(0, 71), false, 'short scrolls do not refresh');
+const pullContext = { atTop: true, modalOpen: false, nestedScroll: false, interactive: false };
+assert.equal(canStartRefreshGesture(pullContext), true);
+assert.equal(canStartRefreshGesture({ ...pullContext, atTop: false }), false);
+assert.equal(canStartRefreshGesture({ ...pullContext, modalOpen: true }), false);
+assert.equal(canStartRefreshGesture({ ...pullContext, nestedScroll: true }), false);
+assert.equal(canStartRefreshGesture({ ...pullContext, interactive: true }), false);
+const oldRefresh = { sequence: 5, revision: 2, notificationRevision: 4, schoolId: 'school-a' };
+assert.equal(isCurrentMobileRefresh(oldRefresh, oldRefresh), true);
+assert.equal(isCurrentMobileRefresh(oldRefresh, { ...oldRefresh, sequence: 6 }), false, 'logout or account change invalidates response');
+assert.equal(isCurrentMobileRefresh(oldRefresh, { ...oldRefresh, schoolId: 'school-b' }), false, 'school change invalidates response');
+assert.equal(isCurrentMobileRefresh(oldRefresh, { ...oldRefresh, revision: 3 }), false, 'newer refresh invalidates response');
+assert.equal(isCurrentMobileRefresh(oldRefresh, { ...oldRefresh, notificationRevision: 5 }), false, 'notification deletion invalidates stale visibility');
 
 let stackedBackCalls = 0;
 const removeFirstBackHandler = registerBackHandler(() => { stackedBackCalls += 1; });

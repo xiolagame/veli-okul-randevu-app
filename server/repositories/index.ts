@@ -1403,7 +1403,7 @@ export const notificationRepository = {
     await execQuery(
       `UPDATE notifications
        SET read = TRUE
-       WHERE school_id = $1 AND user_id = $2 AND read = FALSE;`,
+       WHERE school_id = $1 AND user_id = $2 AND read = FALSE AND hidden_at IS NULL;`,
       [schoolId, userId]
     );
     return true;
@@ -1411,6 +1411,16 @@ export const notificationRepository = {
 
   async hideAllForParent(schoolId: string, userId: string): Promise<void> {
     await execQuery(`UPDATE notifications SET hidden_at=NOW() WHERE school_id=$1 AND user_id=$2 AND hidden_at IS NULL`, [schoolId, userId]);
+  },
+
+  async hideOne(schoolId: string, userId: string, notificationId: string): Promise<boolean> {
+    const result = await execQuery(
+      `UPDATE notifications SET hidden_at=NOW()
+       WHERE school_id=$1 AND user_id=$2 AND id=$3 AND hidden_at IS NULL
+       RETURNING id`,
+      [schoolId, userId, notificationId]
+    );
+    return result.rows.length === 1;
   },
 
   async createNotification(

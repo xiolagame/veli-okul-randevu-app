@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, BadgeHelp, Calendar, Users, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -7,6 +7,7 @@ import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneI
 import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -56,6 +57,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [schoolAdminResetSchoolCode, setSchoolAdminResetSchoolCode] = useState('');
   const [schoolAdminResetSetupToken, setSchoolAdminResetSetupToken] = useState('');
   const [schoolAdminResetSchoolId, setSchoolAdminResetSchoolId] = useState('');
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const loginButtonRef = useRef<HTMLButtonElement>(null);
+  const authSideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (getRuntimePlatform() !== 'IOS') return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    let focusTimer: number | undefined;
+    const updateViewport = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
+      authSideRef.current?.style.setProperty('--auth-keyboard-inset', `${inset}px`);
+      const focused = document.activeElement;
+      if (focused !== phoneRef.current && focused !== passwordRef.current) return;
+      const target = focused === phoneRef.current ? passwordRef.current : loginButtonRef.current;
+      const bottom = target?.getBoundingClientRect().bottom ?? 0;
+      const visibleBottom = viewport.offsetTop + viewport.height;
+      if (bottom > visibleBottom - 20) window.scrollBy(0, bottom - visibleBottom + 20);
+    };
+    const onFocus = () => {
+      window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(updateViewport, 280);
+    };
+    viewport.addEventListener('resize', updateViewport);
+    viewport.addEventListener('scroll', updateViewport);
+    phoneRef.current?.addEventListener('focus', onFocus);
+    passwordRef.current?.addEventListener('focus', onFocus);
+    updateViewport();
+    return () => {
+      window.clearTimeout(focusTimer);
+      viewport.removeEventListener('resize', updateViewport);
+      viewport.removeEventListener('scroll', updateViewport);
+      phoneRef.current?.removeEventListener('focus', onFocus);
+      passwordRef.current?.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   const closeCodeFlow = () => {
     setCodeFlow(null);
@@ -303,7 +341,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         </div>
         <div className="auth-footnote"><ShieldCheck size={18} />Okulunuzla güvenli ve düzenli iletişim.</div>
       </aside>
-      <main className="auth-form-side">
+      <main className={`auth-form-side${getRuntimePlatform() === 'IOS' ? ' auth-form-side-ios' : ''}`} ref={authSideRef}>
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
@@ -315,15 +353,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
-              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="login-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></div>
+              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input ref={phoneRef} id="login-phone" type="tel" inputMode="numeric" enterKeyHint="next" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); passwordRef.current?.focus(); } }} placeholder="0555 123 45 67" required /></div>
             </label>
             <div className="field">
               <label htmlFor="login-password">Parolanız</label>
-              <div className="field-icon"><Lock size={18} aria-hidden="true" /><input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Parolanızı girin" required /><button type="button" className="icon-button" aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
+              <div className="field-icon"><Lock size={18} aria-hidden="true" /><input ref={passwordRef} id="login-password" type={showPassword ? 'text' : 'password'} enterKeyHint="go" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Parolanızı girin" required /><button type="button" className="icon-button" aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
               <button type="button" onClick={() => setShowResetChoices((shown) => !shown)} className="text-sm text-blue-700 font-semibold self-end">Şifremi unuttum</button>
               {showResetChoices && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Şifre sıfırlama hesap türü"><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setParentFlow('reset'); setCodePhone(phone); }}>Veli</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setStaffResetStep('request'); setCodePhone(phone); }}>Personel</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setSchoolAdminResetStep('request'); setCodePhone(phone); }}>Okul Yöneticisi</button></div>}
             </div>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}<ArrowRight size={18} /></Button>
+            <button ref={loginButtonRef} className="ui-button ui-button-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}<ArrowRight size={18} /></button>
           </form>
           <div className="auth-divider">İlk kez mi buradasınız?</div>
           <Button variant="secondary" className="w-full" onClick={() => { setParentFlow('registration'); setCodePhone(phone); }}><Users size={18} />Veli Hesabı Oluştur</Button>

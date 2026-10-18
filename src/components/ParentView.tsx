@@ -22,6 +22,7 @@ import {
   ArrowRight,
   Bell,
 } from 'lucide-react';
+import { useHomeRefresh } from './useHomeRefresh';
 
 function formatBookingDate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
@@ -48,12 +49,15 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
     removeStudentFromProfile,
     notifications,
     markNotificationsAsRead,
+    deleteNotification,
     clearParentNotifications,
     clearParentHistory,
     getParentClasses,
+    refreshMobileData,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'home' | 'teachers' | 'appointments' | 'notifications' | 'profile'>('home');
+  const { touchHandlers, control: refreshControl } = useHomeRefresh(activeTab === 'home', refreshMobileData);
   useEffect(() => { if (pushAppointmentIntent) setActiveTab('appointments'); }, [pushAppointmentIntent?.sequence]);
   useEffect(() => {
     if (activeTab !== 'appointments' || !pushAppointmentIntent) return;
@@ -83,6 +87,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
   const [bookingError, setBookingError] = useState('');
   const [bookingBusy, setBookingBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [deletingNotificationId, setDeletingNotificationId] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
   const [occupiedSlots, setOccupiedSlots] = useState<{ key: string; intervals: { startTime: string; endTime: string }[] } | null>(null);
   const [slotsError, setSlotsError] = useState('');
@@ -271,9 +276,10 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
   );
 
   return (
-    <main id="main-content" className="page-shell">
+    <main id="main-content" className="page-shell" {...touchHandlers}>
       <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={activeTab !== 'teachers' && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
       <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
+      {refreshControl}
       {actionError && <div className="mb-5"><Alert tone="danger">{actionError}</Alert></div>}
 
       {activeTab === 'home' && <div className="space-y-7">
@@ -305,7 +311,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
 
       {activeTab === 'notifications' && <section className="surface">
         <div className="section-heading"><h2>Okulunuzdan haberler</h2><div className="flex flex-wrap gap-2"><Button variant="quiet" onClick={markNotificationsAsRead}>Tümünü okundu işaretle</Button><Button variant="quiet" onClick={() => { if (window.confirm('Tüm bildirimleriniz listeden kaldırılacak. Bu işlem sistem kayıtlarını etkilemez.')) void clearParentNotifications().catch(() => setActionError('Bildirimler temizlenemedi.')); }}>Tüm bildirimleri sil</Button></div></div>
-        {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><h3 className="font-bold text-sm">{notification.title}{!notification.read && <span className="ml-2 text-blue-700 text-xs">Yeni</span>}</h3><p className="text-sm text-slate-600 mt-2">{formatDatesInText(notification.message)}</p><p className="text-xs text-slate-500 mt-2">{formatDateTime(notification.date)}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
+        {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><div className="notification-title-row"><div className="min-w-0"><h3 className="font-bold text-sm">{notification.title}</h3>{!notification.read && <span className="text-blue-700 text-xs">Yeni</span>}</div><button type="button" className="notification-delete-button" aria-label={`${notification.title} bildirimini sil`} disabled={deletingNotificationId !== null} onClick={() => { setActionError(''); setDeletingNotificationId(notification.id); void deleteNotification(notification.id).catch(() => setActionError('Bildirim silinemedi. Lütfen tekrar deneyin.')).finally(() => setDeletingNotificationId(null)); }}><Trash2 size={17} aria-hidden="true" /><span>Sil</span></button></div><p className="text-sm text-slate-600 mt-2">{formatDatesInText(notification.message)}</p><p className="text-xs text-slate-500 mt-2">{formatDateTime(notification.date)}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
       </section>}
 
       {activeTab === 'profile' && <div className="max-w-2xl space-y-6">

@@ -84,15 +84,15 @@ async function run() {
     await db.query(`INSERT INTO appointments(id,school_id,teacher_id,teacher_name,teacher_branch,parent_id,parent_name,parent_phone,student_name,class_name,date,start_time,end_time,status,entry_code)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'2025-01-01','09:30','09:45','checked_out',$11)`,
       [`apt-b-a-${suffix}`, schoolA, `t-a-${suffix}`, 'Ayşe Öztürk', 'Türkçe', userB.id, 'özge şahin', phoneB, 'Okul B Öğrenci', '5/A', `C${suffix.slice(0, 8)}`]);
-    await db.query(`INSERT INTO notifications(id,school_id,user_id,title,message,date) VALUES($1,$2,$3,'Test','Test',$4),($5,$6,$7,'Test','Test',$8),($9,$10,$11,'Test','Test',$12)`,
+    await db.query(`INSERT INTO notifications(id,school_id,user_id,title,message,date) VALUES($1,$2,$3,'Test','Test',$4),($5,$6,$7,'Test','Test',$8),($9,$10,$11,'Test','Test',$12),($13,$14,$15,'Test','Test',$16)`,
       [`notif-a-${suffix}`, schoolA, userA.id, new Date().toISOString(), `notif-b-${suffix}`, schoolB, userB.id, new Date().toISOString(),
-        `notif-b-a-${suffix}`, schoolA, userB.id, new Date().toISOString()]);
+        `notif-b-a-${suffix}`, schoolA, userB.id, new Date().toISOString(), `notif-b-a-keep-${suffix}`, schoolA, userB.id, new Date().toISOString()]);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const url = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
     const tokenA = createToken({ userId: userA.id, phone: phoneA, auth_version: 0 });
     const tokenB = createToken({ userId: userB.id, phone: phoneB, auth_version: 0 });
-    const request = async (path: string, token: string, body?: object) => {
-      const response = await fetch(url + path, { method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const request = async (path: string, token: string, body?: object, method = body ? 'POST' : 'GET') => {
+      const response = await fetch(url + path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
       return { status: response.status, body: await response.json() as Record<string, unknown> };
     };
     assert.equal((await request(`/schools/${schoolB}/classes`, tokenA)).status, 403);
@@ -110,9 +110,26 @@ async function run() {
     assert.equal((await db.query('SELECT id FROM appointments WHERE id=$1', [`apt-a-${suffix}`])).rows.length, 1);
     assert.equal((await request(`/schools/${schoolA}/notifications/clear`, tokenA, {})).status, 200);
     assert.equal(((await request(`/schools/${schoolA}/notifications`, tokenA)).body.notifications as unknown[]).length, 0);
-    assert.equal(((await request(`/schools/${schoolA}/notifications`, tokenB)).body.notifications as unknown[]).length, 1);
+    assert.equal(((await request(`/schools/${schoolA}/notifications`, tokenB)).body.notifications as unknown[]).length, 2);
     assert.equal(((await request(`/schools/${schoolB}/notifications`, tokenB)).body.notifications as unknown[]).length, 1);
     assert.equal((await db.query('SELECT id FROM notifications WHERE id=$1', [`notif-a-${suffix}`])).rows.length, 1);
+    assert.equal((await request(`/schools/${schoolA}/notifications/notif-b-a-${suffix}`, tokenA, undefined, 'DELETE')).status, 404);
+    assert.equal((await request(`/schools/${schoolB}/notifications/notif-b-${suffix}`, tokenA, undefined, 'DELETE')).status, 403);
+    assert.equal((await request(`/schools/${schoolA}/notifications/notif-b-a-${suffix}`, tokenB, undefined, 'DELETE')).status, 200);
+    assert.equal((await request(`/schools/${schoolA}/notifications/notif-b-a-${suffix}`, tokenB, undefined, 'DELETE')).status, 404);
+    const visibleAfterHide = (await request(`/schools/${schoolA}/notifications`, tokenB)).body.notifications as Array<{ read: boolean }>;
+    assert.equal(visibleAfterHide.length, 1);
+    assert.equal(visibleAfterHide.filter((notification) => !notification.read).length, 1, 'hidden notification is absent from the unread badge source');
+    assert.equal((await db.query('SELECT hidden_at IS NULL AS visible FROM notifications WHERE id=$1', [`notif-b-a-keep-${suffix}`])).rows[0].visible, true);
+    assert.equal(((await request(`/schools/${schoolB}/notifications`, tokenB)).body.notifications as unknown[]).length, 1);
+    assert.equal((await db.query('SELECT hidden_at IS NOT NULL AS hidden FROM notifications WHERE id=$1', [`notif-b-a-${suffix}`])).rows[0].hidden, true);
+    assert.equal((await request(`/schools/${schoolA}/notifications/read`, tokenB, {})).status, 200);
+    const readStates = await db.query('SELECT id, read FROM notifications WHERE id IN ($1,$2)', [`notif-b-a-${suffix}`, `notif-b-a-keep-${suffix}`]);
+    assert.equal(readStates.rows.find((row) => row.id === `notif-b-a-${suffix}`)?.read, false);
+    assert.equal(readStates.rows.find((row) => row.id === `notif-b-a-keep-${suffix}`)?.read, true);
+    const visibleAfterRead = (await request(`/schools/${schoolA}/notifications`, tokenB)).body.notifications as Array<{ read: boolean }>;
+    assert.equal(visibleAfterRead.length, 1);
+    assert.equal(visibleAfterRead.filter((notification) => !notification.read).length, 0);
     console.log('Parent UX: Turkish names, tenant classes, roster-bound claim and user-scoped visibility PASS.');
   } finally {
     if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));

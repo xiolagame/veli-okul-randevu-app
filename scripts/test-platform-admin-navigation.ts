@@ -16,7 +16,7 @@ assert(app.includes('{!isPlatformAdmin && !currentMembership && !platformContext
 assert.match(navbar, /\{isPlatformAdmin && <Button[^>]*className="admin-open"/);
 assert(!navbar.includes("(isPlatformAdmin || currentUser?.role === 'admin')"));
 assert(!navbar.includes('>Yönetim paneli</span>'));
-assert(navbar.includes('androidPush.openNotificationSettings()'));
+assert(navbar.includes('mobilePush.openNotificationSettings()'));
 assert(navbar.includes('Bildirim ayarlarını aç'));
 assert(navbar.includes('Bildirim ayarları açılamadı. Cihaz ayarlarından Veli Randevu bildirimlerini açın.'));
 assert(navbar.includes('role="alert"'));
