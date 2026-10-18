@@ -554,6 +554,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentSchool) return;
     const res = await api.updateSettings(currentSchool.id, newSettings);
     setSettings(res.settings);
+    const updatedName = res.settings.schoolName?.trim();
+    if (updatedName) {
+      setCurrentSchool((school) => school ? { ...school, name: updatedName } : school);
+      setSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));
+      setPlatformSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));
+    }
   };
 
   // Add / Remove Student Profile (Local helpers)
