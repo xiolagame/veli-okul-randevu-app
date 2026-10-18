@@ -846,6 +846,10 @@ async function testLogoutOverlapsBackendRevocationAndStuckRegistration() {
 async function testLogoutClearsAuthAfterBoundedPushCleanup() {
   const source = readFileSync(new URL('../src/context/AppContext.tsx', import.meta.url), 'utf8');
   assert.match(source, /const logout = async \(\) => \{\s*await mobilePush\.beforeLogout\(\);\s*await authSession\.clearToken\(\);/);
+  const navbar = readFileSync(new URL('../src/components/Navbar.tsx', import.meta.url), 'utf8');
+  assert.match(navbar, /title="Hesabım" dismissible=\{!isLoggingOut\}/, 'logout keeps the account modal open until cleanup completes');
+  assert.match(navbar, /isLoggingOut \? <p role="status"[^>]*>Oturum kapatılıyor…<\/p> : <>/, 'push status must be hidden while logging out');
+  assert.match(navbar, /\.catch\(\(\) => \{\s*setLogoutError\([^)]*\);\s*\}\)\.finally\(\(\) => setIsLoggingOut\(false\)\)/, 'failed logout restores the button');
 }
 
 async function testLogoutDoesNotWaitForeverForNativeCleanup() {

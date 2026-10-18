@@ -143,8 +143,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         {isPlatformAdmin && onManageSchools && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onManageSchools(); }}><Building2 size={18} />Platform Yönetimi</Button>}
         {!isPlatformAdmin && onOpenOnboarding && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onOpenOnboarding(); }}><KeyRound size={18} />Yeni okula katılma hakkında</Button>}
       </Dialog>}
-      {showPersonaMenu && <Dialog title="Hesabım" onClose={() => setShowPersonaMenu(false)}>
+      {showPersonaMenu && <Dialog title="Hesabım" dismissible={!isLoggingOut} onClose={() => setShowPersonaMenu(false)}>
         <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
+        {isLoggingOut ? <p role="status" aria-live="polite" className="text-sm text-slate-600">Oturum kapatılıyor…</p> : <>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
         {canUseMobilePush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
           <strong>Randevu bildirimleri</strong>
@@ -155,7 +156,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
             {pushError && <p role="alert" className="mt-2 text-sm text-red-700">{pushError}</p>}
           </>}
         </div>}
-        <Button variant="secondary" className="w-full" disabled={isLoggingOut} onClick={() => {
+        <Button variant="secondary" className="w-full" onClick={() => {
           setLogoutError('');
           setIsLoggingOut(true);
           void logout().then(() => setShowPersonaMenu(false)).catch(() => {
@@ -169,6 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         </section>
         {onManageSchools && <Button variant="secondary" className="w-full mt-3" onClick={() => { setShowPersonaMenu(false); onManageSchools(); }}><Building2 size={18} />Platform Yönetimi</Button>}
         {import.meta.env.DEV && <details className="mt-6"><summary className="text-xs text-slate-500 cursor-pointer">Yerel test hesapları</summary><div className="space-y-1 mt-3">{DEMO_PERSONAS.map((persona) => <button type="button" key={persona.id} className="w-full text-left p-2 text-sm hover:bg-slate-50 rounded-lg" onClick={() => { void switchUser(persona.id); setShowPersonaMenu(false); }}>{persona.name}<span className="block text-xs text-slate-500">{persona.desc}</span></button>)}</div></details>}
+        </>}
       </Dialog>}
       {showDeleteAccount && <DeleteAccountDialog onClose={() => setShowDeleteAccount(false)} />}
     </header>

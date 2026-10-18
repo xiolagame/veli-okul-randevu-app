@@ -102,7 +102,6 @@
 .section-heading p { color: var(--muted); font-size: 13px; margin-top: 6px; }
 .section-heading .teacher-today-date { display: inline-block; color: var(--ink); background: var(--surface); padding: 4px 10px; border-radius: 8px; font-weight: 700; }
 .home-refresh { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 48px; margin: -18px 0 20px; color: var(--ink); font-size: 13px; }
-.home-refresh .ui-button { min-height: 48px; }
 .notification-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .notification-title-row > div { overflow-wrap: anywhere; }
 .notification-delete-button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 5px; min-width: 52px; min-height: 48px; padding: 0 6px; border-radius: 10px; color: var(--danger); font-size: 12px; font-weight: 700; }

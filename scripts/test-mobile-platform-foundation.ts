@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../src/platform/api-session-policy';
 import { AuthSessionManager } from '../src/platform/auth-session';
 import { AUTH_TOKEN_STORAGE_KEY, AuthTokenStore, WebStorageLike, createWebAuthTokenStore } from '../src/platform/auth-token-store';
@@ -345,6 +346,9 @@ assert.equal(canStartRefreshGesture({ ...pullContext, atTop: false }), false);
 assert.equal(canStartRefreshGesture({ ...pullContext, modalOpen: true }), false);
 assert.equal(canStartRefreshGesture({ ...pullContext, nestedScroll: true }), false);
 assert.equal(canStartRefreshGesture({ ...pullContext, interactive: true }), false);
+const homeRefreshSource = readFileSync(new URL('../src/components/useHomeRefresh.tsx', import.meta.url), 'utf8');
+assert.match(homeRefreshSource, /ios && enabled && \(busy \|\| message\)/, 'refresh feedback must be temporary');
+assert.doesNotMatch(homeRefreshSource, /<Button\b|Bırakın, yenilensin\.|Veriler güncellendi\./, 'home must not show persistent refresh controls or copy');
 const oldRefresh = { sequence: 5, revision: 2, notificationRevision: 4, schoolId: 'school-a' };
 assert.equal(isCurrentMobileRefresh(oldRefresh, oldRefresh), true);
 assert.equal(isCurrentMobileRefresh(oldRefresh, { ...oldRefresh, sequence: 6 }), false, 'logout or account change invalidates response');
