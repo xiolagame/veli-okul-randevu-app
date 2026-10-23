@@ -27,11 +27,12 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
   let sheet: import('read-excel-file/universal').SheetData;
   try { sheet = await readSheet(buffer, 'Kayıtlar'); }
   catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
-  if (sheet.length > MAX_ROSTER_ROWS + 1 || sheet[0]?.length !== 6 || sheet.some(row => row.length > 6)) throw new Error('Kayıtlar sayfasında 6 sütun ve en fazla 500 kayıt olmalı.');
+  const columnCount = sheet[0]?.length || 0;
+  if (sheet.length > MAX_ROSTER_ROWS + 1 || ![5, 6].includes(columnCount) || sheet.some(row => row.length > columnCount)) throw new Error('Kayıtlar sayfasında 5 sütun (eski dosyalarda 6) ve en fazla 500 kayıt olmalı.');
   const rows: string[][] = [];
   sheet.forEach((row) => {
     const cells: string[] = [];
-    for (let index = 1; index <= 6; index++) {
+    for (let index = 1; index <= columnCount; index++) {
       const value = row[index - 1];
       if (value instanceof Date) {
         if (index !== 6 || Number.isNaN(value.getTime())) throw new Error('Tarih yalnız Doğum Tarihi sütununda kullanılabilir.');
@@ -50,7 +51,7 @@ export async function rosterTemplate() {
     { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 || index === 2 ? 16 : 26 })) },
     { sheet: 'Açıklamalar', columns: [{ width: 100 }], data: [
       ['Her öğrenci için kendi satırındaki Sınıf/Şube bilgisini girin. Satırlar karışık sınıflarda olabilir. En fazla 500 kayıt ekleyin.'],
-      ['Sınıf/Şube örneği: 5-A. Doğum tarihi: GG.AA.YYYY veya YYYY-MM-DD. Telefon metin veya sayı olabilir.'],
+      ['Sınıf/Şube örneği: 5-A. Telefon metin veya sayı olabilir. Doğum tarihi yeni şablonda istenmez.'],
       ['Telefon örnekleri: 05334138206, 5334138206, 905334138206 veya +905334138206.'],
       ['Yalnız Kayıtlar sayfası içe aktarılır. Başlıkları değiştirmeyin.'],
     ] },

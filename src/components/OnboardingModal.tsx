@@ -10,7 +10,7 @@ interface OnboardingModalProps {
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
-  return <Dialog title="Okulunuzla bağlantı kurun" description="Başlamak için okul yönetiminizden aktivasyon kodu alın." onClose={onClose}>
-    <div className="form-stack"><span className="avatar"><KeyRound size={24} /></span><p className="text-sm text-slate-600">Okul yönetimi kaydınızı kontrol ettikten sonra size tek kullanımlık bir aktivasyon kodu verir.</p><Alert>Giriş ekranındaki <strong>“Hesabımı etkinleştir”</strong> seçeneğini açın. Okulunuzu seçip telefon numaranız, kodunuz ve yeni parolanızla hesabınızı etkinleştirin.</Alert><Button onClick={onClose}>Anladım</Button></div>
+  return <Dialog title="Okulunuzla bağlantı kurun" description="Başlamak için okul kaydınızdaki telefon numarasını doğrulayın." onClose={onClose}>
+    <div className="form-stack"><span className="avatar"><KeyRound size={24} /></span><p className="text-sm text-slate-600">Okul yönetiminden okul kodunuzu ve kayıtlı telefon bilginizi doğrulamasını isteyin.</p><Alert>Giriş ekranındaki <strong>“Veli ilk giriş”</strong> seçeneğini açın. Okul kodu ve kayıtlı telefonunuza gönderilen WhatsApp koduyla hesabınızı etkinleştirin.</Alert><Button onClick={onClose}>Anladım</Button></div>
   </Dialog>;
 };

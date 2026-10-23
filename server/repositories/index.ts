@@ -212,7 +212,7 @@ export const userRepository = {
       account_status: 'active' | 'pending';
     }>(
       `SELECT u.id, u.first_name, u.last_name, u.phone, u.email,
-         CASE WHEN NULLIF(u.password_hash, '') IS NOT NULL THEN 'active' ELSE 'pending' END AS account_status
+         CASE WHEN u.is_phone_verified=TRUE OR NULLIF(u.password_hash, '') IS NOT NULL THEN 'active' ELSE 'pending' END AS account_status
        FROM users u
        WHERE EXISTS (
          SELECT 1 FROM school_memberships sm
@@ -257,7 +257,8 @@ export const userRepository = {
 
   async getById(id: string, client?: TransactionClient): Promise<(User & { authVersion: number }) | null> {
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version, created_at
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version,
+              (NULLIF(password_hash, '') IS NOT NULL) AS has_password, created_at
        FROM users 
        WHERE id = $1;`,
       [id],
@@ -274,6 +275,7 @@ export const userRepository = {
       securityQuestion: r.security_question,
       createdAt: r.created_at,
       authVersion: Number(r.auth_version),
+      deletionVerification: r.has_password ? 'credential' : 'whatsapp',
     };
   },
 
@@ -282,7 +284,8 @@ export const userRepository = {
     if (!lookupDigits) return null;
     const canonicalPhone = `+${lookupDigits[0]}`;
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version, created_at
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version,
+              (NULLIF(password_hash, '') IS NOT NULL) AS has_password, created_at
        FROM users 
        WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
        ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
@@ -300,6 +303,7 @@ export const userRepository = {
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
+      deletionVerification: r.has_password ? 'credential' : 'whatsapp',
       authVersion: Number(r.auth_version),
     };
   },
@@ -372,6 +376,7 @@ export const userRepository = {
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
+      deletionVerification: 'whatsapp',
     };
   },
 
@@ -861,7 +866,7 @@ export const teacherRepository = {
       `SELECT tp.id, tp.school_id, tp.user_id, tp.first_name, tp.last_name, tp.branch, tp.email, tp.phone,
          CASE
            WHEN tp.account_deleted_at IS NOT NULL THEN 'inactive'
-           WHEN NULLIF(u.password_hash, '') IS NULL THEN 'pending'
+           WHEN tp.user_id IS NULL OR (u.is_phone_verified IS NOT TRUE AND NULLIF(u.password_hash, '') IS NULL) THEN 'pending'
            WHEN EXISTS (
              SELECT 1 FROM school_memberships sm
              WHERE sm.user_id = tp.user_id AND sm.school_id = tp.school_id

@@ -117,7 +117,16 @@ adminManagementRouter.post('/admins', async (req: AuthenticatedRequest, res) => 
       const school = await tx.query<{ name: string; code: string }>('SELECT name,code FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
       if (!school.rows[0]) throw new ManagementError(404, 'Aktif okul bulunamadı.');
       await tx.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE');
+      await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       await tx.query('LOCK TABLE invitations IN SHARE ROW EXCLUSIVE MODE');
+      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+      const activeAdmins = await tx.query(
+        `SELECT user_id FROM school_memberships
+         WHERE school_id=$1 AND role='admin' AND status='active'
+           AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
+        [schoolId, platformAdminIds],
+      );
+      if (activeAdmins.rows.length) throw new ManagementError(409, 'Bu okulda etkin bir okul yöneticisi bulunuyor.');
       const existingUser = await userRepository.getByPhone(identity.phone, tx);
       const duplicateEmail = await tx.query(`SELECT id FROM users WHERE id IS DISTINCT FROM $2 AND LOWER(email)=LOWER($1)
         UNION ALL SELECT id FROM teacher_profiles WHERE user_id IS DISTINCT FROM $2 AND LOWER(email)=LOWER($1)

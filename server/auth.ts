@@ -18,13 +18,19 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   isPhoneVerified: boolean;
+  authMethod: AuthMethod;
 }
+
+export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'quick_switch' | 'legacy_password';
 
 export interface AuthTokenPayload {
   userId: string;
   phone: string;
   auth_version: number;
+  auth_method: AuthMethod;
 }
+
+type AuthTokenInput = Omit<AuthTokenPayload, 'auth_method'> & { auth_method?: Exclude<AuthMethod, 'legacy_password'> };
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
@@ -42,10 +48,10 @@ export function createAccountDeletionSubjectHash(userId: string): string {
 }
 
 // Token helper using base64url HMAC-SHA256
-export function createToken(payload: AuthTokenPayload, expiresInSeconds = 86400): string {
+export function createToken(payload: AuthTokenInput, expiresInSeconds = 86400): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
-  const body = Buffer.from(JSON.stringify({ ...payload, exp })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, auth_method: payload.auth_method || 'password', exp })).toString('base64url');
   const signature = crypto
     .createHmac('sha256', SECRET_KEY)
     .update(`${header}.${body}`)
@@ -63,21 +69,29 @@ export function verifyToken(token: string): AuthTokenPayload | null {
       .update(`${header}.${body}`)
       .digest('base64url');
 
-    if (signature !== expectedSig) return null;
+    const signatureBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSig);
+    if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
 
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf-8'));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+    if (!Number.isInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) {
       return null; // Expired
     }
     if (
       typeof payload?.userId !== 'string' ||
       typeof payload.phone !== 'string' ||
-      !Number.isInteger(payload.auth_version)
+      !Number.isInteger(payload.auth_version) ||
+      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'quick_switch'].includes(payload.auth_method))
     ) {
       return null;
     }
 
-    return payload as AuthTokenPayload;
+    return {
+      userId: payload.userId,
+      phone: payload.phone,
+      auth_version: payload.auth_version,
+      auth_method: payload.auth_method || 'legacy_password',
+    };
   } catch (err) {
     return null;
   }
@@ -108,6 +122,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       firstName: user.firstName,
       lastName: user.lastName,
       isPhoneVerified: !!user.isPhoneVerified,
+      authMethod: payload.auth_method,
     };
 
     next();
@@ -142,8 +157,19 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
         return res.status(400).json({ error: 'Okul bağlamı (X-School-Id) eksik veya geçersiz' });
       }
 
-      const platformContext = req.platformTargetSchoolId === schoolId && isPlatformAdmin(req.user.id);
-      const membership = platformContext ? null : await requireSchoolMembership(req.user.id, schoolId);
+      const platformContext = req.platformTargetSchoolId === schoolId && canUsePlatformAuthority(req.user);
+      let membership: SchoolMembership | null = null;
+      if (!platformContext) {
+        if (req.user.authMethod === 'whatsapp_otp' || req.user.authMethod === 'whatsapp_admin') {
+          const eligibleRoles: UserRole[] = req.user.authMethod === 'whatsapp_admin' ? ['admin'] : ['parent', 'teacher', 'security'];
+          const memberships = await membershipRepository.getMembershipsByUserId(req.user.id);
+          membership = memberships.find((entry) =>
+            entry.schoolId === schoolId && eligibleRoles.includes(entry.role) && (!allowedRoles?.length || allowedRoles.includes(entry.role))) || null;
+          if (membership && (!await schoolRepository.getById(schoolId) || !await schoolLicenseRepository.isAccessAllowed(schoolId))) membership = null;
+        } else {
+          membership = await requireSchoolMembership(req.user.id, schoolId);
+        }
+      }
 
       if (!membership && !platformContext) {
         return res.status(403).json({
@@ -168,6 +194,10 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
       return res.status(500).json({ error: 'Yetkilendirme kontrolü sırasında sunucu hatası oluştu' });
     }
   };
+}
+
+export function canUsePlatformAuthority(user: AuthUser | undefined): boolean {
+  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' && isPlatformAdmin(user.id);
 }
 
 // ==============================================================================

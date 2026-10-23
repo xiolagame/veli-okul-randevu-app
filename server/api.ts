@@ -12,6 +12,7 @@ import {
   tenantGuard,
   createToken,
   isPlatformAdmin,
+  canUsePlatformAuthority,
 } from './auth';
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
@@ -25,6 +26,9 @@ import { generateActivationCode, generateSetupToken, generateStaffCode, hashActi
 import { sendEmail } from './email';
 import { renderBrandedEmail } from './email-template';
 import { findAppointmentReview, matchesReviewBinding, sendAppointmentRequestEmail } from './appointment-email';
+import { requestWhatsAppAuthChallenge, verifyWhatsAppAuthChallenge, completeUnifiedAdminEmailActivation, WhatsAppAuthError, WhatsAppAuthPurpose } from './whatsapp-auth';
+import { deliverUnifiedAdminActivationEmail } from './school-admin-email';
+import { isWhatsAppAuthEnabled, isUnifiedWhatsAppLoginEnabled, WhatsAppConfigurationError, WhatsAppDeliveryError } from './whatsapp-cloud';
 import {
   getDb,
   checkDatabaseHealth,
@@ -143,7 +147,11 @@ apiRouter.get('/health', async (req, res) => {
 
 apiRouter.get('/public/schools', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const memberships = await membershipRepository.getMembershipsByUserId(req.user!.id);
+    const memberships = (await membershipRepository.getMembershipsByUserId(req.user!.id)).filter((entry) => {
+      if (req.user!.authMethod === 'whatsapp_otp') return ['parent', 'teacher', 'security'].includes(entry.role);
+      if (req.user!.authMethod === 'whatsapp_admin') return entry.role === 'admin';
+      return true;
+    });
     const list = (await Promise.all(memberships.filter((entry) => entry.status === 'active').map(async (entry) =>
       await schoolLicenseRepository.isAccessAllowed(entry.schoolId) ? schoolRepository.getById(entry.schoolId) : null))).filter(Boolean);
     res.json({ schools: list });
@@ -173,7 +181,133 @@ apiRouter.get('/public/school-context', async (req, res) => {
   }
 });
 
+apiRouter.get('/public/auth-capabilities', (_req, res) => {
+  res.json({ whatsappAuthEnabled: isWhatsAppAuthEnabled(), unifiedLoginEnabled: isUnifiedWhatsAppLoginEnabled() });
+});
+
 const AUTH_CODE_ERROR = 'Bilgiler doğrulanamadı veya kodun süresi dolmuş olabilir.';
+const WHATSAPP_AUTH_GENERIC = 'Kod gönderilebildiyse kısa süre içinde WhatsApp hesabınıza ulaşacaktır.';
+
+function legacyCredentialFlowUnavailable(res: import('express').Response): boolean {
+  if (process.env.LEGACY_CREDENTIAL_FLOWS_DISABLED?.trim().toLowerCase() !== 'true') return false;
+  res.status(404).json({ error: 'Bu kimlik doğrulama yöntemi kullanılamıyor.' });
+  return true;
+}
+
+apiRouter.post('/auth/whatsapp/request-code', async (req, res) => {
+  const purpose = req.body?.purpose as WhatsAppAuthPurpose | 'auto';
+  if (!['login', 'parent_registration', 'staff_activation', 'auto'].includes(purpose)) {
+    return res.status(400).json({ error: 'Geçersiz doğrulama isteği.' });
+  }
+  try {
+    const result = await requestWhatsAppAuthChallenge({
+      purpose,
+      phone: req.body?.phone,
+      schoolCode: req.body?.schoolCode,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.json({ success: true, message: WHATSAPP_AUTH_GENERIC, ...result });
+  } catch (error) {
+    if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof WhatsAppConfigurationError) return res.status(503).json({ error: 'WhatsApp doğrulama servisi şu anda kullanılamıyor.' });
+    if (error instanceof WhatsAppDeliveryError) return res.status(503).json({ error: 'Doğrulama mesajı gönderilemedi. Lütfen tekrar deneyin.' });
+    return res.status(500).json({ error: 'Doğrulama isteği tamamlanamadı.' });
+  }
+});
+
+apiRouter.post('/auth/whatsapp/verify-code', async (req, res) => {
+  try {
+    const result = await verifyWhatsAppAuthChallenge({
+      challengeId: req.body?.challengeId,
+      phone: req.body?.phone,
+      code: req.body?.code,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    if (!result) return res.status(401).json({ error: 'Kod geçersiz veya süresi dolmuş olabilir.' });
+    if ('pendingEmail' in result) {
+      const sent = await deliverUnifiedAdminActivationEmail(
+        result.email,
+        result.schoolName,
+        result.schoolCode,
+        result.fullName,
+        result.code,
+        result.licenseCode,
+      );
+      if (!sent) {
+        await (await getDb()).query(
+          `UPDATE invitations SET revoked_at=NOW(),is_active=FALSE
+           WHERE token=$1 AND purpose='school_admin_activation_setup' AND consumed_at IS NULL`,
+          [result.handle],
+        );
+        return res.status(503).json({ error: 'E-posta doğrulaması tamamlanamadı. Lütfen daha sonra yeniden deneyin.' });
+      }
+      return res.json({
+        success: true,
+        pendingEmail: true,
+        handle: result.handle,
+        message: 'Telefon doğrulandı. Yönetici aktivasyon kodu kayıtlı e-posta adresinize gönderildi.',
+      });
+    }
+    const token = createToken({
+      userId: result.user.id,
+      phone: result.user.phone,
+      auth_version: result.user.authVersion,
+      auth_method: result.purpose === 'school_admin_login' ? 'whatsapp_admin' : 'whatsapp_otp',
+    });
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: result.user.id,
+        phone: result.user.phone,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        isPhoneVerified: result.user.isPhoneVerified,
+        deletionVerification: result.user.deletionVerification,
+      },
+      memberships: result.memberships,
+    });
+  } catch (error) {
+    if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof WhatsAppConfigurationError) return res.status(503).json({ error: 'WhatsApp doğrulama servisi şu anda kullanılamıyor.' });
+    return res.status(401).json({ error: 'Kod geçersiz veya süresi dolmuş olabilir.' });
+  }
+});
+
+apiRouter.post('/auth/whatsapp/complete-admin-email', async (req, res) => {
+  if (!isUnifiedWhatsAppLoginEnabled()) return res.status(404).json({ error: 'Bu giriş yöntemi kullanılamıyor.' });
+  try {
+    const result = await completeUnifiedAdminEmailActivation({
+      handle: req.body?.handle,
+      phone: req.body?.phone,
+      emailCode: req.body?.emailCode,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    if (!result) return res.status(401).json({ error: 'E-posta doğrulaması başarısız veya kodun süresi dolmuş.' });
+    const token = createToken({
+      userId: result.user.id,
+      phone: result.user.phone,
+      auth_version: result.user.authVersion,
+      auth_method: 'whatsapp_admin',
+    });
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: result.user.id,
+        phone: result.user.phone,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        isPhoneVerified: result.user.isPhoneVerified,
+        deletionVerification: result.user.deletionVerification,
+      },
+      memberships: result.memberships,
+    });
+  } catch (error) {
+    if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
+    return res.status(401).json({ error: 'E-posta doğrulaması tamamlanamadı.' });
+  }
+});
 
 function splitParentName(name: string): { firstName: string; lastName: string } {
   const parts = name.trim().split(/\s+/);
@@ -215,6 +349,7 @@ async function createParentChallenge(schoolId: string, phone: string, birthDate:
 }
 
 apiRouter.post('/auth/parent/registration-challenge', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeUserPhoneInput(req.body?.phone);
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
@@ -250,6 +385,7 @@ apiRouter.get('/schools/:schoolId/info', authMiddleware, tenantGuard(['admin']),
 });
 
 apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
@@ -297,6 +433,7 @@ apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
 });
 
 apiRouter.post('/auth/parent/reset-challenge', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const birthDate = typeof req.body?.birthDate === 'string' ? req.body.birthDate : '';
@@ -322,6 +459,7 @@ apiRouter.post('/auth/parent/reset-challenge', async (req, res) => {
 });
 
 apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
@@ -345,6 +483,7 @@ apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
 });
 
 apiRouter.post('/auth/staff/activation-verify', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const code = typeof req.body?.code === 'string' ? req.body.code : '';
@@ -379,6 +518,7 @@ apiRouter.post('/auth/staff/activation-verify', async (req, res) => {
 });
 
 apiRouter.post('/auth/staff/activation-complete', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
@@ -430,6 +570,7 @@ apiRouter.post('/auth/staff/activation-complete', async (req, res) => {
 const STAFF_RESET_GENERIC = 'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.';
 
 apiRouter.post('/auth/staff/reset-request', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   try {
@@ -468,6 +609,7 @@ apiRouter.post('/auth/staff/reset-request', async (req, res) => {
 });
 
 apiRouter.post('/auth/staff/reset-verify', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const code = typeof req.body?.code === 'string' ? req.body.code : '';
@@ -495,6 +637,7 @@ apiRouter.post('/auth/staff/reset-verify', async (req, res) => {
 });
 
 apiRouter.post('/auth/staff/reset-complete', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
   const phone = normalizeTurkishPhone(req.body?.phone);
   const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
@@ -574,6 +717,14 @@ apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       const candidate = await userRepository.getByPhone(phone, tx);
       if (!candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
+      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+      const activeAdmins = await tx.query(
+        `SELECT user_id FROM school_memberships
+         WHERE school_id=$1 AND role='admin' AND status='active'
+           AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
+        [schoolId, platformAdminIds],
+      );
+      if (activeAdmins.rows.length) throw new Error('SCHOOL_ADMIN_ALREADY_ACTIVE');
       const setup = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: candidate.id, purpose: 'school_admin_activation_setup',
         targetRole: 'admin', codeHash: hashSetupToken(setupToken) }, tx);
       if (!setup || setup.targetRole !== 'admin' || !setup.targetUserId) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
@@ -589,6 +740,9 @@ apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
     });
     return res.json({ success: true, message: 'Hesap aktivasyonunuz tamamlanmıştır. Oluşturduğunuz şifre ile giriş yapabilirsiniz.' });
   } catch (cause) {
+    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ACTIVE') {
+      return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
+    }
     if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş.' });
     return res.status(400).json({ error: AUTH_CODE_ERROR });
   }
@@ -689,6 +843,7 @@ apiRouter.post('/auth/school-admin/reset-complete', async (req, res) => {
 });
 
 apiRouter.post('/auth/activate-account', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const { schoolId, phone, code, password } = req.body;
   const cleanPhone = normalizeTurkishPhone(phone);
   const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
@@ -786,6 +941,7 @@ apiRouter.post('/auth/activate-account', async (req, res) => {
 });
 
 apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
+  if (legacyCredentialFlowUnavailable(res)) return;
   const { schoolId, phone, code, password } = req.body;
   const cleanPhone = normalizeTurkishPhone(phone);
   const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
@@ -948,7 +1104,7 @@ apiRouter.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Telefon numarası veya şifre hatalı.' });
     }
 
-    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion });
+    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion, auth_method: 'password' });
     const memberships = await membershipRepository.getMembershipsByUserId(user.id);
 
     res.json({
@@ -960,6 +1116,7 @@ apiRouter.post('/auth/login', async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         isPhoneVerified: user.isPhoneVerified,
+        deletionVerification: 'credential',
       },
       memberships,
     });
@@ -982,7 +1139,7 @@ apiRouter.post('/auth/quick-switch', async (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
 
-    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion });
+    const token = createToken({ userId: user.id, phone: user.phone, auth_version: user.authVersion, auth_method: 'quick_switch' });
     const memberships = await membershipRepository.getMembershipsByUserId(user.id);
 
     res.json({
@@ -1178,7 +1335,11 @@ apiRouter.get('/user/me', authMiddleware, async (req: AuthenticatedRequest, res)
     const user = await userRepository.getById(req.user!.id);
     if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
 
-    const memberships = await membershipRepository.getMembershipsByUserId(user.id);
+    const memberships = (await membershipRepository.getMembershipsByUserId(user.id)).filter((membership) => {
+      if (req.user!.authMethod === 'whatsapp_otp') return membership.role !== 'admin';
+      if (req.user!.authMethod === 'whatsapp_admin') return membership.role === 'admin';
+      return true;
+    });
 
     res.json({
       user: {
@@ -1188,6 +1349,7 @@ apiRouter.get('/user/me', authMiddleware, async (req: AuthenticatedRequest, res)
         lastName: user.lastName,
         isPhoneVerified: user.isPhoneVerified,
         securityQuestion: user.securityQuestion,
+        deletionVerification: user.deletionVerification,
       },
       memberships,
     });
@@ -1556,7 +1718,7 @@ apiRouter.post(
           `SELECT tp.id FROM teacher_profiles tp JOIN users u ON u.id=tp.user_id
            JOIN school_memberships sm ON sm.user_id=u.id AND sm.school_id=tp.school_id
            WHERE tp.school_id=$1 AND tp.id=$2 AND sm.role='teacher' AND sm.status='active'
-             AND NULLIF(u.password_hash,'') IS NOT NULL`, [schoolId, teacher.id]);
+             AND (u.is_phone_verified=TRUE OR NULLIF(u.password_hash,'') IS NOT NULL)`, [schoolId, teacher.id]);
         if (!activeTeacher.rows.length) {
           const unavailable = new Error('Bu öğretmen şu anda randevu kabul etmiyor.');
           Object.assign(unavailable, { code: 'TEACHER_UNAVAILABLE' });
@@ -2164,7 +2326,7 @@ apiRouter.get(
   authMiddleware,
   tenantGuard(['admin']),
   async (req: AuthenticatedRequest, res) => {
-    if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu kontrol yalnızca platform yöneticilerine açıktır.' });
+    if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu kontrol yalnızca platform yöneticilerine açıktır.' });
     try {
       const results: TenantIsolationTestResult[] = [];
 

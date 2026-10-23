@@ -48,3 +48,34 @@ export async function deliverSchoolAdminCode(
     return false;
   }
 }
+
+export async function deliverUnifiedAdminActivationEmail(
+  to: string,
+  schoolName: string,
+  schoolCode: string,
+  fullName: string,
+  emailCode: string,
+  licenseCode?: string,
+): Promise<boolean> {
+  try {
+    const content = renderBrandedEmail({
+      subtitle: 'Okul Yönetimi — E-posta Doğrulaması',
+      greeting: fullName,
+      intro: [
+        `${schoolName} için WhatsApp telefon doğrulamanız tamamlandı.`,
+        'Okul ve lisans kodunuz bilgilendirme amaçlıdır; bu kodlar giriş parolası değildir.',
+        'Veli Randevu giriş ekranındaki e-posta doğrulama alanına aşağıdaki 6 haneli kodu girin.',
+      ],
+      infoCards: [
+        { label: 'Okul Kodu', value: schoolCode.toUpperCase() },
+        ...(licenseCode ? [{ label: 'Lisans Kodu', value: licenseCode.toUpperCase() }] : []),
+        { label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' },
+      ],
+      notice: 'Doğrulama kodu 10 dakika geçerli ve yalnızca bir kez kullanılabilir.',
+    });
+    await sendEmail({ to, subject: 'Veli Randevu — Okul Yönetimi E-posta Doğrulaması', ...content });
+    return true;
+  } catch {
+    return false;
+  }
+}

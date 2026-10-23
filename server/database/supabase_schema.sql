@@ -305,6 +305,31 @@ CREATE TABLE IF NOT EXISTS account_deletion_receipts (
 CREATE INDEX IF NOT EXISTS idx_account_deletion_receipts_expires_at
 ON account_deletion_receipts(expires_at);
 
+CREATE TABLE IF NOT EXISTS whatsapp_auth_challenges (
+    id TEXT PRIMARY KEY,
+    school_id TEXT REFERENCES schools(id) ON DELETE CASCADE,
+    target_phone VARCHAR(20) NOT NULL,
+    target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    target_role VARCHAR(20) CHECK (target_role IS NULL OR target_role IN ('parent', 'teacher', 'security', 'admin')),
+    target_profile_id TEXT,
+    purpose VARCHAR(32) NOT NULL CHECK (purpose IN ('login', 'parent_registration', 'staff_activation', 'account_deletion', 'school_admin_login', 'school_admin_activation')),
+    code_hash CHAR(64) NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts BETWEEN 1 AND 10),
+    expires_at TIMESTAMPTZ NOT NULL,
+    resend_available_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT whatsapp_auth_challenges_code_hash_format CHECK (code_hash ~ '^[0-9a-f]{64}$')
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_auth_challenges_lookup
+ON whatsapp_auth_challenges (target_phone, purpose, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_auth_challenges_active
+ON whatsapp_auth_challenges (expires_at)
+WHERE consumed_at IS NULL AND revoked_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS platform_requests (
     id TEXT PRIMARY KEY DEFAULT ('req-' || substr(md5(random()::text || clock_timestamp()::text), 1, 20)),
     idempotency_key UUID NOT NULL UNIQUE,
@@ -458,6 +483,7 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_auth_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE account_deletion_receipts ENABLE ROW LEVEL SECURITY;
@@ -513,6 +539,10 @@ ON invitations FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access otp_verifications" 
 ON otp_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Express backend service full access whatsapp_auth_challenges" ON whatsapp_auth_challenges;
+CREATE POLICY "Express backend service full access whatsapp_auth_challenges"
+ON whatsapp_auth_challenges FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access pending_staff"
 ON pending_staff FOR ALL TO service_role USING (true) WITH CHECK (true);

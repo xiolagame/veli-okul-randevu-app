@@ -5,6 +5,8 @@ import { sendEmail } from './email';
 import { renderBrandedEmail } from './email-template';
 import { verifyPassword } from './passwords';
 import { getTurkishPhoneLookupDigits } from '../src/utils/phone';
+import { consumeAccountDeletionWhatsAppChallenge, requestWhatsAppAuthChallenge, WhatsAppAuthError } from './whatsapp-auth';
+import { WhatsAppConfigurationError, WhatsAppDeliveryError } from './whatsapp-cloud';
 
 const CONFIRMATION_PHRASE = 'HESABIMI SİL';
 const DELETED_USER_LABEL = 'Silinmiş Kullanıcı';
@@ -42,7 +44,9 @@ async function findReceipt(tx: TransactionClient, requestId: string, subjectHash
 
 export async function deleteOwnAccount(input: {
   userId: string;
-  password: string;
+  password?: string;
+  whatsappChallengeId?: string;
+  whatsappCode?: string;
   requestId: string;
 }): Promise<DeletedAccountResult> {
   const subjectHash = createAccountDeletionSubjectHash(input.userId);
@@ -77,8 +81,20 @@ export async function deleteOwnAccount(input: {
       throw new AccountDeletionError(409, 'Hesap silme işlemi tamamlanamadı. Oturumunuzu yenileyip tekrar deneyin.');
     }
 
-    if (!verifyPassword(input.password, user.password_hash)) {
-      throw new AccountDeletionError(403, 'Parolanız doğrulanamadı. Hesabınızda hiçbir değişiklik yapılmadı.');
+    if (user.password_hash) {
+      if (!input.password || !verifyPassword(input.password, user.password_hash)) {
+        throw new AccountDeletionError(403, 'Parolanız doğrulanamadı. Hesabınızda hiçbir değişiklik yapılmadı.');
+      }
+    } else {
+      const verified = !!input.whatsappChallengeId && !!input.whatsappCode && await consumeAccountDeletionWhatsAppChallenge(tx, {
+        challengeId: input.whatsappChallengeId,
+        code: input.whatsappCode,
+        phone: user.phone,
+        userId: user.id,
+      });
+      if (!verified) {
+        throw new AccountDeletionError(403, 'WhatsApp doğrulama kodu geçersiz veya süresi dolmuş. Hesabınızda hiçbir değişiklik yapılmadı.');
+      }
     }
 
     const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
@@ -275,23 +291,45 @@ export async function deleteOwnAccount(input: {
 
 export const accountDeletionRouter = Router();
 
+accountDeletionRouter.post('/user/me/deletion/whatsapp-code', authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = await (await getDb()).query<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id=$1', [req.user!.id]);
+    if (!user.rows[0] || user.rows[0].password_hash) return res.status(400).json({ error: 'Bu hesap için mevcut parola doğrulaması kullanılmalıdır.' });
+    const challenge = await requestWhatsAppAuthChallenge({
+      purpose: 'account_deletion',
+      phone: req.user!.phone,
+      authenticatedUserId: req.user!.id,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.json({ success: true, message: 'Kod gönderilebildiyse kısa süre içinde WhatsApp hesabınıza ulaşacaktır.', ...challenge });
+  } catch (error) {
+    if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof WhatsAppConfigurationError) return res.status(503).json({ error: 'WhatsApp doğrulama servisi şu anda kullanılamıyor.' });
+    if (error instanceof WhatsAppDeliveryError) return res.status(503).json({ error: 'Doğrulama mesajı gönderilemedi. Lütfen tekrar deneyin.' });
+    return res.status(500).json({ error: 'Doğrulama isteği tamamlanamadı.' });
+  }
+});
+
 accountDeletionRouter.post('/user/me/deletion', authMiddleware, async (req: AuthenticatedRequest, res) => {
   const body = req.body as Record<string, unknown>;
   if ('userId' in body || 'schoolId' in body || 'targetUserId' in body) {
     return res.status(400).json({ error: 'Hesap silme isteği yalnız oturum sahibi için yapılabilir.' });
   }
   const password = typeof body.password === 'string' ? body.password : '';
+  const whatsappChallengeId = typeof body.whatsappChallengeId === 'string' ? body.whatsappChallengeId.trim() : '';
+  const whatsappCode = typeof body.whatsappCode === 'string' ? body.whatsappCode.trim() : '';
   const confirmation = typeof body.confirmation === 'string' ? body.confirmation.trim() : '';
   const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : '';
-  if (!password || password.length > 128 || confirmation !== CONFIRMATION_PHRASE || !UUID_PATTERN.test(requestId)) {
-    return res.status(400).json({ error: 'Parola, onay metni veya istek kimliği geçersiz.' });
+  if (password.length > 128 || (whatsappCode && !/^\d{6}$/.test(whatsappCode)) ||
+      (!password && (!whatsappChallengeId || !whatsappCode)) || confirmation !== CONFIRMATION_PHRASE || !UUID_PATTERN.test(requestId)) {
+    return res.status(400).json({ error: 'Kimlik doğrulama, onay metni veya istek kimliği geçersiz.' });
   }
   if (!checkRateLimit(`account-deletion:${req.user!.id}`, 5, 15 * 60)) {
     return res.status(429).json({ error: 'Çok fazla hesap silme denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' });
   }
 
   try {
-    const result = await deleteOwnAccount({ userId: req.user!.id, password, requestId });
+    const result = await deleteOwnAccount({ userId: req.user!.id, password, whatsappChallengeId, whatsappCode, requestId });
     let notificationSent = false;
     if (!result.alreadyCompleted && result.notificationEmail) {
       const rendered = renderBrandedEmail({

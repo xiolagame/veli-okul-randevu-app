@@ -8,6 +8,8 @@ import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-d
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { getRuntimePlatform } from '../platform/runtime-platform';
+import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
+import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -25,6 +27,9 @@ type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
 export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
   const { login, authStorageError, accountDeletionNotice } = useApp();
   const [showPassword, setShowPassword] = useState(false);
+  const [whatsappAuthEnabled, setWhatsappAuthEnabled] = useState(false);
+  const [unifiedLoginEnabled, setUnifiedLoginEnabled] = useState(false);
+  const [usePasswordLogin, setUsePasswordLogin] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [codeFlow, setCodeFlow] = useState<CodeFlow>(null);
@@ -61,6 +66,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const passwordRef = useRef<HTMLInputElement>(null);
   const loginButtonRef = useRef<HTMLButtonElement>(null);
   const authSideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.getAuthCapabilities().then((result) => {
+      if (active) {
+        setWhatsappAuthEnabled(result.whatsappAuthEnabled);
+        setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (getRuntimePlatform() !== 'IOS') return;
@@ -351,6 +367,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
+          {whatsappAuthEnabled && !usePasswordLogin ? (unifiedLoginEnabled
+            ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setUsePasswordLogin(true)} />
+            : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setUsePasswordLogin(true)} />) : <>
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
               <div className="field-icon"><Phone size={18} aria-hidden="true" /><input ref={phoneRef} id="login-phone" type="tel" inputMode="numeric" enterKeyHint="next" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); passwordRef.current?.focus(); } }} placeholder="0555 123 45 67" required /></div>
@@ -367,6 +386,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <Button variant="secondary" className="w-full" onClick={() => { setParentFlow('registration'); setCodePhone(phone); }}><Users size={18} />Veli Hesabı Oluştur</Button>
           <button type="button" onClick={() => openCodeFlow('activation')} className="mt-4 w-full text-sm font-semibold text-blue-700">Personel İlk Giriş</button>
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
+          {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setUsePasswordLogin(false)}>WhatsApp ile girişe dön</button>}
+          </>}
           <button type="button" className="auth-help-link" onClick={onOpenHelp}>Yardım, Kullanım Rehberi ve Yasal Bilgiler<ArrowRight size={16} /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>

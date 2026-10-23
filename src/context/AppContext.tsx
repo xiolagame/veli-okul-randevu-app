@@ -58,8 +58,10 @@ interface AppContextType {
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
+  whatsappLogin: (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }) => Promise<LoginResult>;
+  completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) => Promise<LoginResult>;
   logout: () => Promise<void>;
-  deleteAccount: (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
+  deleteAccount: (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
   bookAppointment: (data: {
     teacherId: string;
@@ -416,6 +418,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   };
 
+  const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }): Promise<LoginResult> => {
+    const result = await performLogin({
+      authenticate: async () => {
+        if (verified) return { success: true, ...verified };
+        const response = await api.verifyWhatsappCode(data);
+        if (!response.token || !response.user || !response.memberships) throw new Error('Login incomplete');
+        return { success: true, token: response.token, user: response.user, memberships: response.memberships };
+      },
+      session: authSession,
+      clearRuntimeSession,
+      bootstrap: async (response) => {
+        const access = await fetchSchoolAccess(response.memberships, null, null);
+        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+        applyAuthenticatedSession(response.user, response.memberships, access);
+      },
+    });
+    if (result.ok) setAuthStorageError(false);
+    if (result.ok) setAccountDeletionNotice(null);
+    return result;
+  };
+
+  const completeUnifiedAdminEmail = async (data: { handle: string; phone: string; emailCode: string }): Promise<LoginResult> => {
+    const result = await performLogin({
+      authenticate: () => api.completeUnifiedAdminEmail(data),
+      session: authSession,
+      clearRuntimeSession,
+      bootstrap: async (response) => {
+        const access = await fetchSchoolAccess(response.memberships, null, null);
+        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+        applyAuthenticatedSession(response.user, response.memberships, access);
+      },
+    });
+    if (result.ok) setAuthStorageError(false);
+    return result;
+  };
+
   // Logout
   const logout = async () => {
     await mobilePush.beforeLogout();
@@ -424,7 +462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearRuntimeSession();
   };
 
-  const deleteAccount = async (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
+  const deleteAccount = async (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
     const result = await api.deleteOwnAccount(data);
     let localCleanupFailed = false;
     try {
@@ -698,6 +736,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchSchool,
         returnToPlatform,
         login,
+        whatsappLogin,
+        completeUnifiedAdminEmail,
         logout,
         deleteAccount,
         switchUser,

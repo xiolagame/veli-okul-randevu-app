@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID, randomBytes } from 'node:crypto';
-import { authMiddleware, AuthenticatedRequest, isPlatformAdmin } from './auth';
+import { authMiddleware, AuthenticatedRequest, canUsePlatformAuthority, isPlatformAdmin } from './auth';
 import { checkDatabaseHealth, getDb } from './database/postgres';
 import { auditLogRepository, invitationRepository, membershipRepository, schoolRepository, userRepository } from './repositories';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
@@ -28,7 +28,7 @@ function platformTargetAllows(method: string, path: string): boolean {
 }
 
 export const platformTargetContextGuard = [authMiddleware, async (req: AuthenticatedRequest, res: import('express').Response, next: import('express').NextFunction) => {
-  if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   const targetSchoolId = req.params.targetSchoolId;
   const routeSchoolId = /^\/schools\/([^/?]+)(?:\/|$)/.exec(req.url)?.[1];
   if (!targetSchoolId || !routeSchoolId || decodeURIComponent(routeSchoolId) !== targetSchoolId) return res.status(403).json({ error: 'Okul bağlamı doğrulanamadı.' });
@@ -43,10 +43,10 @@ export const platformTargetContextGuard = [authMiddleware, async (req: Authentic
 export const platformManagementRouter = Router();
 platformManagementRouter.use(authMiddleware);
 platformManagementRouter.get('/capabilities', (req: AuthenticatedRequest, res) => {
-  res.json({ manageSchools: isPlatformAdmin(req.user?.id) });
+  res.json({ manageSchools: canUsePlatformAuthority(req.user) });
 });
 platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
-  if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   next();
 });
 platformManagementRouter.use('/requests', platformRequestRouter);
@@ -193,6 +193,14 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
       if (!school.rows[0]) throw new Error('SCHOOL_NOT_AVAILABLE');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       await tx.query('LOCK TABLE invitations IN SHARE ROW EXCLUSIVE MODE');
+      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+      const activeAdmins = await tx.query(
+        `SELECT user_id FROM school_memberships
+         WHERE school_id=$1 AND role='admin' AND status='active'
+           AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
+        [schoolId, platformAdminIds],
+      );
+      if (activeAdmins.rows.length) throw new Error('SCHOOL_ADMIN_ALREADY_ACTIVE');
       const existingUser = await userRepository.getByPhone(phone, tx);
       if (existingUser) {
         const userState = await tx.query<{ email: string | null; password_hash: string | null; first_name: string | null; last_name: string | null; is_phone_verified: boolean }>(
@@ -226,6 +234,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
     });
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'SCHOOL_NOT_AVAILABLE') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
+    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ACTIVE') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_INVITATION_PENDING') return res.status(409).json({ error: 'Bu okul yöneticisi için zaten bir aktivasyon daveti bekliyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş. Farklı bir yönetici bilgisi kullanın.' });
     return res.status(500).json({ error: 'Okul yöneticisi daveti oluşturulamadı.' });
