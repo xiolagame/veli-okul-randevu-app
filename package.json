@@ -67,6 +67,7 @@
     "@capacitor/splash-screen": "8.0.2",
     "@capacitor/status-bar": "8.0.4",
     "@electric-sql/pglite": "^0.5.8",
+    "@netlify/aws-lambda-compat": "^2.0.3",
     "@netlify/functions": "^6.0.0",
     "@supabase/supabase-js": "^2.116.0",
     "@types/qrcode": "^1.5.6",
