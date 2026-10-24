@@ -1,5 +1,6 @@
+﻿import { getPostgresConnectionOptions } from './tls';
 // ==============================================================================
-// VELİ - OKUL RANDEVU SİSTEMİ: SUPABASE POSTGRESQL CLIENT
+// VELÄ° - OKUL RANDEVU SÄ°STEMÄ°: SUPABASE POSTGRESQL CLIENT
 // Server-side only: Uses Service Role Key or DATABASE_URL.
 // Strictly forbidden from client bundle.
 // ==============================================================================
@@ -36,7 +37,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
     if (config.isProduction) {
       throw new Error(
-        'KRİTİK HATA (Production Fail-Fast): SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY ortam değişkenleri tanımlanmamış! Production veritabanı bağlantısı zorunludur.'
+        'KRÄ°TÄ°K HATA (Production Fail-Fast): SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY ortam deÄŸiÅŸkenleri tanÄ±mlanmamÄ±ÅŸ! Production veritabanÄ± baÄŸlantÄ±sÄ± zorunludur.'
       );
     }
     return null;
@@ -67,8 +68,7 @@ export function getPgPool(): Pool | null {
 
   if (!pgPoolInstance) {
     pgPoolInstance = new Pool({
-      connectionString: config.databaseUrl,
-      ssl: config.isProduction ? { rejectUnauthorized: false } : undefined,
+      ...getPostgresConnectionOptions(config.databaseUrl, config.isProduction),
       max: 20,
       idleTimeoutMillis: 30000,
     });

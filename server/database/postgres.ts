@@ -1,5 +1,6 @@
+﻿import { getPostgresConnectionOptions } from './tls';
 // ==============================================================================
-// VELİ - OKUL RANDEVU SİSTEMİ: UNIFIED POSTGRESQL DATA ENGINE
+// VELÄ° - OKUL RANDEVU SÄ°STEMÄ°: UNIFIED POSTGRESQL DATA ENGINE
 // Supports:
 // 1. Production: Remote Supabase PostgreSQL / Cloud SQL via pg.Pool (DATABASE_URL)
 // 2. Development / Testing: Embedded Persistent PostgreSQL via PGlite (WASM)
@@ -120,21 +121,20 @@ export async function initDatabase(): Promise<void> {
   if (isProduction) {
     if (!databaseUrl) {
       throw new Error(
-        'KRİTİK HATA (Production Fail-Fast): NODE_ENV=production modunda DATABASE_URL ortam değişkeni zorunludur! PGlite / Embedded veritabanı veya store.json fallback kesinlikle yasaktır.'
+        'KRÄ°TÄ°K HATA (Production Fail-Fast): NODE_ENV=production modunda DATABASE_URL ortam deÄŸiÅŸkeni zorunludur! PGlite / Embedded veritabanÄ± veya store.json fallback kesinlikle yasaktÄ±r.'
       );
     }
 
     if (isPlaceholderPassword) {
       throw new Error(
-        'KRİTİK HATA (Production Fail-Fast): DATABASE_URL ortam değişkeninde "[YOUR-PASSWORD]" yer tutucusu tespit edildi! Canlı Supabase PostgreSQL şifrenizi Secrets panelinde tanımlamalısınız. PGlite veya store.json fallback kesinlikle yasaktır.'
+        'KRÄ°TÄ°K HATA (Production Fail-Fast): DATABASE_URL ortam deÄŸiÅŸkeninde "[YOUR-PASSWORD]" yer tutucusu tespit edildi! CanlÄ± Supabase PostgreSQL ÅŸifrenizi Secrets panelinde tanÄ±mlamalÄ±sÄ±nÄ±z. PGlite veya store.json fallback kesinlikle yasaktÄ±r.'
       );
     }
 
     console.log('[PostgreSQL Engine] Connecting to remote PostgreSQL cluster via connection pool...');
     try {
       pgPool = new Pool({
-        connectionString: databaseUrl,
-        ssl: { rejectUnauthorized: false },
+        ...getPostgresConnectionOptions(databaseUrl, isProduction),
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
@@ -162,7 +162,7 @@ export async function initDatabase(): Promise<void> {
       }
       // In production, or whenever DATABASE_URL was provided, connection failure MUST fail-fast!
       // Strictly NO fallback to PGlite or in-memory/JSON stores.
-      throw new Error(`KRİTİK HATA (PostgreSQL Fail-Fast): Remote PostgreSQL veritabanına bağlanılamadı! Sebep: ${connErr.message}`);
+      throw new Error(`KRÄ°TÄ°K HATA (PostgreSQL Fail-Fast): Remote PostgreSQL veritabanÄ±na baÄŸlanÄ±lamadÄ±! Sebep: ${connErr.message}`);
     }
   }
 
@@ -171,8 +171,7 @@ export async function initDatabase(): Promise<void> {
     console.log('[PostgreSQL Engine] Connecting to remote PostgreSQL cluster via connection pool (development)...');
     try {
       pgPool = new Pool({
-        connectionString: databaseUrl,
-        ssl: { rejectUnauthorized: false },
+        ...getPostgresConnectionOptions(databaseUrl, isProduction),
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
