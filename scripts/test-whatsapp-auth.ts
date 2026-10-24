@@ -9,6 +9,7 @@ async function run() {
   process.env.JWT_SECRET = 'local-whatsapp-jwt-secret-at-least-32-characters';
   process.env.AUTH_CODE_SECRET = 'local-whatsapp-code-secret-at-least-32-characters';
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-token-not-a-real-credential';
   process.env.WHATSAPP_GRAPH_API_VERSION = 'v25.0';
@@ -44,6 +45,7 @@ async function run() {
   const unknownPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
   const securityPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
   const deletionPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+  process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [parentPhone, teacherPhone, securityPhone, deletionPhone].join(',');
   const createdUsers: string[] = [];
   const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
 
@@ -202,6 +204,8 @@ async function run() {
     assert.equal(verifyToken(validToken.slice(0, -1) + (validToken.endsWith('a') ? 'b' : 'a')), null);
 
     process.env.WHATSAPP_AUTH_ENABLED = 'false';
+    process.env.WHATSAPP_PILOT_ENABLED = 'false';
+    delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
     assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'login', phone: parentPhone })).status, 503);
     assert.equal((await request('POST', '/auth/login', { phone: parentPhone, password: 'Aa12345' })).status, 200);
     assert.equal((await request('POST', '/auth/parent/registration-challenge', {})).status, 400);

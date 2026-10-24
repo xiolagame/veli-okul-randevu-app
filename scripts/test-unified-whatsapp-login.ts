@@ -9,6 +9,7 @@ async function run() {
   process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.AUTH_CODE_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-token-not-a-real-credential';
@@ -54,6 +55,7 @@ async function run() {
   const adminPhoneB = `+905${crypto.randomInt(100000000, 999999999)}`;
   const platformPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
   const legacyPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+  process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [adminPhoneA, adminPhoneB, platformPhone, legacyPhone].join(',');
   const createdUserIds: string[] = [];
   const originalPlatformIds = process.env.PLATFORM_ADMIN_USER_IDS;
 
@@ -204,7 +206,9 @@ async function run() {
     globalThis.fetch = originalFetch;
     process.env.PLATFORM_ADMIN_USER_IDS = originalPlatformIds;
     process.env.WHATSAPP_AUTH_ENABLED = 'false';
+    process.env.WHATSAPP_PILOT_ENABLED = 'false';
     process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'false';
+    delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await db.query('DELETE FROM schools WHERE id IN ($1,$2,$3)', [schoolId, otherSchoolId, legacySchoolId]);
     for (const userId of createdUserIds) await db.query('DELETE FROM users WHERE id=$1', [userId]);

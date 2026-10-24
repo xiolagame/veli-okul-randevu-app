@@ -11,7 +11,12 @@ import {
   userRepository,
   invitationRepository,
 } from './repositories';
-import { assertWhatsAppDeliveryConfigured, sendWhatsAppAuthenticationCode, isUnifiedWhatsAppLoginEnabled } from './whatsapp-cloud';
+import {
+  assertWhatsAppDeliveryConfigured,
+  isUnifiedWhatsAppLoginEnabled,
+  isWhatsAppPilotPhoneAllowed,
+  sendWhatsAppAuthenticationCode,
+} from './whatsapp-cloud';
 import { isPlatformAdmin } from './auth';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
@@ -271,6 +276,10 @@ export async function requestWhatsAppAuthChallenge(input: {
   if (!phone || !requesterAllowed || !targetAllowed) {
     throw new WhatsAppAuthError(429, 'Doğrulama isteği şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin.');
   }
+  const dummyId = crypto.randomUUID();
+  if (!isWhatsAppPilotPhoneAllowed(phone)) {
+    return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
+  }
   const resolved = input.purpose === 'auto' ? await resolveUnifiedTarget(phone) : null;
   const purpose: WhatsAppAuthPurpose = input.purpose === 'auto' ? (resolved?.purpose || 'login') : input.purpose;
   const target = input.purpose === 'auto' ? (resolved?.target || null) : await resolveTarget({
@@ -279,7 +288,6 @@ export async function requestWhatsAppAuthChallenge(input: {
     schoolCode,
     authenticatedUserId: input.authenticatedUserId,
   });
-  const dummyId = crypto.randomUUID();
   if (!target) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
 
   const challengeId = crypto.randomUUID();
@@ -555,6 +563,7 @@ export async function completeUnifiedAdminEmailActivation(input: {
   if (!await withinRateLimit(`${input.requesterKey}:admin-email:${phone}`, 6, 15)) {
     throw new WhatsAppAuthError(429, 'Çok fazla deneme yapıldı.');
   }
+  if (!isWhatsAppPilotPhoneAllowed(phone)) return null;
 
   return (await getDb()).transaction(async (tx) => {
     const row = await tx.query<{ school_id: string; target_user_id: string; target_phone: string }>(
@@ -649,6 +658,7 @@ export async function verifyWhatsAppAuthChallenge(input: {
   if (!await withinRateLimit(`${input.requesterKey}:verify:${phone}`, 8, 15)) {
     throw new WhatsAppAuthError(429, 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.');
   }
+  if (!isWhatsAppPilotPhoneAllowed(phone)) return null;
   return (await getDb()).transaction(async (tx) => {
     const challenge = await readAndValidateChallenge(tx, { challengeId, phone, code });
     if (!challenge || challenge.purpose === 'account_deletion') return null;
@@ -690,6 +700,7 @@ export async function consumeAccountDeletionWhatsAppChallenge(
 ): Promise<boolean> {
   const phone = normalizeTurkishPhone(input.phone);
   if (!phone || !/^\d{6}$/.test(input.code)) return false;
+  if (!isWhatsAppPilotPhoneAllowed(phone)) return false;
   const challenge = await readAndValidateChallenge(tx, {
     challengeId: input.challengeId,
     phone,

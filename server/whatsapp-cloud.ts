@@ -7,12 +7,30 @@ const TEMPLATE_LANGUAGE = 'tr';
 export class WhatsAppConfigurationError extends Error {}
 export class WhatsAppDeliveryError extends Error {}
 
+function isEnabled(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === 'true';
+}
+
 export function isWhatsAppAuthEnabled(): boolean {
-  return process.env.WHATSAPP_AUTH_ENABLED?.trim().toLowerCase() === 'true';
+  return isEnabled(process.env.WHATSAPP_AUTH_ENABLED) && isWhatsAppPilotModeEnabled();
 }
 
 export function isUnifiedWhatsAppLoginEnabled(): boolean {
-  return isWhatsAppAuthEnabled() && process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED?.trim().toLowerCase() === 'true';
+  return isWhatsAppAuthEnabled() && isEnabled(process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED);
+}
+
+export function isWhatsAppPilotModeEnabled(): boolean {
+  return isEnabled(process.env.WHATSAPP_PILOT_ENABLED);
+}
+
+export function isWhatsAppPilotPhoneAllowed(phone: unknown): boolean {
+  if (!isWhatsAppPilotModeEnabled()) return false;
+  const canonicalPhone = normalizeTurkishPhone(phone);
+  if (!canonicalPhone) return false;
+  const entries = (process.env.WHATSAPP_PILOT_ALLOWED_PHONES || '').split(',');
+  const allowedPhones = entries.map((entry) => normalizeTurkishPhone(entry));
+  if (!allowedPhones.length || allowedPhones.some((entry) => !entry)) return false;
+  return new Set(allowedPhones).has(canonicalPhone);
 }
 
 function getConfiguration(): { phoneNumberId: string; accessToken: string; graphVersion: string } {
