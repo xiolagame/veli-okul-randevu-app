@@ -26,6 +26,7 @@
     "test:parent-auth": "tsx scripts/test-parent-self-service-auth.ts",
     "test:whatsapp-auth": "tsx scripts/test-whatsapp-auth.ts",
     "test:whatsapp-unified": "tsx scripts/test-unified-whatsapp-login.ts",
+    "test:whatsapp-login-ui": "tsx scripts/test-whatsapp-login-ui.ts",
     "test:whatsapp-migrations": "tsx scripts/test-whatsapp-migrations.ts",
     "test:whatsapp-pilot": "tsx scripts/test-whatsapp-pilot.ts",
     "test:parent-ux": "tsx scripts/test-parent-ux.ts",

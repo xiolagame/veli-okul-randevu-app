@@ -6,8 +6,8 @@ import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone
 import { Alert, Button } from './ui';
 
 /** One input for all non-platform roles. Target resolution is exclusively server-side. */
-export function UnifiedWhatsAppLoginPanel({initialPhone,onPhoneChange,onUsePassword}: {
-  initialPhone:string; onPhoneChange:(phone:string)=>void; onUsePassword:()=>void;
+export function UnifiedWhatsAppLoginPanel({initialPhone,onPhoneChange,onUsePassword,onUsePlatform}: {
+  initialPhone:string; onPhoneChange:(phone:string)=>void; onUsePassword:()=>void; onUsePlatform:()=>void;
 }) {
   const { whatsappLogin,completeUnifiedAdminEmail }=useApp();
   const [phone,setPhone]=useState(initialPhone);
@@ -96,6 +96,9 @@ export function UnifiedWhatsAppLoginPanel({initialPhone,onPhoneChange,onUsePassw
         </button>}
       </div>}
     </form>
-    <button type="button" className="auth-help-link" onClick={onUsePassword}>Platform Yönetimi</button>
+    <div className="unified-login-alternatives" role="group" aria-label="Diğer giriş seçenekleri">
+      <button type="button" className="auth-help-link" onClick={onUsePassword}>Parola ile giriş</button>
+      <button type="button" className="auth-help-link" onClick={onUsePlatform}>Platform Yönetimi</button>
+    </div>
   </div>;
 }
