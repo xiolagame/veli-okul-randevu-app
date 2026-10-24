@@ -29,6 +29,7 @@ import { findAppointmentReview, matchesReviewBinding, sendAppointmentRequestEmai
 import { requestWhatsAppAuthChallenge, verifyWhatsAppAuthChallenge, completeUnifiedAdminEmailActivation, WhatsAppAuthError, WhatsAppAuthPurpose } from './whatsapp-auth';
 import { deliverUnifiedAdminActivationEmail } from './school-admin-email';
 import { isWhatsAppAuthEnabled, isUnifiedWhatsAppLoginEnabled, WhatsAppConfigurationError, WhatsAppDeliveryError } from './whatsapp-cloud';
+import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import {
   getDb,
   checkDatabaseHealth,
@@ -57,6 +58,7 @@ import {
 } from '../src/types';
 
 const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
+const PHONE_IDENTITY_CONFLICT_ERROR = 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı. Lütfen okul yönetimiyle iletişime geçin.';
 const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> => {
   const { qrToken: _qrToken, ...safeAppointment } = appointment;
   return safeAppointment;
@@ -208,6 +210,7 @@ apiRouter.post('/auth/whatsapp/request-code', async (req, res) => {
     });
     return res.json({ success: true, message: WHATSAPP_AUTH_GENERIC, ...result });
   } catch (error) {
+    if (error instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: PHONE_IDENTITY_CONFLICT_ERROR });
     if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
     if (error instanceof WhatsAppConfigurationError) return res.status(503).json({ error: 'WhatsApp doğrulama servisi şu anda kullanılamıyor.' });
     if (error instanceof WhatsAppDeliveryError) return res.status(503).json({ error: 'Doğrulama mesajı gönderilemedi. Lütfen tekrar deneyin.' });
@@ -268,6 +271,7 @@ apiRouter.post('/auth/whatsapp/verify-code', async (req, res) => {
       memberships: result.memberships,
     });
   } catch (error) {
+    if (error instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: PHONE_IDENTITY_CONFLICT_ERROR });
     if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
     if (error instanceof WhatsAppConfigurationError) return res.status(503).json({ error: 'WhatsApp doğrulama servisi şu anda kullanılamıyor.' });
     return res.status(401).json({ error: 'Kod geçersiz veya süresi dolmuş olabilir.' });
@@ -1121,6 +1125,7 @@ apiRouter.post('/auth/login', async (req, res) => {
       memberships,
     });
   } catch (err: any) {
+    if (err instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: PHONE_IDENTITY_CONFLICT_ERROR });
     console.error('[POST /auth/login Error]:', err);
     res.status(500).json({ error: 'Giriş işlemi sırasında hata oluştu' });
   }

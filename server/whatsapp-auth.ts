@@ -662,6 +662,10 @@ export async function verifyWhatsAppAuthChallenge(input: {
   return (await getDb()).transaction(async (tx) => {
     const challenge = await readAndValidateChallenge(tx, { challengeId, phone, code });
     if (!challenge || challenge.purpose === 'account_deletion') return null;
+    if (challenge.target_user_id) {
+      const currentIdentity = await userRepository.getByPhone(challenge.target_phone, tx);
+      if (!currentIdentity || currentIdentity.id !== challenge.target_user_id) return null;
+    }
     if ((challenge.purpose === 'school_admin_login' || challenge.purpose === 'school_admin_activation')
       && !isUnifiedWhatsAppLoginEnabled()) return null;
     if (challenge.purpose === 'school_admin_activation') return queueAdminEmailAfterPhoneVerification(tx, challenge);

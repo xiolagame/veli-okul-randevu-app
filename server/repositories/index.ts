@@ -24,6 +24,7 @@ import {
   AppointmentStatus,
 } from '../../src/types';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
+import { PhoneIdentityAmbiguityError } from '../phone-identity-audit';
 import { normalizePersonName } from '../../src/utils/person-name';
 import { normalizeSchoolCodeInput } from '../../src/utils/school-code';
 import { normalizeSchoolSettings } from '../../src/utils/school-settings';
@@ -237,10 +238,11 @@ export const userRepository = {
        FROM users
        WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
        ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
-       LIMIT 1;`,
+       LIMIT 2;`,
       [...lookupDigits, canonicalPhone]
     );
     if (res.rows.length === 0) return null;
+    if (res.rows.length > 1) throw new PhoneIdentityAmbiguityError();
     const r = res.rows[0];
     return {
       id: r.id,
@@ -289,11 +291,12 @@ export const userRepository = {
        FROM users 
        WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
        ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
-       LIMIT 1;`,
+       LIMIT 2;`,
       [...lookupDigits, canonicalPhone],
       client
     );
     if (res.rows.length === 0) return null;
+    if (res.rows.length > 1) throw new PhoneIdentityAmbiguityError();
     const r = res.rows[0];
     return {
       id: r.id,

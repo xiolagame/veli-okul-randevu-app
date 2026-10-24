@@ -11,6 +11,7 @@ import { deliverSchoolAdminCode } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
+import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
@@ -233,6 +234,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
         licenseCode: school.rows[0].license_code || undefined, email, fullName };
     });
   } catch (cause) {
+    if (cause instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı.' });
     if (cause instanceof Error && cause.message === 'SCHOOL_NOT_AVAILABLE') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
     if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ACTIVE') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_INVITATION_PENDING') return res.status(409).json({ error: 'Bu okul yöneticisi için zaten bir aktivasyon daveti bekliyor.' });

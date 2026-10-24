@@ -9,6 +9,7 @@ import { isPlatformAdmin } from './auth';
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { deliverSchoolAdminCode } from './school-admin-email';
+import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 
 class ManagementError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -166,6 +167,9 @@ adminManagementRouter.post('/admins', async (req: AuthenticatedRequest, res) => 
       ? 'Yönetici eklendi ve aktivasyon e-postası gönderildi.'
       : 'Yönetici eklendi ancak e-posta gönderilemedi. Yeniden göndermeyi deneyin.' });
   } catch (cause) {
+    if (cause instanceof PhoneIdentityAmbiguityError) {
+      return res.status(409).json({ error: 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı.' });
+    }
     if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
     if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === '23505') {
       return res.status(409).json({ error: 'Telefon veya e-posta başka bir hesaba bağlı.' });
