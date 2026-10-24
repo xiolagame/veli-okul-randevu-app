@@ -195,8 +195,10 @@ async function run() {
       { fullName: 'Silinecek Yönetici', phone: pendingRemovalPhone, email: `pending-remove-${suffix}@example.test` })).status, 409);
     const pendingRemovalUser = await userRepository.getByPhone(pendingRemovalPhone);
     assert.equal(pendingRemovalUser, null);
-    assert.equal((await request('DELETE', `/schools/${createdSchoolId}/management/admins/${managerId}`, oldToken)).status, 409,
-      'last active school manager must not be removable');
+    const lastManagerRemoval = await request('DELETE', `/schools/${createdSchoolId}/management/admins/${managerId}`, oldToken);
+    assert.equal(lastManagerRemoval.status, 409, 'last active school manager must not be removable');
+    assert.equal(lastManagerRemoval.body.error,
+      'Okulun tek etkin yöneticisi kaldırılamaz. Yönetici değişikliği için platform desteğine başvurun.');
 
     await db.query('UPDATE users SET email=$2 WHERE id=$1', [platformUser.id, 'platform@example.test']);
     const emailCount = sentEmails.length;

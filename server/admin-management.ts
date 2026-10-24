@@ -268,7 +268,7 @@ adminManagementRouter.delete('/admins/:id', async (req: AuthenticatedRequest, re
         const admins = await tx.query<{ user_id: string }>(`SELECT user_id FROM school_memberships WHERE school_id=$1
           AND role='admin' AND status='active' FOR UPDATE`, [schoolId]);
         const realAdmins = admins.rows.filter((entry) => !isPlatformAdmin(entry.user_id));
-        if (realAdmins.length <= 1) throw new ManagementError(409, 'Okulun son etkin yöneticisi kaldırılamaz. Önce başka bir yönetici ekleyin.');
+        if (realAdmins.length <= 1) throw new ManagementError(409, 'Okulun tek etkin yöneticisi kaldırılamaz. Yönetici değişikliği için platform desteğine başvurun.');
         await tx.query("DELETE FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='admin'", [schoolId, userId]);
         await tx.query('UPDATE users SET auth_version=auth_version+1,updated_at=NOW() WHERE id=$1', [userId]);
       } else {

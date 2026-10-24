@@ -146,18 +146,13 @@ async function run() {
     const adminToken = String(login.body.token);
     assert.equal((await request('GET', `/schools/${schoolA}/info`, adminToken)).status, 200);
 
-    stage = 'additional admin without license prompt';
+    stage = 'reject additional admin for single-admin school';
     const secondPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
-    assert.equal((await request('POST', `/schools/${schoolA}/management/admins`, adminToken, {
-      fullName: 'İkinci Lisans Yöneticisi', phone: secondPhone, email: 'license-second@example.test',
-    })).status, 201);
-    assert.equal(sentEmails.length, 2);
-    assert(!sentEmails[1].html.includes('VR-ABCD-1234'));
-    const secondVerified = await request('POST', '/auth/school-admin/activation-verify', undefined, {
-      schoolCode: manualSchool.code, phone: secondPhone, licenseCode: '', code: emailCode(1),
+    const secondAdminAttempt = await request('POST', `/schools/${schoolA}/management/admins`, adminToken, {
+      fullName: 'Second License Admin', phone: secondPhone, email: 'license-second@example.test',
     });
-    assert.equal(secondVerified.status, 200);
-
+    assert.equal(secondAdminAttempt.status, 409);
+    assert.equal(sentEmails.length, 1);
     stage = 'license status enforcement and platform bypass';
     await db.query("UPDATE school_licenses SET status='suspended',updated_at=NOW() WHERE school_id=$1", [schoolA]);
     assert.equal((await request('GET', `/schools/${schoolA}/info`, adminToken)).status, 403);
