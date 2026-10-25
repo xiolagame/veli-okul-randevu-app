@@ -5,6 +5,7 @@ import { TeacherProfile, User } from '../types';
 import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { ManagementActions } from './ManagementActions';
+import { BulkStaffImport } from './BulkStaffImport';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { StaffDraft, validateStaffForm } from '../utils/staff-form';
@@ -21,6 +22,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
   const { currentSchool, refreshSchoolData } = useApp();
   const [search, setSearch] = useState('');
   const [showCreateTeacher, setShowCreateTeacher] = useState(false);
+  const [showBulkStaffImport, setShowBulkStaffImport] = useState(false);
   const [creatingTeacher, setCreatingTeacher] = useState(false);
   const [createTeacherError, setCreateTeacherError] = useState('');
   const [fullName, setFullName] = useState('');
@@ -89,7 +91,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         );
         return (
           <section key={type} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="flex flex-wrap items-center gap-2"><a href="/veli-randevu-personel-sablonu.xlsx" download="veli-randevu-personel-sablonu.xlsx" className="ui-button ui-button-secondary">Excel Şablonu İndir</a><Button variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}>Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />
@@ -125,6 +127,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
           </section>
         );
       })}
+      {showBulkStaffImport && currentSchool && (
+        <BulkStaffImport
+          schoolId={currentSchool.id}
+          existing={[...teachers, ...securityUsers]}
+          onClose={() => setShowBulkStaffImport(false)}
+          onChanged={refreshSchoolData}
+        />
+      )}
       {showCreateTeacher && <Dialog title="Yeni Personel Ekle" description="Aktivasyon kodu yalnızca kayıtlı e-posta adresine gönderilir." onClose={() => { if (!creatingTeacher) setShowCreateTeacher(false); }} dismissible={!creatingTeacher}>
         <form className="form-stack" noValidate onSubmit={submitTeacher}>
           <label className="field">Görevi<select aria-label="Görevi" value={staffRole} required aria-invalid={!!fieldErrors.role} aria-describedby="staff-error-role" onChange={(event) => { setStaffRole(event.target.value as StaffDraft['role']); setFieldErrors({}); }}><option value="">Görev seçin</option><option value="teacher">Öğretmen</option><option value="security">Güvenlik</option></select>{fieldError('role')}</label>
