@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Mail, MessageCircle, Phone, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
@@ -123,7 +123,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
 
   return <div className="form-stack" aria-labelledby="phone-centric-heading">
     <div className="whatsapp-auth-heading">
-      <span><MessageCircle size={20} aria-hidden="true" /></span>
+      <span className="whatsapp-login-logo"><img src="/whatsapp-login-icon.png" alt="" aria-hidden="true" /></span>
       <div>
         <h3 id="phone-centric-heading">Telefon Numaranızla Giriş Yapın</h3>
         <p>Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>

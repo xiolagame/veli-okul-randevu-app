@@ -290,6 +290,8 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 .whatsapp-auth-tabs button.active { background: #fff; color: var(--primary); box-shadow: 0 4px 14px #173e3214; }
 .whatsapp-auth-heading { display: flex; align-items: flex-start; gap: 12px; }
 .whatsapp-auth-heading > span { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 13px; background: #daf0de; color: #17613f; }
+.whatsapp-auth-heading > span.whatsapp-login-logo { overflow: hidden; background: #fff; }
+.whatsapp-auth-heading > span.whatsapp-login-logo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .whatsapp-auth-heading h3 { color: var(--ink); font-size: 18px; font-weight: 780; }
 .whatsapp-auth-heading p { margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .whatsapp-auth-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
