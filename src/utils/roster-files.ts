@@ -1,7 +1,7 @@
 import { MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, parseDelimited, rowsToDrafts } from './roster-import';
 
 export const ROSTER_TEMPLATE_FILENAME = 'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx';
-export const ROSTER_TEMPLATE_URL = '/' + ROSTER_TEMPLATE_FILENAME;
+export const ROSTER_TEMPLATE_URL = '/ogrenci-veli-bilgi-formu.xlsx';
 
 function checkArchive(buffer: ArrayBuffer) {
   const view = new DataView(buffer);
