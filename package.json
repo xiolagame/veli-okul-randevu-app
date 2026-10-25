@@ -45,6 +45,7 @@
     "test:support-conversations": "tsx scripts/test-support-conversations.ts",
     "test:platform-unseen": "tsx scripts/test-platform-unseen.ts",
     "test:platform-audit-clear": "tsx scripts/test-platform-audit-clear.ts",
+    "test:platform-phone-binding": "tsx scripts/test-platform-phone-binding.ts",
     "test:help-center": "node scripts/test-help-center.mjs",
     "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
     "test:mobile-platform": "tsx scripts/test-mobile-platform-foundation.ts",

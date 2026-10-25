@@ -12,6 +12,13 @@ import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
+import {
+  completePlatformPhoneBinding,
+  getPlatformPhoneBindingStatus,
+  PlatformPhoneBindingError,
+  startPlatformPhoneBinding,
+  verifyPlatformPhoneBindingEmail,
+} from './platform-phone-binding';
 
 function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
@@ -89,6 +96,71 @@ platformManagementRouter.get('/security', async (_req, res) => {
     authConfiguration: (process.env.JWT_SECRET?.trim().length || 0) >= 32 ? 'ready' : 'incomplete',
     codeSigning: (process.env.AUTH_CODE_SECRET?.trim().length || 0) >= 32 ? 'ready' : 'incomplete',
   });
+});
+
+platformManagementRouter.get('/phone-binding', async (req: AuthenticatedRequest, res) => {
+  try {
+    return res.json(await getPlatformPhoneBindingStatus(req.user!.id));
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Platform telefon durumu alınamadı.' });
+  }
+});
+
+platformManagementRouter.post('/phone-binding/start', async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await startPlatformPhoneBinding({
+      userId: req.user!.id,
+      phone: req.body?.phone,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.status(201).json({
+      success: true,
+      ...result,
+      message: 'Kayıtlı e-posta adresinize doğrulama kodu gönderildi.',
+    });
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Telefon bağlama işlemi başlatılamadı.' });
+  }
+});
+
+platformManagementRouter.post('/phone-binding/verify-email', async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await verifyPlatformPhoneBindingEmail({
+      userId: req.user!.id,
+      bindingId: req.body?.bindingId,
+      code: req.body?.code,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.json({
+      success: true,
+      ...result,
+      message: 'E-posta doğrulandı. Yeni telefonunuza WhatsApp kodu gönderildi.',
+    });
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'E-posta doğrulaması tamamlanamadı.' });
+  }
+});
+
+platformManagementRouter.post('/phone-binding/verify-whatsapp', async (req: AuthenticatedRequest, res) => {
+  try {
+    await completePlatformPhoneBinding({
+      userId: req.user!.id,
+      bindingId: req.body?.bindingId,
+      code: req.body?.code,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.json({
+      success: true,
+      sessionInvalidated: true,
+      message: 'Telefon doğrulandı ve Platform hesabınıza güvenle bağlandı.',
+    });
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Telefon bağlama işlemi tamamlanamadı.' });
+  }
 });
 
 platformManagementRouter.get('/audit-logs', async (_req, res) => {

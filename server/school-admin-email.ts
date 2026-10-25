@@ -98,3 +98,22 @@ export async function deliverPlatformLoginEmail(to: string, fullName: string, em
     return false;
   }
 }
+
+export async function deliverPlatformPhoneBindingEmail(to: string, fullName: string, emailCode: string): Promise<boolean> {
+  try {
+    const content = renderBrandedEmail({
+      subtitle: 'Platform Yönetimi — Telefon Bağlama',
+      greeting: fullName,
+      intro: [
+        'Platform hesabınıza yeni bir WhatsApp telefonu bağlama işlemi başlatıldı.',
+        'İşlemi siz başlattıysanız aşağıdaki e-posta kodunu Platform Yönetimi ekranına yazın. Ardından yeni telefon ayrıca WhatsApp koduyla doğrulanacaktır.',
+      ],
+      infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
+      notice: 'Kod 10 dakika geçerli ve tek kullanımlıdır. Bu kod telefon doğrulama kodundan farklıdır.',
+    });
+    await sendEmail({ to, subject: 'Veli Randevu — Platform Telefon Bağlama Doğrulaması', ...content });
+    return true;
+  } catch {
+    return false;
+  }
+}

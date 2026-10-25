@@ -103,6 +103,10 @@ export const api = {
   updateSchoolCode: (id: string, code: string) =>
     request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
+  getPlatformPhoneBindingStatus: () => request<{ phoneConfigured: boolean; emailConfigured: boolean }>('/api/platform/phone-binding'),
+  startPlatformPhoneBinding: (phone: string) => request<{ success: boolean; bindingId: string; expiresInSeconds: number; message: string }>('/api/platform/phone-binding/start', { method: 'POST', body: JSON.stringify({ phone }) }),
+  verifyPlatformPhoneBindingEmail: (bindingId: string, code: string) => request<{ success: boolean; expiresInSeconds: number; message: string }>('/api/platform/phone-binding/verify-email', { method: 'POST', body: JSON.stringify({ bindingId, code }) }),
+  completePlatformPhoneBinding: (bindingId: string, code: string) => request<{ success: boolean; sessionInvalidated: boolean; message: string }>('/api/platform/phone-binding/verify-whatsapp', { method: 'POST', body: JSON.stringify({ bindingId, code }) }),
   getPlatformAuditLogs: () => request<{ logs: { id: string; schoolName: string; actorName: string; action: string; details: string; timestamp: string }[] }>('/api/platform/audit-logs'),
   clearPlatformAuditLogs: () => request<{ success: boolean; deletedCount: number }>('/api/platform/audit-logs', { method: 'DELETE', body: JSON.stringify({ confirmation: 'TEMİZLE' }) }),
   getPlatformUnseenRequestCount: () => request<{ count: number }>('/api/platform/requests/unseen-count'),

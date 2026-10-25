@@ -10,6 +10,7 @@ import { uppercasePersonNameInput } from '../utils/person-name';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { PlatformRequestCenter } from './PlatformRequestCenter';
+import { PlatformPhoneBinding } from './PlatformPhoneBinding';
 
 type PlatformManagementSection = 'overview' | 'schools' | 'requests' | 'security' | 'audit';
 
@@ -113,7 +114,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
         <Button variant={school.disabledAt ? 'secondary' : 'danger'} disabled={busy} onClick={() => { setError(''); setTarget(school); }}>{school.disabledAt ? 'Yeniden etkinleştir' : 'Devre dışı bırak'}</Button>
         {school.disabledAt && <Button variant="danger" disabled={busy} onClick={() => { setError(''); setDeleteConfirmation(''); setDeleteTarget(school); }}><Trash2 size={17} />Okulu Kalıcı Olarak Sil</Button>}
       </article>)}</section>)}
-      {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
+      {section === 'security' && <><section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section><PlatformPhoneBinding /></>}
       {section === 'audit' && <section className="surface"><div className="section-heading"><h3>Platform İşlem Günlüğü</h3><Button variant="danger" disabled={busy} onClick={() => { setClearAuditConfirmation(''); setClearAuditOpen(true); }}>Platform Günlüğünü Temizle</Button></div>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName || 'Platform'}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
       {section === 'requests' && <PlatformRequestCenter />}
     </div>
