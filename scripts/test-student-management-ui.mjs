@@ -57,7 +57,8 @@ try{
   const [downloaded]=await Promise.all([page.waitForEvent('download'),download.click()]);
   assert.equal(downloaded.suggestedFilename(),'PERSONEL_BİLGİ_FORMU.xlsx');
   assert.deepEqual(fs.readFileSync(await downloaded.path()),fs.readFileSync('public/PERSONEL_BİLGİ_FORMU.xlsx'));
-  await page.getByRole('button',{name:'Toplu kayıt ekle',exact:true}).click();
+  await page.getByRole('button',{name:'Kayıt ekle',exact:true}).click();
+  await page.getByRole('tab',{name:'Toplu kayıt',exact:true}).click();
   const [studentDownload]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Excel Şablonunu İndir',exact:true}).click()]);
   assert.equal(studentDownload.suggestedFilename(),'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx');
   assert.deepEqual(fs.readFileSync(await studentDownload.path()),fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'));

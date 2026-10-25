@@ -125,8 +125,10 @@ try {
   await page.getByRole('button', { name: 'TEST STUDENT 0000 adlı öğrenciyi sil', exact: true }).click(); await drawer.waitFor();
   assert((await drawer.innerText()).includes('Veli hesapları ve geçmiş randevular korunacak')); await drawer.getByRole('button', { name: 'Vazgeç' }).click();
   const loadsBeforeImport=await page.evaluate(()=>window.opsTest.calls.filter(call=>call.name==='getManagedStudentRecords').length);
-  await page.getByRole('button',{name:'Toplu kayıt ekle',exact:true}).click();
-  for(const [label,value] of [['Öğrenci Ad Soyad','IMPORTED STUDENT'],['Öğrenci No','1001'],['Sınıf/Şube','7-D'],['Veli Ad Soyad','IMPORTED PARENT'],['Veli Telefonu','05551234567']]) await drawer.getByLabel(label,{exact:true}).fill(value);
+  await page.getByRole('button',{name:'Kayıt ekle',exact:true}).click();
+  await page.getByRole('tab',{name:'Toplu kayıt',exact:true}).click();
+  await drawer.getByRole('button',{name:'Elle giriş / Yapıştır',exact:true}).click();
+  for(const [label,value] of [['Öğrenci Ad Soyad','IMPORTED STUDENT'],['Öğrenci No','1001'],['Sınıf/Şube','7-D'],['Veli Ad Soyad','IMPORTED PARENT'],['Veli Telefonu','05551234567']]) await drawer.getByLabel(label+' — satır 1',{exact:true}).fill(value);
   await drawer.getByRole('button',{name:'Önizle',exact:true}).click();
   await drawer.getByRole('button',{name:'İçe Aktar',exact:true}).click();
   await drawer.getByText('1 kayıt eklendi; 0 mevcut kayıt atlandı.',{exact:true}).waitFor();

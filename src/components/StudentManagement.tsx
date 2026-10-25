@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Users, Trash2, Upload, ChevronDown } from 'lucide-react';
+import { Search, Users, Trash2, Plus, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 import { ALL_CLASSES, classSummaries, classTone, SchoolStudentRecord, studentRecordIssues } from '../utils/student-records';
 import { normalizeClassName } from '../utils/class-name';
@@ -68,7 +68,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport, r
     <span className="student-class-icon" aria-hidden="true"><Users size={18} /></span><strong>{className === ALL_CLASSES ? 'Tüm sınıflar' : label(className)}</strong><span className="student-class-count">{count} öğrenci</span>
   </button>;
   return <section className="management-section" aria-label="Öğrenci ve veli yönetimi">
-    <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{schoolName} · {records.length} öğrenci</p></div><Button onClick={onImport}><Upload size={18} aria-hidden="true" />Toplu kayıt ekle</Button></div>
+    <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{schoolName} · {records.length} öğrenci</p></div><Button onClick={onImport}><Plus size={18} aria-hidden="true" />Kayıt ekle</Button></div>
     {error && <Alert tone="danger">{error}</Alert>}
     {success && <Alert tone="success">{success}</Alert>}
     {!data && !error ? <Skeleton /> : <>

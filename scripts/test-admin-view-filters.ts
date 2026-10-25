@@ -151,7 +151,8 @@ async function run() {
 
   const bulkRosterSource = fs.readFileSync('src/components/BulkRosterImport.tsx', 'utf8');
   assert.match(bulkRosterSource, /Excel Şablonunu İndir/);
-  assert.match(bulkRosterSource, /<Button variant="secondary" disabled=\{busy\} onClick=\{async \(\) => \{/);
+  assert.match(bulkRosterSource, /const buffer = await rosterTemplate\(\)/);
+  assert.match(bulkRosterSource, /link\.download = ROSTER_TEMPLATE_FILENAME/);
   const authSource = fs.readFileSync('src/components/AuthView.tsx', 'utf8');
   assert.match(authSource, /Veli Hesabı Oluştur/);
   assert.match(authSource, /En az 5 karakter/);

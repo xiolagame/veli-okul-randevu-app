@@ -700,3 +700,61 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
   .school-dashboard .metric-top svg { display: none; }
   .dialog-panel.operations-drawer { width: 100%; max-width: 100%; border-radius: 0; }
 }
+
+/* Full-screen student registration center; existing dialog focus/back handling stays shared. */
+.dialog-backdrop:has(.record-center) { padding: 0; align-items: stretch; }
+.dialog-panel.record-center { display: flex; flex-direction: column; width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; border-radius: 0; overflow: hidden; }
+.record-center .dialog-heading { flex: 0 0 auto; padding: max(14px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left)); }
+.record-center .dialog-heading h2 { font-size: 21px; }
+.record-center .dialog-heading p { margin-top: 3px; font-size: 13px; }
+.record-center .dialog-body { flex: 1; min-height: 0; padding: 0; display: flex; flex-direction: column; }
+.record-center-tabs { display: flex; flex-shrink: 0; gap: 6px; padding: 0 20px; border-bottom: 1px solid var(--line); background: #f7faf8; }
+.record-center-tabs button { min-height: 44px; padding: 8px 16px; border-bottom: 3px solid transparent; font-weight: 600; color: var(--muted); }
+.record-center-tabs button[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+.record-center-tabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.record-center-content { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow: auto; padding: 18px 20px; }
+.record-center-content > :not(.record-table-scroll) { flex-shrink: 0; }
+.record-single-form { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px 22px; width: min(100%, 1000px); margin-inline: auto; }
+.record-single-form .field { min-width: 0; font-size: 14px; }
+.record-single-form input { min-height: 44px; padding: 10px 12px; font-size: 16px; }
+.record-field-error { color: #b42332; font-size: 13px; font-weight: 400; }
+.record-center-result { width: min(100%,1000px); margin-inline: auto; }
+.record-center-result h3 { font-size: 18px; }
+.record-center-result p { color: var(--muted); margin-top: 6px; }
+.record-center-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; flex-shrink: 0; padding: 12px max(20px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); border-top: 1px solid var(--line); background: #f7faf8; }
+.record-center-actions, .record-methods, .record-file-tools, .record-table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.record-center-actions .ui-button, .record-methods .ui-button, .record-file-tools .ui-button, .record-table-tools .ui-button { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+.record-file-tools .field-hint { flex-basis: 100%; }
+.record-import-help { color: var(--muted); font-size: 13px; }
+.record-import-help summary { cursor: pointer; padding-block: 4px; }
+.record-center-steps { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.record-center-steps [aria-current="step"] { color: var(--primary); font-weight: 700; }
+.record-table-scroll { flex: 1 1 150px; min-height: 140px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.record-import-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.record-import-table th { position: sticky; top: 0; background: #edf5ef; text-align: left; padding: 9px 10px; z-index: 1; }
+.record-import-table td { padding: 6px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; vertical-align: top; }
+.record-import-table input:not([type="checkbox"]) { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: white; font-size: 14px; }
+.record-import-table th:first-child:has(+ th:nth-child(6):last-child) { width: 48px; }
+.record-import-table input[type="checkbox"] { width: 20px; height: 20px; margin: 12px 6px; }
+.record-invalid { background: #fff1f2; color: #9f1239; }
+.record-table-tools { justify-content: space-between; font-size: 13px; }
+@media (max-width: 760px) {
+  .record-center .dialog-heading { padding-inline: 12px; }
+  .record-center .dialog-heading p { max-width: 30ch; }
+  .record-center-tabs { padding-inline: 12px; }
+  .record-center-content { padding: 12px; }
+  .record-single-form { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .record-center-footer { padding-inline: 12px; }
+  .record-center-footer > .field-hint { display: none; }
+  .record-center-actions { width: 100%; justify-content: flex-end; gap: 6px; }
+  .record-center-actions .ui-button { padding-inline: 10px; font-size: 13px; }
+  .record-import-table, .record-import-table tbody { display: block; }
+  .record-import-table thead { display: none; }
+  .record-import-table tr { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); padding: 8px; border-bottom: 1px solid var(--line); gap: 8px; }
+  .record-import-table td { display: block; padding: 0; border: 0; }
+  .record-import-table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
+  .record-import-table input:not([type="checkbox"]) { font-size: 16px; }
+  .record-import-table td:first-child, .record-import-table td:last-child { grid-column: 1 / -1; }
+  .record-file-tools .file-picker { max-width: 100%; }
+  .record-file-tools .file-picker-name { overflow-wrap: anywhere; white-space: normal; }
+}
