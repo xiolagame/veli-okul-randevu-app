@@ -6,10 +6,16 @@ import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phon
 import { Alert, Button, Skeleton } from './ui';
 
 type BindingStep = 'PHONE' | 'EMAIL' | 'WHATSAPP';
+type EmailSetupStep = 'DETAILS' | 'CODE';
 
 export function PlatformPhoneBinding() {
-  const [status, setStatus] = useState<{ phoneConfigured: boolean; emailConfigured: boolean } | null>(null);
+  const [status, setStatus] = useState<{ whatsappPhoneBound: boolean; emailConfigured: boolean; passwordReauthAvailable: boolean } | null>(null);
   const [step, setStep] = useState<BindingStep>('PHONE');
+  const [emailSetupStep, setEmailSetupStep] = useState<EmailSetupStep>('DETAILS');
+  const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [emailBindingId, setEmailBindingId] = useState('');
+  const [initialEmailCode, setInitialEmailCode] = useState('');
   const [phone, setPhone] = useState('');
   const [bindingId, setBindingId] = useState('');
   const [emailCode, setEmailCode] = useState('');
@@ -25,6 +31,32 @@ export function PlatformPhoneBinding() {
       .catch(() => { if (!cancelled) setError('Platform telefon durumu alınamadı.'); });
     return () => { cancelled = true; };
   }, []);
+
+  const submitEmailSetup = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      if (emailSetupStep === 'DETAILS') {
+        const result = await api.startPlatformEmailBinding(newEmail, currentPassword);
+        setCurrentPassword('');
+        setEmailBindingId(result.bindingId);
+        setMessage(result.message);
+        setEmailSetupStep('CODE');
+      } else {
+        if (!/^\d{6}$/.test(initialEmailCode)) throw new Error('E-postadaki 6 haneli kodu girin.');
+        const result = await api.completePlatformEmailBinding(emailBindingId, initialEmailCode);
+        setMessage(result.message);
+        await authSession.clearTokenAfterRemoteInvalidation();
+        window.location.assign('/');
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'E-posta tanımlama işlemi tamamlanamadı.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -65,15 +97,31 @@ export function PlatformPhoneBinding() {
         <h3 id="platform-phone-binding-heading">Platform WhatsApp telefonu</h3>
         <p>Telefon değişmeden önce kayıtlı e-posta ve yeni WhatsApp numarası ayrı kodlarla doğrulanır.</p>
       </div>
-      <span className={`status-badge tone-${status.phoneConfigured ? 'success' : 'warning'}`}>
-        {status.phoneConfigured ? 'Telefon doğrulanmış' : 'Telefon bağlanmalı'}
+      <span className={`status-badge tone-${status.whatsappPhoneBound ? 'success' : 'warning'}`}>
+        {status.whatsappPhoneBound ? 'WhatsApp telefonu bağlı' : 'WhatsApp telefonu bağlanmalı'}
       </span>
     </div>
-    {!status.emailConfigured && <Alert tone="danger">Platform hesabında kayıtlı e-posta bulunmadığı için telefon bağlanamaz.</Alert>}
     <Alert tone="info"><ShieldCheck size={18} aria-hidden="true" /> İşlem tamamlandığında mevcut oturum güvenlik amacıyla kapatılır. Yeni telefon kaynak koduna veya işlem günlüğüne açık olarak yazılmaz.</Alert>
     {error && <Alert tone="danger">{error}</Alert>}
     {message && <Alert tone="success">{message}</Alert>}
-    <form className="form-stack mt-4" onSubmit={submit}>
+    {!status.emailConfigured ? <form className="form-stack mt-4" onSubmit={submitEmailSetup}>
+      <Alert tone="warning">Telefon bağlamadan önce Platform hesabınıza doğrulanmış bir e-posta tanımlayın.</Alert>
+      {!status.passwordReauthAvailable && <Alert tone="danger">Bu hesapta yeniden kimlik doğrulama için mevcut parola bulunmuyor. Güvenli operasyonel kurtarma tamamlanmadan e-posta tanımlanamaz.</Alert>}
+      {emailSetupStep === 'DETAILS' && <>
+        <label className="field" htmlFor="platform-binding-new-email">Yeni e-posta adresi
+          <div className="field-icon"><Mail size={18} aria-hidden="true" /><input id="platform-binding-new-email" type="email" autoComplete="email" maxLength={150} value={newEmail} disabled={busy || !status.passwordReauthAvailable} onChange={(event) => setNewEmail(event.target.value)} required /></div>
+        </label>
+        <label className="field" htmlFor="platform-binding-current-password">Mevcut Platform parolası
+          <div className="field-icon"><KeyRound size={18} aria-hidden="true" /><input id="platform-binding-current-password" type="password" autoComplete="current-password" maxLength={128} value={currentPassword} disabled={busy || !status.passwordReauthAvailable} onChange={(event) => setCurrentPassword(event.target.value)} required /></div>
+        </label>
+      </>}
+      {emailSetupStep === 'CODE' && <label className="field" htmlFor="platform-binding-initial-email-code">Yeni e-postaya gelen kod
+        <div className="field-icon"><Mail size={18} aria-hidden="true" /><input id="platform-binding-initial-email-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={initialEmailCode} disabled={busy} onChange={(event) => setInitialEmailCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" required /></div>
+      </label>}
+      <Button type="submit" disabled={busy || !status.passwordReauthAvailable}>
+        {busy ? 'Doğrulanıyor…' : emailSetupStep === 'DETAILS' ? 'E-posta doğrulama kodu gönder' : 'E-postayı doğrula ve bağla'}
+      </Button>
+    </form> : <form className="form-stack mt-4" onSubmit={submit}>
       {step === 'PHONE' && <label className="field" htmlFor="platform-binding-phone">Bağlanacak WhatsApp telefonu
         <div className="field-icon"><Phone size={18} aria-hidden="true" /><input id="platform-binding-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={phone} disabled={busy || !status.emailConfigured} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} required /></div>
       </label>}
@@ -86,6 +134,6 @@ export function PlatformPhoneBinding() {
       <Button type="submit" disabled={busy || !status.emailConfigured}>
         {busy ? 'Doğrulanıyor…' : step === 'PHONE' ? <><KeyRound size={18} />E-posta doğrulamasını başlat</> : step === 'EMAIL' ? 'E-postayı doğrula' : 'Telefonu doğrula ve bağla'}
       </Button>
-    </form>
+    </form>}
   </section>;
 }

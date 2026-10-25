@@ -11,6 +11,9 @@ async function main() {
   assert.match(ui, /startPlatformPhoneBinding/);
   assert.match(ui, /verifyPlatformPhoneBindingEmail/);
   assert.match(ui, /completePlatformPhoneBinding/);
+  assert.match(ui, /startPlatformEmailBinding/);
+  assert.match(ui, /completePlatformEmailBinding/);
+  assert.match(ui, /WhatsApp telefonu bağlı/);
   assert.match(ui, /clearTokenAfterRemoteInvalidation/);
 
   const previous = {
@@ -42,6 +45,7 @@ async function main() {
   const oldPhone = `+905${suffix}`;
   const candidatePhone = `+905${String((Number(suffix) + 1) % 900000000 + 100000000).slice(0, 9)}`;
   const conflictPhone = `+905${String((Number(suffix) + 2) % 900000000 + 100000000).slice(0, 9)}`;
+  const candidateEmail = `platform-new-${suffix}@example.test`;
   process.env.WHATSAPP_PILOT_ALLOWED_PHONES = `${candidatePhone},${conflictPhone}`;
 
   const originalFetch = globalThis.fetch;
@@ -76,7 +80,6 @@ async function main() {
       phone: oldPhone,
       firstName: 'Platform',
       lastName: 'Yönetici',
-      email: 'platform-binding@example.test',
       isPhoneVerified: false,
     });
     const normal = await userRepository.create({
@@ -116,19 +119,83 @@ async function main() {
       });
       return { status: response.status, body: await response.json() as Record<string, unknown> };
     };
+    const db = await getDb();
 
-    assert.equal((await request('GET', '/platform/phone-binding', normalToken)).status, 403);
-    assert.equal((await request('GET', '/platform/phone-binding', platformToken)).status, 200);
-    assert.equal((await request('POST', '/platform/phone-binding/start', platformToken, { phone: conflictPhone })).status, 409);
+    const unauthorizedStatus = (await request('GET', '/platform/phone-binding', normalToken)).status;
+    assert.equal(unauthorizedStatus, 403);
+    const initialStatus = await request('GET', '/platform/phone-binding', platformToken);
+    assert.equal(initialStatus.status, 200);
+    assert.equal(initialStatus.body.emailConfigured, false);
+    assert.equal(initialStatus.body.passwordReauthAvailable, true);
+    assert.equal(initialStatus.body.whatsappPhoneBound, false);
+
+    assert.equal((await request('POST', '/platform/email-binding/start', normalToken, {
+      email: candidateEmail, password: 'Local-Platform-Password-42',
+    })).status, 403);
+    assert.equal((await request('POST', '/platform/email-binding/start', platformToken, {
+      email: candidateEmail, password: 'wrong-password',
+    })).status, 401);
+    assert.equal(emailDeliveries, 0);
+    assert.equal((await request('POST', '/platform/email-binding/start', platformToken, {
+      email: 'normal-binding@example.test', password: 'Local-Platform-Password-42',
+    })).status, 409);
     assert.equal(emailDeliveries, 0);
 
-    const started = await request('POST', '/platform/phone-binding/start', platformToken, { phone: candidatePhone });
+    const emailStarted = await request('POST', '/platform/email-binding/start', platformToken, {
+      email: candidateEmail, password: 'Local-Platform-Password-42',
+    });
+    assert.equal(emailStarted.status, 201);
+    assert.equal(typeof emailStarted.body.bindingId, 'string');
+    assert.match(emailCode, /^\d{6}$/);
+    const initialEmailCode = emailCode;
+    assert.equal(emailDeliveries, 1);
+    assert.equal((await db.query<{ email: string | null }>('SELECT email FROM users WHERE id=$1', [platform.id])).rows[0].email, null, 'email must not change before ownership verification');
+    const storedEmailBinding = (await db.query<{ code_hash: string }>(
+      'SELECT code_hash FROM platform_email_bindings WHERE id=$1', [emailStarted.body.bindingId],
+    )).rows[0];
+    assert.notEqual(storedEmailBinding.code_hash, initialEmailCode);
+
+    const wrongInitialEmailCode = initialEmailCode === '000000' ? '000001' : '000000';
+    assert.equal((await request('POST', '/platform/email-binding/verify', platformToken, {
+      bindingId: emailStarted.body.bindingId, code: wrongInitialEmailCode,
+    })).status, 401);
+    assert.equal((await db.query<{ attempts: number }>(
+      'SELECT attempts FROM platform_email_bindings WHERE id=$1', [emailStarted.body.bindingId],
+    )).rows[0].attempts, 1, 'failed initial email attempt must persist');
+    assert.equal((await db.query<{ email: string | null }>('SELECT email FROM users WHERE id=$1', [platform.id])).rows[0].email, null);
+
+    const emailCompleted = await request('POST', '/platform/email-binding/verify', platformToken, {
+      bindingId: emailStarted.body.bindingId, code: initialEmailCode,
+    });
+    assert.equal(emailCompleted.status, 200);
+    assert.equal(emailCompleted.body.sessionInvalidated, true);
+    const emailBoundUser = await userRepository.getById(platform.id);
+    assert(emailBoundUser);
+    assert.equal((await db.query<{ email: string | null }>('SELECT email FROM users WHERE id=$1', [platform.id])).rows[0].email, candidateEmail);
+    assert.equal(emailBoundUser.authVersion, storedBefore.authVersion + 1);
+    assert.equal((await request('GET', '/platform/capabilities', platformToken)).status, 401, 'email binding must invalidate the old token');
+    const postEmailToken = createToken({ userId: platform.id, phone: oldPhone, auth_version: emailBoundUser.authVersion });
+    assert.equal((await request('POST', '/platform/email-binding/verify', postEmailToken, {
+      bindingId: emailStarted.body.bindingId, code: initialEmailCode,
+    })).status, 401, 'initial email code must be single use');
+    const emailAudit = (await db.query<{ details: string }>(
+      "SELECT details FROM audit_logs WHERE actor_user_id=$1 AND action='platform.email_bound' ORDER BY created_at DESC LIMIT 1",
+      [platform.id],
+    )).rows[0];
+    assert(emailAudit);
+    assert.equal(emailAudit.details.includes(candidateEmail), false, 'audit must not contain the email');
+
+    emailDeliveries = 0;
+    assert.equal((await request('POST', '/platform/phone-binding/start', postEmailToken, { phone: conflictPhone })).status, 409);
+    assert.equal(emailDeliveries, 0);
+
+    emailCode = '';
+    const started = await request('POST', '/platform/phone-binding/start', postEmailToken, { phone: candidatePhone });
     assert.equal(started.status, 201);
     assert.equal(typeof started.body.bindingId, 'string');
     assert.match(emailCode, /^\d{6}$/);
     assert.equal(emailDeliveries, 1);
     assert.equal((await userRepository.getById(platform.id))?.phone, oldPhone, 'phone must not change before both factors');
-    const db = await getDb();
     const storedCodes = (await db.query<{ email_code_hash: string; whatsapp_code_hash: string | null }>(
       'SELECT email_code_hash,whatsapp_code_hash FROM platform_phone_bindings WHERE id=$1',
       [started.body.bindingId],
@@ -137,7 +204,7 @@ async function main() {
     assert.equal(storedCodes.whatsapp_code_hash, null);
 
     const wrongEmailCode = emailCode === '000000' ? '000001' : '000000';
-    assert.equal((await request('POST', '/platform/phone-binding/verify-email', platformToken, {
+    assert.equal((await request('POST', '/platform/phone-binding/verify-email', postEmailToken, {
       bindingId: started.body.bindingId, code: wrongEmailCode,
     })).status, 401);
     assert.equal((await db.query<{ email_attempts: number }>(
@@ -145,7 +212,7 @@ async function main() {
     )).rows[0].email_attempts, 1, 'failed email attempt must persist');
     assert.equal((await userRepository.getById(platform.id))?.phone, oldPhone);
 
-    const emailVerified = await request('POST', '/platform/phone-binding/verify-email', platformToken, {
+    const emailVerified = await request('POST', '/platform/phone-binding/verify-email', postEmailToken, {
       bindingId: started.body.bindingId, code: emailCode,
     });
     assert.equal(emailVerified.status, 200);
@@ -153,12 +220,12 @@ async function main() {
     assert.notEqual(whatsappCode, emailCode);
     assert.equal(whatsappDeliveries, 1);
     assert.equal((await userRepository.getById(platform.id))?.phone, oldPhone);
-    assert.equal((await request('POST', '/platform/phone-binding/verify-email', platformToken, {
+    assert.equal((await request('POST', '/platform/phone-binding/verify-email', postEmailToken, {
       bindingId: started.body.bindingId, code: emailCode,
     })).status, 401, 'email code must be single use');
 
     const wrongWhatsappCode = whatsappCode === '000000' ? '000001' : '000000';
-    assert.equal((await request('POST', '/platform/phone-binding/verify-whatsapp', platformToken, {
+    assert.equal((await request('POST', '/platform/phone-binding/verify-whatsapp', postEmailToken, {
       bindingId: started.body.bindingId, code: wrongWhatsappCode,
     })).status, 401);
     assert.equal((await db.query<{ whatsapp_attempts: number }>(
@@ -166,7 +233,7 @@ async function main() {
     )).rows[0].whatsapp_attempts, 1, 'failed WhatsApp attempt must persist');
     assert.equal((await userRepository.getById(platform.id))?.phone, oldPhone);
 
-    const completed = await request('POST', '/platform/phone-binding/verify-whatsapp', platformToken, {
+    const completed = await request('POST', '/platform/phone-binding/verify-whatsapp', postEmailToken, {
       bindingId: started.body.bindingId, code: whatsappCode,
     });
     assert.equal(completed.status, 200);
@@ -175,9 +242,14 @@ async function main() {
     assert(bound);
     assert.equal(bound.phone, candidatePhone);
     assert.equal(bound.isPhoneVerified, true);
-    assert.equal(bound.authVersion, storedBefore.authVersion + 1);
+    assert.equal(bound.authVersion, storedBefore.authVersion + 2);
     assert.equal(process.env.PLATFORM_ADMIN_USER_IDS, platform.id);
-    assert.equal((await request('GET', '/platform/capabilities', platformToken)).status, 401, 'old token must be invalidated');
+    assert.equal((await request('GET', '/platform/capabilities', postEmailToken)).status, 401, 'phone binding must invalidate the prior token');
+    const fullyBoundToken = createToken({ userId: platform.id, phone: candidatePhone, auth_version: bound.authVersion });
+    const completedStatus = await request('GET', '/platform/phone-binding', fullyBoundToken);
+    assert.equal(completedStatus.status, 200);
+    assert.equal(completedStatus.body.whatsappPhoneBound, true);
+    assert.equal(completedStatus.body.emailConfigured, true);
     const audit = (await db.query<{ details: string }>(
       "SELECT details FROM audit_logs WHERE actor_user_id=$1 AND action='platform.phone_bound' ORDER BY created_at DESC LIMIT 1",
       [platform.id],
@@ -219,7 +291,8 @@ async function main() {
     console.log('Platform Admin phone binding: email re-auth, WhatsApp ownership, atomic update, session invalidation, audit safety and repeated two-factor login PASS.');
 
     await db.query('DELETE FROM platform_phone_bindings WHERE user_id=$1', [platform.id]);
-    await db.query("DELETE FROM audit_logs WHERE actor_user_id=$1 AND action='platform.phone_bound'", [platform.id]);
+    await db.query('DELETE FROM platform_email_bindings WHERE user_id=$1', [platform.id]);
+    await db.query("DELETE FROM audit_logs WHERE actor_user_id=$1 AND action IN ('platform.phone_bound','platform.email_bound')", [platform.id]);
     await db.query('DELETE FROM identity_auth_attempts WHERE target_user_id=$1', [platform.id]);
     await db.query('DELETE FROM whatsapp_auth_challenges WHERE target_user_id=$1', [platform.id]);
     await db.query('DELETE FROM users WHERE id IN ($1,$2,$3)', [platform.id, normal.id, conflicting.id]);

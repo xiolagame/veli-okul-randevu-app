@@ -13,9 +13,11 @@ import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-c
 import { platformRequestRouter } from './platform-requests';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import {
+  completePlatformEmailBinding,
   completePlatformPhoneBinding,
   getPlatformPhoneBindingStatus,
   PlatformPhoneBindingError,
+  startPlatformEmailBinding,
   startPlatformPhoneBinding,
   verifyPlatformPhoneBindingEmail,
 } from './platform-phone-binding';
@@ -104,6 +106,44 @@ platformManagementRouter.get('/phone-binding', async (req: AuthenticatedRequest,
   } catch (error) {
     if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
     return res.status(500).json({ error: 'Platform telefon durumu alınamadı.' });
+  }
+});
+
+platformManagementRouter.post('/email-binding/start', async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await startPlatformEmailBinding({
+      userId: req.user!.id,
+      email: req.body?.email,
+      password: req.body?.password,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.status(201).json({
+      success: true,
+      ...result,
+      message: 'Yeni e-posta adresinize doğrulama kodu gönderildi.',
+    });
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'E-posta tanımlama işlemi başlatılamadı.' });
+  }
+});
+
+platformManagementRouter.post('/email-binding/verify', async (req: AuthenticatedRequest, res) => {
+  try {
+    await completePlatformEmailBinding({
+      userId: req.user!.id,
+      bindingId: req.body?.bindingId,
+      code: req.body?.code,
+      requesterKey: String(req.ip || 'unknown'),
+    });
+    return res.json({
+      success: true,
+      sessionInvalidated: true,
+      message: 'E-posta doğrulandı ve Platform hesabınıza güvenle bağlandı.',
+    });
+  } catch (error) {
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'E-posta tanımlama işlemi tamamlanamadı.' });
   }
 });
 

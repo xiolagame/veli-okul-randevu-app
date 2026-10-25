@@ -117,3 +117,22 @@ export async function deliverPlatformPhoneBindingEmail(to: string, fullName: str
     return false;
   }
 }
+
+export async function deliverPlatformInitialEmailVerification(to: string, fullName: string, emailCode: string): Promise<boolean> {
+  try {
+    const content = renderBrandedEmail({
+      subtitle: 'Platform Yönetimi — İlk E-posta Doğrulaması',
+      greeting: fullName,
+      intro: [
+        'Platform hesabınız için ilk e-posta tanımlama işlemi başlatıldı.',
+        'E-posta adresinin size ait olduğunu doğrulamak için aşağıdaki tek kullanımlık kodu Platform Yönetimi ekranına yazın.',
+      ],
+      infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
+      notice: 'Kod 10 dakika geçerli ve tek kullanımlıdır. İşlemi siz başlatmadıysanız kodu paylaşmayın.',
+    });
+    await sendEmail({ to, subject: 'Veli Randevu — Platform E-posta Tanımlama Doğrulaması', ...content });
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -103,7 +103,9 @@ export const api = {
   updateSchoolCode: (id: string, code: string) =>
     request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
-  getPlatformPhoneBindingStatus: () => request<{ phoneConfigured: boolean; emailConfigured: boolean }>('/api/platform/phone-binding'),
+  getPlatformPhoneBindingStatus: () => request<{ whatsappPhoneBound: boolean; emailConfigured: boolean; passwordReauthAvailable: boolean }>('/api/platform/phone-binding'),
+  startPlatformEmailBinding: (email: string, password: string) => request<{ success: boolean; bindingId: string; expiresInSeconds: number; message: string }>('/api/platform/email-binding/start', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  completePlatformEmailBinding: (bindingId: string, code: string) => request<{ success: boolean; sessionInvalidated: boolean; message: string }>('/api/platform/email-binding/verify', { method: 'POST', body: JSON.stringify({ bindingId, code }) }),
   startPlatformPhoneBinding: (phone: string) => request<{ success: boolean; bindingId: string; expiresInSeconds: number; message: string }>('/api/platform/phone-binding/start', { method: 'POST', body: JSON.stringify({ phone }) }),
   verifyPlatformPhoneBindingEmail: (bindingId: string, code: string) => request<{ success: boolean; expiresInSeconds: number; message: string }>('/api/platform/phone-binding/verify-email', { method: 'POST', body: JSON.stringify({ bindingId, code }) }),
   completePlatformPhoneBinding: (bindingId: string, code: string) => request<{ success: boolean; sessionInvalidated: boolean; message: string }>('/api/platform/phone-binding/verify-whatsapp', { method: 'POST', body: JSON.stringify({ bindingId, code }) }),
