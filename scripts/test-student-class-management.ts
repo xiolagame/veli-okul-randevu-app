@@ -61,6 +61,7 @@ async function main() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
   async function request(method: string, route: string, token: string, body?: object) {
+    if (body && /class-removal\/(request-code|complete)$/.test(route)) { const original=body as Record<string,unknown>; body={deletionPolicy:'PERMANENT_CLASS_V1',confirmation:original.className,...original}; }
     const response = await fetch(base + route, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
@@ -72,8 +73,10 @@ async function main() {
   }
   async function resetRate(actorId = admin.id) {
     await db.query("UPDATE auth_rate_limits SET window_started_at=NOW()-interval '1 hour' WHERE scope_hash=$1", [hashSetupToken('class-delete-rate:' + actorId)]);
+    await db.query("UPDATE invitations SET created_at=NOW()-INTERVAL '61 seconds' WHERE purpose='CLASS_BULK_DELETE'");
   }
   async function challenge(cls: string, token = admin.token, route = prefix) {
+    await db.query("UPDATE invitations SET created_at=NOW()-INTERVAL '61 seconds' WHERE purpose='CLASS_BULK_DELETE'");
     const preview = await request('POST', route + '/class-removal/preview', token, { className: cls }); assert.equal(preview.status, 200, stage + ': preview');
     const start = await request('POST', route + '/class-removal/request-code', token, { className: cls, snapshot: preview.body.snapshot }); assert.equal(start.status, 200, stage + ': request code');
     return { challengeId: start.body.challengeId, className: cls, code: deliveredCode, confirmation: cls };
@@ -146,6 +149,8 @@ async function main() {
     await db.query("UPDATE invitations SET expires_at=NOW()-interval '1 second' WHERE id=$1", [expired.challengeId]);
     assert.equal((await request('POST', prefix + '/class-removal/complete', admin.token, expired)).status, 400);
     const preview = await request('POST', prefix + '/class-removal/preview', admin.token, { className: '5-A' });
+    assert.equal((await request('POST',prefix+'/class-removal/request-code',admin.token,{className:'5-A',snapshot:preview.body.snapshot,deletionPolicy:undefined})).status,400,'old preservation UI cannot authorize permanent deletion');
+    await db.query("UPDATE invitations SET created_at=NOW()-INTERVAL '61 seconds' WHERE purpose='CLASS_BULK_DELETE'");
     assert.equal((await request('POST', prefix + '/class-removal/request-code', admin.token, { className: '5-A', snapshot: preview.body.snapshot })).status, 200, 'third request in the window remains permitted');
     assert.equal((await request('POST', prefix + '/class-removal/request-code', admin.token, { className: '5-A', snapshot: preview.body.snapshot })).status, 429);
     await resetRate();
@@ -153,7 +158,14 @@ async function main() {
     const revoked = await challenge('5-A');
     await db.query('UPDATE invitations SET revoked_at=NOW(),is_active=FALSE WHERE id=$1', [revoked.challengeId]);
     assert.equal((await request('POST', prefix + '/class-removal/complete', admin.token, revoked)).status, 400);
+    stage = 'old-policy OTP cannot authorize permanent deletion';
+    await resetRate();
+    const oldPolicy = await challenge('5-A');
+    await db.query("UPDATE invitations SET description=(description::jsonb-'policy')::text WHERE id=$1", [oldPolicy.challengeId]);
+    assert.equal((await request('POST',prefix+'/class-removal/complete',admin.token,oldPolicy)).status,400);
+    assert.equal((await db.query("SELECT id FROM students WHERE id='student-a'")).rows.length,1);
     stage = 'delivery failure';
+    await resetRate();
     failDelivery = true;
     const failedDelivery = await request('POST', prefix + '/class-removal/request-code', admin.token, { className: '5-A', snapshot: preview.body.snapshot });
     failDelivery = false; assert.equal(failedDelivery.status, 503);
@@ -178,9 +190,7 @@ async function main() {
     assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parent.id])).rows.length, 1);
     assert.equal((await db.query("SELECT id FROM students WHERE id IN ('student-other','student-foreign')")).rows.length, 2);
     assert.equal((await db.query("SELECT id FROM student_parent_relations WHERE school_id='school-b' AND parent_user_id=$1", [parent.id])).rows.length, 1);
-    const history = (await db.query("SELECT status,parent_id,student_id,student_name FROM appointments WHERE id='history'")).rows[0];
-    assert.equal(history.status, 'completed'); assert.equal(history.parent_id, parent.id); assert.equal(history.student_id, null); assert.equal(history.student_name, 'student-a');
-    assert.equal((await db.query("SELECT status FROM appointments WHERE id='future'")).rows[0].status, 'cancelled');
+    assert.equal((await db.query("SELECT id FROM appointments WHERE id IN ('history','future')")).rows.length, 0, 'confirmed permanent class policy deletes both history and future appointments');
     const remaining = (await request('GET', prefix, admin.token)).body.records as SchoolStudentRecord[];
     assert(!classSummaries(remaining).some((c) => c.className === '5-A'));
     stage = 'platform authority';
@@ -194,14 +204,82 @@ async function main() {
     assert.equal((await request('POST', platformPrefix + '/class-removal/complete', platform.token, platformChallenge)).status, 200);
     assert((await db.query("SELECT id FROM audit_logs WHERE school_id='school-a' AND action='class.bulk_delete' AND details LIKE '%COMPLETED%'")).rows.length >= 2);
     stage = 'single deletion';
+    assert.equal(await membershipRepository.getActiveMembership(parent.id,'school-a'),null,'empty-school parent membership is removed while the shared global user survives');
+    await membershipRepository.createOrActivate({schoolId:'school-a',userId:parent.id,role:'parent'});
     await addStudent('single-student', '7-A');
     assert.equal((await request('DELETE', '/schools/school-a/management/students/single-student/removal', admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parent.id])).rows.length, 1);
     assert.equal((await db.query("SELECT id FROM students WHERE id='student-foreign'")).rows.length, 1);
+    stage = 'parent relationship matrix and exact notification cleanup';
+    await resetRate();
+    const only = await user('parent'), same = await user('parent'), shared = await user('parent'), triple = await user('parent'), foreign = await user('parent'), staffParent = await user('parent');
+    await membershipRepository.createOrActivate({schoolId:'school-b',userId:foreign.id,role:'parent'});
+    await membershipRepository.createOrActivate({schoolId:'school-a',userId:staffParent.id,role:'security'});
+    const child = async (id:string, owner:typeof parent, cls='8-Z', school='school-a') => {
+      await db.query('INSERT INTO students(id,school_id,name,class_name,student_number) VALUES($1::text,$2,$1::text,$3,$1::text)',[id,school,cls]);
+      await db.query('INSERT INTO student_parent_relations(school_id,student_id,parent_user_id) VALUES($1,$2,$3)',[school,id,owner.id]);
+      await db.query("INSERT INTO school_roster(id,school_id,student_name,class_name,student_number,parent_name,parent_phone,is_claimed) VALUES($1,$2,$3::text,$4,$3::text,'TEST PARENT',$5,TRUE)",['roster-'+id,school,id,cls,owner.phone]);
+    };
+    await child('only-child',only); await child('same-one',same); await child('same-two',same);
+    await child('shared-deleted',shared); await child('shared-retained',shared,'6-Z');
+    await child('triple-one',triple); await child('triple-two',triple); await child('triple-retained',triple,'7-Z');
+    await child('foreign-deleted',foreign); await child('foreign-retained',foreign,'8-Z','school-b'); await child('staff-child',staffParent);
+    const qrTokens = new Map<string,string>();
+    for(const [id,student,owner,cls,date,status] of [['deleted-past','only-child',only,'8-Z','2000-01-01','completed'],['deleted-future','shared-deleted',shared,'8-Z','2999-01-01','booked'],['kept-meeting','shared-retained',shared,'6-Z','2999-01-02','booked']] as const){
+      const qrToken='VELIQR1:'+crypto.randomBytes(24).toString('base64url'); qrTokens.set(id,qrToken);
+      await db.query(`INSERT INTO appointments(id,school_id,teacher_id,teacher_name,teacher_branch,parent_id,parent_name,parent_phone,student_id,student_name,class_name,date,start_time,end_time,status,entry_code,qr_token)
+        VALUES($1,'school-a','profile-a','TEST','Test',$2,'TEST',$3,$4::text,$4::text,$5,$6,'12:00','12:15',$7,'123456',$8)`,[id,owner.id,owner.phone,student,cls,date,status,qrToken]);
+      await db.query("INSERT INTO notifications(id,school_id,user_id,title,message,date,appointment_id) VALUES($1,'school-a',$2,'TEST','TEST','2000-01-01',$3)",['n-'+id,owner.id,id]);
+    }
+    await db.query("INSERT INTO mobile_push_devices(id,user_id,installation_id,provider_target,target_hash,platform,auth_version,provider,target_kind,app_id) VALUES('family-device',$1,$2,'SYNTHETIC','synthetic-family-target','ANDROID',0,'FCM','REGISTRATION_TOKEN','com.velirandevu.app')",[only.id,crypto.randomUUID()]);
+    await db.query("INSERT INTO notification_deliveries(id,notification_id,device_id,channel,event_type,status) VALUES('family-delivery','n-deleted-past','family-device','FCM','APPOINTMENT_APPROVED','PENDING')");
+    stage='family preview counts';
+    const familyPreview=await request('POST',prefix+'/class-removal/preview',admin.token,{className:'8-Z'});assert.equal(familyPreview.status,200);
+    assert.equal(familyPreview.body.studentCount,8);assert.equal(familyPreview.body.relationCount,8);assert.equal(familyPreview.body.preservedAccounts,4);assert.equal(familyPreview.body.removableAccounts,2);assert.equal(familyPreview.body.appointmentCount,2);assert.equal(familyPreview.body.qrCount,2);
+    stage='family challenge and cooldown';
+    const familyChallenge=await challenge('8-Z');
+    // No resend before 60 seconds; a failed request must not revoke the usable challenge.
+    assert.equal((await request('POST',prefix+'/class-removal/request-code',admin.token,{className:'8-Z',snapshot:familyPreview.body.snapshot})).status,429);
+    assert.equal((await db.query('SELECT revoked_at FROM invitations WHERE id=$1',[familyChallenge.challengeId])).rows[0].revoked_at,null);
+    // An unrelated FK error must roll every part of the deletion back.
+    stage='family FK rollback';
+    await db.query('CREATE TABLE local_student_hold(student_id TEXT REFERENCES students(id) ON DELETE RESTRICT)');
+    await db.query("INSERT INTO local_student_hold(student_id) VALUES('only-child')");
+    assert.equal((await request('POST',prefix+'/class-removal/complete',admin.token,familyChallenge)).status,500);
+    assert.equal((await db.query("SELECT id FROM appointments WHERE id IN ('deleted-past','deleted-future')")).rows.length,2);
+    assert.equal((await db.query('SELECT id FROM users WHERE id=$1',[only.id])).rows.length,1);
+    await db.query('DROP TABLE local_student_hold');
+    stage='family deletion and global accounts';
+    const familyResult=await request('POST',prefix+'/class-removal/complete',admin.token,familyChallenge);assert.equal(familyResult.status,200);
+    assert.equal(familyResult.body.removedCount,8);assert.equal(familyResult.body.removedAccounts,2);assert.equal(familyResult.body.preservedAccounts,4);
+    stage='family deletion checks';
+    for(const owner of [only,same])assert.equal(await userRepository.getById(owner.id),null);
+    for(const owner of [shared,triple,foreign,staffParent])assert(await userRepository.getById(owner.id));
+    assert.equal((await request('GET','/user/me',only.token)).status,401);
+    assert.equal((await request('GET','/user/me',shared.token)).status,200);
+    stage='retained parent login, deleted-child booking and revoked QR';
+    const parentStart=await request('POST','/auth/whatsapp/request-code','',{purpose:'login',phone:shared.phone});assert.equal(parentStart.status,200);
+    const parentLogin=await request('POST','/auth/whatsapp/verify-code','',{phone:shared.phone,challengeId:parentStart.body.challengeId,code:deliveredCode});assert.equal(parentLogin.status,200);
+    assert.equal((await request('POST','/schools/school-a/appointments',shared.token,{teacherId:'profile-a',studentName:'shared-deleted',className:'8-Z',date:'2999-01-03',startTime:'13:00',endTime:'13:15'})).status,403);
+    const qrCheck=await request('POST','/schools/school-a/security/qr/verify',security.token,{qrToken:qrTokens.get('deleted-future')});assert.equal(qrCheck.status,200);assert.equal(qrCheck.body.allowed,false);assert.equal(qrCheck.body.decision,'INVALID');
+    assert.equal((await db.query("SELECT id FROM appointments WHERE id IN ('deleted-past','deleted-future')")).rows.length,0);
+    assert.equal((await db.query("SELECT id FROM notifications WHERE id IN ('n-deleted-past','n-deleted-future')")).rows.length,0);
+    assert.equal((await db.query("SELECT id FROM notification_deliveries WHERE id='family-delivery'")).rows.length,0);
+    assert.equal((await db.query("SELECT qr_token FROM appointments WHERE id='kept-meeting'")).rows[0].qr_token,qrTokens.get('kept-meeting'));
+    assert.equal((await db.query("SELECT id FROM students WHERE id IN ('shared-retained','triple-retained','foreign-retained')")).rows.length,3);
+    assert.equal((await db.query("SELECT id FROM students WHERE school_id='school-a' AND class_name='8-Z'")).rows.length,0);
+    assert.equal((await db.query("SELECT id FROM school_roster WHERE school_id='school-a' AND class_name='8-Z'")).rows.length,0);
+    const metadata=(await db.query("SELECT details FROM audit_logs WHERE action='class.permanently_deleted' ORDER BY created_at DESC LIMIT 1")).rows[0].details;
+    for(const value of [only.phone,shared.phone,'only-child','same-one'])assert(!metadata.includes(value),'audit must not archive deleted identities');
+    stage='ambiguous legacy appointment blocks deletion';
+    await child('legacy-child',shared,'4-Z');
+    await db.query("INSERT INTO appointments(id,school_id,teacher_id,teacher_name,teacher_branch,parent_id,parent_name,parent_phone,student_name,class_name,date,start_time,end_time,status,entry_code) VALUES('legacy-meeting','school-a','profile-a','TEST','TEST',$1,'TEST',$2,'legacy-child','4-Z','2000-01-01','11:00','11:15','completed','123456')",[shared.id,shared.phone]);
+    assert.equal((await request('POST',prefix+'/class-removal/preview',admin.token,{className:'4-Z'})).status,409);
+
     const thirty = Array.from({ length: 30 }, (_, i) => ({ id: String(i), kind: 'student' as const, name: 'TEST', className: `${5 + Math.floor(i / 10)}-${String.fromCharCode(65 + i % 10)}`, studentNumber: '001', birthDate: '', parents: [] }));
     assert.equal(classSummaries(thirty).length, 30); assert.equal(classTone('5-A'), 'green'); assert.equal(classTone('8-C'), 'red');
     assert(deliveries > 0);
-    console.log('Student/class management: tenant/role guards, dynamic counts, actor-scoped OTP, attempts/expiry/revocation, snapshot drift, rate/delivery errors, rollback, concurrency and parent/history preservation PASS.');
+    console.log('Student/class management: tenant/role guards, dynamic counts, actor-scoped OTP, attempts/expiry/revocation, snapshot drift, rate/delivery errors, rollback, concurrency and shared parent preservation and permanent appointment deletion PASS.');
   } finally {
     globalThis.fetch = originalFetch;
     await new Promise<void>((resolve) => server.close(() => resolve()));

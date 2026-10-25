@@ -24,7 +24,7 @@ const result = await build({stdin:{contents:fixture,resolveDir:root,loader:'tsx'
     b.onLoad({filter:/.*/,namespace:'fixture'},args=>({loader:'js',contents:args.path==='context'?`export const useApp=()=>({currentSchool:{id:'a'},refreshSchoolData:async()=>{}});`:`
       const classes=[5,6,7,8].flatMap((grade)=>Array.from({length:grade<7?8:7},(_,i)=>grade+'-'+String.fromCharCode(65+i)));
       const records=Array.from({length:60},(_,i)=>({id:String(i),kind:'student',name:'TEST STUDENT '+i,className:classes[i%30],studentNumber:String(i).padStart(3,'0'),birthDate:'',parents:[]}));
-      export const api={getManagedStudentRecords:async(school)=>({records:school==='a'?records:[],classBulkDeleteEnabled:true}),previewClassRemoval:async(school,className)=>({className,studentCount:2,snapshot:'test-snapshot'}),requestClassRemovalCode:async()=>({challengeId:'test-challenge'}),completeClassRemoval:async()=>{}};` }));
+      let removedClass='';export const api={getManagedStudentRecords:async(school)=>({records:school==='a'?records.filter(r=>r.className!==removedClass):[],classBulkDeleteEnabled:true}),previewClassRemoval:async(school,className)=>({className,studentCount:2,relationCount:0,preservedAccounts:0,removableAccounts:0,appointmentCount:0,qrCount:0,snapshot:'test-snapshot'}),requestClassRemovalCode:async()=>({challengeId:'test-challenge'}),completeClassRemoval:async(school,className)=>{removedClass=className;return{success:true,removedCount:2,preservedAccounts:0,removedAccounts:0,removedAppointments:0}}};` }));
   }
 }]});
 const cssFiles = fs.readdirSync('dist/client/assets').filter((name)=>name.endsWith('.css'));
@@ -32,7 +32,7 @@ assert(cssFiles.length, 'Run npm run build before UI tests');
 const css = cssFiles.map((name)=>fs.readFileSync(path.join('dist/client/assets',name),'utf8')).join('\n');
 const server=http.createServer((req,res)=>{
   const template=decodeURIComponent(req.url||'');
-  if(['/PERSONEL_BİLGİ_FORMU.xlsx','/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'].includes(template)){
+  if(['/PERSONEL_BİLGİ_FORMU.xlsx','/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx','/ogrenci-veli-bilgi-formu.xlsx'].includes(template)){
     res.setHeader('content-type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     return res.end(fs.readFileSync('public'+template));
   }
@@ -70,18 +70,24 @@ try{
   await page.getByRole('dialog').waitFor(); await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'+ Personel Ekle',exact:true}).click();
   await page.getByRole('dialog').waitFor(); await page.keyboard.press('Escape');
-  assert.equal(await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).count(),0);
   await page.getByRole('button',{name:'Sonraki',exact:true}).click();
   assert.equal(await page.locator('.student-record-row').count(),25);
   await page.locator('.student-class-grid .student-class-card').first().click();
   assert.equal(await page.locator('.student-record-row').count(),2);
-  assert.equal(await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).count(),1);
-  await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).click();
-  await page.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder'}).click();
-  await page.getByLabel('WhatsApp doğrulama kodu').fill('123456');
+  assert.equal(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).count(),1);
+  await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).click();
   await page.getByLabel('Onaylamak için 5/A yazın').fill('6/A');
-  assert(await page.getByRole('button',{name:'Doğrula ve sınıf kayıtlarını kaldır'}).isDisabled());
-  await page.keyboard.press('Escape');
+  assert(await page.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder'}).isDisabled());
+  await page.getByLabel('Onaylamak için 5/A yazın').fill('5/A');
+  await page.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder'}).click();
+  await page.getByLabel('WhatsApp doğrulama kodu').fill('12345');
+  assert(await page.getByRole('button',{name:'Doğrula ve kalıcı olarak sil'}).isDisabled());
+  await page.getByLabel('WhatsApp doğrulama kodu').fill('123456');
+  await page.getByRole('button',{name:'Doğrula ve kalıcı olarak sil'}).click();
+  await page.getByText('Sınıf ve öğrencileri başarıyla kalıcı olarak silindi.',{exact:false}).waitFor();
+  assert.equal(await page.locator('.student-class-grid .student-class-card').count(),29);
+  assert.equal(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).count(),0);
   await page.locator('.student-class-all button').click();
   for(const width of [375,390,430,768,1440]){
     await page.setViewportSize({width,height:900});

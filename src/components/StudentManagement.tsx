@@ -18,7 +18,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport, r
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [remove, setRemove] = useState<SchoolStudentRecord | null>(null);
-  const [preview, setPreview] = useState<{ className: string; studentCount: number; snapshot: string } | null>(null);
+  const [preview, setPreview] = useState<{ className: string; studentCount: number; relationCount: number; preservedAccounts: number; removableAccounts: number; appointmentCount: number; qrCount: number; snapshot: string } | null>(null);
   const [challengeId, setChallengeId] = useState('');
   const [code, setCode] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -95,7 +95,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport, r
       {pages > 1 && <nav className="flex flex-wrap gap-3 items-center" aria-label="Öğrenci sayfaları"><Button variant="secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Önceki</Button><span>{currentPage + 1} / {pages}</span><Button variant="secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>Sonraki</Button></nav>}
       {data?.enabled && selected !== ALL_CLASSES && classes.some((c) => c.className === selected) && <Button variant="danger" onClick={() => void act(async () => {
         setPreview(await api.previewClassRemoval(schoolId, selected)); setChallengeId(''); setCode(''); setConfirmation('');
-      })} disabled={busy}><Trash2 size={18} aria-hidden="true" />Toplu Sınıf Sil</Button>}
+      })} disabled={busy}><Trash2 size={18} aria-hidden="true" />Sınıfı ve Öğrencileri Sil</Button>}
     </>}
     {remove && <Dialog title="Öğrenciyi okuldan kaldır" onClose={() => { if (!busy) setRemove(null); }} dismissible={!busy}>
       <div className="form-stack"><Alert tone="warning">{remove.name} · {label(remove.className)} okul kaydı ve veli-öğrenci eşleşmeleri kaldırılacak. Veli hesapları ve geçmiş randevular korunacak. Gelecek randevular iptal edilecek.</Alert>{error && <Alert tone="danger">{error}</Alert>}
@@ -104,18 +104,19 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport, r
           setRemove(null); await refresh(); setSuccess('Öğrenci okuldan kaldırıldı. Veli hesapları ve geçmiş randevular korundu.');
         })}>Kaldırmayı onayla</Button></div></div>
     </Dialog>}
-    {preview && <Dialog title={`${label(preview.className)} — Toplu sınıf silme`} onClose={() => { if (!busy) setPreview(null); }} dismissible={!busy}>
-      <div className="form-stack"><p className="font-bold">{schoolName}</p><Alert tone="warning">{label(preview.className)} sınıfındaki {preview.studentCount} öğrencinin okul kayıtları ve veli-öğrenci eşleşmeleri kaldırılacak. Velilerin kullanıcı hesapları ve geçmiş randevular korunacak. Gelecek randevular iptal edilecek. Bu işlem geri alınamayabilir.</Alert>
+    {preview && <Dialog title={`${label(preview.className)} — Kalıcı sınıf silme`} onClose={() => { if (!busy) setPreview(null); }} dismissible={!busy}>
+      <div className="form-stack"><p className="font-bold">{schoolName}</p><Alert tone="warning">Bu işlem sınıfı ve öğrencilerini kalıcı olarak silecektir. Başka sınıfta öğrencisi bulunan velilerin hesapları korunacaktır. İşlem geri alınamaz.</Alert>
         {error && <Alert tone="danger">{error}</Alert>}
-        {!challengeId ? <Button variant="danger" disabled={busy} onClick={() => void act(async () => {
-          const result = await api.requestClassRemovalCode(schoolId, preview.className, preview.snapshot); setChallengeId(result.challengeId);
+        <dl className="record-detail"><div><dt>Sınıf / öğrenci</dt><dd>{label(preview.className)} · {preview.studentCount}</dd></div><div><dt>Veli–öğrenci bağlantısı</dt><dd>{preview.relationCount}</dd></div><div><dt>Korunacak veli hesabı</dt><dd>{preview.preservedAccounts}</dd></div><div><dt>Silinebilecek veli hesabı</dt><dd>{preview.removableAccounts}</dd></div><div><dt>Silinecek randevu / QR</dt><dd>{preview.appointmentCount} / {preview.qrCount}</dd></div></dl>
+        <label className="field">Onaylamak için {label(preview.className)} yazın<input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" disabled={busy || !!challengeId} /></label>
+        {!challengeId ? <Button variant="danger" disabled={busy || normalizeClassName(confirmation) !== preview.className} onClick={() => void act(async () => {
+          const result = await api.requestClassRemovalCode(schoolId, preview.className, preview.snapshot, confirmation); setChallengeId(result.challengeId);
         })}>Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder</Button> : <>
           <label className="field">WhatsApp doğrulama kodu<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
-          <label className="field">Onaylamak için {label(preview.className)} yazın<input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>
           <Button variant="danger" disabled={busy || !/^\d{6}$/.test(code) || normalizeClassName(confirmation) !== preview.className} onClick={() => void act(async () => {
-            await api.completeClassRemoval(schoolId, preview.className, challengeId, code, normalizeClassName(confirmation)!);
-            setPreview(null); setSelected(ALL_CLASSES); await refresh(); setSuccess('Sınıf kayıtları kaldırıldı. Veli hesapları ve geçmiş randevular korundu.');
-          })}>Doğrula ve sınıf kayıtlarını kaldır</Button>
+            const result = await api.completeClassRemoval(schoolId, preview.className, challengeId, code, normalizeClassName(confirmation)!);
+            setPreview(null); setSelected(ALL_CLASSES); await refresh(); setSuccess('Sınıf ve öğrencileri başarıyla kalıcı olarak silindi. Sınıf: ' + label(preview.className) + ' · Silinen öğrenci: ' + result.removedCount + ' · Korunan veli hesabı: ' + result.preservedAccounts + ' · Kaldırılan veli hesabı: ' + result.removedAccounts);
+          })}>Doğrula ve kalıcı olarak sil</Button>
         </>}
       </div>
     </Dialog>}
