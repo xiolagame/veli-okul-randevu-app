@@ -30,6 +30,7 @@ async function run() {
   const unknownPhone = '+905' + crypto.randomInt(100000000, 999999999);
   process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [managerPhone, unknownPhone].join(',');
   const whatsappCodes: string[] = [], emailCodes: string[] = [];
+  const emailMessages: { subject: string; html: string; text?: string }[] = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = String(input);
@@ -39,9 +40,9 @@ async function run() {
       return new Response(JSON.stringify({ messages: [{ id: 'synthetic-message' }] }), { status: 200 });
     }
     if (url === 'https://api.resend.com/emails') {
-      const payload = JSON.parse(String(init?.body)) as { html: string };
+      const payload = JSON.parse(String(init?.body)) as { subject: string; html: string; text?: string };
       const code = payload.html.match(/>(\d{6})</)?.[1];
-      assert(code, 'local email must contain a code'); emailCodes.push(code);
+      assert(code, 'local email must contain a code'); emailCodes.push(code); emailMessages.push(payload);
       return new Response(JSON.stringify({ id: 'synthetic-email' }), { status: 200 });
     }
     if (!url.startsWith('http://127.0.0.1:')) throw new Error('External transport prohibited');
@@ -74,6 +75,9 @@ async function run() {
     const digits = managerPhone.slice(3), formatted = '0' + digits;
     const inviteBody = { fullName: 'Local Manager', phone: formatted, email: 'manager@example.test' };
     assert.equal((await request('POST', `/platform/schools/${school.id}/admin-invitation`, inviteBody, platformToken)).status, 201);
+    assert.match(emailMessages[0].subject, /E-posta Doğrulama Kodu/);
+    assert.match(emailMessages[0].html, /Bu ilk davet kodu/);
+    assert(!emailMessages[0].html.includes('Aktivasyon Kodu'));
     const manager = await userRepository.getByPhone(managerPhone); assert(manager);
     assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
     const listed = await request('GET', '/platform/schools', undefined, platformToken);
@@ -134,11 +138,40 @@ async function run() {
     assert.equal((await request('POST', '/auth/phone/verify-code', { ...start.body, phone: managerPhone, code: code === '000000' ? '000001' : '000000' })).status, 401);
     await db.query("UPDATE whatsapp_auth_challenges SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [start.body.challengeId]);
     assert.equal((await request('POST', '/auth/phone/verify-code', { ...start.body, phone: managerPhone, code })).status, 401); await resetChallenges();
-    const valid = await request('POST', '/auth/phone/request-code', { phone: formatted });
-    const verified = await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-1) });
+    let valid = await request('POST', '/auth/phone/request-code', { phone: formatted });
+    // Simulate a user spending four minutes in the phone step, without sleeps or changing expiry rules.
+    await db.query("UPDATE identity_auth_attempts SET created_at=NOW()-INTERVAL '4 minutes',expires_at=NOW()+INTERVAL '6 minutes' WHERE id=$1", [valid.body.attemptId]);
+    await db.query("UPDATE whatsapp_auth_challenges SET created_at=NOW()-INTERVAL '4 minutes',expires_at=NOW()+INTERVAL '1 minute' WHERE id=$1", [valid.body.challengeId]);
+    let verified = await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-1) });
+    stage = 'email code receives its advertised ten-minute verification window';
+    const deadlines = await db.query<{ seconds: number; difference: number }>(`SELECT EXTRACT(EPOCH FROM (a.expires_at-NOW()))::float8 AS seconds,
+      ABS(EXTRACT(EPOCH FROM (a.expires_at-i.expires_at)))::float8 AS difference
+      FROM identity_auth_attempts a JOIN invitations i ON i.token=a.email_challenge_id::text WHERE a.id=$1`, [valid.body.attemptId]);
+    assert(deadlines.rows[0]?.seconds > 9 * 60, 'phone-step elapsed time must not shorten the new email code window');
+    assert(deadlines.rows[0].difference < 2, 'attempt and issued setup code must have matching expiry windows');
     assert.equal(verified.status, 200); assert.equal(verified.body.pendingEmail, true); assert.equal(verified.body.requiresSchoolCode, true); assert.equal(verified.body.token, undefined);
     assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
+    stage = 'actual email matches the setup invitation and expired email is rejected';
+    const { hashSetupToken } = await import('../server/activation-codes');
+    const setup = (await db.query<{ code_hash: string; target_user_id: string; school_id: string }>(`SELECT i.code_hash,i.target_user_id,i.school_id FROM invitations i JOIN identity_auth_attempts a ON a.email_challenge_id::text=i.token WHERE a.id=$1`, [valid.body.attemptId])).rows[0];
+    assert.equal(setup.target_user_id, manager.id); assert.equal(setup.school_id, school.id);
+    assert.equal(setup.code_hash, hashSetupToken('unified-admin-email:manager@example.test:' + emailCodes.at(-1)));
+    assert.match(emailMessages.at(-1)!.subject, /E-posta Doğrulama Kodu/);
+    assert.match(emailMessages.at(-1)!.html, /Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın./);
+    const old = { attemptId: valid.body.attemptId, phone: formatted, emailCode: emailCodes.at(-1), schoolCode: school.code };
+    await db.query("UPDATE identity_auth_attempts SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [valid.body.attemptId]);
+    assert.equal((await request('POST', '/auth/phone/verify-email', old)).status, 401);
+    assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
+    stage = 'safe restart issues a current code and revokes the previous setup';
+    await resetChallenges();
+    valid = await request('POST', '/auth/phone/request-code', { phone: formatted });
+    verified = await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-1) });
+    assert.equal(verified.status, 200); assert.equal(verified.body.pendingEmail, true);
+    assert.equal((await request('POST', '/auth/phone/verify-email', old)).status, 401);
     const emailCode = emailCodes.at(-1)!;
+    const wrongEmailCode = emailCode === '000000' ? '000001' : '000000';
+    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode: wrongEmailCode, schoolCode: school.code })).status, 401);
+    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: unknownPhone, emailCode, schoolCode: school.code })).status, 401);
     assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode, schoolCode: 'WRONG' })).status, 401);
     stage = 'email and school-code activation, own-tenant access and later login';
     const completed = await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode, schoolCode: school.code });

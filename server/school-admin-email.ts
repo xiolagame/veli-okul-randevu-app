@@ -9,10 +9,10 @@ export function schoolAdminEmail(
   reset = false,
   licenseCode?: string
 ): { subject: string; html: string; text: string } {
-  const codeLabel = reset ? 'Parola Sıfırlama Kodu' : 'Aktivasyon Kodu';
+  const codeLabel = reset ? 'Parola Sıfırlama Kodu' : 'E-posta Doğrulama Kodu';
   const instructions = reset
     ? 'Veli Randevu giriş ekranında “Şifremi unuttum” seçeneğini, ardından “Okul yöneticisi” seçimini kullanın.'
-    : `Veli Randevu giriş ekranındaki “Okul Yöneticisi İlk Giriş” bölümünü açın. Okul kodunuz, telefon numaranız${licenseCode ? ', lisans kodunuz' : ''} ve aktivasyon kodunuz ile hesabınızı etkinleştirin. Ardından kendi şifrenizi oluşturabilirsiniz.`;
+    : `Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın. Bu ilk davet kodu “Okul Yöneticisi İlk Giriş” akışına aittir. WhatsApp ile giriş yapıyorsanız bu kodu kullanmayın; telefon doğrulamasından sonra gönderilen yeni e-postadaki güncel kodu girin. Eski ilk giriş akışında okul kodunuz, telefon numaranız${licenseCode ? ', lisans kodunuz' : ''} ve bu davet kodu kullanılır.`;
   const rendered = renderBrandedEmail({
     subtitle: `Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'Hesabınız Hazır'}`,
     greeting: fullName,
@@ -27,7 +27,7 @@ export function schoolAdminEmail(
       : 'Kod 24 saat içinde sona erer ve tek kullanımlıdır.',
   });
   return {
-    subject: `Veli Randevu Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'İlk Giriş'}`,
+    subject: `Veli Randevu Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'İlk Giriş — E-posta Doğrulama Kodu'}`,
     ...rendered,
   };
 }
@@ -63,8 +63,9 @@ export async function deliverUnifiedAdminActivationEmail(
       greeting: fullName,
       intro: [
         `${schoolName} için WhatsApp telefon doğrulamanız tamamlandı.`,
-        'Okul ve lisans kodunuz bilgilendirme amaçlıdır; bu kodlar giriş parolası değildir.',
-        'Veli Randevu giriş ekranındaki e-posta doğrulama alanına aşağıdaki 6 haneli kodu girin.',
+        'Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın.',
+        'Giriş ekranındaki e-posta doğrulama alanına bu güncel 6 haneli kodu ve istendiğinde okul kodunuzu girin. İlk davet e-postasındaki kodu kullanmayın.',
+        'Lisans kodunuz bilgilendirme amaçlıdır; giriş parolası değildir.',
       ],
       infoCards: [
         { label: 'Okul Kodu', value: schoolCode.toUpperCase() },
@@ -73,7 +74,7 @@ export async function deliverUnifiedAdminActivationEmail(
       ],
       notice: 'Doğrulama kodu 10 dakika geçerli ve yalnızca bir kez kullanılabilir.',
     });
-    await sendEmail({ to, subject: 'Veli Randevu — Okul Yönetimi E-posta Doğrulaması', ...content });
+    await sendEmail({ to, subject: 'Veli Randevu — Okul Yönetimi E-posta Doğrulama Kodu', ...content });
     return true;
   } catch {
     return false;

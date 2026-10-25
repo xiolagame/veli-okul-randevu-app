@@ -294,7 +294,8 @@ export async function attachIssuedEmailChallenge(input: {
     const result = await tx.query<AttemptRow>(
       `UPDATE identity_auth_attempts
        SET status='EMAIL_CHALLENGE_ISSUED',email_challenge_id=$2,email_recipient_fingerprint=$3,
-           email_code_hash=$4,email_attempts=0,email_max_attempts=$5,updated_at=NOW()
+           email_code_hash=$4,email_attempts=0,email_max_attempts=$5,
+           expires_at=NOW()+INTERVAL '10 minutes',updated_at=NOW()
        WHERE id=$1 RETURNING *`,
       [input.attemptId, input.challengeId, recipientFingerprint,
         emailCodeHash(input.attemptId, recipientFingerprint, input.code), maxAttempts],
