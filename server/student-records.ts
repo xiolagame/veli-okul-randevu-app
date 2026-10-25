@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { AuthenticatedRequest, canUsePlatformAuthority, isPlatformAdmin } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
 import { hashSetupToken, generateStaffCode } from './activation-codes';
-import { isWhatsAppAuthEnabled, isWhatsAppPilotPhoneAllowed, sendWhatsAppAuthenticationCode } from './whatsapp-cloud';
+import { isWhatsAppAuthEnabled, isWhatsAppPhoneEnabled, sendWhatsAppAuthenticationCode } from './whatsapp-cloud';
 import { normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizeClassName } from '../src/utils/class-name';
 import { SchoolStudentRecord, studentIdentity } from '../src/utils/student-records';
@@ -174,7 +174,7 @@ studentRecordsRouter.post('/class-removal/request-code', async (req: Authenticat
     const code = generateStaffCode(), token = crypto.randomUUID();
     const result = await (await getDb()).transaction(async (tx) => {
       const user = await actor(tx, req);
-      if (!isWhatsAppAuthEnabled() || !isWhatsAppPilotPhoneAllowed(user.phone)) throw new StudentRecordError(403, 'Yönetici telefonu WhatsApp pilot kapsamında değil.');
+      if (!isWhatsAppAuthEnabled() || !isWhatsAppPhoneEnabled(user.phone)) throw new StudentRecordError(403, 'WhatsApp doğrulaması şu anda kullanılamıyor.');
       const limits = await tx.query<{ attempts: number }>(`INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at)
         VALUES($1,1,NOW()) ON CONFLICT(scope_hash) DO UPDATE SET
         attempts=CASE WHEN auth_rate_limits.window_started_at<NOW()-interval '15 minutes' THEN 1 ELSE auth_rate_limits.attempts+1 END,
@@ -209,7 +209,7 @@ studentRecordsRouter.post('/class-removal/complete', async (req: AuthenticatedRe
     if (!className || typeof req.body?.challengeId !== 'string' || !/^\d{6}$/.test(req.body?.code || '') || req.body?.confirmation !== className) throw new StudentRecordError(400, 'Sınıfı ve doğrulama kodunu kontrol edin.');
     const result = await (await getDb()).transaction(async (tx) => {
       const user = await actor(tx, req);
-      if (!isWhatsAppAuthEnabled() || !isWhatsAppPilotPhoneAllowed(user.phone)) throw new StudentRecordError(403, 'WhatsApp doğrulaması kullanılamıyor.');
+      if (!isWhatsAppAuthEnabled() || !isWhatsAppPhoneEnabled(user.phone)) throw new StudentRecordError(403, 'WhatsApp doğrulaması kullanılamıyor.');
       const challenge = (await tx.query<{ id: string; description: string; code_hash: string; attempts: number; valid: boolean; target_phone: string }>(`SELECT id,description,code_hash,attempts,target_phone,
         (is_active AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() AND attempts<5) AS valid
         FROM invitations WHERE id=$1 AND school_id=$2 AND target_user_id=$3 AND purpose=$4 FOR UPDATE`, [req.body.challengeId, req.membership!.schoolId, req.user!.id, purpose])).rows[0];

@@ -36,6 +36,8 @@ async function run() {
   assert.match(phoneCentricPanel, /response\.legacyFallbackRequired/);
   assert.match(phoneCentricPanel, /onLegacyFallback\(canonicalPhone\)/);
   assert.match(phoneCentricPanel, /if \(!allowLegacyFallback\) throw new Error/);
+  assert.match(phoneCentricPanel, /şu anda kullanılamıyor\. Doğrulama kodu gönderilmedi\./);
+  assert.doesNotMatch(phoneCentricPanel, /sisteme kayıtlı değil|numara kayıtlı değil/);
   assert.match(phoneCentricPanel, /Lütfen telefonunuza gelen WhatsApp onay kodunu girin\./);
   assert.doesNotMatch(phoneCentricPanel, /setMessage\(response.message\)/);
   assert.doesNotMatch(phoneCentricPanel, /Mevcut giriş yöntemleri/);

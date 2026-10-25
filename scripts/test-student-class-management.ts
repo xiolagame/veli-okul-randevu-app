@@ -137,9 +137,9 @@ async function main() {
     await db.query("UPDATE schools SET disabled_at=NOW() WHERE id='school-a'");
     assert.equal((await request('POST', prefix + '/class-removal/complete', admin.token, guarded)).status, 403);
     await db.query("UPDATE schools SET disabled_at=NULL WHERE id='school-a'");
-    process.env.WHATSAPP_PILOT_ALLOWED_PHONES = platform.phone;
+    process.env.WHATSAPP_AUTH_ENABLED = 'false';
     assert.equal((await request('POST', prefix + '/class-removal/complete', admin.token, guarded)).status, 403);
-    process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [admin.phone, platform.phone, otherAdmin.phone].join(',');
+    process.env.WHATSAPP_AUTH_ENABLED = 'true';
     assert.equal((await db.query('SELECT consumed_at FROM invitations WHERE id=$1', [guarded.challengeId])).rows[0].consumed_at, null);
     stage = 'expiry';
     const expired = await challenge('5-A');

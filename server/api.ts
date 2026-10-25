@@ -219,7 +219,7 @@ apiRouter.post('/auth/phone/request-code', async (req, res) => {
         ? { schoolCode: req.body?.schoolCode }
         : undefined,
     });
-    return res.json({ success: true, message: WHATSAPP_AUTH_GENERIC, ...result });
+    return res.json({ success: true, deliveryStatus: 'unconfirmed', message: WHATSAPP_AUTH_GENERIC, ...result });
   } catch (error) {
     if (error instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: PHONE_IDENTITY_CONFLICT_ERROR });
     if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
@@ -334,7 +334,7 @@ apiRouter.post('/auth/whatsapp/request-code', async (req, res) => {
       schoolCode: req.body?.schoolCode,
       requesterKey: String(req.ip || 'unknown'),
     });
-    return res.json({ success: true, message: WHATSAPP_AUTH_GENERIC, ...result });
+    return res.json({ success: true, deliveryStatus: 'unconfirmed', message: WHATSAPP_AUTH_GENERIC, ...result });
   } catch (error) {
     if (error instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: PHONE_IDENTITY_CONFLICT_ERROR });
     if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });

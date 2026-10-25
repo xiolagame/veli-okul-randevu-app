@@ -322,7 +322,7 @@ async function run() {
         { phone: 'false', whatsapp: 'true', pilot: 'true', unified: 'true', expected: false },
         { phone: 'true', whatsapp: 'true', pilot: 'true', unified: 'false', expected: true },
         { phone: 'true', whatsapp: 'false', pilot: 'true', unified: 'true', expected: false },
-        { phone: 'true', whatsapp: 'true', pilot: 'false', unified: 'true', expected: false },
+        { phone: 'true', whatsapp: 'true', pilot: 'false', unified: 'true', expected: true },
       ]) {
         process.env.PHONE_CENTRIC_AUTH_ENABLED = scenario.phone;
         process.env.WHATSAPP_AUTH_ENABLED = scenario.whatsapp;
@@ -387,14 +387,14 @@ async function run() {
         assert.equal((verified.body.memberships as Array<Record<string, unknown>>)[0]?.role, fixture.role);
       }
 
-      currentStage = 'pilot fallback preserves legacy password login';
+      currentStage = 'registered login ignores legacy pilot list and preserves password login';
       const deliveryCountBeforeOutsidePilot = whatsappDeliveryCount;
       const outsidePilotStart = await request('/auth/phone/request-code', { phone: pilotOutsidePhone });
       assert.equal(outsidePilotStart.status, 200);
-      assert.equal(outsidePilotStart.body.legacyFallbackRequired, true);
-      assert.equal('attemptId' in outsidePilotStart.body, false);
-      assert.equal('challengeId' in outsidePilotStart.body, false);
-      assert.equal(whatsappDeliveryCount, deliveryCountBeforeOutsidePilot, 'outside-pilot phone must not receive OTP');
+      assert.equal(outsidePilotStart.body.legacyFallbackRequired, undefined);
+      assert.equal('attemptId' in outsidePilotStart.body, true);
+      assert.equal('challengeId' in outsidePilotStart.body, true);
+      assert.equal(whatsappDeliveryCount, deliveryCountBeforeOutsidePilot + 1, 'eligible account must receive OTP independently of the retired list');
       const outsidePilotPasswordLogin = await request('/auth/login', { phone: pilotOutsidePhone, password: racePassword });
       assert.equal(outsidePilotPasswordLogin.status, 200);
       assert.equal(typeof outsidePilotPasswordLogin.body.token, 'string');

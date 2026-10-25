@@ -12,25 +12,16 @@ function isEnabled(value: string | undefined): boolean {
 }
 
 export function isWhatsAppAuthEnabled(): boolean {
-  return isEnabled(process.env.WHATSAPP_AUTH_ENABLED) && isWhatsAppPilotModeEnabled();
+  return isEnabled(process.env.WHATSAPP_AUTH_ENABLED);
 }
 
 export function isUnifiedWhatsAppLoginEnabled(): boolean {
   return isWhatsAppAuthEnabled() && isEnabled(process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED);
 }
 
-export function isWhatsAppPilotModeEnabled(): boolean {
-  return isEnabled(process.env.WHATSAPP_PILOT_ENABLED);
-}
-
-export function isWhatsAppPilotPhoneAllowed(phone: unknown): boolean {
-  if (!isWhatsAppPilotModeEnabled()) return false;
-  const canonicalPhone = normalizeTurkishPhone(phone);
-  if (!canonicalPhone) return false;
-  const entries = (process.env.WHATSAPP_PILOT_ALLOWED_PHONES || '').split(',');
-  const allowedPhones = entries.map((entry) => normalizeTurkishPhone(entry));
-  if (!allowedPhones.length || allowedPhones.some((entry) => !entry)) return false;
-  return new Set(allowedPhones).has(canonicalPhone);
+// Feature/format check only. Callers must independently authorize the account or verified operation.
+export function isWhatsAppPhoneEnabled(phone: unknown): boolean {
+  return isWhatsAppAuthEnabled() && normalizeTurkishPhone(phone) !== null;
 }
 
 function getConfiguration(): { phoneNumberId: string; accessToken: string; graphVersion: string } {

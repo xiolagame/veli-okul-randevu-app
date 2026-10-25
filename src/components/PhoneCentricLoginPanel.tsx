@@ -50,7 +50,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     if (!canonicalPhone) throw new Error('Geçerli bir Türkiye GSM numarası girin.');
     const response = await api.requestPhoneCentricCode(canonicalPhone);
     if (response.legacyFallbackRequired) {
-      if (!allowLegacyFallback) throw new Error('Bu telefon için WhatsApp girişi şu anda kullanılamıyor. Okul yönetiminizle iletişime geçin.');
+      if (!allowLegacyFallback) throw new Error('WhatsApp girişi bu telefon için şu anda kullanılamıyor. Doğrulama kodu gönderilmedi. Erişim ayarlarını kontrol etmesi için okul yönetiminizle iletişime geçin.');
       onLegacyFallback(canonicalPhone);
       return;
     }

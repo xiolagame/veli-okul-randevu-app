@@ -6,7 +6,7 @@ import { deliverPlatformInitialEmailVerification, deliverPlatformPhoneBindingEma
 import { verifyPassword } from './passwords';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
 import {
-  isWhatsAppPilotPhoneAllowed,
+  isWhatsAppPhoneEnabled,
   sendWhatsAppAuthenticationCode,
   WhatsAppConfigurationError,
   WhatsAppDeliveryError,
@@ -345,8 +345,8 @@ export async function startPlatformPhoneBinding(input: {
   if (!isPlatformAdmin(input.userId)) throw new PlatformPhoneBindingError(403, 'Bu işlem için yetkiniz yok.');
   const phone = normalizeTurkishPhone(input.phone);
   if (!phone) throw new PlatformPhoneBindingError(400, 'Geçerli bir Türkiye GSM numarası girin.');
-  if (!isWhatsAppPilotPhoneAllowed(phone)) {
-    throw new PlatformPhoneBindingError(403, 'Bu telefon güvenli pilot listesinde bulunmuyor.');
+  if (!isWhatsAppPhoneEnabled(phone)) {
+    throw new PlatformPhoneBindingError(403, 'WhatsApp doğrulaması şu anda kullanılamıyor.');
   }
   if (!await withinRateLimit(`${input.requesterKey}:start:${input.userId}`, 4, 30)) {
     throw new PlatformPhoneBindingError(429, 'Çok fazla telefon bağlama isteği gönderildi. Lütfen daha sonra tekrar deneyin.');

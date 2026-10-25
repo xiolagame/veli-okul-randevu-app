@@ -14,7 +14,7 @@ import {
 import {
   assertWhatsAppDeliveryConfigured,
   isUnifiedWhatsAppLoginEnabled,
-  isWhatsAppPilotPhoneAllowed,
+  isWhatsAppPhoneEnabled,
   sendWhatsAppAuthenticationCode,
 } from './whatsapp-cloud';
 import { isPlatformAdmin } from './auth';
@@ -302,7 +302,7 @@ export async function requestWhatsAppAuthChallenge(input: {
     throw new WhatsAppAuthError(429, 'Doğrulama isteği şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin.');
   }
   const dummyId = crypto.randomUUID();
-  if (!isWhatsAppPilotPhoneAllowed(phone)) {
+  if (!isWhatsAppPhoneEnabled(phone)) {
     return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
   }
   const resolved = input.purpose === 'auto'
@@ -357,6 +357,8 @@ export async function requestWhatsAppAuthChallenge(input: {
     await sendWhatsAppAuthenticationCode(phone, code);
   } catch (error) {
     await db.query('UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challengeId]);
+    // Do not expose eligible-account existence through provider failures. Never claim delivery.
+    console.warn('[WhatsApp Auth] Delivery unavailable; challenge revoked.');
     if (input.purpose === 'auto') return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
     throw error;
   }
@@ -591,7 +593,7 @@ export async function completeUnifiedAdminEmailActivation(input: {
   if (!await withinRateLimit(`${input.requesterKey}:admin-email:${phone}`, 6, 15)) {
     throw new WhatsAppAuthError(429, 'Çok fazla deneme yapıldı.');
   }
-  if (!isWhatsAppPilotPhoneAllowed(phone)) return null;
+  if (!isWhatsAppPhoneEnabled(phone)) return null;
 
   return (await getDb()).transaction(async (tx) => {
     const row = await tx.query<{ school_id: string; target_user_id: string; target_phone: string }>(
@@ -687,7 +689,7 @@ export async function verifyWhatsAppAuthChallenge(input: {
   if (!await withinRateLimit(`${input.requesterKey}:verify:${phone}`, 8, 15)) {
     throw new WhatsAppAuthError(429, 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.');
   }
-  if (!isWhatsAppPilotPhoneAllowed(phone)) return null;
+  if (!isWhatsAppPhoneEnabled(phone)) return null;
   return (await getDb()).transaction(async (tx) => {
     const challenge = await readAndValidateChallenge(tx, { challengeId, phone, code });
     if (!challenge || challenge.purpose === 'account_deletion') return null;
@@ -760,7 +762,7 @@ export async function requestPhoneCentricAuthChallenge(input: {
   if (!isPhoneCentricAuthEnabled()) throw new WhatsAppAuthError(404, 'Bu giriş yöntemi kullanılamıyor.');
   const phone = normalizeTurkishPhone(input.phone);
   if (!phone) throw new WhatsAppAuthError(400, 'Geçerli bir Türkiye GSM numarası girin.');
-  if (!isWhatsAppPilotPhoneAllowed(phone)) return { legacyFallbackRequired: true };
+  assertWhatsAppDeliveryConfigured();
   const registration = input.parentRegistration;
   const schoolCode = typeof registration?.schoolCode === 'string' ? registration.schoolCode.trim() : '';
   if (registration) {
@@ -849,7 +851,7 @@ export async function verifyPhoneCentricAuthChallenge(input: {
   const challengeId = typeof input.challengeId === 'string' ? input.challengeId.trim() : '';
   const phone = normalizeTurkishPhone(input.phone);
   const code = typeof input.code === 'string' ? input.code.trim() : '';
-  if (!attemptId || !challengeId || !phone || !/^\d{6}$/.test(code)) return null;
+  if (!attemptId || !challengeId || !phone || !isWhatsAppPhoneEnabled(phone) || !/^\d{6}$/.test(code)) return null;
   const attempt = await getIdentityAuthAttempt(attemptId);
   if (!attempt || attempt.canonicalPhone !== phone || attempt.whatsappChallengeId !== challengeId ||
       attempt.status !== 'PHONE_CHALLENGE_ISSUED') return null;
@@ -903,7 +905,7 @@ export async function completePhoneCentricEmailVerification(input: {
   const attemptId = typeof input.attemptId === 'string' ? input.attemptId.trim() : '';
   const phone = normalizeTurkishPhone(input.phone);
   const emailCode = typeof input.emailCode === 'string' ? input.emailCode.trim() : '';
-  if (!phone || !isWhatsAppPilotPhoneAllowed(phone)) return null;
+  if (!phone || !isWhatsAppPhoneEnabled(phone)) return null;
   if (!await withinRateLimit(`${input.requesterKey}:phone-centric-email:${phone}`, 8, 15)) {
     throw new WhatsAppAuthError(429, 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.');
   }
@@ -951,7 +953,7 @@ export async function consumeAccountDeletionWhatsAppChallenge(
 ): Promise<boolean> {
   const phone = normalizeTurkishPhone(input.phone);
   if (!phone || !/^\d{6}$/.test(input.code)) return false;
-  if (!isWhatsAppPilotPhoneAllowed(phone)) return false;
+  if (!isWhatsAppPhoneEnabled(phone)) return false;
   const challenge = await readAndValidateChallenge(tx, {
     challengeId: input.challengeId,
     phone,
