@@ -1,6 +1,6 @@
 import { formatDate, getIstanbulDate } from '../utils/dates';
 import { appointmentsOnDate, sortAppointmentsForAdmin } from '../utils/admin-filters';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Shield,
@@ -65,9 +65,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
   const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
   const [appointmentMode, setAppointmentMode] = useState<'today' | 'all'>('today');
   const istanbulTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
-  const datedAppointments = appointmentMode === 'today'
+  const datedAppointments = useMemo(() => activeTab !== 'appointments' ? [] : appointmentMode === 'today'
     ? appointmentsOnDate(appointments, selectedDate)
-    : sortAppointmentsForAdmin(appointments, { date: getIstanbulDate(), time: istanbulTime });
+    : sortAppointmentsForAdmin(appointments, { date: getIstanbulDate(), time: istanbulTime }), [activeTab, appointmentMode, appointments, selectedDate, istanbulTime]);
 
 
 
@@ -154,7 +154,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
           {activeTab === 'dashboard' && currentSchool && <><div className="dashboard-quick-actions"><Button variant="quiet" onClick={() => setActiveTab('roster')}>Öğrenci kayıtları</Button><Button variant="quiet" onClick={() => setActiveTab('users')}>Personeli yönet</Button><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Randevuları aç</Button></div><OperationsCenter key={currentSchool.id} schoolId={currentSchool.id} onOpenRecords={(kind) => setActiveTab(kind === 'staff' ? 'users' : 'roster')} /></>}
           {sectionError && <Alert tone="danger">{sectionError}<Button variant="quiet" onClick={() => void refreshSchoolData(activeTab === 'audit' ? 'audit' : activeTab === 'appointments' ? 'appointments' : 'staff').then(() => setSectionError('')).catch(() => setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'))}>Tekrar dene</Button></Alert>}
 
-          {activeTab === 'roster' && currentSchool && <StudentManagement key={currentSchool.id} schoolId={currentSchool.id} schoolName={currentSchool.name} revision={studentRevision} onChanged={refreshSchoolData} onImport={() => { setFormError(''); setShowUploadModal(true); }} />}
+          {activeTab === 'roster' && currentSchool && <StudentManagement key={currentSchool.id} schoolId={currentSchool.id} schoolName={currentSchool.name} revision={studentRevision} onImport={() => { setFormError(''); setShowUploadModal(true); }} />}
 
           {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} />}
 

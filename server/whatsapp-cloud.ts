@@ -1,6 +1,7 @@
 import { normalizeTurkishPhone } from '../src/utils/phone';
 
 const DEFAULT_GRAPH_VERSION = 'v25.0';
+const PROVIDER_TIMEOUT_MS = 8_000;
 const TEMPLATE_NAME = 'kolayokul_onay';
 const TEMPLATE_LANGUAGE = 'tr';
 
@@ -47,6 +48,7 @@ export async function sendWhatsAppAuthenticationCode(phone: string, code: string
   const { phoneNumberId, accessToken, graphVersion } = getConfiguration();
   const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
     method: 'POST',
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',

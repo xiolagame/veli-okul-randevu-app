@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { performance } from 'node:perf_hooks';
+import { normalizeClassName } from '../src/utils/class-name';
+import { normalizeTurkishPhone } from '../src/utils/phone';
+import { studentIdentity, SchoolStudentRecord } from '../src/utils/student-records';
+
+const source=fs.readFileSync('server/student-records.ts','utf8');
+const tree=ts.createSourceFile('student-records.ts',source,ts.ScriptTarget.ES2022,true);
+const node=tree.statements.find(entry=>ts.isFunctionDeclaration(entry)&&entry.name?.text==='readState');assert(node);
+const context=vm.createContext({normalizeClassName,normalizeTurkishPhone,studentIdentity,canonicalOperationPhoneSql:()=> 'fixture_phone_expression'});
+vm.runInContext(ts.transpileModule(node.getText(tree)+'\nglobalThis.read=readState;', {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+const read=context.read as (client:object,schoolId:string)=>Promise<{records:SchoolStudentRecord[]}>;
+const students=Array.from({length:5000},(_,i)=>({id:'s-'+i,name:'SYNTHETIC '+i,class_name:'5-A',student_number:String(i).padStart(5,'0'),birth_date:null,updated_at:'2026-01-01'}));
+const parents=students.flatMap((student,i)=>[0,1].map(j=>({id:'r-'+i+'-'+j,student_id:student.id,parent_user_id:'p-'+i+'-'+j,full_name:'SYNTHETIC PARENT',phone:'+905'+String(100000000+i*2+j),status:'active'})));
+const roster=students.map((student,i)=>({id:'roster-'+i,student_name:student.name,class_name:student.class_name,student_number:student.student_number,birth_date:null,parent_name:'SYNTHETIC PARENT',parent_phone:'05'+String(100000000+i*2),is_claimed:true,has_account:true,parent_account_deleted_at:null,updated_at:'2026-01-01'}));
+const client={query:async(sql:string)=>({rows:sql.includes('FROM students WHERE')?students:sql.includes('FROM school_roster sr')?roster:parents})};
+const durations:number[]=[];let checksum='';
+for(let i=0;i<14;i++){const start=performance.now();const state=await read(client,'fixture-school');const duration=performance.now()-start;assert.equal(state.records.length,5000);assert(state.records.every(record=>record.parents.length===2));const digest=crypto.createHash('sha256').update(JSON.stringify(state.records)).digest('hex');if(checksum)assert.equal(digest,checksum);checksum=digest;if(i>=2)durations.push(duration);}
+durations.sort((a,b)=>a-b);
+const result={students:students.length,relations:parents.length,samples:durations.length,p50Ms:Number(durations[Math.floor(durations.length*.5)].toFixed(2)),p95Ms:Number(durations[Math.ceil(durations.length*.95)-1].toFixed(2)),checksum};
+fs.mkdirSync('.cache/performance-review',{recursive:true});
+const baseline='.cache/performance-review/read-state-before.json';
+if(process.env.PERF_CAPTURE_BASELINE==='1')fs.writeFileSync(baseline,JSON.stringify(result,null,2));
+else if(fs.existsSync(baseline))assert.equal(result.checksum,JSON.parse(fs.readFileSync(baseline,'utf8')).checksum,'all parent/student mappings must remain byte-equivalent');
+fs.writeFileSync('.cache/performance-review/read-state-latest.json',JSON.stringify(result,null,2));
+console.log('Actual readState mapping, synthetic in-memory DB rows: '+JSON.stringify(result));

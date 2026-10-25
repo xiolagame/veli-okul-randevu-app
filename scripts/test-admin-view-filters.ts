@@ -35,6 +35,7 @@ function harness(file: string, context: object, api: object = {}) {
       if (!(index in hooks)) hooks[index] = { current: initial };
       return hooks[index];
     },
+    useMemo<T>(compute: () => T) { cursor++; return compute(); },
     useCallback(callback: unknown) { cursor++; return callback; },
     useEffect(effect: () => void, deps?: unknown[]) {
       const index = cursor++;

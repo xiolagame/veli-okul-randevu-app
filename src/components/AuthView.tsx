@@ -69,6 +69,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const phoneRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const loginButtonRef = useRef<HTMLButtonElement>(null);
+  const passwordLoginPending = useRef(false);
   const authSideRef = useRef<HTMLElement>(null);
   const usePhoneCentricLogin = phoneCentricAuthEnabled && (getRuntimePlatform() === 'WEB' || passwordLoginMode === null);
 
@@ -277,6 +278,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (passwordLoginPending.current) return;
     setError('');
     setSuccessMessage('');
     const normalizedPhone = normalizeUserPhoneInput(phone);
@@ -284,6 +286,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       setError('Geçerli bir Türkiye GSM numarası girin.');
       return;
     }
+    passwordLoginPending.current = true;
     setIsSubmitting(true);
     try {
       const result = await login(phone, password);
@@ -295,6 +298,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     } catch {
       setError('Güvenli oturum başlatılamadı. Lütfen tekrar deneyin.');
     } finally {
+      passwordLoginPending.current = false;
       setIsSubmitting(false);
     }
   };

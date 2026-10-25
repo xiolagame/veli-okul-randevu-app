@@ -175,9 +175,9 @@ async function resolveTarget(input: {
   return null;
 }
 
-async function resolveUnifiedTarget(phone: string): Promise<{ purpose: WhatsAppAuthPurpose; target: ChallengeTarget } | null> {
+async function resolveUnifiedTarget(phone: string, knownUser?: Awaited<ReturnType<typeof userRepository.getByPhone>>): Promise<{ purpose: WhatsAppAuthPurpose; target: ChallengeTarget } | null> {
   const db = await getDb();
-  const user = await userRepository.getByPhone(phone);
+  const user = knownUser === undefined ? await userRepository.getByPhone(phone) : knownUser;
   if (user && isPlatformAdmin(user.id)) return null;
 
   if (user) {
@@ -275,7 +275,7 @@ async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: What
   if (user && isPlatformAdmin(user.id)) {
     return { purpose: 'login', target: { schoolId: null, userId: user.id, role: null, profileId: null } };
   }
-  const resolved = await resolveUnifiedTarget(phone);
+  const resolved = await resolveUnifiedTarget(phone, user);
   return resolved;
 }
 

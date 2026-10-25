@@ -29,8 +29,10 @@ async function readState(tx: TransactionClient, schoolId: string): Promise<Schoo
     FROM student_parent_relations r JOIN users u ON u.id=r.parent_user_id
     LEFT JOIN school_memberships sm ON sm.school_id=r.school_id AND sm.user_id=u.id AND sm.role='parent'
     WHERE r.school_id=$1 ORDER BY r.id`, [schoolId])).rows;
+  const parentsByStudent = new Map<string, ParentRow[]>();
+  for (const parent of parents) { const group = parentsByStudent.get(parent.student_id); if (group) group.push(parent); else parentsByStudent.set(parent.student_id, [parent]); }
   const records: SchoolStudentRecord[] = students.map((s) => ({ id: s.id, kind: 'student', name: s.name, className: normalizeClassName(s.class_name) || s.class_name,
-    studentNumber: s.student_number || '', birthDate: s.birth_date || '', parents: parents.filter((p) => p.student_id === s.id).map((p) => ({ id: p.parent_user_id, fullName: p.full_name, phone: p.phone, status: p.status || 'inactive' })) }));
+    studentNumber: s.student_number || '', birthDate: s.birth_date || '', parents: (parentsByStudent.get(s.id) || []).map((p) => ({ id: p.parent_user_id, fullName: p.full_name, phone: p.phone, status: p.status || 'inactive' })) }));
   const identities = new Map(records.map((s) => [studentIdentity(s.name, s.className, s.studentNumber), s]));
   for (const r of roster) {
     const identity = studentIdentity(r.student_name, r.class_name, r.student_number);

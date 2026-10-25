@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useState } from 'react';
+import React, { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -23,6 +23,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
   const [requiresSchoolCode, setRequiresSchoolCode] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -63,6 +64,8 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError('');
     setMessage('');
@@ -103,11 +106,14 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.');
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   };
 
   const resend = async () => {
+    if (pending.current || cooldown > 0) return;
+    pending.current = true;
     setBusy(true);
     setError('');
     setMessage('');
@@ -117,6 +123,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Kod yeniden gönderilemedi.');
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   };
@@ -136,7 +143,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
         <div className="field-icon"><Phone size={18} aria-hidden="true" />
           <input id="phone-centric-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14}
             value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))}
-            placeholder="0555 123 45 67" readOnly={step !== 'PHONE'} required />
+            placeholder="0555 123 45 67" readOnly={busy || step !== 'PHONE'} required />
         </div>
       </label>
       {step === 'WHATSAPP_CODE' && <label className="field" htmlFor="phone-centric-code">WhatsApp doğrulama kodu

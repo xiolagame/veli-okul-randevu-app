@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Users, Trash2, Plus, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 import { ALL_CLASSES, classSummaries, classTone, SchoolStudentRecord, studentRecordIssues } from '../utils/student-records';
@@ -6,8 +6,8 @@ import { normalizeClassName } from '../utils/class-name';
 import { Alert, Button, Dialog, RecordAction, Skeleton } from './ui';
 import { ManagementActions } from './ManagementActions';
 
-export function StudentManagement({ schoolId, schoolName, onChanged, onImport, revision = 0 }: {
-  schoolId: string; schoolName: string; onChanged: () => Promise<void>; onImport: () => void; revision?: number;
+export function StudentManagement({ schoolId, schoolName, onChanged = async () => {}, onImport, revision = 0 }: {
+  schoolId: string; schoolName: string; onChanged?: () => Promise<void>; onImport: () => void; revision?: number;
 }) {
   const [data, setData] = useState<{ schoolId: string; records: SchoolStudentRecord[]; enabled: boolean } | null>(null);
   const [selected, setSelected] = useState(ALL_CLASSES);
@@ -40,17 +40,20 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport, r
     if (data && selected !== ALL_CLASSES && !data.records.some((record) => record.className === selected)) setSelected(ALL_CLASSES);
   }, [data, selected]);
   const records = data?.schoolId === schoolId ? data.records : [];
-  const classes = classSummaries(records);
-  const classGroups = new Map<string, typeof classes>();
-  for (const item of classes) {
-    const grade = /^(\d+)/.exec(item.className)?.[1];
-    const group = grade ? `${grade}. sınıflar` : 'Diğer sınıflar';
-    classGroups.set(group, [...(classGroups.get(group) || []), item]);
-  }
+  const classes = useMemo(() => classSummaries(records), [records]);
+  const classGroups = useMemo(() => {
+    const groups = new Map<string, typeof classes>();
+    for (const item of classes) {
+      const grade = /^(\d+)/.exec(item.className)?.[1];
+      const group = grade ? `${grade}. sınıflar` : 'Diğer sınıflar';
+      groups.set(group, [...(groups.get(group) || []), item]);
+    }
+    return groups;
+  }, [classes]);
   const query = search.trim().toLocaleLowerCase('tr-TR');
-  const visible = records.filter((r) => (selected === ALL_CLASSES || r.className === selected) &&
+  const visible = useMemo(() => records.filter((r) => (selected === ALL_CLASSES || r.className === selected) &&
     (filter === 'all' || (filter === 'active' && r.parents.some((p) => p.status === 'active')) || (filter === 'pending' && r.parents.some((p) => p.status === 'pending')) || (filter === 'missing' && studentRecordIssues(r).length > 0)) &&
-    [r.name, r.studentNumber, r.className, ...r.parents.flatMap((p) => [p.fullName, p.phone])].join(' ').toLocaleLowerCase('tr-TR').includes(query));
+    [r.name, r.studentNumber, r.className, ...r.parents.flatMap((p) => [p.fullName, p.phone])].join(' ').toLocaleLowerCase('tr-TR').includes(query)), [records, selected, filter, query]);
   const pages = Math.max(1, Math.ceil(visible.length / 25));
   const currentPage = Math.min(page, pages - 1);
   const refresh = async () => { await onChanged(); await load(); setPage(0); };

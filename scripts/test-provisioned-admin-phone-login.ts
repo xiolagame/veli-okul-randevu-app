@@ -95,7 +95,11 @@ async function run() {
     stage = 'pending admin accepted in all canonical input formats';
     for (const phone of [managerPhone, managerPhone.slice(1), formatted, digits, `(0${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`]) {
       const before = whatsappCodes.length;
-      const start = await request('POST', '/auth/phone/request-code', { phone });
+      const lookup=userRepository.getByPhone;let lookups=0;
+      userRepository.getByPhone=(value,client)=>{lookups++;return lookup(value,client);};
+      let start: Awaited<ReturnType<typeof request>>;
+      try { start=await request('POST', '/auth/phone/request-code', { phone }); } finally { userRepository.getByPhone=lookup; }
+      assert.equal(lookups,1,'one canonical identity lookup per phone-centric request');
       assert.equal(start.status, 200); assert.equal(whatsappCodes.length, before + 1, 'provisioned pending admin must receive a mocked OTP');
       const challenge = (await db.query<{ target_user_id: string; school_id: string; purpose: string }>('SELECT target_user_id,school_id,purpose FROM whatsapp_auth_challenges WHERE id=$1', [start.body.challengeId])).rows[0];
       assert.equal(challenge?.target_user_id, manager.id); assert.equal(challenge.school_id, school.id); assert.equal(challenge.purpose, 'school_admin_activation');

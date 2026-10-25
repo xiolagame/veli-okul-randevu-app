@@ -552,14 +552,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAvailability((prev) => [...prev, res.slot]);
   };
 
+  const refreshSchoolSection = useCallback(async (section: 'staff' | 'appointments' | 'audit' = 'staff') => {
+    const schoolId = currentSchool?.id;
+    if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
+    const sequence = schoolLoadSequence.current;
+    const stillCurrent = () => getActiveSchoolId() === schoolId && schoolLoadSequence.current === sequence;
+    if (section === 'appointments') {
+      const result = await api.getAppointments(schoolId);
+      if (stillCurrent()) setAppointments(result.appointments);
+    } else if (section === 'audit') {
+      const result = await api.getAuditLogs(schoolId);
+      if (stillCurrent()) setAuditLogs(result.auditLogs);
+    } else {
+      setUsersLoading(true); setUsersError('');
+      try {
+        const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
+        if (!stillCurrent()) return;
+        setTeachers(teacherData.teachers); setUsers(userData.users);
+      } catch (cause) {
+        if (stillCurrent()) setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');
+        throw cause;
+      } finally { if (stillCurrent()) setUsersLoading(false); }
+    }
+  }, [currentSchool?.id, currentMembership?.role, platformContextActive]);
+
   const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => {
     if (!currentSchool) throw new Error('Aktif okul bulunamadı.');
     try {
       const result = await api.createStaff(currentSchool.id, data);
-      await loadSchoolData(currentSchool.id, currentUser, currentMembership, platformContextActive);
+      await refreshSchoolSection('staff');
       return result;
     } catch (error) {
-      await loadSchoolData(currentSchool.id, currentUser, currentMembership, platformContextActive);
+      await refreshSchoolSection('staff');
       throw error;
     }
   };
@@ -685,29 +709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;
           }
         },
-        refreshSchoolData: async (section = 'staff') => {
-          const schoolId = currentSchool?.id;
-          if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
-          const sequence = schoolLoadSequence.current;
-          const stillCurrent = () => getActiveSchoolId() === schoolId && schoolLoadSequence.current === sequence;
-          if (section === 'appointments') {
-            const result = await api.getAppointments(schoolId);
-            if (stillCurrent()) setAppointments(result.appointments);
-          } else if (section === 'audit') {
-            const result = await api.getAuditLogs(schoolId);
-            if (stillCurrent()) setAuditLogs(result.auditLogs);
-          } else {
-            setUsersLoading(true); setUsersError('');
-            try {
-              const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
-              if (!stillCurrent()) return;
-              setTeachers(teacherData.teachers); setUsers(userData.users);
-            } catch (cause) {
-              if (stillCurrent()) setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');
-              throw cause;
-            } finally { if (stillCurrent()) setUsersLoading(false); }
-          }
-        },
+        refreshSchoolData: refreshSchoolSection,
         refreshPlatformSchools: async () => {
           if (!isPlatformAdmin) return;
           const result = await api.getManagedSchools();

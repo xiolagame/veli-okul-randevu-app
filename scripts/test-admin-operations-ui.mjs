@@ -32,7 +32,8 @@ case'getSchoolInfo':return{school};case'getSettings':return{settings};case'getNo
 case'getOperationSummary':if(window.opsTest.failSummary)throw Error('Synthetic summary error');return summary();
 case'getOperationPage':{if(window.opsTest.failPage)throw Error('Synthetic page error');const[,category,page,q,status]=args;let items=(category==='missing'&&fixed?[]:all[category]||[]).filter(item=>(!q||JSON.stringify(item).toLocaleLowerCase('tr-TR').includes(q.toLocaleLowerCase('tr-TR')))&&(!status||item.appointment?.status===status));return{items:items.slice(page*25,page*25+25),total:items.length,page,pageSize:25}}
 case'getTeachers':return{teachers:staff};case'getSecurityUsers':return{users:[{id:'security',firstName:'TEST',lastName:'SECURITY',phone,email:'security@example.test',accountStatus:'pending'}]};
-case'getManagedStudentRecords':return{records:[...records],classBulkDeleteEnabled:false};
+case'createStaff':{const data=args[1];staff.unshift({id:'created-teacher',firstName:'NEW',lastName:'TEACHER',phone:data.phone,email:data.email,branch:data.branch,accountStatus:'pending'});return{success:true,message:'Synthetic create accepted'}};
+case'getManagedStudentRecords':if(window.opsTest.holdRecords)await new Promise(resolve=>window.opsTest.releaseRecords=resolve);return{records:[...records],classBulkDeleteEnabled:false};
 case'importRoster':{const rows=args[1].map(record=>({record,status:'valid',errors:[]}));if(!args[2]){for(const row of rows){records.push({id:'imported-'+records.length,kind:'roster',name:row.record.studentName,className:row.record.className,studentNumber:row.record.studentNumber,birthDate:'',parents:[{rosterId:'imported-roster',fullName:row.record.parentName,phone:row.record.parentPhone,status:'pending'}]})}}return{rows,addedCount:args[2]?0:rows.length,skippedCount:0}}
 case'getManagedSchoolAdmins':return{admins:[{id:'admin-one',fullName:'ACTIVE ADMIN',phone,email:'admin@example.test',status:'active'},{id:'admin-two',fullName:'PENDING ADMIN',phone,email:'pending@example.test',status:'pending'}]};
 case'getAppointments':return{appointments:all.today.map(i=>i.appointment)};case'getAuditLogs':return{auditLogs:[]};
@@ -155,6 +156,39 @@ try {
       if(width===390) await page.screenshot({path:path.join(os.tmpdir(),'veli-'+section+'-compact-mobile.png')});
     }
   }
+  await page.setViewportSize({width:1366,height:768});
+  const nav=page.getByRole('navigation',{name:'Yönetim bölümleri'});
+  await nav.getByRole('button',{name:'Personel',exact:true}).click();
+  await page.locator('.staff-record-row').first().waitFor();
+  const beforeCreate=await page.evaluate(()=>window.opsTest.calls.length);
+  await page.getByRole('button',{name:'+ Personel Ekle',exact:true}).click();
+  await drawer.getByLabel('Görevi',{exact:true}).selectOption('teacher');
+  for(const [label,value] of [['Ad Soyad','NEW TEACHER'],['Branş','Math'],['Telefon','05551234567'],['E-posta','new@example.test']])await drawer.getByLabel(label,{exact:true}).fill(value);
+  await drawer.getByRole('button',{name:'Personel Ekle',exact:true}).click();
+  await page.locator('.staff-record-row').filter({hasText:'NEW TEACHER'}).waitFor();
+  assert.deepEqual(await page.evaluate(i=>window.opsTest.calls.slice(i).map(c=>c.name),beforeCreate),['createStaff','getTeachers','getSecurityUsers'],'staff creation must refresh only scoped staff data');
+  // Navigation must render while the scoped data request is still unresolved.
+  await page.evaluate(()=>{window.opsTest.holdRecords=true;});
+  await nav.getByRole('button',{name:'Öğrenci ve veliler',exact:true}).click();
+  await page.getByRole('heading',{name:'Öğrenci ve veliler',exact:true}).waitFor();
+  await page.waitForFunction(()=>typeof window.opsTest.releaseRecords==='function');
+  assert.equal(await page.locator('.student-record-row').count(),0);
+  await page.evaluate(()=>{window.opsTest.holdRecords=false;window.opsTest.releaseRecords();});
+  await page.locator('.student-record-row').first().waitFor();
+  const samples=[];
+  for(let i=0;i<12;i++)for(const label of ['Personel','Öğrenci ve veliler']){
+    const ms=await page.evaluate(async label=>{
+      const button=[...document.querySelectorAll('nav[aria-label="Yönetim bölümleri"] button')].find(e=>e.textContent.trim()===label);
+      const start=performance.now();button.click();
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      if(![...document.querySelectorAll('h1,h2,h3')].some(e=>e.textContent.trim()===label))throw Error('Navigation shell not visible');
+      return performance.now()-start;
+    },label);
+    samples.push(ms);await page.locator(label==='Personel'?'.staff-record-row':'.student-record-row').first().waitFor();
+  }
+  samples.sort((a,b)=>a-b);
+  console.log('Local mocked navigation shell (24 revisits): '+JSON.stringify({p50Ms:+samples[11].toFixed(2),p95Ms:+samples[22].toFixed(2)}));
+  await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{window.opsTest.failSummary=true;});
   await page.getByLabel('Yönetim bölümü',{exact:true}).selectOption('dashboard');
   await page.getByText('Operasyon özeti alınamadı.',{exact:false}).waitFor();
