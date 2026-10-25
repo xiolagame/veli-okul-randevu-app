@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Dialog, StepIndicator } from './ui';
 import { api } from '../services/api';
 import { emptyRosterRow, formatRosterDraftInput, MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, parseDelimited, RosterDraft, RosterPreview, rowsToDrafts, ROSTER_HEADERS } from '../utils/roster-import';
-import { rosterTemplate } from '../utils/roster-files';
+import { rosterTemplate, ROSTER_TEMPLATE_FILENAME } from '../utils/roster-files';
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 
@@ -55,8 +55,8 @@ export function BulkRosterImport({ schoolId, onClose, onChanged }: { schoolId: s
         try {
           const buffer = await rosterTemplate();
           const url = URL.createObjectURL(new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-          const link = document.createElement('a'); link.href = url; link.download = 'veli-randevu-ogrenci-veli-sablonu.xlsx'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-        } catch { setError('Şablon oluşturulamadı.'); }
+          const link = document.createElement('a'); link.href = url; link.download = ROSTER_TEMPLATE_FILENAME; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch { setError('Şablon indirilemedi. Lütfen tekrar deneyin.'); }
       }}>Excel Şablonunu İndir</Button>
       <fieldset disabled={busy} className="min-w-0 space-y-4">
         <div className="flex flex-wrap gap-2"><div className="file-picker"><input id="bulk-roster-file" className="sr-only" type="file" accept=".xlsx,.csv" aria-label="XLSX veya CSV dosyası yükle" onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadFile(file); event.target.value = ''; }} /><label className="ui-button ui-button-secondary" htmlFor="bulk-roster-file">Dosya Yükle</label><span className="file-picker-name" aria-live="polite">{fileName || 'Dosya seçilmedi'}</span><span className="field-hint">XLSX / CSV · en fazla 2 MB</span></div></div>

@@ -193,22 +193,22 @@ async function run() {
     assert.equal(messages.length, successfulEmails);
 
     const impact = await request('GET', removal(onlyStudent), admin.token);
-    stage = 'orphan removal';
+    stage = 'student removal preserves parent';
     assert.equal(impact.status, 200);
-    assert.equal(impact.body.deletedAccounts, 1);
+    assert.equal(impact.body.deletedAccounts, 0);
     assert.equal((await request('DELETE', removal(onlyStudent), admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM students WHERE id=$1', [onlyStudent])).rows.length, 0);
     assert.equal((await db.query('SELECT id FROM student_parent_relations WHERE student_id=$1', [onlyStudent])).rows.length, 0);
     assert.equal((await db.query('SELECT id FROM school_roster WHERE student_name=$1 AND school_id=$2', ['ONLY STUDENT', schoolA])).rows.length, 0);
-    assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentOnly.id])).rows.length, 0);
-    assert.equal((await db.query('SELECT id FROM school_memberships WHERE user_id=$1', [parentOnly.id])).rows.length, 0);
+    assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentOnly.id])).rows.length, 1);
+    assert.equal((await db.query('SELECT id FROM school_memberships WHERE user_id=$1', [parentOnly.id])).rows.length, 1);
     const history = await db.query<{ status: string; parent_id: string | null; student_id: string | null }>(
       'SELECT status,parent_id,student_id FROM appointments WHERE id=$1', [appointmentId]);
     assert.equal(history.rows[0].status, 'cancelled');
-    assert.equal(history.rows[0].parent_id, null);
+    assert.equal(history.rows[0].parent_id, parentOnly.id);
     assert.equal(history.rows[0].student_id, null);
-    assert.equal((await db.query('SELECT id FROM notifications WHERE school_id=$1 AND appointment_id=$2', [schoolA, appointmentId])).rows.length, 0);
-    assert.equal((await db.query("SELECT id FROM audit_logs WHERE school_id=$1 AND action='Öğrenci Okuldan Kaldırıldı'", [schoolA])).rows.length, 1);
+    assert((await db.query('SELECT id FROM notifications WHERE school_id=$1 AND appointment_id=$2', [schoolA, appointmentId])).rows.length > 0);
+    assert.equal((await db.query("SELECT id FROM audit_logs WHERE school_id=$1 AND action='student.records_removed'", [schoolA])).rows.length, 1);
     assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [undeliveredId])).rows[0].status, 'cancelled');
 
     const siblingImpact = await request('GET', removal(siblingOne), admin.token);

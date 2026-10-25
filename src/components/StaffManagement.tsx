@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound } from 'lucide-react';
+import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound, Download, Upload } from 'lucide-react';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
@@ -91,7 +91,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         );
         return (
           <section key={type} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="flex flex-wrap items-center gap-2"><a href="/veli-randevu-personel-sablonu.xlsx" download="veli-randevu-personel-sablonu.xlsx" className="ui-button ui-button-secondary">Excel Şablonu İndir</a><Button variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}>Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="staff-import-actions"><a href="/PERSONEL_BİLGİ_FORMU.xlsx" download="PERSONEL_BİLGİ_FORMU.xlsx" className="ui-button staff-template-download"><Download size={18} aria-hidden="true" />Excel Şablonu İndir</a><Button className="staff-bulk-upload" variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}><Upload size={18} aria-hidden="true" />Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />

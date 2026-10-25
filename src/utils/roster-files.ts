@@ -1,4 +1,7 @@
-import { MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, ROSTER_HEADERS, parseDelimited, rowsToDrafts } from './roster-import';
+import { MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, parseDelimited, rowsToDrafts } from './roster-import';
+
+export const ROSTER_TEMPLATE_FILENAME = 'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx';
+export const ROSTER_TEMPLATE_URL = '/' + ROSTER_TEMPLATE_FILENAME;
 
 function checkArchive(buffer: ArrayBuffer) {
   const view = new DataView(buffer);
@@ -45,16 +48,11 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
   return rowsToDrafts(rows);
 }
 
-export async function rosterTemplate() {
-  const { default: writeXlsxFile } = await import('write-excel-file/universal');
-  const blob = await writeXlsxFile([
-    { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 || index === 2 ? 16 : 26 })) },
-    { sheet: 'Açıklamalar', columns: [{ width: 100 }], data: [
-      ['Her öğrenci için kendi satırındaki Sınıf/Şube bilgisini girin. Satırlar karışık sınıflarda olabilir. En fazla 500 kayıt ekleyin.'],
-      ['Sınıf/Şube örneği: 5-A. Telefon metin veya sayı olabilir. Doğum tarihi yeni şablonda istenmez.'],
-      ['Telefon örnekleri: 05334138206, 5334138206, 905334138206 veya +905334138206.'],
-      ['Yalnız Kayıtlar sayfası içe aktarılır. Başlıkları değiştirmeyin.'],
-    ] },
-  ]).toBlob();
-  return blob.arrayBuffer();
+export async function rosterTemplate(load: typeof fetch = fetch) {
+  // The reviewed workbook is the single source of truth, including its formatting.
+  const response = await load(ROSTER_TEMPLATE_URL);
+  if (!response.ok) throw new Error('Şablon indirilemedi. Lütfen tekrar deneyin.');
+  const buffer = await response.arrayBuffer();
+  checkArchive(buffer);
+  return buffer;
 }

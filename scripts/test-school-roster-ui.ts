@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
+import fs from 'node:fs';
 import { auditDisplay } from '../src/utils/audit-display';
 import { formatRosterDraftInput, LEGACY_ROSTER_HEADERS, normalizeBirthDate, parseDelimited, rowsToDrafts, validateRosterRow, ROSTER_HEADERS } from '../src/utils/roster-import';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
@@ -41,7 +42,8 @@ async function run() {
   stage = 'xlsx template and parsing';
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const { readSheet } = await import('read-excel-file/universal');
-  assert.deepEqual(await readSheet(await rosterTemplate(), 'Kayıtlar'), [ROSTER_HEADERS]);
+  const template = await rosterTemplate(async () => new Response(new Uint8Array(fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'))));
+  assert.deepEqual((await readSheet(template, 'Kayıtlar')).filter((row) => row.some((cell) => cell != null && cell !== '')), [ROSTER_HEADERS]);
   const data: import('write-excel-file/universal').SheetData = [LEGACY_ROSTER_HEADERS, ['Test Student', '001', '5-A', 'Test Parent', 5334138206, { value: new Date('2014-03-14T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' }]];
   const arrayBuffer = await (await writeXlsxFile(data, { sheet: 'Kayıtlar' }).toBlob()).arrayBuffer();
   const parsed = await readRosterFile(arrayBuffer, 'test.xlsx');

@@ -594,3 +594,23 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
   .dialog-panel { box-shadow: none; max-height: none; margin: auto; }
   .dialog-heading button, .dialog-body button { display: none; }
 }
+/* Staff import actions retain the existing button sizing and keyboard focus. */
+.staff-import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; max-width: 100%; }
+.staff-import-actions .staff-template-download { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.staff-import-actions .staff-bulk-upload { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+.staff-import-actions .staff-template-download:hover { background: #dbeafe; }
+.staff-import-actions .staff-bulk-upload:hover { background: #ede9fe; }
+.student-class-all { width: 100%; max-width: 10rem; }
+.student-class-groups { display: grid; gap: .65rem; }
+.student-class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap: .65rem; }
+.student-class-card { --class-accent: #1d4ed8; display: grid; grid-template-columns: auto 1fr; align-content: center; gap: .15rem .6rem; width: 100%; min-height: 70px; padding: .7rem; border-radius: .65rem; border: 1px solid color-mix(in srgb, var(--class-accent) 15%, white); color: var(--class-accent); background: linear-gradient(135deg, #ffffffeb, color-mix(in srgb, var(--class-accent) 8%, #ffffffeb)); box-shadow: 0 2px 8px #16372b05; backdrop-filter: blur(8px); text-align: left; cursor: pointer; transition: background .15s, box-shadow .15s; }
+.student-class-card .student-class-icon { grid-column: 1; grid-row: 1 / 3; display: grid; place-items: center; align-self: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--class-accent) 12%, transparent); }
+.student-class-card strong { color: #263b36; font-size: .875rem; }
+.student-class-card .student-class-count { grid-column: 2; font-size: .75rem; color: #354b41; }
+.student-class-card:hover { background: color-mix(in srgb, var(--class-accent) 13%, white); }
+.student-class-card[aria-pressed="true"] { border-color: var(--class-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--class-accent) 25%, transparent); }
+.student-class-card:focus-visible { outline: 3px solid var(--class-accent); outline-offset: 3px; }
+.class-tone-purple { --class-accent: #6d28d9; }
+.class-tone-green { --class-accent: #166534; }
+.class-tone-orange { --class-accent: #9a3412; }
+.class-tone-red { --class-accent: #b91c1c; }

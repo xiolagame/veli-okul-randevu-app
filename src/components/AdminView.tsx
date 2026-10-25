@@ -11,17 +11,13 @@ import {
   CheckCircle2,
   Clock,
   GraduationCap,
-  Upload,
-  Check,
   LifeBuoy,
-  Trash2,
 } from 'lucide-react';
 import { Alert, Button, EmptyState, Metric, StatusBadge } from './ui';
 import { api } from '../services/api';
 import { StaffManagement } from './StaffManagement';
-import { ParentManagement } from './ParentManagement';
+import { StudentManagement } from './StudentManagement';
 import { AuditManagement } from './AuditManagement';
-import { ManagementActions } from './ManagementActions';
 import { BulkRosterImport } from './BulkRosterImport';
 import { SchoolInfo } from './SchoolInfo';
 import { SchoolAdminManagement } from './SchoolAdminManagement';
@@ -59,16 +55,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
 
   const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
   const [appointmentMode, setAppointmentMode] = useState<'today' | 'all'>('today');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [parentClasses, setParentClasses] = useState<string[]>([]);
-  const classOptions = [...new Set([...parentClasses, ...roster.map((record) => record.className)])].sort((left, right) => left.localeCompare(right, 'tr', { numeric: true }));
   const istanbulTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
   const datedAppointments = appointmentMode === 'today'
     ? appointmentsOnDate(appointments, selectedDate)
     : sortAppointmentsForAdmin(appointments, { date: getIstanbulDate(), time: istanbulTime });
 
-  // Roster Filter
-  const [rosterSearch, setRosterSearch] = useState('');
 
 
   // Settings form state
@@ -82,8 +73,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
   // Bulk Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
   useEffect(() => {
-    setSelectedClass('');
-    setParentClasses([]);
     setSelectedDate(getIstanbulDate());
     setAppointmentMode('today');
   }, [currentSchool?.id]);
@@ -130,15 +119,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
     }
   };
 
-  const filteredRoster = roster.filter((r) => {
-    if (r.isClaimed || !selectedClass || r.className !== selectedClass) return false;
-    return (
-      r.studentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
-      r.parentName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
-      r.parentPhone.includes(rosterSearch) ||
-      r.className.toLowerCase().includes(rosterSearch.toLowerCase())
-    );
-  });
 
   const navigation = [
     { id: 'dashboard' as const, label: 'Genel bakış', icon: Shield },
@@ -170,15 +150,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
             </div>
           </div>}
 
-          {activeTab === 'roster' && <section className="space-y-5">
-            <label className="field" htmlFor="parent-class">Sınıf seçin<select id="parent-class" value={selectedClass} onChange={(event) => setSelectedClass(event.target.value)}>
-              <option value="">Önce sınıf seçin</option>{classOptions.map((className) => <option key={className} value={className}>{className}</option>)}
-            </select></label>
-            <label className="field" htmlFor="parent-search">Seçili sınıfta ara<input id="parent-search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="Öğrenci, veli veya telefon" /></label>
-            {currentSchool && <ParentManagement key={currentSchool.id} schoolId={currentSchool.id} search={rosterSearch} selectedClass={selectedClass} onClassesChange={setParentClasses} onChanged={refreshSchoolData} />}
-            <div className="section-heading"><div><h3>Hesap Oluşturmayı Bekleyen Kayıtlar</h3><p>Toplu kayıtla eklenip henüz veli hesabıyla eşleşmeyen öğrenci/veli bilgileri.</p></div><Button onClick={() => { setFormError(''); setShowUploadModal(true); }}><Upload size={17} />Toplu kayıt ekle</Button></div>
-            {filteredRoster.length ? <div className="surface !p-0 overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 text-xs"><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap</th><th><span className="sr-only">İşlem</span></th></tr></thead><tbody className="divide-y divide-slate-200">{filteredRoster.map((item) => <tr key={item.id}><td data-label="Öğrenci" className="font-bold text-slate-900">{item.studentName}</td><td data-label="Sınıf / No">{item.className} {item.studentNumber && `· ${item.studentNumber}`}</td><td data-label="Veli">{item.parentAccountDeletedAt ? 'Silinmiş Veli' : item.parentName}</td><td data-label="Telefon">{item.parentAccountDeletedAt ? '—' : item.parentPhone}</td><td><span className={`status-badge tone-${item.parentAccountDeletedAt ? 'neutral' : item.isClaimed ? 'success' : 'warning'}`}>{item.parentAccountDeletedAt ? <Trash2 size={14} /> : item.isClaimed ? <Check size={14} /> : <Clock size={14} />}{item.parentAccountDeletedAt ? 'Veli hesabı silindi' : item.isClaimed ? 'Aktif hesap' : 'Hesap oluşturmadı'}</span></td><td>{currentSchool && !item.parentAccountDeletedAt && <ManagementActions schoolId={currentSchool.id} kind="roster" id={item.id} values={{ parentName: item.parentName, parentPhone: item.parentPhone, studentName: item.studentName, className: item.className, studentNumber: item.studentNumber || '' }} onChanged={refreshSchoolData} />}</td></tr>)}</tbody></table></div> : <div className="surface"><EmptyState icon={GraduationCap} title={!selectedClass ? 'Önce sınıf seçin' : 'Hesap oluşturmayı bekleyen kayıt yok'} description={!selectedClass ? 'Bekleyen kayıtları görmek için önce sınıf seçin.' : 'Bu sınıfa toplu kayıtla eklenmiş ve henüz veli hesabıyla eşleşmemiş öğrenci/veli bilgisi bulunmuyor.'} /></div>}
-          </section>}
+          {activeTab === 'roster' && currentSchool && <StudentManagement key={currentSchool.id} schoolId={currentSchool.id} schoolName={currentSchool.name} onChanged={refreshSchoolData} onImport={() => { setFormError(''); setShowUploadModal(true); }} />}
 
           {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} />}
 

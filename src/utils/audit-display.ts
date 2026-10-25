@@ -36,6 +36,8 @@ const events: Record<string, [string, string]> = {
   'teacher.updated': ['Öğretmen bilgileri güncellendi.', 'info'],
   'parent.updated': ['Veli bilgileri güncellendi.', 'info'],
   'student.updated': ['Öğrenci bilgileri güncellendi.', 'info'],
+  'student.records_removed': ['Öğrenci okul kayıtları kaldırıldı; veli hesapları korundu.', 'rose'],
+  'class.bulk_delete': ['Toplu sınıf silme doğrulama işlemi kaydedildi.', 'warning'],
   'security.updated': ['Personel bilgileri güncellendi.', 'info'],
   'roster.updated': ['Kütük kaydı güncellendi.', 'info'],
   'school.created': ['Okul oluşturuldu.', 'success'],

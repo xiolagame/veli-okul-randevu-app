@@ -23,6 +23,9 @@ import {
 } from './platform-phone-binding';
 
 function platformTargetAllows(method: string, path: string): boolean {
+  if (/^\/schools\/[^/]+\/management\/student-records$/.test(path) && method === 'GET') return true;
+  if (/^\/schools\/[^/]+\/management\/student-records\/roster\/[^/]+$/.test(path) && method === 'DELETE') return true;
+  if (/^\/schools\/[^/]+\/management\/student-records\/class-removal\/(preview|request-code|complete)$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/management\/admins(?:\/[^/]+(?:\/resend)?)?$/.test(path) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/students\/[^/]+\/removal$/.test(path) && ['GET', 'DELETE'].includes(method)) return true;

@@ -156,6 +156,11 @@ export const api = {
   updatePlatformRequestStatus: (id: string, status: import('../types/platform').PlatformRequestStatus) =>
     request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
+  getManagedStudentRecords: (schoolId: string) => request<{ records: import('../utils/student-records').SchoolStudentRecord[]; classBulkDeleteEnabled: boolean }>(`/api/schools/${schoolId}/management/student-records`),
+  removePendingStudent: (schoolId: string, id: string) => request<{ success: boolean }>(`/api/schools/${schoolId}/management/student-records/roster/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  previewClassRemoval: (schoolId: string, className: string) => request<{ className: string; studentCount: number; snapshot: string }>(`/api/schools/${schoolId}/management/student-records/class-removal/preview`, { method: 'POST', body: JSON.stringify({ className }) }),
+  requestClassRemovalCode: (schoolId: string, className: string, snapshot: string) => request<{ challengeId: string; expiresInSeconds: number }>(`/api/schools/${schoolId}/management/student-records/class-removal/request-code`, { method: 'POST', body: JSON.stringify({ className, snapshot }) }),
+  completeClassRemoval: (schoolId: string, className: string, challengeId: string, code: string, confirmation: string) => request<{ success: boolean; removedCount: number }>(`/api/schools/${schoolId}/management/student-records/class-removal/complete`, { method: 'POST', body: JSON.stringify({ className, challengeId, code, confirmation }) }),
   getManagedSchoolAdmins: (schoolId: string) => request<{ admins: import('../types/management').ManagedSchoolAdmin[] }>(`/api/schools/${schoolId}/management/admins`),
   createManagedSchoolAdmin: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
     request<{ success: boolean; emailSent: boolean; message: string }>(`/api/schools/${schoolId}/management/admins`, { method: 'POST', body: JSON.stringify(data) }),
