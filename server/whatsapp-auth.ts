@@ -276,7 +276,7 @@ async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: What
     return { purpose: 'login', target: { schoolId: null, userId: user.id, role: null, profileId: null } };
   }
   const resolved = await resolveUnifiedTarget(phone);
-  return resolved?.purpose === 'parent_registration' ? null : resolved;
+  return resolved;
 }
 
 export async function requestWhatsAppAuthChallenge(input: {

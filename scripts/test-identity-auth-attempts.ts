@@ -311,25 +311,39 @@ async function run() {
       assert.equal('memberships' in response.body, false);
     };
     try {
+      currentStage = 'runtime capability matrix';
+      const readCapabilities = async () => {
+        const response = await originalFetch(baseUrl + '/public/auth-capabilities');
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('cache-control'), 'no-store');
+        return await response.json() as { phoneCentricAuthEnabled: boolean; unifiedLoginEnabled: boolean };
+      };
+      for (const scenario of [
+        { phone: 'false', whatsapp: 'true', pilot: 'true', unified: 'true', expected: false },
+        { phone: 'true', whatsapp: 'true', pilot: 'true', unified: 'false', expected: true },
+        { phone: 'true', whatsapp: 'false', pilot: 'true', unified: 'true', expected: false },
+        { phone: 'true', whatsapp: 'true', pilot: 'false', unified: 'true', expected: false },
+      ]) {
+        process.env.PHONE_CENTRIC_AUTH_ENABLED = scenario.phone;
+        process.env.WHATSAPP_AUTH_ENABLED = scenario.whatsapp;
+        process.env.WHATSAPP_PILOT_ENABLED = scenario.pilot;
+        process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = scenario.unified;
+        assert.equal((await readCapabilities()).phoneCentricAuthEnabled, scenario.expected);
+      }
+      process.env.WHATSAPP_AUTH_ENABLED = 'true';
+      process.env.WHATSAPP_PILOT_ENABLED = 'true';
+      process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'false';
       currentStage = 'phone-centric feature flag';
       process.env.PHONE_CENTRIC_AUTH_ENABLED = 'false';
       assert.equal((await request('/auth/phone/request-code', { phone: racePhone })).status, 404);
       process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
 
-      currentStage = 'phone-centric parent first registration';
+      currentStage = 'phone-centric parent automatic activation';
       const deliveriesBeforeRegistration = whatsappDeliveryCount;
-      const unauthorizedRegistration = await request('/auth/phone/request-code', {
-        phone: unregisteredPhone,
-        flow: 'parent_registration',
-        schoolCode: `ID${raceSuffix}`,
-      });
+      const unauthorizedRegistration = await request('/auth/phone/request-code', { phone: unregisteredPhone });
       assert.equal(unauthorizedRegistration.status, 200);
       assert.equal(whatsappDeliveryCount, deliveriesBeforeRegistration, 'phone possession without an authorized roster must not send or claim');
-      const registrationStart = await request('/auth/phone/request-code', {
-        phone: registrationPhone,
-        flow: 'parent_registration',
-        schoolCode: `ID${raceSuffix}`,
-      });
+      const registrationStart = await request('/auth/phone/request-code', { phone: registrationPhone });
       assert.equal(registrationStart.status, 200);
       assert.equal(whatsappDeliveryCount, deliveriesBeforeRegistration + 1);
       const registrationComplete = await request('/auth/phone/verify-code', {
@@ -404,8 +418,11 @@ async function run() {
       assert.equal((await request('/auth/login', { phone: platformPhone, password: racePassword })).status, 200,
         'legacy platform password endpoint must remain compatible while phone-centric auth is disabled');
       process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
+      const beforePlatformDelivery = whatsappDeliveryCount;
       const platformStart = await request('/auth/phone/request-code', { phone: platformPhone });
       assert.equal(platformStart.status, 200);
+      assert.equal(whatsappDeliveryCount, beforePlatformDelivery + 1, 'phone-centric Platform request must send via the mock provider even when unified legacy login is off');
+      assert.equal('token' in platformStart.body, false);
       const platformPhoneCode = deliveredCode;
       const platformPhoneVerified = await request('/auth/phone/verify-code', {
         attemptId: platformStart.body.attemptId,
@@ -485,7 +502,11 @@ async function run() {
     if (originalPlatformIds === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS; else process.env.PLATFORM_ADMIN_USER_IDS = originalPlatformIds;
     if (originalResendKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = originalResendKey;
     if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = originalEmailFrom;
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    try {
+      fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch (cleanupError) {
+      console.warn('Temporary test database cleanup skipped (Windows file lock):', cleanupError instanceof Error ? cleanupError.message : String(cleanupError));
+    }
   }
 }
 

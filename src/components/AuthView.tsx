@@ -31,6 +31,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [whatsappAuthEnabled, setWhatsappAuthEnabled] = useState(false);
   const [unifiedLoginEnabled, setUnifiedLoginEnabled] = useState(false);
   const [phoneCentricAuthEnabled, setPhoneCentricAuthEnabled] = useState(false);
+  const [capabilitiesStatus, setCapabilitiesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
   const [passwordLoginMode, setPasswordLoginMode] = useState<PasswordLoginMode>(null);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -68,18 +70,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const passwordRef = useRef<HTMLInputElement>(null);
   const loginButtonRef = useRef<HTMLButtonElement>(null);
   const authSideRef = useRef<HTMLElement>(null);
+  const usePhoneCentricLogin = phoneCentricAuthEnabled && (getRuntimePlatform() === 'WEB' || passwordLoginMode === null);
 
   useEffect(() => {
     let active = true;
+    setCapabilitiesStatus('loading');
     api.getAuthCapabilities().then((result) => {
       if (active) {
         setWhatsappAuthEnabled(result.whatsappAuthEnabled);
         setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
         setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled);
+        setCapabilitiesStatus('ready');
       }
-    }).catch(() => undefined);
+    }).catch(() => { if (active) setCapabilitiesStatus('error'); });
     return () => { active = false; };
-  }, []);
+  }, [capabilitiesRetry]);
 
   useEffect(() => {
     if (getRuntimePlatform() !== 'IOS') return;
@@ -363,13 +368,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
-          <h2>{phoneCentricAuthEnabled && passwordLoginMode === null ? 'Telefon Numaranızla Giriş Yapın' : 'Tekrar merhaba.'}</h2>
-          <p>{phoneCentricAuthEnabled && passwordLoginMode === null ? 'Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.' : 'Okulunuzla buluşmak için hesabınıza giriş yapın.'}</p>
+          <h2>{usePhoneCentricLogin ? 'Telefon Numaranızla Giriş Yapın' : 'Tekrar merhaba.'}</h2>
+          <p>{usePhoneCentricLogin ? 'Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.' : 'Okulunuzla buluşmak için hesabınıza giriş yapın.'}</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {phoneCentricAuthEnabled && passwordLoginMode === null ? <PhoneCentricLoginPanel onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
+          {getRuntimePlatform() === 'WEB' && capabilitiesStatus !== 'ready' ? (capabilitiesStatus === 'loading'
+            ? <p role="status">Giriş seçenekleri yükleniyor…</p>
+            : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
+            : getRuntimePlatform() === 'WEB' && !phoneCentricAuthEnabled ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={getRuntimePlatform() !== 'WEB'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
             ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
             : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
           {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}

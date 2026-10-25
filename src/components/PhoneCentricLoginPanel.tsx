@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { ArrowLeft, Mail, MessageCircle, Phone, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Mail, MessageCircle, Phone, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
@@ -7,12 +7,13 @@ import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { Alert, Button } from './ui';
 
 type Step = 'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE';
-type Flow = 'LOGIN' | 'PARENT_REGISTRATION';
 
-export function PhoneCentricLoginPanel({ onLegacyFallback }: { onLegacyFallback: (phone: string) => void }) {
+export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback = true }: {
+  onLegacyFallback: (phone: string) => void;
+  allowLegacyFallback?: boolean;
+}) {
   const { whatsappLogin } = useApp();
   const [step, setStep] = useState<Step>('PHONE');
-  const [flow, setFlow] = useState<Flow>('LOGIN');
   const [phone, setPhone] = useState('');
   const [attemptId, setAttemptId] = useState('');
   const [challengeId, setChallengeId] = useState('');
@@ -47,19 +48,16 @@ export function PhoneCentricLoginPanel({ onLegacyFallback }: { onLegacyFallback:
   const requestCode = async () => {
     const canonicalPhone = normalizeUserPhoneInput(phone);
     if (!canonicalPhone) throw new Error('Geçerli bir Türkiye GSM numarası girin.');
-    const registration = flow === 'PARENT_REGISTRATION'
-      ? { schoolCode: normalizeSchoolCodeInput(schoolCode) }
-      : undefined;
-    if (registration && !registration.schoolCode) throw new Error('Okul kodunu kontrol edin.');
-    const response = await api.requestPhoneCentricCode(canonicalPhone, registration);
+    const response = await api.requestPhoneCentricCode(canonicalPhone);
     if (response.legacyFallbackRequired) {
+      if (!allowLegacyFallback) throw new Error('Bu telefon için WhatsApp girişi şu anda kullanılamıyor. Okul yönetiminizle iletişime geçin.');
       onLegacyFallback(canonicalPhone);
       return;
     }
     setAttemptId(response.attemptId);
     setChallengeId(response.challengeId);
     setCooldown(response.resendAfterSeconds);
-    setMessage(response.message);
+    setMessage('Lütfen telefonunuza gelen WhatsApp onay kodunu girin.');
     setStep('WHATSAPP_CODE');
   };
 
@@ -132,22 +130,15 @@ export function PhoneCentricLoginPanel({ onLegacyFallback }: { onLegacyFallback:
       </div>
     </div>
     {error && <Alert tone="danger">{error}</Alert>}
-    {message && <Alert tone="success">{message}</Alert>}
+    {message && <Alert tone={step === 'WHATSAPP_CODE' ? 'info' : 'success'}>{message}</Alert>}
     <form onSubmit={submit} className="form-stack">
       <label className="field" htmlFor="phone-centric-phone">Telefon numaranız
         <div className="field-icon"><Phone size={18} aria-hidden="true" />
           <input id="phone-centric-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14}
             value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))}
-            placeholder="+90 5XX XXX XX XX" readOnly={step !== 'PHONE'} required />
+            placeholder="0555 123 45 67" readOnly={step !== 'PHONE'} required />
         </div>
       </label>
-      {step === 'PHONE' && flow === 'PARENT_REGISTRATION' && <>
-        <label className="field" htmlFor="phone-centric-school-code">Okul kodu
-          <input id="phone-centric-school-code" autoComplete="off" value={schoolCode}
-            onChange={(event) => setSchoolCode(normalizeSchoolCodeInput(event.target.value))} required />
-        </label>
-        <p className="field-hint">Kayıt, okulun önceden doğruladığı veli telefonu ve öğrenci eşleştirmesiyle yapılır.</p>
-      </>}
       {step === 'WHATSAPP_CODE' && <label className="field" htmlFor="phone-centric-code">WhatsApp doğrulama kodu
         <div className="field-icon"><ShieldCheck size={18} aria-hidden="true" />
           <input id="phone-centric-code" type="text" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go"
@@ -177,12 +168,5 @@ export function PhoneCentricLoginPanel({ onLegacyFallback }: { onLegacyFallback:
         </button>}
       </div>}
     </form>
-    {step === 'PHONE' && <div className="whatsapp-auth-actions">
-      <button type="button" onClick={() => {
-        setFlow((current) => current === 'LOGIN' ? 'PARENT_REGISTRATION' : 'LOGIN');
-        setError('');
-        setMessage('');
-      }}><Users size={16} aria-hidden="true" />{flow === 'LOGIN' ? 'İlk kez veli kaydı oluştur' : 'Kayıtlı hesabımla giriş yap'}</button>
-    </div>}
   </div>;
 }

@@ -193,6 +193,7 @@ apiRouter.get('/public/school-context', async (req, res) => {
 });
 
 apiRouter.get('/public/auth-capabilities', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json({
     whatsappAuthEnabled: isWhatsAppAuthEnabled(),
     unifiedLoginEnabled: isUnifiedWhatsAppLoginEnabled(),

@@ -191,7 +191,7 @@ export const api = {
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
   getAuthCapabilities: () =>
-    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities'),
+    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store' }),
 
   // Authentication
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
