@@ -21,6 +21,18 @@ import { isPlatformAdmin } from './auth';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
 import { SchoolMembership, User, UserRole } from '../src/types';
+import {
+  attachIssuedEmailChallenge,
+  attachPhoneChallenge,
+  consumeAuthenticatedAttempt,
+  createIdentityAuthAttempt,
+  getIdentityAuthAttempt,
+  IdentityAuthFlowType,
+  isPhoneCentricAuthEnabled,
+  issueEmailChallenge,
+  markPhoneVerified,
+  verifyEmailChallenge,
+} from './identity-auth-attempts';
 
 export type WhatsAppAuthPurpose = 'login' | 'parent_registration' | 'staff_activation' | 'account_deletion' | 'school_admin_login' | 'school_admin_activation';
 
@@ -258,14 +270,27 @@ async function resolveUnifiedTarget(phone: string): Promise<{ purpose: WhatsAppA
   return candidates.length === 1 ? candidates[0] : null;
 }
 
+async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: WhatsAppAuthPurpose; target: ChallengeTarget } | null> {
+  const user = await userRepository.getByPhone(phone);
+  if (user && isPlatformAdmin(user.id)) {
+    return { purpose: 'login', target: { schoolId: null, userId: user.id, role: null, profileId: null } };
+  }
+  const resolved = await resolveUnifiedTarget(phone);
+  return resolved?.purpose === 'parent_registration' ? null : resolved;
+}
+
 export async function requestWhatsAppAuthChallenge(input: {
   purpose: WhatsAppAuthPurpose | 'auto';
   phone: unknown;
   schoolCode?: unknown;
   authenticatedUserId?: string;
   requesterKey: string;
+  phoneCentric?: boolean;
 }): Promise<{ challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }> {
-  if (input.purpose === 'auto' && !isUnifiedWhatsAppLoginEnabled()) {
+  if (input.purpose === 'auto' && input.phoneCentric && !isPhoneCentricAuthEnabled()) {
+    throw new WhatsAppAuthError(404, 'Bu giriş yöntemi kullanılamıyor.');
+  }
+  if (input.purpose === 'auto' && !input.phoneCentric && !isUnifiedWhatsAppLoginEnabled()) {
     throw new WhatsAppAuthError(404, 'Bu giriş yöntemi kullanılamıyor.');
   }
   assertWhatsAppDeliveryConfigured();
@@ -280,7 +305,9 @@ export async function requestWhatsAppAuthChallenge(input: {
   if (!isWhatsAppPilotPhoneAllowed(phone)) {
     return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
   }
-  const resolved = input.purpose === 'auto' ? await resolveUnifiedTarget(phone) : null;
+  const resolved = input.purpose === 'auto'
+    ? await (input.phoneCentric ? resolvePhoneCentricTarget(phone) : resolveUnifiedTarget(phone))
+    : null;
   const purpose: WhatsAppAuthPurpose = input.purpose === 'auto' ? (resolved?.purpose || 'login') : input.purpose;
   const target = input.purpose === 'auto' ? (resolved?.target || null) : await resolveTarget({
     purpose,
@@ -554,8 +581,9 @@ export async function completeUnifiedAdminEmailActivation(input: {
   phone: unknown;
   emailCode: unknown;
   requesterKey: string;
+  phoneCentric?: boolean;
 }): Promise<WhatsAppAuthResult | null> {
-  if (!isUnifiedWhatsAppLoginEnabled()) return null;
+  if (input.phoneCentric ? !isPhoneCentricAuthEnabled() : !isUnifiedWhatsAppLoginEnabled()) return null;
   const handle = typeof input.handle === 'string' ? input.handle.trim() : '';
   const phone = normalizeTurkishPhone(input.phone);
   const emailCode = typeof input.emailCode === 'string' ? input.emailCode.trim() : '';
@@ -649,6 +677,7 @@ export async function verifyWhatsAppAuthChallenge(input: {
   phone: unknown;
   code: unknown;
   requesterKey: string;
+  phoneCentric?: boolean;
 }): Promise<WhatsAppAuthResult | PendingAdminEmail | null> {
   assertWhatsAppDeliveryConfigured();
   const challengeId = typeof input.challengeId === 'string' ? input.challengeId.trim() : '';
@@ -667,7 +696,7 @@ export async function verifyWhatsAppAuthChallenge(input: {
       if (!currentIdentity || currentIdentity.id !== challenge.target_user_id) return null;
     }
     if ((challenge.purpose === 'school_admin_login' || challenge.purpose === 'school_admin_activation')
-      && !isUnifiedWhatsAppLoginEnabled()) return null;
+      && (input.phoneCentric ? !isPhoneCentricAuthEnabled() : !isUnifiedWhatsAppLoginEnabled())) return null;
     if (challenge.purpose === 'school_admin_activation') return queueAdminEmailAfterPhoneVerification(tx, challenge);
     let user: (User & { authVersion: number }) | null = null;
     if (challenge.purpose === 'school_admin_login') {
@@ -696,6 +725,224 @@ export async function verifyWhatsAppAuthChallenge(input: {
     await tx.query('UPDATE whatsapp_auth_challenges SET consumed_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challenge.id]);
     return { user, memberships, purpose: challenge.purpose };
   });
+}
+
+export type PhoneCentricPendingEmail = {
+  pendingEmail: true;
+  attemptId: string;
+  requiresSchoolCode: boolean;
+  email: string;
+  schoolName?: string;
+  schoolCode?: string;
+  licenseCode?: string;
+  fullName: string;
+  code: string;
+  handle?: string;
+};
+
+function flowTypeForChallenge(challenge: Pick<ChallengeRow, 'purpose' | 'target_user_id'>): IdentityAuthFlowType {
+  if (challenge.target_user_id && isPlatformAdmin(challenge.target_user_id)) return 'PLATFORM_LOGIN';
+  if (challenge.purpose === 'school_admin_activation') return 'SCHOOL_ADMIN_ACTIVATION';
+  if (challenge.purpose === 'school_admin_login') return 'SCHOOL_ADMIN_LOGIN';
+  if (challenge.purpose === 'parent_registration') return 'PARENT_REGISTRATION';
+  if (challenge.purpose === 'staff_activation') return 'STAFF_ACTIVATION';
+  return 'USER_LOGIN';
+}
+
+export async function requestPhoneCentricAuthChallenge(input: {
+  phone: unknown;
+  requesterKey: string;
+  parentRegistration?: { schoolCode: unknown };
+}): Promise<
+  | { legacyFallbackRequired: true }
+  | { legacyFallbackRequired?: false; attemptId: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }
+> {
+  if (!isPhoneCentricAuthEnabled()) throw new WhatsAppAuthError(404, 'Bu giriş yöntemi kullanılamıyor.');
+  const phone = normalizeTurkishPhone(input.phone);
+  if (!phone) throw new WhatsAppAuthError(400, 'Geçerli bir Türkiye GSM numarası girin.');
+  if (!isWhatsAppPilotPhoneAllowed(phone)) return { legacyFallbackRequired: true };
+  const registration = input.parentRegistration;
+  const schoolCode = typeof registration?.schoolCode === 'string' ? registration.schoolCode.trim() : '';
+  if (registration) {
+    const school = schoolCode ? await schoolRepository.getByCode(schoolCode) : null;
+    const digits = getTurkishPhoneLookupDigits(phone);
+    const existing = await userRepository.getByPhone(phone);
+    const existingMembership = school && existing
+      ? await membershipRepository.getActiveMembership(existing.id, school.id)
+      : null;
+    const roster = school && digits
+      ? await (await getDb()).query<{ parent_name: string }>(
+        `SELECT parent_name FROM school_roster
+         WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
+           AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4)`,
+        [school.id, ...digits],
+      )
+      : { rows: [] as { parent_name: string }[] };
+    const parentNames = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
+    if (!school || !digits || existingMembership?.role === 'parent' ||
+        parentNames.size !== 1 || !await schoolLicenseRepository.isAccessAllowed(school.id)) {
+      return { attemptId: crypto.randomUUID(), challengeId: crypto.randomUUID(), expiresInSeconds: 300, resendAfterSeconds: 60 };
+    }
+  }
+  const challenge = await requestWhatsAppAuthChallenge({
+    purpose: registration ? 'parent_registration' : 'auto',
+    phone,
+    schoolCode: registration ? schoolCode : undefined,
+    requesterKey: input.requesterKey,
+    phoneCentric: true,
+  });
+  const row = await (await getDb()).query<ChallengeRow>(
+    `SELECT id,school_id,target_phone,target_user_id,target_role,target_profile_id,purpose,code_hash,attempts,
+            max_attempts,expires_at,resend_available_at,consumed_at,revoked_at
+     FROM whatsapp_auth_challenges WHERE id=$1`,
+    [challenge.challengeId],
+  );
+  const record = row.rows[0];
+  if (!record) return { attemptId: crypto.randomUUID(), ...challenge };
+  try {
+    const user = record.target_user_id ? await userRepository.getById(record.target_user_id) : null;
+    const attempt = await createIdentityAuthAttempt({
+      phone,
+      targetUserId: record.target_user_id,
+      flowType: flowTypeForChallenge(record),
+      authVersionAtStart: user?.authVersion ?? null,
+    });
+    await attachPhoneChallenge(attempt.id, record.id);
+    return { attemptId: attempt.id, ...challenge };
+  } catch (error) {
+    await (await getDb()).query(
+      'UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL',
+      [record.id],
+    );
+    throw error;
+  }
+}
+
+async function verifyPlatformPhoneFactor(input: {
+  challengeId: string;
+  phone: string;
+  code: string;
+}): Promise<{ user: User & { authVersion: number }; email: string }> {
+  return (await getDb()).transaction(async (tx) => {
+    const challenge = await readAndValidateChallenge(tx, input);
+    if (!challenge?.target_user_id || challenge.purpose !== 'login' || !isPlatformAdmin(challenge.target_user_id)) {
+      throw new Error('INVALID_PLATFORM_CHALLENGE');
+    }
+    const currentIdentity = await userRepository.getByPhone(challenge.target_phone, tx);
+    if (!currentIdentity || currentIdentity.id !== challenge.target_user_id) throw new Error('INVALID_PLATFORM_CHALLENGE');
+    const email = await tx.query<{ email: string | null }>('SELECT email FROM users WHERE id=$1 FOR SHARE', [currentIdentity.id]);
+    if (!email.rows[0]?.email) throw new Error('INVALID_PLATFORM_CHALLENGE');
+    await tx.query('UPDATE whatsapp_auth_challenges SET consumed_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challenge.id]);
+    return { user: currentIdentity, email: email.rows[0].email.trim().toLowerCase() };
+  });
+}
+
+export async function verifyPhoneCentricAuthChallenge(input: {
+  attemptId: unknown;
+  challengeId: unknown;
+  phone: unknown;
+  code: unknown;
+  requesterKey: string;
+}): Promise<WhatsAppAuthResult | PhoneCentricPendingEmail | null> {
+  if (!isPhoneCentricAuthEnabled()) return null;
+  const attemptId = typeof input.attemptId === 'string' ? input.attemptId.trim() : '';
+  const challengeId = typeof input.challengeId === 'string' ? input.challengeId.trim() : '';
+  const phone = normalizeTurkishPhone(input.phone);
+  const code = typeof input.code === 'string' ? input.code.trim() : '';
+  if (!attemptId || !challengeId || !phone || !/^\d{6}$/.test(code)) return null;
+  const attempt = await getIdentityAuthAttempt(attemptId);
+  if (!attempt || attempt.canonicalPhone !== phone || attempt.whatsappChallengeId !== challengeId ||
+      attempt.status !== 'PHONE_CHALLENGE_ISSUED') return null;
+
+  if (attempt.flowType === 'PLATFORM_LOGIN') {
+    const platform = await verifyPlatformPhoneFactor({ challengeId, phone, code });
+    if (attempt.targetUserId !== platform.user.id || attempt.authVersionAtStart !== platform.user.authVersion) return null;
+    await markPhoneVerified(attemptId, challengeId);
+    const issued = await issueEmailChallenge({ attemptId, email: platform.email, phoneCode: code });
+    return {
+      pendingEmail: true,
+      attemptId,
+      requiresSchoolCode: false,
+      email: platform.email,
+      fullName: `${platform.user.firstName} ${platform.user.lastName}`.trim(),
+      code: issued.code,
+    };
+  }
+
+  const result = await verifyWhatsAppAuthChallenge({
+    challengeId,
+    phone,
+    code,
+    requesterKey: input.requesterKey,
+    phoneCentric: true,
+  });
+  if (!result) return null;
+  await markPhoneVerified(attemptId, challengeId);
+  if ('pendingEmail' in result) {
+    await attachIssuedEmailChallenge({
+      attemptId,
+      email: result.email,
+      code: result.code,
+      challengeId: result.handle,
+    });
+    return { ...result, attemptId, requiresSchoolCode: true };
+  }
+  if (attempt.targetUserId && attempt.targetUserId !== result.user.id) return null;
+  await consumeAuthenticatedAttempt(attemptId);
+  return result;
+}
+
+export async function completePhoneCentricEmailVerification(input: {
+  attemptId: unknown;
+  phone: unknown;
+  emailCode: unknown;
+  schoolCode?: unknown;
+  requesterKey: string;
+}): Promise<WhatsAppAuthResult | null> {
+  if (!isPhoneCentricAuthEnabled()) return null;
+  const attemptId = typeof input.attemptId === 'string' ? input.attemptId.trim() : '';
+  const phone = normalizeTurkishPhone(input.phone);
+  const emailCode = typeof input.emailCode === 'string' ? input.emailCode.trim() : '';
+  if (!phone || !isWhatsAppPilotPhoneAllowed(phone)) return null;
+  if (!await withinRateLimit(`${input.requesterKey}:phone-centric-email:${phone}`, 8, 15)) {
+    throw new WhatsAppAuthError(429, 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.');
+  }
+  const attempt = attemptId ? await getIdentityAuthAttempt(attemptId) : null;
+  if (!attempt || !phone || attempt.canonicalPhone !== phone || attempt.status !== 'EMAIL_CHALLENGE_ISSUED' ||
+      !attempt.targetUserId || !/^\d{6}$/.test(emailCode)) return null;
+  const user = await userRepository.getById(attempt.targetUserId);
+  if (!user || user.authVersion !== attempt.authVersionAtStart) return null;
+  const recipient = await (await getDb()).query<{ email: string | null }>('SELECT email FROM users WHERE id=$1', [user.id]);
+  const email = recipient.rows[0]?.email?.trim().toLowerCase();
+  if (!email) return null;
+
+  if (attempt.flowType === 'SCHOOL_ADMIN_ACTIVATION') {
+    const schoolCode = typeof input.schoolCode === 'string' ? input.schoolCode.trim().toUpperCase() : '';
+    const binding = await (await getDb()).query<{ school_code: string }>(
+      `SELECT s.code AS school_code FROM identity_auth_attempts a
+       JOIN whatsapp_auth_challenges w ON w.id=a.whatsapp_challenge_id
+       JOIN schools s ON s.id=w.school_id AND s.disabled_at IS NULL
+       WHERE a.id=$1 AND a.target_user_id=$2`,
+      [attemptId, user.id],
+    );
+    if (!schoolCode || binding.rows[0]?.school_code.toUpperCase() !== schoolCode) return null;
+    await verifyEmailChallenge({ attemptId, email, code: emailCode });
+    const result = await completeUnifiedAdminEmailActivation({
+      handle: attempt.emailChallengeId || '',
+      phone,
+      emailCode,
+      requesterKey: input.requesterKey,
+      phoneCentric: true,
+    });
+    if (!result || result.user.id !== user.id) return null;
+    await consumeAuthenticatedAttempt(attemptId);
+    return result;
+  }
+
+  if (attempt.flowType !== 'PLATFORM_LOGIN' || !isPlatformAdmin(user.id)) return null;
+  await verifyEmailChallenge({ attemptId, email, code: emailCode });
+  await consumeAuthenticatedAttempt(attemptId);
+  return { user, memberships: [], purpose: 'login' };
 }
 
 export async function consumeAccountDeletionWhatsAppChallenge(

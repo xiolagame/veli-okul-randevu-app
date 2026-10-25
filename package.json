@@ -30,6 +30,7 @@
     "test:whatsapp-migrations": "tsx scripts/test-whatsapp-migrations.ts",
     "test:whatsapp-pilot": "tsx scripts/test-whatsapp-pilot.ts",
     "test:identity-auth-attempts": "tsx scripts/test-identity-auth-attempts.ts",
+    "test:phone-centric-auth": "tsx scripts/test-identity-auth-attempts.ts",
     "audit:canonical-phones": "tsx scripts/audit-canonical-phone-collisions.ts",
     "test:parent-ux": "tsx scripts/test-parent-ux.ts",
     "test:school-roster-ui": "tsx scripts/test-school-roster-ui.ts",

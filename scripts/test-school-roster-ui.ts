@@ -55,7 +55,8 @@ async function run() {
   const { getDb } = await import('../server/database/postgres');
   const { createExpressApp } = await import('../server/app');
   const { createToken } = await import('../server/auth');
-  const { userRepository, membershipRepository, auditLogRepository } = await import('../server/repositories');
+  const { userRepository, membershipRepository, auditLogRepository, invitationRepository } = await import('../server/repositories');
+  const { hashActivationCode } = await import('../server/activation-codes');
   const db = await getDb();
   assert.equal(db.engineType, 'PostgreSQL (Embedded Persistent Engine)');
   const schoolA = 'bulk-a-' + crypto.randomUUID(), schoolB = 'bulk-b-' + crypto.randomUUID();
@@ -175,7 +176,10 @@ async function run() {
     const logs = await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='roster.bulk_imported'",[schoolA]);
     for (const log of logs.rows) assert.deepEqual(Object.keys(JSON.parse(log.details)).sort(),['addedCount','classNames']);
     stage = 'self registration from imported roster';
-    const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,birthDate:'2014-03-14'});
+    const activationCode = String(crypto.randomInt(100000, 1000000));
+    await invitationRepository.createAuthCode({ schoolId: schoolA, targetPhone: rosterPhone, targetRole: 'parent', purpose: 'ACCOUNT_ACTIVATION',
+      codeHash: hashActivationCode(activationCode), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), token: crypto.randomUUID() });
+    const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,code:activationCode});
     if (challenge.status !== 200) {
       const lookupDigits = getTurkishPhoneLookupDigits(normalizeTurkishPhone(rosterPhone)) || [];
       const schoolExists = (await db.query('SELECT id FROM schools WHERE id=$1 AND code=$2', [schoolA, activeSchoolCode])).rows.length === 1;
@@ -186,7 +190,7 @@ async function run() {
       console.error(`Registration challenge diagnostic: HTTP ${challenge.status}; school match=${schoolExists}; eligible roster rows=${matchingRosterCount}; existing phone account=${existingUser}; response keys=${Object.keys(challenge.body).join(',')}`);
     }
     assert.equal(challenge.status,200,`Registration challenge expected HTTP 200, got ${challenge.status}; response keys: ${Object.keys(challenge.body).join(',')}`);
-    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,birthDate:'2014-03-14',challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
+    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
     const newParent = await userRepository.getByPhone(rosterPhone);
     assert(newParent); userIds.push(newParent.id);
     assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE',[schoolA])).rows.length,6);

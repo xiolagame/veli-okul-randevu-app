@@ -12,11 +12,16 @@ async function run() {
   }
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'local-account-deletion-test-secret-at-least-32-chars';
+  process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.WHATSAPP_PILOT_ENABLED = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
+  process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-access-token';
 
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
   const { deleteOwnAccount } = await import('../server/account-deletion');
   const { hashPassword } = await import('../server/passwords');
+  const { createToken } = await import('../server/auth');
   const db = await getDb();
 
   const suffix = crypto.randomUUID();
@@ -42,6 +47,7 @@ async function run() {
   const parentEmail = `parent-${short}@example.test`;
   const teacherEmail = `teacher-${short}@example.test`;
   const parentFullName = `Silinecek Veli ${short}`;
+  process.env.WHATSAPP_PILOT_ALLOWED_PHONES = parentPhone;
   const [parentFirstName, parentLastName, parentSuffix] = parentFullName.split(' ');
   let checks = 0;
   const equal = (actual: unknown, expected: unknown, message: string) => {
@@ -53,6 +59,17 @@ async function run() {
     checks += 1;
   };
 
+  const originalFetch = globalThis.fetch;
+  let deliveredWhatsappCode = '';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).startsWith('https://graph.facebook.com/')) {
+      const body = JSON.parse(String(init?.body || '{}')) as { template?: { components?: Array<{ parameters?: Array<{ text?: string }> }> } };
+      deliveredWhatsappCode = body.template?.components?.[0]?.parameters?.[0]?.text || '';
+      return new Response(JSON.stringify({ messages: [{ id: 'local-message' }] }), { status: 200 });
+    }
+    return originalFetch(input, init);
+  }) as typeof fetch;
+
   const app = express();
   app.use(express.json());
   app.use('/api', apiRouter);
@@ -61,7 +78,7 @@ async function run() {
   const baseUrl = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
 
   async function request(method: string, path: string, token?: string, body?: object): Promise<ApiResult> {
-    const response = await fetch(baseUrl + path, {
+    const response = await originalFetch(baseUrl + path, {
       method,
       headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
       body: body ? JSON.stringify(body) : undefined,
@@ -206,8 +223,23 @@ async function run() {
     equal(forgedTarget.status, 400, 'another user cannot target an account or tenant through request fields');
     equal((await db.query('SELECT COUNT(*)::text AS count FROM users WHERE id=$1', [parentId])).rows[0].count, '1', 'forged target leaves victim account intact');
 
-    const deletion = await request('POST', '/user/me/deletion', parentToken, {
-      password, confirmation: 'HESABIMI SİL', requestId: parentRequestId,
+    const authVersion = Number((await db.query<{ auth_version: number }>('SELECT auth_version FROM users WHERE id=$1', [parentId])).rows[0].auth_version);
+    const phoneCentricToken = createToken({
+      userId: parentId,
+      phone: parentPhone,
+      auth_version: authVersion,
+      auth_method: 'phone_centric',
+    });
+    const phoneCentricMe = await request('GET', '/user/me', phoneCentricToken);
+    equal(phoneCentricMe.body.user.deletionVerification, 'whatsapp', 'phone-centric session requires WhatsApp reauthentication');
+    const deletionChallenge = await request('POST', '/user/me/deletion/whatsapp-code', phoneCentricToken);
+    equal(deletionChallenge.status, 200, 'phone-centric session can request deletion reauthentication despite a legacy password hash');
+    check(/^\d{6}$/.test(deliveredWhatsappCode), 'account deletion reauthentication code is delivered through the mocked WhatsApp provider');
+    const deletion = await request('POST', '/user/me/deletion', phoneCentricToken, {
+      whatsappChallengeId: deletionChallenge.body.challengeId,
+      whatsappCode: deliveredWhatsappCode,
+      confirmation: 'HESABIMI SİL',
+      requestId: parentRequestId,
     });
     equal(deletion.status, 200, 'authenticated self-deletion succeeds');
     equal(deletion.body.completed, true, 'deletion response confirms completion');
@@ -300,6 +332,7 @@ async function run() {
     check(checks >= 50, `expected at least 50 checks, received ${checks}`);
     console.log(`Account deletion ${checks} security, privacy, tenant and UI contract checks PASS.`);
   } finally {
+    globalThis.fetch = originalFetch;
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await db.query('DELETE FROM account_deletion_receipts WHERE request_id IN ($1,$2)', [parentRequestId, teacherRequestId]);
     await db.query('DELETE FROM platform_requests WHERE id=$1', [platformRequestId]);

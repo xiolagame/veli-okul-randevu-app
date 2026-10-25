@@ -11,6 +11,7 @@ async function run() {
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
+  process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-token-not-a-real-credential';
   process.env.WHATSAPP_GRAPH_API_VERSION = 'v25.0';
@@ -48,14 +49,17 @@ async function run() {
   const schoolId = `unified-school-${suffix}`;
   const otherSchoolId = `unified-other-${suffix}`;
   const legacySchoolId = `unified-legacy-${suffix}`;
+  const phoneSchoolId = `unified-phone-${suffix}`;
   const schoolCode = `UW${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
   const otherSchoolCode = `UO${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
   const legacySchoolCode = `UL${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+  const phoneSchoolCode = `UP${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
   const adminPhoneA = `+905${crypto.randomInt(100000000, 999999999)}`;
   const adminPhoneB = `+905${crypto.randomInt(100000000, 999999999)}`;
   const platformPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
   const legacyPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
-  process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [adminPhoneA, adminPhoneB, platformPhone, legacyPhone].join(',');
+  const phoneAdminPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+  process.env.WHATSAPP_PILOT_ALLOWED_PHONES = [adminPhoneA, adminPhoneB, platformPhone, legacyPhone, phoneAdminPhone].join(',');
   const createdUserIds: string[] = [];
   const originalPlatformIds = process.env.PLATFORM_ADMIN_USER_IDS;
 
@@ -103,11 +107,16 @@ async function run() {
       'INSERT INTO schools(id,name,code,city,district) VALUES($1,$2,$3,$4,$5),($6,$7,$8,$9,$10),($11,$12,$13,$14,$15)',
       [schoolId, 'Unified School', schoolCode, 'Test', 'Test', otherSchoolId, 'Other School', otherSchoolCode, 'Test', 'Test', legacySchoolId, 'Legacy School', legacySchoolCode, 'Test', 'Test'],
     );
+    await db.query(
+      'INSERT INTO schools(id,name,code,city,district) VALUES($1,$2,$3,$4,$5)',
+      [phoneSchoolId, 'Phone Centric School', phoneSchoolCode, 'Test', 'Test'],
+    );
     const adminA = await userRepository.create({ phone: adminPhoneA, firstName: 'Birinci', lastName: 'Yönetici', email: 'admin-a@example.test' });
     const adminB = await userRepository.create({ phone: adminPhoneB, firstName: 'İkinci', lastName: 'Yönetici', email: 'admin-b@example.test' });
     const platform = await userRepository.create({ phone: platformPhone, firstName: 'Platform', lastName: 'Yönetimi', email: 'platform@example.test' });
     const legacy = await userRepository.create({ phone: legacyPhone, firstName: 'Eski', lastName: 'Mobil', email: 'legacy@example.test' });
-    createdUserIds.push(adminA.id, adminB.id, platform.id, legacy.id);
+    const phoneAdmin = await userRepository.create({ phone: phoneAdminPhone, firstName: 'Telefon', lastName: 'Yönetici', email: 'phone-admin@example.test' });
+    createdUserIds.push(adminA.id, adminB.id, platform.id, legacy.id, phoneAdmin.id);
     process.env.PLATFORM_ADMIN_USER_IDS = platform.id;
 
     for (const user of [adminA, adminB]) {
@@ -121,6 +130,58 @@ async function run() {
         expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
         token: crypto.randomUUID(),
       });
+    }
+    await invitationRepository.createAuthCode({
+      schoolId: phoneSchoolId,
+      targetPhone: phoneAdmin.phone,
+      targetUserId: phoneAdmin.id,
+      targetRole: 'admin',
+      purpose: 'school_admin_activation',
+      codeHash: hashActivationCode('123456'),
+      expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      token: crypto.randomUUID(),
+    });
+
+    const phoneStart = await request('POST', '/auth/phone/request-code', { phone: phoneAdminPhone });
+    assert.equal(phoneStart.status, 200);
+    const phoneWhatsAppCode = whatsappCodes.at(-1)!;
+    const phoneVerified = await request('POST', '/auth/phone/verify-code', {
+      attemptId: phoneStart.body.attemptId,
+      challengeId: phoneStart.body.challengeId,
+      phone: phoneAdminPhone,
+      code: phoneWhatsAppCode,
+    });
+    assert.equal(phoneVerified.status, 200);
+    assert.equal(phoneVerified.body.pendingEmail, true);
+    assert.equal(phoneVerified.body.requiresSchoolCode, true);
+    assert.equal('token' in phoneVerified.body, false);
+    const phoneEmailCode = emailCodes.at(-1)!;
+    assert.equal((await request('POST', '/auth/phone/verify-email', {
+      attemptId: phoneStart.body.attemptId,
+      phone: phoneAdminPhone,
+      emailCode: phoneEmailCode,
+      schoolCode: 'YANLIS',
+    })).status, 401);
+    const phoneActivation = await request('POST', '/auth/phone/verify-email', {
+      attemptId: phoneStart.body.attemptId,
+      phone: phoneAdminPhone,
+      emailCode: phoneEmailCode,
+      schoolCode: phoneSchoolCode,
+    });
+    assert.equal(phoneActivation.status, 200);
+    assert.equal((await membershipRepository.getActiveMembership(phoneAdmin.id, phoneSchoolId))?.role, 'admin');
+
+    for (let loginIndex = 0; loginIndex < 2; loginIndex += 1) {
+      const laterStart = await request('POST', '/auth/phone/request-code', { phone: phoneAdminPhone });
+      const laterResult = await request('POST', '/auth/phone/verify-code', {
+        attemptId: laterStart.body.attemptId,
+        challengeId: laterStart.body.challengeId,
+        phone: phoneAdminPhone,
+        code: whatsappCodes.at(-1),
+      });
+      assert.equal(laterResult.status, 200);
+      assert.equal(typeof laterResult.body.token, 'string');
+      assert.equal('pendingEmail' in laterResult.body, false);
     }
 
     const phoneA = await requestAuto(adminPhoneA);
@@ -208,9 +269,10 @@ async function run() {
     process.env.WHATSAPP_AUTH_ENABLED = 'false';
     process.env.WHATSAPP_PILOT_ENABLED = 'false';
     process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'false';
+    process.env.PHONE_CENTRIC_AUTH_ENABLED = 'false';
     delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    await db.query('DELETE FROM schools WHERE id IN ($1,$2,$3)', [schoolId, otherSchoolId, legacySchoolId]);
+    await db.query('DELETE FROM schools WHERE id IN ($1,$2,$3,$4)', [schoolId, otherSchoolId, legacySchoolId, phoneSchoolId]);
     for (const userId of createdUserIds) await db.query('DELETE FROM users WHERE id=$1', [userId]);
   }
 }

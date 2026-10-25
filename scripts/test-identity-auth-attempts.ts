@@ -12,6 +12,7 @@ const migrationPath = path.join(repositoryRoot, 'server/database/migrations/2026
 const schemaPath = path.join(repositoryRoot, 'server/database/supabase_schema.sql');
 const migrationSql = fs.readFileSync(migrationPath, 'utf8');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+let currentStage = 'migration';
 
 async function verifyMigration() {
   const clean = new PGlite();
@@ -61,6 +62,9 @@ async function run() {
   const originalWhatsAppAllowedPhones = process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
   const originalWhatsAppPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const originalWhatsAppAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const originalPlatformIds = process.env.PLATFORM_ADMIN_USER_IDS;
+  const originalResendKey = process.env.RESEND_API_KEY;
+  const originalEmailFrom = process.env.EMAIL_FROM;
   process.chdir(tempRoot);
   delete process.env.DATABASE_URL;
   process.env.NODE_ENV = 'test';
@@ -223,20 +227,58 @@ async function run() {
       [`identity-license-${raceSuffix}`, raceSchoolId, `IDENTITY-${raceSuffix}`],
     );
     await membershipRepository.createOrActivate({ schoolId: raceSchoolId, userId: raceUser.id, role: 'parent' });
+    const teacherPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    const securityPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    const pilotOutsidePhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    const teacherUser = await userRepository.create({ phone: teacherPhone, firstName: 'Pilot', lastName: 'Öğretmen', isPhoneVerified: true });
+    const securityUser = await userRepository.create({ phone: securityPhone, firstName: 'Pilot', lastName: 'Güvenlik', isPhoneVerified: true });
+    const pilotOutsideUser = await userRepository.create({ phone: pilotOutsidePhone, firstName: 'Eski', lastName: 'Giriş', isPhoneVerified: true });
+    await userRepository.updatePasswordHash(pilotOutsideUser.id, hashPassword(racePassword));
+    await membershipRepository.createOrActivate({ schoolId: raceSchoolId, userId: teacherUser.id, role: 'teacher' });
+    await membershipRepository.createOrActivate({ schoolId: raceSchoolId, userId: securityUser.id, role: 'security' });
+    await membershipRepository.createOrActivate({ schoolId: raceSchoolId, userId: pilotOutsideUser.id, role: 'parent' });
+    const registrationPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    const unregisteredPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    await db.query(
+      `INSERT INTO school_roster(id,school_id,parent_phone,parent_name,student_name,class_name,student_number,is_claimed)
+       VALUES($1,$2,$3,'Pilot Veli','Pilot Öğrenci','5-A',$4,FALSE)`,
+      [`identity-roster-${raceSuffix}`, raceSchoolId, registrationPhone, `REG-${raceSuffix}`],
+    );
 
     process.env.WHATSAPP_AUTH_ENABLED = 'true';
     process.env.WHATSAPP_PILOT_ENABLED = 'true';
-    process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
-    process.env.WHATSAPP_PILOT_ALLOWED_PHONES = `${canonicalDuplicate},${racePhone}`;
+    process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'false';
+    process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
     process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
     process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-access-token';
+    process.env.RESEND_API_KEY = 'local-test-email-key';
+    process.env.EMAIL_FROM = 'test@example.test';
+    const platformPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
+    const platformUser = await userRepository.create({
+      phone: platformPhone,
+      firstName: 'Platform',
+      lastName: 'İki Faktör',
+      email: 'platform-two-factor@example.test',
+      isPhoneVerified: true,
+    });
+    await userRepository.updatePasswordHash(platformUser.id, hashPassword(racePassword));
+    process.env.PLATFORM_ADMIN_USER_IDS = platformUser.id;
+    process.env.WHATSAPP_PILOT_ALLOWED_PHONES = `${canonicalDuplicate},${racePhone},${platformPhone},${registrationPhone},${unregisteredPhone},${teacherPhone},${securityPhone}`;
     const originalFetch = globalThis.fetch;
     let deliveredCode = '';
+    let deliveredEmailCode = '';
+    let whatsappDeliveryCount = 0;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).startsWith('https://graph.facebook.com/')) {
         const body = JSON.parse(String(init?.body || '{}')) as { template?: { components?: Array<{ parameters?: Array<{ text?: string }> }> } };
         deliveredCode = body.template?.components?.[0]?.parameters?.[0]?.text || '';
+        whatsappDeliveryCount += 1;
         return new Response(JSON.stringify({ messages: [{ id: 'local-message' }] }), { status: 200 });
+      }
+      if (String(input) === 'https://api.resend.com/emails') {
+        const body = JSON.parse(String(init?.body || '{}')) as { html?: string };
+        deliveredEmailCode = body.html?.match(/>(\d{6})</)?.[1] || '';
+        return new Response(JSON.stringify({ id: 'local-email' }), { status: 200 });
       }
       return originalFetch(input, init);
     }) as typeof fetch;
@@ -249,12 +291,17 @@ async function run() {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const baseUrl = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}/api`;
     const request = async (path: string, body: object) => {
-      const response = await originalFetch(baseUrl + path, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { status: response.status, body: await response.json() as Record<string, unknown> };
+      try {
+        const response = await originalFetch(baseUrl + path, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { status: response.status, body: await response.json() as Record<string, unknown> };
+      } catch (cause) {
+        const detail = cause instanceof Error && cause.cause instanceof Error ? cause.cause.message : 'transport failure';
+        throw new Error(`Local API request failed during ${currentStage}: ${detail}`);
+      }
     };
     const assertConflictWithoutIdentity = (response: { status: number; body: Record<string, unknown> }) => {
       assert.equal(response.status, 409);
@@ -264,6 +311,127 @@ async function run() {
       assert.equal('memberships' in response.body, false);
     };
     try {
+      currentStage = 'phone-centric feature flag';
+      process.env.PHONE_CENTRIC_AUTH_ENABLED = 'false';
+      assert.equal((await request('/auth/phone/request-code', { phone: racePhone })).status, 404);
+      process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
+
+      currentStage = 'phone-centric parent first registration';
+      const deliveriesBeforeRegistration = whatsappDeliveryCount;
+      const unauthorizedRegistration = await request('/auth/phone/request-code', {
+        phone: unregisteredPhone,
+        flow: 'parent_registration',
+        schoolCode: `ID${raceSuffix}`,
+      });
+      assert.equal(unauthorizedRegistration.status, 200);
+      assert.equal(whatsappDeliveryCount, deliveriesBeforeRegistration, 'phone possession without an authorized roster must not send or claim');
+      const registrationStart = await request('/auth/phone/request-code', {
+        phone: registrationPhone,
+        flow: 'parent_registration',
+        schoolCode: `ID${raceSuffix}`,
+      });
+      assert.equal(registrationStart.status, 200);
+      assert.equal(whatsappDeliveryCount, deliveriesBeforeRegistration + 1);
+      const registrationComplete = await request('/auth/phone/verify-code', {
+        attemptId: registrationStart.body.attemptId,
+        challengeId: registrationStart.body.challengeId,
+        phone: registrationPhone,
+        code: deliveredCode,
+      });
+      assert.equal(registrationComplete.status, 200);
+      assert.equal(typeof registrationComplete.body.token, 'string');
+      assert.equal((registrationComplete.body.user as Record<string, unknown>).deletionVerification, 'whatsapp');
+      const registeredIdentity = await userRepository.getByPhone(registrationPhone);
+      assert(registeredIdentity);
+      assert.equal((await membershipRepository.getActiveMembership(registeredIdentity.id, raceSchoolId))?.role, 'parent');
+      assert.equal((await db.query<{ is_claimed: boolean }>(
+        'SELECT is_claimed FROM school_roster WHERE id=$1',
+        [`identity-roster-${raceSuffix}`],
+      )).rows[0].is_claimed, true);
+      const registeredLoginStart = await request('/auth/phone/request-code', { phone: registrationPhone });
+      const registeredLogin = await request('/auth/phone/verify-code', {
+        attemptId: registeredLoginStart.body.attemptId,
+        challengeId: registeredLoginStart.body.challengeId,
+        phone: registrationPhone,
+        code: deliveredCode,
+      });
+      assert.equal(registeredLogin.status, 200, 'new parent must use the same phone-only flow on later login');
+
+      currentStage = 'phone-centric staff login';
+      for (const fixture of [
+        { phone: teacherPhone, role: 'teacher' },
+        { phone: securityPhone, role: 'security' },
+      ]) {
+        const start = await request('/auth/phone/request-code', { phone: fixture.phone });
+        const verified = await request('/auth/phone/verify-code', {
+          attemptId: start.body.attemptId,
+          challengeId: start.body.challengeId,
+          phone: fixture.phone,
+          code: deliveredCode,
+        });
+        assert.equal(verified.status, 200);
+        assert.equal((verified.body.memberships as Array<Record<string, unknown>>)[0]?.role, fixture.role);
+      }
+
+      currentStage = 'pilot fallback preserves legacy password login';
+      const deliveryCountBeforeOutsidePilot = whatsappDeliveryCount;
+      const outsidePilotStart = await request('/auth/phone/request-code', { phone: pilotOutsidePhone });
+      assert.equal(outsidePilotStart.status, 200);
+      assert.equal(outsidePilotStart.body.legacyFallbackRequired, true);
+      assert.equal('attemptId' in outsidePilotStart.body, false);
+      assert.equal('challengeId' in outsidePilotStart.body, false);
+      assert.equal(whatsappDeliveryCount, deliveryCountBeforeOutsidePilot, 'outside-pilot phone must not receive OTP');
+      const outsidePilotPasswordLogin = await request('/auth/login', { phone: pilotOutsidePhone, password: racePassword });
+      assert.equal(outsidePilotPasswordLogin.status, 200);
+      assert.equal(typeof outsidePilotPasswordLogin.body.token, 'string');
+
+      currentStage = 'phone-centric parent login';
+      const parentStart = await request('/auth/phone/request-code', { phone: `05${raceSuffix}` });
+      assert.equal(parentStart.status, 200);
+      assert.match(deliveredCode, /^\d{6}$/);
+      const parentVerified = await request('/auth/phone/verify-code', {
+        attemptId: parentStart.body.attemptId,
+        challengeId: parentStart.body.challengeId,
+        phone: racePhone,
+        code: deliveredCode,
+      });
+      assert.equal(parentVerified.status, 200);
+      assert.equal(typeof parentVerified.body.token, 'string');
+      assert.equal('pendingEmail' in parentVerified.body, false);
+
+      currentStage = 'phone-centric platform first factor';
+      process.env.PHONE_CENTRIC_AUTH_ENABLED = 'false';
+      assert.equal((await request('/auth/login', { phone: platformPhone, password: racePassword })).status, 200,
+        'legacy platform password endpoint must remain compatible while phone-centric auth is disabled');
+      process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
+      const platformStart = await request('/auth/phone/request-code', { phone: platformPhone });
+      assert.equal(platformStart.status, 200);
+      const platformPhoneCode = deliveredCode;
+      const platformPhoneVerified = await request('/auth/phone/verify-code', {
+        attemptId: platformStart.body.attemptId,
+        challengeId: platformStart.body.challengeId,
+        phone: platformPhone,
+        code: platformPhoneCode,
+      });
+      assert.equal(platformPhoneVerified.status, 200);
+      assert.equal(platformPhoneVerified.body.pendingEmail, true);
+      assert.equal(platformPhoneVerified.body.requiresSchoolCode, false);
+      assert.match(deliveredEmailCode, /^\d{6}$/);
+      assert.notEqual(deliveredEmailCode, platformPhoneCode);
+      assert.equal('token' in platformPhoneVerified.body, false, 'platform authority requires the email factor');
+      assert.equal((await request('/auth/login', { phone: platformPhone, password: racePassword })).status, 401,
+        'phone-centric web mode must not permit platform password login');
+      currentStage = 'phone-centric platform second factor';
+      const platformComplete = await request('/auth/phone/verify-email', {
+        attemptId: platformStart.body.attemptId,
+        phone: platformPhone,
+        emailCode: deliveredEmailCode,
+      });
+      assert.equal(platformComplete.status, 200);
+      assert.equal(typeof platformComplete.body.token, 'string');
+      const platformPayload = (await import('../server/auth')).verifyToken(String(platformComplete.body.token));
+      assert.equal(platformPayload?.auth_method, 'phone_centric_platform');
+
       const normalLogin = await request('/auth/login', { phone: `05${raceSuffix}`, password: racePassword });
       assert.equal(normalLogin.status, 200);
       assert.equal(typeof normalLogin.body.token, 'string');
@@ -314,11 +482,14 @@ async function run() {
     if (originalWhatsAppAllowedPhones === undefined) delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES; else process.env.WHATSAPP_PILOT_ALLOWED_PHONES = originalWhatsAppAllowedPhones;
     if (originalWhatsAppPhoneNumberId === undefined) delete process.env.WHATSAPP_PHONE_NUMBER_ID; else process.env.WHATSAPP_PHONE_NUMBER_ID = originalWhatsAppPhoneNumberId;
     if (originalWhatsAppAccessToken === undefined) delete process.env.WHATSAPP_ACCESS_TOKEN; else process.env.WHATSAPP_ACCESS_TOKEN = originalWhatsAppAccessToken;
+    if (originalPlatformIds === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS; else process.env.PLATFORM_ADMIN_USER_IDS = originalPlatformIds;
+    if (originalResendKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = originalResendKey;
+    if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = originalEmailFrom;
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
 run().catch((error) => {
-  console.error('Identity auth attempt test FAILED. No phone, email, OTP, token, or response body is logged.', error instanceof Error ? error.stack : '');
+  console.error(`Identity auth attempt test FAILED at ${currentStage}. No phone, email, OTP, token, or response body is logged.`, error instanceof Error ? error.stack : '');
   process.exitCode = 1;
 });

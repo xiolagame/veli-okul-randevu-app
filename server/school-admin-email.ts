@@ -79,3 +79,22 @@ export async function deliverUnifiedAdminActivationEmail(
     return false;
   }
 }
+
+export async function deliverPlatformLoginEmail(to: string, fullName: string, emailCode: string): Promise<boolean> {
+  try {
+    const content = renderBrandedEmail({
+      subtitle: 'Platform Yönetimi — İkinci Doğrulama',
+      greeting: fullName,
+      intro: [
+        'WhatsApp telefon doğrulamanız tamamlandı.',
+        'Platform Yönetimi oturumunu açmak için aşağıdaki bağımsız e-posta kodunu giriş ekranına yazın.',
+      ],
+      infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
+      notice: 'Kod 10 dakika geçerli, tek kullanımlıdır ve WhatsApp kodundan farklıdır.',
+    });
+    await sendEmail({ to, subject: 'Veli Randevu — Platform Yönetimi Giriş Doğrulaması', ...content });
+    return true;
+  } catch {
+    return false;
+  }
+}

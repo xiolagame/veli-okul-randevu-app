@@ -21,7 +21,7 @@ export interface AuthUser {
   authMethod: AuthMethod;
 }
 
-export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'quick_switch' | 'legacy_password';
+export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'phone_centric' | 'phone_centric_platform' | 'quick_switch' | 'legacy_password';
 
 export interface AuthTokenPayload {
   userId: string;
@@ -81,7 +81,7 @@ export function verifyToken(token: string): AuthTokenPayload | null {
       typeof payload?.userId !== 'string' ||
       typeof payload.phone !== 'string' ||
       !Number.isInteger(payload.auth_version) ||
-      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'quick_switch'].includes(payload.auth_method))
+      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'phone_centric', 'phone_centric_platform', 'quick_switch'].includes(payload.auth_method))
     ) {
       return null;
     }
@@ -197,7 +197,8 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
 }
 
 export function canUsePlatformAuthority(user: AuthUser | undefined): boolean {
-  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' && isPlatformAdmin(user.id);
+  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' &&
+    user.authMethod !== 'phone_centric' && isPlatformAdmin(user.id);
 }
 
 // ==============================================================================

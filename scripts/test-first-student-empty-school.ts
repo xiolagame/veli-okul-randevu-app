@@ -20,7 +20,8 @@ async function run() {
   const { getDb } = await import('../server/database/postgres');
   const { createExpressApp } = await import('../server/app');
   const { createToken } = await import('../server/auth');
-  const { membershipRepository, userRepository } = await import('../server/repositories');
+  const { membershipRepository, userRepository, invitationRepository } = await import('../server/repositories');
+  const { hashActivationCode } = await import('../server/activation-codes');
   const db = await getDb();
   const suffix = crypto.randomBytes(6).toString('hex');
   const emptySchool = `first-empty-${suffix}`;
@@ -108,10 +109,13 @@ async function run() {
 
     stage = 'parent self-registration compatibility';
     const emptySchoolCode = `EMPTY${suffix}`.toUpperCase();
-    const challenge = await request('POST', '/auth/parent/registration-challenge', undefined, { schoolCode: emptySchoolCode, phone: displayStoredTurkishPhone(emptyPhone), birthDate: '2014-03-14' });
+    const activationCode = String(crypto.randomInt(100000, 1000000));
+    await invitationRepository.createAuthCode({ schoolId: emptySchool, targetPhone: emptyPhone, targetRole: 'parent', purpose: 'ACCOUNT_ACTIVATION',
+      codeHash: hashActivationCode(activationCode), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), token: crypto.randomUUID() });
+    const challenge = await request('POST', '/auth/parent/registration-challenge', undefined, { schoolCode: emptySchoolCode, phone: displayStoredTurkishPhone(emptyPhone), code: activationCode });
     assert.equal(challenge.status, 200);
     const password = `Local-${crypto.randomBytes(18).toString('base64url')}9`;
-    const completed = await request('POST', '/auth/parent/registration-complete', undefined, { schoolId: emptySchool, phone: displayStoredTurkishPhone(emptyPhone), birthDate: '2014-03-14', challenge: challenge.body.challenge, password });
+    const completed = await request('POST', '/auth/parent/registration-complete', undefined, { schoolId: emptySchool, phone: displayStoredTurkishPhone(emptyPhone), challenge: challenge.body.challenge, password });
     assert.equal(completed.status, 200);
     const parent = await userRepository.getByPhone(emptyPhone);
     assert(parent);

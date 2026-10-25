@@ -185,7 +185,7 @@ export const api = {
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
   getAuthCapabilities: () =>
-    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean }>('/api/public/auth-capabilities'),
+    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities'),
 
   // Authentication
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
@@ -193,14 +193,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ schoolId, phone, code, password }),
     }),
-  parentRegistrationChallenge: (schoolCode: string, phone: string, birthDate: string) =>
-    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/registration-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, birthDate }) }),
-  parentRegistrationComplete: (schoolId: string, phone: string, birthDate: string, challenge: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/parent/registration-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, birthDate, challenge, password }) }),
-  parentResetChallenge: (schoolCode: string, phone: string, birthDate: string) =>
-    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/reset-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, birthDate }) }),
-  parentResetComplete: (schoolId: string, phone: string, birthDate: string, challenge: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/parent/reset-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, birthDate, challenge, password }) }),
+  parentRegistrationChallenge: (schoolCode: string, phone: string, code: string) =>
+    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/registration-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, code }) }),
+  parentRegistrationComplete: (schoolId: string, phone: string, challenge: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/parent/registration-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, challenge, password }) }),
+  parentResetChallenge: (schoolCode: string, phone: string, code: string) =>
+    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/reset-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, code }) }),
+  parentResetComplete: (schoolId: string, phone: string, challenge: string, password: string) =>
+    request<{ success: boolean; message: string }>('/api/auth/parent/reset-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, challenge, password }) }),
   verifyStaffActivation: (schoolCode: string, phone: string, code: string) =>
     request<{success:boolean;setupToken:string;schoolId:string;role:'teacher'|'security'}>('/api/auth/staff/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
   completeStaffActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
@@ -242,6 +242,22 @@ export const api = {
   completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) =>
     request<{ success: boolean; token: string; user: User; memberships: SchoolMembership[] }>(
       '/api/auth/whatsapp/complete-admin-email', { method: 'POST', body: JSON.stringify(data) }),
+
+  requestPhoneCentricCode: (phone: string, registration?: { schoolCode: string }) =>
+    request<
+      | { success: boolean; message: string; legacyFallbackRequired: true }
+      | { success: boolean; message: string; legacyFallbackRequired?: false; attemptId: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }
+    >(
+      '/api/auth/phone/request-code', {
+        method: 'POST',
+        body: JSON.stringify(registration ? { phone, flow: 'parent_registration', ...registration } : { phone }),
+      }),
+  verifyPhoneCentricCode: (data: { attemptId: string; challengeId: string; phone: string; code: string }) =>
+    request<{ success: boolean; token?: string; user?: User; memberships?: SchoolMembership[]; pendingEmail?: boolean; attemptId?: string; requiresSchoolCode?: boolean; message?: string }>(
+      '/api/auth/phone/verify-code', { method: 'POST', body: JSON.stringify(data) }),
+  verifyPhoneCentricEmail: (data: { attemptId: string; phone: string; emailCode: string; schoolCode?: string }) =>
+    request<{ success: boolean; token: string; user: User; memberships: SchoolMembership[] }>(
+      '/api/auth/phone/verify-email', { method: 'POST', body: JSON.stringify(data) }),
 
   quickSwitch: (userId: string) =>
     request<{

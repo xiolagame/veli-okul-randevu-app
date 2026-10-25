@@ -6,9 +6,10 @@ async function source(path: string) {
 }
 
 async function run() {
-  const [authView, unifiedPanel, styles, app] = await Promise.all([
+  const [authView, unifiedPanel, phoneCentricPanel, styles, app] = await Promise.all([
     source('src/components/AuthView.tsx'),
     source('src/components/UnifiedWhatsAppLoginPanel.tsx'),
+    source('src/components/PhoneCentricLoginPanel.tsx'),
     source('src/index.css'),
     source('src/App.tsx'),
   ]);
@@ -24,6 +25,19 @@ async function run() {
   assert.match(authView, /setPasswordLoginMode\(null\)\}\>WhatsApp ile girişe dön/);
   assert.match(authView, /await login\(phone, password\)/);
   assert.match(authView, /passwordLoginMode === 'platform'/);
+  assert.match(authView, /phoneCentricAuthEnabled && passwordLoginMode === null \? <PhoneCentricLoginPanel onLegacyFallback=/);
+
+  assert.match(phoneCentricPanel, /'WhatsApp Kodu Gönder'/);
+  assert.match(phoneCentricPanel, /placeholder="\+90 5XX XXX XX XX"/);
+  assert.match(phoneCentricPanel, /requiresSchoolCode && <label/);
+  assert.match(phoneCentricPanel, /İlk kez veli kaydı oluştur/);
+  assert.doesNotMatch(phoneCentricPanel, /doğum tarihi|birthDate|BirthDate/);
+  assert.match(phoneCentricPanel, /response\.legacyFallbackRequired/);
+  assert.match(phoneCentricPanel, /onLegacyFallback\(canonicalPhone\)/);
+  assert.doesNotMatch(phoneCentricPanel, /Mevcut giriş yöntemleri/);
+  assert.doesNotMatch(phoneCentricPanel, /Parola ile giriş|Platform Yönetimi|Şifremi unuttum|type="password"/);
+  assert.match(authView, /onLegacyFallback=\{\(fallbackPhone\) => \{ setPhone\(displayStoredTurkishPhone\(fallbackPhone\)\); setPasswordLoginMode\('standard'\); \}\}/);
+  assert.match(authView, /phoneCentricAuthEnabled && passwordLoginMode === null/);
 
   assert.match(styles, /\.unified-login-alternatives \{ display: grid; grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.unified-login-alternatives \{ grid-template-columns: 1fr; \}/);

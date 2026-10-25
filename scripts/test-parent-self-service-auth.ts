@@ -9,7 +9,8 @@ async function run() {
   process.env.NODE_ENV = 'test';
   const { getDb } = await import('../server/database/postgres');
   const { apiRouter } = await import('../server/api');
-  const { userRepository, membershipRepository } = await import('../server/repositories');
+  const { userRepository, membershipRepository, invitationRepository } = await import('../server/repositories');
+  const { hashActivationCode } = await import('../server/activation-codes');
   const db = await getDb();
   const suffix = crypto.randomUUID();
   const schoolId = `parent-auth-${suffix}`;
@@ -36,18 +37,37 @@ async function run() {
     await db.query(`INSERT INTO school_roster(school_id,parent_phone,parent_name,student_name,class_name,student_number,birth_date,is_claimed)
       VALUES($1,$2,$3,$4,$5,$6,$7::date,FALSE)`, [schoolId, phone, 'Test Parent', 'Test Student', '5-A', 'PA-1', birthDate]);
 
+    const issueParentCode = async (purpose: 'ACCOUNT_ACTIVATION' | 'PASSWORD_RESET', targetUserId?: string) => {
+      const code = String(crypto.randomInt(100000, 1000000));
+      await invitationRepository.createAuthCode({
+        schoolId,
+        targetPhone: phone,
+        targetUserId,
+        targetRole: 'parent',
+        purpose,
+        codeHash: hashActivationCode(code),
+        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        token: crypto.randomUUID(),
+      });
+      return code;
+    };
+
     const generic = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
-    const invalidSchool = await request('POST', '/auth/parent/registration-challenge', { schoolCode: 'NOT-A-SCHOOL', phone, birthDate });
+    const activationCode = await issueParentCode('ACCOUNT_ACTIVATION');
+    const invalidSchool = await request('POST', '/auth/parent/registration-challenge', { schoolCode: 'NOT-A-SCHOOL', phone, code: activationCode });
     assert.equal(invalidSchool.status, 400);
     assert.equal(invalidSchool.body.error, generic);
-    const invalidPhone = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: '+12025550123', birthDate });
+    const invalidPhone = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: '+12025550123', code: activationCode });
     assert.equal(invalidPhone.status, 400);
     assert.equal(invalidPhone.body.error, generic);
-    const invalidBirthDate = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone, birthDate: '2014-04-17' });
-    assert.equal(invalidBirthDate.status, 400);
-    assert.equal(invalidBirthDate.body.error, generic);
+    const phoneOnly = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone });
+    assert.equal(phoneOnly.status, 400);
+    assert.equal(phoneOnly.body.error, generic);
+    const wrongCode = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone, code: '000000' });
+    assert.equal(wrongCode.status, 400);
+    assert.equal(wrongCode.body.error, generic);
 
-    const challengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), birthDate });
+    const challengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), code: activationCode });
     assert.equal(challengeResponse.status, 200);
     const expiredChallenge = challengeResponse.body.challenge as string;
     assert.equal(typeof expiredChallenge, 'string');
@@ -58,14 +78,15 @@ async function run() {
     assert.notEqual(storedChallenge.rows[0].code_hash,expiredChallenge);
     assert.notEqual(storedChallenge.rows[0].token,expiredChallenge);
     await db.query("UPDATE invitations SET expires_at=NOW()-INTERVAL '1 second' WHERE school_id=$1 AND target_phone=$2 AND purpose='parent_self_registration'",[schoolId,phone]);
-    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, birthDate, challenge:expiredChallenge, password })).status,400);
-    const freshChallengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone, birthDate });
+    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, challenge:expiredChallenge, password })).status,400);
+    const freshActivationCode = await issueParentCode('ACCOUNT_ACTIVATION');
+    const freshChallengeResponse = await request('POST', '/auth/parent/registration-challenge', { schoolCode, phone, code: freshActivationCode });
     assert.equal(freshChallengeResponse.status,200);
     const challenge = freshChallengeResponse.body.challenge as string;
-    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, birthDate, challenge, password: 'Ab12' })).status, 400);
-    const registered = await request('POST', '/auth/parent/registration-complete', { schoolId, phone: `0${phone.slice(3)}`, birthDate, challenge, password });
+    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, challenge, password: 'Ab12' })).status, 400);
+    const registered = await request('POST', '/auth/parent/registration-complete', { schoolId, phone: `0${phone.slice(3)}`, challenge, password });
     assert.equal(registered.status, 200);
-    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, birthDate, challenge, password })).status, 400);
+    assert.equal((await request('POST', '/auth/parent/registration-complete', { schoolId, phone, challenge, password })).status, 400);
 
     const user = await userRepository.getAuthByPhone(phone);
     assert(user);
@@ -78,21 +99,22 @@ async function run() {
     const token = login.body.token as string;
     assert.equal((await request('GET', '/user/me', undefined, token)).status, 200);
 
-    const wrongRelation = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone, birthDate: '2016-01-01' });
-    assert.equal(wrongRelation.status, 400);
-    assert.equal(wrongRelation.body.error, generic);
-    const resetChallengeResponse = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), birthDate });
+    const resetCode = await issueParentCode('PASSWORD_RESET', user.id);
+    const wrongResetCode = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone, code: '000000' });
+    assert.equal(wrongResetCode.status, 400);
+    assert.equal(wrongResetCode.body.error, generic);
+    const resetChallengeResponse = await request('POST', '/auth/parent/reset-challenge', { schoolCode, phone: displayStoredTurkishPhone(phone), code: resetCode });
     assert.equal(resetChallengeResponse.status, 200);
     const resetChallenge = resetChallengeResponse.body.challenge as string;
-    const reset = await request('POST', '/auth/parent/reset-complete', { schoolId, phone, birthDate, challenge: resetChallenge, password: replacement });
+    const reset = await request('POST', '/auth/parent/reset-complete', { schoolId, phone, challenge: resetChallenge, password: replacement });
     assert.equal(reset.status, 200);
-    assert.equal((await request('POST', '/auth/parent/reset-complete', { schoolId, phone, birthDate, challenge: resetChallenge, password: replacement })).status, 400);
+    assert.equal((await request('POST', '/auth/parent/reset-complete', { schoolId, phone, challenge: resetChallenge, password: replacement })).status, 400);
     assert.equal((await request('GET', '/user/me', undefined, token)).status, 401);
     assert.equal((await request('POST', '/auth/login', { phone, password })).status, 401);
     const newLogin = await request('POST', '/auth/login', { phone, password: replacement });
     assert.equal(newLogin.status, 200);
     assert.equal((await request('GET', '/user/me', undefined, newLogin.body.token as string)).status, 200);
-    console.log('Parent self-service auth: roster-bound registration, generic failures, one-use challenge, password hashing, parent reset and auth_version invalidation PASS.');
+    console.log('Parent self-service auth: school-issued one-use codes, roster-bound registration, password hashing, parent reset and auth_version invalidation PASS.');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await db.query('DELETE FROM schools WHERE id=$1', [schoolId]);

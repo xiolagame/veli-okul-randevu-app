@@ -4,12 +4,12 @@ import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Alert, Brand, Button, Dialog } from './ui';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
-import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { getRuntimePlatform } from '../platform/runtime-platform';
 import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
 import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
+import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -30,6 +30,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [showPassword, setShowPassword] = useState(false);
   const [whatsappAuthEnabled, setWhatsappAuthEnabled] = useState(false);
   const [unifiedLoginEnabled, setUnifiedLoginEnabled] = useState(false);
+  const [phoneCentricAuthEnabled, setPhoneCentricAuthEnabled] = useState(false);
   const [passwordLoginMode, setPasswordLoginMode] = useState<PasswordLoginMode>(null);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -45,7 +46,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [parentFlow, setParentFlow] = useState<ParentFlow>(null);
   const [parentChallenge, setParentChallenge] = useState('');
   const [parentSchoolCode, setParentSchoolCode] = useState('');
-  const [parentBirthDate, setParentBirthDate] = useState('');
+  const [parentCode, setParentCode] = useState('');
   const [parentSchoolId, setParentSchoolId] = useState('');
   const [staffSetupToken, setStaffSetupToken] = useState('');
   const [resolvedStaffSchoolId, setResolvedStaffSchoolId] = useState('');
@@ -74,6 +75,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       if (active) {
         setWhatsappAuthEnabled(result.whatsappAuthEnabled);
         setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
+        setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled);
       }
     }).catch(() => undefined);
     return () => { active = false; };
@@ -134,7 +136,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     setParentFlow(null);
     setParentChallenge('');
     setParentSchoolCode('');
-    setParentBirthDate('');
+    setParentCode('');
     setParentSchoolId('');
     setNewPassword('');
     setPasswordConfirmation('');
@@ -148,22 +150,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     setError('');
     const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    const birthDate = parseBirthDateInputToIso(parentBirthDate);
-    if (!birthDate) { setError('Doğum tarihini GG/AA/YYYY biçiminde kontrol edin.'); return; }
+    if (!/^\d{6}$/.test(parentCode)) { setError('Okul yönetiminizden aldığınız 6 haneli kodu girin.'); return; }
     setIsSubmitting(true);
     try {
       if (!parentChallenge) {
         const result = parentFlow === 'registration'
-          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, birthDate)
-          : await api.parentResetChallenge(parentSchoolCode, codePhone, birthDate);
+          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, parentCode)
+          : await api.parentResetChallenge(parentSchoolCode, codePhone, parentCode);
         setParentChallenge(result.challenge);
         setParentSchoolId(result.schoolId);
         return;
       }
       if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
       const result = parentFlow === 'registration'
-        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword)
-        : await api.parentResetComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword);
+        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, parentChallenge, newPassword)
+        : await api.parentResetComplete(parentSchoolId, codePhone, parentChallenge, newPassword);
       setPhone(displayStoredTurkishPhone(normalizedPhone));
       closeParentFlow();
       setSuccessMessage(result.message);
@@ -362,13 +363,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
-          <h2>Tekrar merhaba.</h2>
-          <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
+          <h2>{phoneCentricAuthEnabled && passwordLoginMode === null ? 'Telefon Numaranızla Giriş Yapın' : 'Tekrar merhaba.'}</h2>
+          <p>{phoneCentricAuthEnabled && passwordLoginMode === null ? 'Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.' : 'Okulunuzla buluşmak için hesabınıza giriş yapın.'}</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
+          {phoneCentricAuthEnabled && passwordLoginMode === null ? <PhoneCentricLoginPanel onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
             ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
             : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
           {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}
@@ -409,13 +410,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <div className="form-actions"><Button variant="secondary" disabled={isSubmitting} onClick={closeCodeFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffSetupToken ? 'Hesabı Aktifleştir' : 'Kodu Doğrula'}</Button></div>
         </form>
       </Dialog>}
-      {parentFlow && <Dialog title={parentFlow === 'registration' ? 'Hesabınızı oluşturun' : 'Şifrenizi sıfırlayın'} description="Okul kaydını telefon numarası ve öğrencinizin doğum tarihiyle doğrulayın." onClose={closeParentFlow} dismissible={!isSubmitting}>
+      {parentFlow && <Dialog title={parentFlow === 'registration' ? 'Hesabınızı oluşturun' : 'Şifrenizi sıfırlayın'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeParentFlow} dismissible={!isSubmitting}>
         <form onSubmit={submitParentFlow} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           {!parentChallenge ? <>
             <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(normalizeSchoolCodeInput(event.target.value))} required /></label>
             <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
-            <label className="field">Öğrencinizin Doğum Tarihi<input type="text" inputMode="numeric" maxLength={10} placeholder="GG/AA/YYYY" value={parentBirthDate} onChange={(event) => setParentBirthDate(formatBirthDateInput(event.target.value))} required /></label>
+            <label className="field">6 Haneli Güvenlik Kodu<input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={parentCode} onChange={(event) => setParentCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>
           </> : <>
             <label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label>
             <label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>

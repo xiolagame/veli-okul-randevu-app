@@ -95,7 +95,7 @@ async function run() {
     const unknown = await request('POST', '/auth/whatsapp/request-code', { purpose: 'login', phone: unknownPhone });
     assert.equal(unknown.status, 200);
     assert.equal(deliveredCodes.length, callsBeforeUnknown);
-    assert.notEqual((await request('POST', '/auth/parent/registration-challenge', { schoolCode: codeA, phone: parentPhone, birthDate: '2014-01-01' })).status, 404,
+    assert.notEqual((await request('POST', '/auth/parent/registration-challenge', { schoolCode: codeA, phone: parentPhone, code: '000000' })).status, 404,
       'legacy mobile parent activation endpoint must remain available during WhatsApp rollout');
 
     const registration = await requestCode('parent_registration', parentPhone, codeA);

@@ -180,6 +180,20 @@ export async function createIdentityAuthAttempt(input: {
   return mapAttempt(result.rows[0]);
 }
 
+export async function getIdentityAuthAttempt(attemptId: string): Promise<IdentityAuthAttempt | null> {
+  assertEnabled();
+  if (!attemptId) return null;
+  await persistExpiration(attemptId);
+  const result = await (await getDb()).query<AttemptRow>(
+    `SELECT id,canonical_phone,target_user_id,flow_type,status,whatsapp_challenge_id,phone_verified_at,
+            email_challenge_id,email_recipient_fingerprint,email_code_hash,email_attempts,email_max_attempts,
+            email_verified_at,auth_version_at_start,created_at,expires_at,consumed_at,revoked_at
+     FROM identity_auth_attempts WHERE id=$1`,
+    [attemptId],
+  );
+  return result.rows[0] ? mapAttempt(result.rows[0]) : null;
+}
+
 export async function attachPhoneChallenge(attemptId: string, whatsappChallengeId: string): Promise<IdentityAuthAttempt> {
   assertEnabled();
   if (!whatsappChallengeId) throw new IdentityAuthAttemptError('INVALID_INPUT');
@@ -254,6 +268,39 @@ export async function issueEmailChallenge(input: {
     return mapAttempt(result.rows[0]);
   });
   return { attempt, code };
+}
+
+export async function attachIssuedEmailChallenge(input: {
+  attemptId: string;
+  email: string;
+  code: string;
+  challengeId: string;
+  maxAttempts?: number;
+}): Promise<IdentityAuthAttempt> {
+  assertEnabled();
+  const email = input.email.trim().toLowerCase();
+  const maxAttempts = input.maxAttempts ?? DEFAULT_EMAIL_MAX_ATTEMPTS;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !EMAIL_CODE_PATTERN.test(input.code) ||
+      !/^[0-9a-f-]{36}$/i.test(input.challengeId) || !Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) {
+    throw new IdentityAuthAttemptError('INVALID_INPUT');
+  }
+  const recipientFingerprint = emailRecipientFingerprint(email);
+  await persistExpiration(input.attemptId);
+  return (await getDb()).transaction(async (tx) => {
+    const locked = await lockAttempt(tx, input.attemptId);
+    if (locked.status !== 'PHONE_VERIFIED' || !requiresEmailFactor(locked.flow_type)) {
+      throw new IdentityAuthAttemptError('INVALID_STATE');
+    }
+    const result = await tx.query<AttemptRow>(
+      `UPDATE identity_auth_attempts
+       SET status='EMAIL_CHALLENGE_ISSUED',email_challenge_id=$2,email_recipient_fingerprint=$3,
+           email_code_hash=$4,email_attempts=0,email_max_attempts=$5,updated_at=NOW()
+       WHERE id=$1 RETURNING *`,
+      [input.attemptId, input.challengeId, recipientFingerprint,
+        emailCodeHash(input.attemptId, recipientFingerprint, input.code), maxAttempts],
+    );
+    return mapAttempt(result.rows[0]);
+  });
 }
 
 export async function verifyEmailChallenge(input: {
