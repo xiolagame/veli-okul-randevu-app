@@ -14,8 +14,12 @@ export async function applyUnauthorizedSessionPolicy(
   endpoint: string,
   bearerToken: string | null,
   session: RejectedTokenInvalidator,
+  errorCode?: unknown,
 ): Promise<boolean> {
   if (status !== 401 || !bearerToken || !isAuthenticatedApiEndpoint(endpoint)) return false;
+  // A rejected step-up password/code does not reject the authenticated JWT.
+  if (errorCode === 'PLATFORM_BINDING_VERIFICATION_FAILED' &&
+      /^\/api\/platform\/(?:email-binding|phone-binding)(?:\/|$)/.test(endpoint)) return false;
   await session.invalidateRejectedToken(bearerToken);
   return true;
 }

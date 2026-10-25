@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
+import { applyUnauthorizedSessionPolicy } from '../src/platform/api-session-policy';
 
 async function main() {
   const ui = fs.readFileSync('src/components/PlatformPhoneBinding.tsx', 'utf8');
@@ -52,10 +53,12 @@ async function main() {
   let emailCode = '';
   let whatsappCode = '';
   let emailDeliveries = 0;
+  let failEmailDelivery = false;
   let whatsappDeliveries = 0;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const target = String(input);
     if (target === 'https://api.resend.com/emails') {
+      if (failEmailDelivery) return new Response('{}', { status: 503 });
       const body = JSON.parse(String(init?.body || '{}')) as { html?: string };
       emailCode = body.html?.match(/>(\d{6})</)?.[1] || '';
       emailDeliveries += 1;
@@ -76,6 +79,7 @@ async function main() {
     const { userRepository } = await import('../server/repositories');
     const { createToken, verifyToken } = await import('../server/auth');
     const { hashPassword } = await import('../server/passwords');
+    const { hashSetupToken } = await import('../server/activation-codes');
     const platform = await userRepository.create({
       phone: oldPhone,
       firstName: 'Platform',
@@ -132,14 +136,60 @@ async function main() {
     assert.equal((await request('POST', '/platform/email-binding/start', normalToken, {
       email: candidateEmail, password: 'Local-Platform-Password-42',
     })).status, 403);
-    assert.equal((await request('POST', '/platform/email-binding/start', platformToken, {
+    const rejectedReauth = await request('POST', '/platform/email-binding/start', platformToken, {
       email: candidateEmail, password: 'wrong-password',
-    })).status, 401);
+    });
+    assert.equal(rejectedReauth.status, 401);
+    assert.equal(rejectedReauth.body.code, 'PLATFORM_BINDING_VERIFICATION_FAILED');
+    let sessionInvalidations = 0;
+    const session = { invalidateRejectedToken: async () => { sessionInvalidations += 1; } };
+    assert.equal(await applyUnauthorizedSessionPolicy(rejectedReauth.status, '/api/platform/email-binding/start', platformToken, session, rejectedReauth.body.code), false);
+    assert.equal(sessionInvalidations, 0, 'wrong step-up password must preserve the Platform session');
     assert.equal(emailDeliveries, 0);
     assert.equal((await request('POST', '/platform/email-binding/start', platformToken, {
       email: 'normal-binding@example.test', password: 'Local-Platform-Password-42',
     })).status, 409);
     assert.equal(emailDeliveries, 0);
+
+    failEmailDelivery = true;
+    const deliveryFailure = await request('POST', '/platform/email-binding/start', platformToken, {
+      email: candidateEmail, password: 'Local-Platform-Password-42',
+    });
+    assert.equal(deliveryFailure.status, 503);
+    assert.equal(await applyUnauthorizedSessionPolicy(deliveryFailure.status, '/api/platform/email-binding/start', platformToken, session), false);
+    assert.equal((await request('GET', '/platform/capabilities', platformToken)).status, 200);
+    const afterDeliveryFailure = (await db.query<{ email: string | null; auth_version: number }>(
+      'SELECT email,auth_version FROM users WHERE id=$1', [platform.id],
+    )).rows[0];
+    assert.equal(afterDeliveryFailure.email, null);
+    assert.equal(afterDeliveryFailure.auth_version, storedBefore.authVersion);
+    assert.equal((await db.query("SELECT id FROM platform_email_bindings WHERE user_id=$1 AND revoked_at IS NULL", [platform.id])).rows.length, 0);
+    failEmailDelivery = false;
+    // Advance only this fixture's rate-limit window; production limit stays unchanged.
+    await db.query("UPDATE auth_rate_limits SET window_started_at=NOW()-interval '1 hour' WHERE scope_hash=$1", [
+      hashSetupToken(`platform-phone-binding-rate:127.0.0.1:email-setup-start:${platform.id}`),
+    ]);
+    assert.equal(await applyUnauthorizedSessionPolicy(500, '/api/platform/email-binding/start', platformToken, session), false);
+    assert.equal(await applyUnauthorizedSessionPolicy(503, '/api/platform/phone-binding', platformToken, session), false);
+    assert.equal(sessionInvalidations, 0, 'database/delivery failures must preserve the session');
+    const originalGetById = userRepository.getById;
+    const originalConsoleError = console.error;
+    try {
+      userRepository.getById = async () => { throw new Error('Synthetic database connection unavailable'); };
+      console.error = () => {};
+      const databaseFailure = await request('POST', '/platform/email-binding/start', platformToken, {
+        email: candidateEmail, password: 'Local-Platform-Password-42',
+      });
+      assert.equal(databaseFailure.status, 500);
+      assert.equal(await applyUnauthorizedSessionPolicy(databaseFailure.status, '/api/platform/email-binding/start', platformToken, session, databaseFailure.body.code), false);
+      assert.equal(sessionInvalidations, 0);
+    } finally {
+      userRepository.getById = originalGetById;
+      console.error = originalConsoleError;
+    }
+    assert.equal((await request('GET', '/platform/capabilities', platformToken)).status, 200, 'same JWT must work after the database recovers');
+    assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/platform/email-binding/start', platformToken, session), true);
+    assert.equal(sessionInvalidations, 1, 'genuine middleware 401 must still invalidate the JWT');
 
     const emailStarted = await request('POST', '/platform/email-binding/start', platformToken, {
       email: candidateEmail, password: 'Local-Platform-Password-42',

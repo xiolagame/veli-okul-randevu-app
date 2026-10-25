@@ -55,11 +55,10 @@ export function createExpressApp() {
       try {
         await ensureDatabase();
         next();
-      } catch (err: any) {
-        console.error('[VELİ Database Middleware Error]:', err.message);
-        res.status(500).json({
-          error: 'Veritabanı bağlantı hatası',
-          message: err.message,
+      } catch {
+        console.error('[VELİ Database Middleware] Database unavailable.');
+        res.status(503).json({
+          error: 'Veritabanına geçici olarak ulaşılamıyor. Lütfen tekrar deneyin.',
         });
       }
     } else {

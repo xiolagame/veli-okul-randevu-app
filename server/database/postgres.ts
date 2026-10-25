@@ -37,13 +37,7 @@ export async function getDb(): Promise<{
   engineType: string;
 }> {
   if (!isInitialized) {
-    if (!initPromise) {
-      initPromise = initDatabase().catch((err) => {
-        initPromise = null;
-        throw err;
-      });
-    }
-    await initPromise;
+    await initDatabase();
   }
 
   if (pgPool) {
@@ -55,6 +49,7 @@ export async function getDb(): Promise<{
       },
       transaction: async <T>(fn: (tx: TransactionClient) => Promise<T>): Promise<T> => {
         const client: PoolClient = await pgPool!.connect();
+        let releaseError: Error | undefined;
         try {
           await client.query('BEGIN');
           const tx: TransactionClient = {
@@ -67,10 +62,14 @@ export async function getDb(): Promise<{
           await client.query('COMMIT');
           return result;
         } catch (err) {
-          await client.query('ROLLBACK');
+          try {
+            await client.query('ROLLBACK');
+          } catch {
+            releaseError = new Error('PostgreSQL transaction connection unavailable');
+          }
           throw err;
         } finally {
-          client.release();
+          client.release(releaseError);
         }
       },
     };
@@ -101,6 +100,17 @@ export async function getDb(): Promise<{
 }
 
 export async function initDatabase(): Promise<void> {
+  if (isInitialized) return;
+  if (!initPromise) {
+    initPromise = initializeDatabase().catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+  }
+  await initPromise;
+}
+
+async function initializeDatabase(): Promise<void> {
   // Serverless / Warm Invocation Reuse: If pool or instance is already alive and initialized, reuse safely
   if (isInitialized && (pgPool || pgliteInstance)) {
     return;
@@ -135,24 +145,29 @@ export async function initDatabase(): Promise<void> {
     try {
       pgPool = new Pool({
         ...getPostgresConnectionOptions(databaseUrl, isProduction),
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
+        // Each warm serverless instance has its own pool. Queue locally rather
+        // than consuming the session pooler's entire connection allowance.
+        max: 1,
+        idleTimeoutMillis: 5000,
+        connectionTimeoutMillis: 5000,
+      });
+      pgPool.on('error', () => {
+        console.error('[PostgreSQL Engine] Idle connection lost; pool will reconnect on demand.');
       });
 
       // Test connection
       const client = await pgPool.connect();
       try {
-        const res = await client.query('SELECT NOW() as now, current_database() as db;');
-        console.log(`[PostgreSQL Engine] Connected successfully to remote database: ${res.rows[0].db} (${res.rows[0].now})`);
+        await client.query('SELECT 1');
+        console.log('[PostgreSQL Engine] Remote database connection verified.');
       } finally {
         client.release();
       }
 
       isInitialized = true;
       return;
-    } catch (connErr: any) {
-      console.error('[PostgreSQL Engine Fatal] Remote PostgreSQL connection failed:', connErr.message);
+    } catch {
+      console.error('[PostgreSQL Engine] Remote database connection unavailable.');
       // Clean pool reference on failure
       if (pgPool) {
         try {
@@ -162,7 +177,7 @@ export async function initDatabase(): Promise<void> {
       }
       // In production, or whenever DATABASE_URL was provided, connection failure MUST fail-fast!
       // Strictly NO fallback to PGlite or in-memory/JSON stores.
-      throw new Error(`KRÄ°TÄ°K HATA (PostgreSQL Fail-Fast): Remote PostgreSQL veritabanÄ±na baÄŸlanÄ±lamadÄ±! Sebep: ${connErr.message}`);
+      throw new Error('PostgreSQL connection unavailable');
     }
   }
 
@@ -175,6 +190,9 @@ export async function initDatabase(): Promise<void> {
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
+      });
+      pgPool.on('error', () => {
+        console.error('[PostgreSQL Engine] Idle connection lost; pool will reconnect on demand.');
       });
 
       const client = await pgPool.connect();
@@ -303,6 +321,9 @@ export async function closeDatabase(): Promise<void> {
   if (pgPool) {
     try {
       await pgPool.end();
+      pgPool = null;
+      isInitialized = false;
+      initPromise = null;
       console.log('[PostgreSQL Engine] Pool drained and connections closed gracefully.');
     } catch (err) {
       console.error('[PostgreSQL Engine Error during pool close]:', err);

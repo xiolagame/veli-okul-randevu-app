@@ -91,6 +91,21 @@ assert.equal(await anonymousSession.hydrate(), null);
 const storedSession = new AuthSessionManager(new MemoryTokenStore('stored-token'));
 assert.equal(await storedSession.hydrate(), 'stored-token');
 
+const platformStore = new MemoryTokenStore('platform-session');
+const platformSession = new AuthSessionManager(platformStore);
+let platformLogoutEvents = 0;
+platformSession.subscribe(() => { platformLogoutEvents += 1; });
+for (const [status, code] of [[500, undefined], [503, undefined], [401, 'PLATFORM_BINDING_VERIFICATION_FAILED']] as const) {
+  assert.equal(await applyUnauthorizedSessionPolicy(status, '/api/platform/email-binding/start', 'platform-session', platformSession, code), false);
+  assert.equal(await platformSession.getToken(), 'platform-session');
+  assert.equal(platformStore.token, 'platform-session');
+  assert.equal(platformStore.removeCount, 0);
+  assert.equal(platformLogoutEvents, 0);
+}
+assert.equal(await applyUnauthorizedSessionPolicy(401, '/api/platform/email-binding/start', 'platform-session', platformSession), true);
+assert.equal(platformStore.token, null);
+assert.equal(platformLogoutEvents, 1, 'JWT rejection must still log out');
+
 const offlineRestoreStore = new MemoryTokenStore('offline-token');
 const offlineRestoreSession = new AuthSessionManager(offlineRestoreStore);
 assert.equal(await restoreExistingSession({

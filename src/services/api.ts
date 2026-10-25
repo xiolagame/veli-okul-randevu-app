@@ -71,7 +71,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    if (await applyUnauthorizedSessionPolicy(res.status, endpoint, authenticatedRequestToken, authSession)) {
+    if (await applyUnauthorizedSessionPolicy(res.status, endpoint, authenticatedRequestToken, authSession, data.code)) {
       throw new Error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
     }
     throw new ApiError(res.status, data.error || data.message || `İşlem başarısız (HTTP ${res.status})`);

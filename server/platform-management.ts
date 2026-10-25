@@ -104,7 +104,10 @@ platformManagementRouter.get('/phone-binding', async (req: AuthenticatedRequest,
   try {
     return res.json(await getPlatformPhoneBindingStatus(req.user!.id));
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'Platform telefon durumu alınamadı.' });
   }
 });
@@ -123,7 +126,10 @@ platformManagementRouter.post('/email-binding/start', async (req: AuthenticatedR
       message: 'Yeni e-posta adresinize doğrulama kodu gönderildi.',
     });
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'E-posta tanımlama işlemi başlatılamadı.' });
   }
 });
@@ -142,7 +148,10 @@ platformManagementRouter.post('/email-binding/verify', async (req: Authenticated
       message: 'E-posta doğrulandı ve Platform hesabınıza güvenle bağlandı.',
     });
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'E-posta tanımlama işlemi tamamlanamadı.' });
   }
 });
@@ -160,7 +169,10 @@ platformManagementRouter.post('/phone-binding/start', async (req: AuthenticatedR
       message: 'Kayıtlı e-posta adresinize doğrulama kodu gönderildi.',
     });
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'Telefon bağlama işlemi başlatılamadı.' });
   }
 });
@@ -179,7 +191,10 @@ platformManagementRouter.post('/phone-binding/verify-email', async (req: Authent
       message: 'E-posta doğrulandı. Yeni telefonunuza WhatsApp kodu gönderildi.',
     });
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'E-posta doğrulaması tamamlanamadı.' });
   }
 });
@@ -198,7 +213,10 @@ platformManagementRouter.post('/phone-binding/verify-whatsapp', async (req: Auth
       message: 'Telefon doğrulandı ve Platform hesabınıza güvenle bağlandı.',
     });
   } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
+      error: error.message,
+      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
+    });
     return res.status(500).json({ error: 'Telefon bağlama işlemi tamamlanamadı.' });
   }
 });
