@@ -1,18 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Users, Trash2, Upload } from 'lucide-react';
+import { Search, Users, Trash2, Upload, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
-import { ALL_CLASSES, classSummaries, classTone, SchoolStudentRecord } from '../utils/student-records';
+import { ALL_CLASSES, classSummaries, classTone, SchoolStudentRecord, studentRecordIssues } from '../utils/student-records';
 import { normalizeClassName } from '../utils/class-name';
-import { Alert, Button, Dialog, Skeleton } from './ui';
+import { Alert, Button, Dialog, RecordAction, Skeleton } from './ui';
 import { ManagementActions } from './ManagementActions';
 
-export function StudentManagement({ schoolId, schoolName, onChanged, onImport }: {
-  schoolId: string; schoolName: string; onChanged: () => Promise<void>; onImport: () => void;
+export function StudentManagement({ schoolId, schoolName, onChanged, onImport, revision = 0 }: {
+  schoolId: string; schoolName: string; onChanged: () => Promise<void>; onImport: () => void; revision?: number;
 }) {
   const [data, setData] = useState<{ schoolId: string; records: SchoolStudentRecord[]; enabled: boolean } | null>(null);
   const [selected, setSelected] = useState(ALL_CLASSES);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [remove, setRemove] = useState<SchoolStudentRecord | null>(null);
@@ -30,10 +32,13 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport }:
   };
   useEffect(() => {
     let active = true;
-    setData(null); setSelected(ALL_CLASSES); setSearch(''); setPage(0); setError('');
+    setData(null); setSelected(ALL_CLASSES); setSearch(''); setPage(0); setError(''); setExpanded(null); setFilter('all');
     void load().catch(() => { if (active) setError('Öğrenci kayıtları alınamadı.'); });
     return () => { active = false; generation.current += 1; };
-  }, [schoolId, onChanged]);
+  }, [schoolId, revision]);
+  useEffect(() => {
+    if (data && selected !== ALL_CLASSES && !data.records.some((record) => record.className === selected)) setSelected(ALL_CLASSES);
+  }, [data, selected]);
   const records = data?.schoolId === schoolId ? data.records : [];
   const classes = classSummaries(records);
   const classGroups = new Map<string, typeof classes>();
@@ -44,6 +49,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport }:
   }
   const query = search.trim().toLocaleLowerCase('tr-TR');
   const visible = records.filter((r) => (selected === ALL_CLASSES || r.className === selected) &&
+    (filter === 'all' || (filter === 'active' && r.parents.some((p) => p.status === 'active')) || (filter === 'pending' && r.parents.some((p) => p.status === 'pending')) || (filter === 'missing' && studentRecordIssues(r).length > 0)) &&
     [r.name, r.studentNumber, r.className, ...r.parents.flatMap((p) => [p.fullName, p.phone])].join(' ').toLocaleLowerCase('tr-TR').includes(query));
   const pages = Math.max(1, Math.ceil(visible.length / 25));
   const currentPage = Math.min(page, pages - 1);
@@ -61,24 +67,30 @@ export function StudentManagement({ schoolId, schoolName, onChanged, onImport }:
     aria-pressed={selected === className} onClick={() => { setSelected(className); setPage(0); }}>
     <span className="student-class-icon" aria-hidden="true"><Users size={18} /></span><strong>{className === ALL_CLASSES ? 'Tüm sınıflar' : label(className)}</strong><span className="student-class-count">{count} öğrenci</span>
   </button>;
-  return <section className="space-y-5" aria-label="Öğrenci ve veli yönetimi">
+  return <section className="management-section" aria-label="Öğrenci ve veli yönetimi">
     <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{schoolName} · {records.length} öğrenci</p></div><Button onClick={onImport}><Upload size={18} aria-hidden="true" />Toplu kayıt ekle</Button></div>
     {error && <Alert tone="danger">{error}</Alert>}
     {success && <Alert tone="success">{success}</Alert>}
     {!data && !error ? <Skeleton /> : <>
       <div className="space-y-2"><p className="text-sm font-semibold text-slate-700">Sınıf seçin</p><div className="student-class-all">{classButton(ALL_CLASSES, records.length)}</div></div>
-      <div className="student-class-groups" role="group" aria-label="Sınıflar">{[...classGroups].map(([group, items]) => <div key={group} className="student-class-grid" role="group" aria-label={group}>{items.map((c) => classButton(c.className, c.count))}</div>)}</div>
+      <div className="student-class-groups" role="group" aria-label="Sınıflar">{[...classGroups].map(([group, items]) => <div key={group} className="student-class-grid" style={{ '--class-count': items.length } as React.CSSProperties} role="group" aria-label={group}>{items.map((c) => classButton(c.className, c.count))}</div>)}</div>
+      <div className="student-list-filters">
       <label className="field" htmlFor="student-record-search">Öğrenci veya veli ara<div className="field-icon"><Search size={18} aria-hidden="true" /><input id="student-record-search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, öğrenci numarası veya telefon" /></div></label>
+      <label className="field management-filter">Kayıt filtresi<select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(0); }}><option value="all">Tüm kayıtlar</option><option value="pending">Veli hesabı bekleyenler</option><option value="active">Aktif veli hesabı bulunanlar</option><option value="missing">Eksik bilgisi bulunanlar</option></select></label>
+      </div>
       <p role="status" className="text-sm text-slate-600">{visible.length} öğrenci listeleniyor.</p>
-      <div className="grid gap-3 xl:grid-cols-2">{visible.slice(currentPage * 25, currentPage * 25 + 25).map((r) => <article className="surface min-w-0" key={`${r.kind}:${r.id}`}>
-        <header className="flex flex-wrap justify-between gap-2"><div><h4 className="font-bold">{r.name}</h4><p className="text-sm text-slate-600">{label(r.className)} · No: {r.studentNumber || '—'}</p></div><span className={`status-badge tone-${r.kind === 'student' ? 'success' : 'warning'}`}>{r.kind === 'student' ? 'Kayıtlı öğrenci' : 'Veli hesabı bekleniyor'}</span></header>
-        {r.kind === 'student' && <ManagementActions schoolId={schoolId} kind="student" id={r.id} values={{ name: r.name, className: r.className, studentNumber: r.studentNumber, ...(r.birthDate ? { birthDate: r.birthDate } : {}) }} onChanged={refresh} showRemove={false} />}
-        {r.parents.map((p, i) => <div className="mt-3 border-t border-slate-200 pt-3" key={p.id || i}><p className="font-semibold">{p.fullName}</p><p className="text-sm break-words">{p.phone || '—'} · {p.status === 'active' ? 'Aktif veli' : p.status === 'pending' ? 'Hesap oluşturmadı' : p.status === 'deleted' ? 'Hesap silindi' : 'Üyelik etkin değil'}</p>
-          {p.id && <ManagementActions schoolId={schoolId} kind="parent" id={p.id} values={{ fullName: p.fullName, phone: p.phone }} onChanged={refresh} showRemove={false} />}
-          {p.rosterId && p.status !== 'deleted' && <ManagementActions schoolId={schoolId} kind="roster" id={p.rosterId} values={{ studentName: r.name, className: r.className, studentNumber: r.studentNumber, parentName: p.fullName, parentPhone: p.phone, ...(r.birthDate ? { birthDate: r.birthDate } : {}) }} onChanged={refresh} showRemove={false} />}
-        </div>)}
-        <Button className="mt-4" variant="danger" onClick={() => { setError(''); setRemove(r); }}><Trash2 size={16} aria-hidden="true" />Sil</Button>
-      </article>)}</div>
+      <div className="management-list"><table className="management-table"><thead><tr><th>Öğrenci</th><th>Sınıf / No</th><th>Veli</th><th>Telefon</th><th>Hesap durumu</th><th>İşlemler</th></tr></thead><tbody>{visible.slice(currentPage * 25, currentPage * 25 + 25).map((r) => {
+        const key = `${r.kind}:${r.id}`, parent = r.parents[0], active = r.parents.some((p) => p.status === 'active'), pendingParent = r.parents.some((p) => p.status === 'pending');
+        return <React.Fragment key={key}><tr className="student-record-row"><td data-label="Öğrenci"><strong>{r.name}</strong></td><td data-label="Sınıf / No">{label(r.className)} · {r.studentNumber || '—'}</td><td data-label="Veli">{parent?.fullName || 'Bağlantı yok'}{r.parents.length > 1 && <small> +{r.parents.length - 1} veli</small>}</td><td data-label="Telefon">{parent?.phone || '—'}</td><td data-label="Hesap durumu"><span className={`status-badge tone-${active ? 'success' : 'warning'}`}>{active ? 'Aktif veli' : pendingParent ? 'Hesap bekliyor' : parent?.status === 'deleted' ? 'Hesap silindi' : parent?.status === 'unlinked' ? 'Öğrenci bağlantısı bekliyor' : 'Bağlantı etkin değil'}</span></td><td data-label="İşlemler"><div className="record-actions">
+          {r.kind === 'student' && <ManagementActions compact schoolId={schoolId} kind="student" id={r.id} values={{ name: r.name, className: r.className, studentNumber: r.studentNumber, ...(r.birthDate ? { birthDate: r.birthDate } : {}) }} onChanged={refresh} showRemove={false} />}
+          {r.kind === 'roster' && parent?.rosterId && parent.status !== 'deleted' && <ManagementActions compact schoolId={schoolId} kind="roster" id={parent.rosterId} values={{ studentName: r.name, className: r.className, studentNumber: r.studentNumber, parentName: parent.fullName, parentPhone: parent.phone, ...(r.birthDate ? { birthDate: r.birthDate } : {}) }} onChanged={refresh} showRemove={false} />}
+          <RecordAction label={`${r.name} adlı öğrencinin veli ayrıntılarını göster`} icon={ChevronDown} aria-expanded={expanded === key} onClick={() => setExpanded(expanded === key ? null : key)} />
+          <RecordAction danger label={`${r.name} adlı öğrenciyi sil`} icon={Trash2} onClick={() => { setError(''); setRemove(r); }} />
+        </div></td></tr>{expanded === key && <tr className="record-detail-row"><td colSpan={6}><div className="record-detail">{studentRecordIssues(r).length > 0 && <Alert tone="warning">{studentRecordIssues(r).join(' · ')}</Alert>}{r.parents.map((p, i) => <div className="record-detail-person" key={p.id || p.rosterId || i}><div><strong>{p.fullName}</strong><p>{p.phone || '—'} · {p.status === 'active' ? 'Aktif veli' : p.status === 'pending' ? 'Hesap oluşturmadı' : p.status === 'deleted' ? 'Hesap silindi' : p.status === 'unlinked' ? 'Öğrenci bağlantısı tamamlanmamış' : 'Üyelik etkin değil'}</p></div>
+          {p.id && <ManagementActions compact schoolId={schoolId} kind="parent" id={p.id} values={{ fullName: p.fullName, phone: p.phone }} onChanged={refresh} showRemove={false} />}
+          {p.rosterId && p.status !== 'deleted' && <ManagementActions compact schoolId={schoolId} kind="roster" id={p.rosterId} values={{ studentName: r.name, className: r.className, studentNumber: r.studentNumber, parentName: p.fullName, parentPhone: p.phone, ...(r.birthDate ? { birthDate: r.birthDate } : {}) }} onChanged={refresh} showRemove={false} />}
+        </div>)}</div></td></tr>}</React.Fragment>;
+      })}</tbody></table></div>
       {!visible.length && <Alert>Bu seçimde öğrenci kaydı bulunmuyor.</Alert>}
       {pages > 1 && <nav className="flex flex-wrap gap-3 items-center" aria-label="Öğrenci sayfaları"><Button variant="secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Önceki</Button><span>{currentPage + 1} / {pages}</span><Button variant="secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>Sonraki</Button></nav>}
       {data?.enabled && selected !== ALL_CLASSES && classes.some((c) => c.className === selected) && <Button variant="danger" onClick={() => void act(async () => {

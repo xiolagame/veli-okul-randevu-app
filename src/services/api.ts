@@ -156,6 +156,9 @@ export const api = {
   updatePlatformRequestStatus: (id: string, status: import('../types/platform').PlatformRequestStatus) =>
     request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),
+  getOperationSummary: (schoolId: string) => request<import('../types/operations').OperationSummary>(`/api/schools/${schoolId}/management/operations`),
+  getOperationPage: (schoolId: string, category: import('../types/operations').OperationCategory, page = 0, q = '', status = '') =>
+    request<import('../types/operations').OperationPage>(`/api/schools/${schoolId}/management/operations/${category}?${new URLSearchParams({ page: String(page), q, status })}`),
   getManagedStudentRecords: (schoolId: string) => request<{ records: import('../utils/student-records').SchoolStudentRecord[]; classBulkDeleteEnabled: boolean }>(`/api/schools/${schoolId}/management/student-records`),
   removePendingStudent: (schoolId: string, id: string) => request<{ success: boolean }>(`/api/schools/${schoolId}/management/student-records/roster/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   previewClassRemoval: (schoolId: string, className: string) => request<{ className: string; studentCount: number; snapshot: string }>(`/api/schools/${schoolId}/management/student-records/class-removal/preview`, { method: 'POST', body: JSON.stringify({ className }) }),

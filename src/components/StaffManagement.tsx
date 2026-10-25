@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound, Download, Upload } from 'lucide-react';
-import { Alert, Button, Dialog, Skeleton } from './ui';
+import { Alert, Button, Dialog, RecordAction, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
@@ -21,6 +21,8 @@ interface StaffManagementProps {
 export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onCreateTeacher }) => {
   const { currentSchool, refreshSchoolData } = useApp();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState({ teacher: 0, security: 0 });
+  const [resending, setResending] = useState<string | null>(null);
   const [showCreateTeacher, setShowCreateTeacher] = useState(false);
   const [showBulkStaffImport, setShowBulkStaffImport] = useState(false);
   const [creatingTeacher, setCreatingTeacher] = useState(false);
@@ -74,12 +76,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="management-section">
       <div className="section-heading"><div><h3>Öğretmenler ve güvenlik</h3><p>Okulunuzun personel hesaplarını ve aktivasyon e-postalarını yönetin.</p></div></div>
       <label className="relative block">
         <span className="sr-only">Öğretmen veya güvenlik personeli ara</span>
         <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Öğretmen veya güvenlik personeli ara..."
+        <input value={search} onChange={(event) => { setSearch(event.target.value); setPage({ teacher: 0, security: 0 }); }} placeholder="Öğretmen veya güvenlik personeli ara..."
           className="min-h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm" />
       </label>
       {loading && <Skeleton />}
@@ -89,6 +91,8 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         const filtered = records.filter((record) =>
           [record.firstName, record.lastName, record.branch || '', record.phone, record.email || ''].join(' ').toLocaleLowerCase('tr-TR').includes(query)
         );
+        const pages = Math.max(1, Math.ceil(filtered.length / 25));
+        const currentPage = Math.min(page[type], pages - 1);
         return (
           <section key={type} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="staff-import-actions"><a href="/PERSONEL_BİLGİ_FORMU.xlsx" download="PERSONEL_BİLGİ_FORMU.xlsx" className="ui-button staff-template-download"><Download size={18} aria-hidden="true" />Excel Şablonu İndir</a><Button className="staff-bulk-upload" variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}><Upload size={18} aria-hidden="true" />Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
@@ -98,32 +102,29 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                 <p className="font-medium text-slate-700">{records.length ? 'Aramanızla eşleşen personel bulunamadı.' : empty}</p>
                 {!records.length && <p className="mt-1 text-sm text-slate-500">{description}</p>}
               </div>
-            ) : <div className="grid gap-3 lg:grid-cols-2">
-              {filtered.map((record) => {
+            ) : <div className="management-list"><table className="management-table"><thead><tr><th>Ad Soyad</th><th>Görev / Branş</th><th>Telefon</th><th>E-posta</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
+              {filtered.slice(currentPage * 25, currentPage * 25 + 25).map((record) => {
                 const phone = normalizeTurkishPhone(record.phone);
                 const status = record.accountStatus;
                 const actionable = !!phone && (status === 'pending' || status === 'active');
                 const label = `${record.firstName} ${record.lastName}`.trim();
                 return (
-                  <article key={record.id} className="surface min-w-0">
-                    <div className="flex gap-3 items-center mb-4"><h5 className="text-base font-bold text-slate-900">{label}</h5></div>
-                    <p className="text-sm text-slate-500">{type === 'teacher' ? record.branch : 'Güvenlik'}</p>
-                    <p className="mt-2 break-words text-sm text-slate-700">{record.phone || 'Telefon tanımlı değil'}</p>
-                    <p className="mt-1 break-all text-sm text-slate-600">{record.email || 'E-posta tanımlı değil'}</p>
-                    <span className={`mt-3 inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                  <tr key={record.id} className="staff-record-row"><td data-label="Ad Soyad"><strong>{label}</strong></td><td data-label="Görev / Branş">{type === 'teacher' ? `Öğretmen · ${record.branch || 'Branş eksik'}` : 'Güvenlik'}</td><td data-label="Telefon">{record.phone || 'Telefon tanımlı değil'}</td><td data-label="E-posta">{record.email || '—'}</td><td data-label="Durum"><span className={`status-badge tone-${!phone ? 'danger' : status === 'active' ? 'success' : 'warning'}`}>
                       {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
-                    </span>
-                    {!phone && <p className="mt-2 text-xs text-slate-500">Aktivasyon kodu oluşturmak için geçerli telefon numarası gereklidir.</p>}
-                    {currentSchool && <ManagementActions schoolId={currentSchool.id} kind={type} id={record.id}
+                    </span></td><td data-label="İşlemler"><div className="record-actions">
+                    {currentSchool && <ManagementActions compact schoolId={currentSchool.id} kind={type} id={record.id}
                       values={{ fullName: label, phone: record.phone || '', email: record.email || '', ...(type === 'teacher' ? { branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
-                    {status === 'pending' && currentSchool && <Button className="mt-5 w-full" disabled={!actionable} onClick={async () => {
+                    {status === 'pending' && currentSchool && <RecordAction label={`${label} için aktivasyon e-postasını yeniden gönder`} icon={KeyRound} disabled={!actionable || resending !== null} onClick={async () => {
+                      setResending(record.id);
                       try { const result = await api.resendStaffActivation(currentSchool.id, type, record.id); setResendMessage(result.message); }
                       catch (cause) { setResendMessage(cause instanceof Error ? cause.message : 'E-posta yeniden gönderilemedi.'); }
-                    }}><KeyRound size={17} />Aktivasyon E-postasını Yeniden Gönder</Button>}
-                  </article>
+                      finally { setResending(null); }
+                    }} />}
+                  </div></td></tr>
                 );
               })}
-            </div>}
+            </tbody></table></div>}
+            {pages > 1 && <nav className="management-pagination" aria-label={`${title} sayfaları`}><Button variant="secondary" disabled={currentPage === 0} onClick={() => setPage({ ...page, [type]: currentPage - 1 })}>Önceki</Button><span>{currentPage + 1} / {pages} · {filtered.length} kayıt</span><Button variant="secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage({ ...page, [type]: currentPage + 1 })}>Sonraki</Button></nav>}
           </section>
         );
       })}

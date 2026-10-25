@@ -12,6 +12,7 @@ import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { deliverSchoolAdminCode } from './school-admin-email';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import { removeSingleStudent, StudentRecordError, studentRecordsRouter } from './student-records';
+import { operationsRouter } from './operations';
 
 class ManagementError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -36,6 +37,7 @@ async function revokeCodes(tx: TransactionClient, schoolId: string, phone: strin
 export const adminManagementRouter = Router({ mergeParams: true });
 adminManagementRouter.use(authMiddleware, tenantGuard(['admin']));
 adminManagementRouter.use('/student-records', studentRecordsRouter);
+adminManagementRouter.use('/operations', operationsRouter);
 
 adminManagementRouter.get('/parents', async (req: AuthenticatedRequest, res) => {
   try {

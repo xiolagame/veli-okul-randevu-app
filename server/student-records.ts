@@ -8,12 +8,13 @@ import { normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizeClassName } from '../src/utils/class-name';
 import { SchoolStudentRecord, studentIdentity } from '../src/utils/student-records';
 import { auditLogRepository, schoolLicenseRepository } from './repositories';
+import { canonicalOperationPhoneSql } from './operations';
 
 export class StudentRecordError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 type StudentRow = { id: string; name: string; class_name: string; student_number: string | null; birth_date: string | null; updated_at: string };
-type RosterRow = { id: string; student_name: string; class_name: string; student_number: string | null; birth_date: string | null; parent_name: string; parent_phone: string; is_claimed: boolean; parent_account_deleted_at: string | null; updated_at: string };
+type RosterRow = { id: string; student_name: string; class_name: string; student_number: string | null; birth_date: string | null; parent_name: string; parent_phone: string; is_claimed: boolean; has_account: boolean; parent_account_deleted_at: string | null; updated_at: string };
 type ParentRow = { id: string; student_id: string; parent_user_id: string; full_name: string; phone: string; status: string };
 type SchoolState = { students: StudentRow[]; roster: RosterRow[]; parents: ParentRow[]; records: SchoolStudentRecord[] };
 const purpose = 'CLASS_BULK_DELETE';
@@ -21,7 +22,9 @@ export const classBulkDeleteEnabled = () => process.env.CLASS_BULK_DELETE_ENABLE
 
 async function readState(tx: TransactionClient, schoolId: string): Promise<SchoolState> {
   const students = (await tx.query<StudentRow>('SELECT id,name,class_name,student_number,birth_date::text,updated_at FROM students WHERE school_id=$1 ORDER BY id', [schoolId])).rows;
-  const roster = (await tx.query<RosterRow>('SELECT id,student_name,class_name,student_number,birth_date::text,parent_name,parent_phone,is_claimed,parent_account_deleted_at,updated_at FROM school_roster WHERE school_id=$1 ORDER BY id', [schoolId])).rows;
+  const roster = (await tx.query<RosterRow>(`SELECT sr.id,sr.student_name,sr.class_name,sr.student_number,sr.birth_date::text,sr.parent_name,sr.parent_phone,sr.is_claimed,sr.parent_account_deleted_at,sr.updated_at,
+    EXISTS(SELECT 1 FROM users u WHERE ${canonicalOperationPhoneSql('u.phone')}=${canonicalOperationPhoneSql('sr.parent_phone')}) AS has_account
+    FROM school_roster sr WHERE sr.school_id=$1 ORDER BY sr.id`, [schoolId])).rows;
   const parents = (await tx.query<ParentRow>(`SELECT r.id,r.student_id,r.parent_user_id,concat_ws(' ',u.first_name,u.last_name) AS full_name,u.phone,sm.status
     FROM student_parent_relations r JOIN users u ON u.id=r.parent_user_id
     LEFT JOIN school_memberships sm ON sm.school_id=r.school_id AND sm.user_id=u.id AND sm.role='parent'
@@ -38,7 +41,7 @@ async function readState(tx: TransactionClient, schoolId: string): Promise<Schoo
       records.push(record); identities.set(identity, record);
     }
     if (!record.parents.some((p) => normalizeTurkishPhone(p.phone) === normalizeTurkishPhone(r.parent_phone))) record.parents.push({ rosterId: r.id, fullName: r.parent_account_deleted_at ? 'Silinmiş Veli' : r.parent_name,
-      phone: r.parent_account_deleted_at ? '' : r.parent_phone, status: r.parent_account_deleted_at ? 'deleted' : 'pending' });
+      phone: r.parent_account_deleted_at ? '' : r.parent_phone, status: r.parent_account_deleted_at ? 'deleted' : r.has_account ? 'unlinked' : 'pending' });
   }
   return { students, roster, parents, records };
 }

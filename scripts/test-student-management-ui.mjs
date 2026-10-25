@@ -50,7 +50,7 @@ try{
   assert.equal(await page.locator('.student-class-grid .student-class-card').count(),30);
   assert.equal(await page.locator('.student-class-grid').count(),4);
   assert.equal(await page.locator('.student-class-grid .class-tone-red').count(),7);
-  assert.equal(await page.locator('article').count(),25);
+  assert.equal(await page.locator('.student-record-row').count(),25);
   const download=page.getByRole('link',{name:'Excel Şablonu İndir'});
   assert.equal(await download.getAttribute('download'),'PERSONEL_BİLGİ_FORMU.xlsx');
   assert.equal(await download.getAttribute('href'),'/PERSONEL_BİLGİ_FORMU.xlsx');
@@ -71,9 +71,9 @@ try{
   await page.getByRole('dialog').waitFor(); await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).count(),0);
   await page.getByRole('button',{name:'Sonraki',exact:true}).click();
-  assert.equal(await page.locator('article').count(),25);
+  assert.equal(await page.locator('.student-record-row').count(),25);
   await page.locator('.student-class-grid .student-class-card').first().click();
-  assert.equal(await page.locator('article').count(),2);
+  assert.equal(await page.locator('.student-record-row').count(),2);
   assert.equal(await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).count(),1);
   await page.getByRole('button',{name:'Toplu Sınıf Sil',exact:true}).click();
   await page.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder'}).click();
@@ -96,11 +96,11 @@ try{
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:path.join(os.tmpdir(),'veli-student-classes-mobile.png'),fullPage:true});
   await page.getByLabel('Öğrenci veya veli ara').fill('TEST STUDENT 59');
-  assert.equal(await page.locator('article').count(),1);
+  assert.equal(await page.locator('.student-record-row').count(),1);
   await page.getByRole('button',{name:'Switch test school'}).click();
   await page.locator('.student-class-all button').waitFor();
   assert.equal(await page.locator('.student-class-grid .student-class-card').count(),0);
-  assert.equal(await page.locator('article').count(),0);
+  assert.equal(await page.locator('.student-record-row').count(),0);
   assert.deepEqual(errors,[]);
   console.log('Staff/student UI: exact template download, distinct icon buttons, existing staff dialogs, 30 dynamic class cards, pagination, selection, search, OTP confirmation, tenant switch and 375/390/430/768/1440px overflow checks PASS. Synthetic UI fixture; no real OTP/API calls.');
   console.log('Visual fixture screenshot: '+screenshot);

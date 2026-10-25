@@ -6,6 +6,8 @@ import * as dates from '../src/utils/dates';
 import * as filters from '../src/utils/admin-filters';
 import * as phone from '../src/utils/phone';
 import * as schoolSettings from '../src/utils/school-settings';
+import * as studentRecords from '../src/utils/student-records';
+import * as classNames from '../src/utils/class-name';
 
 interface ElementNode { type: unknown; props: Record<string, unknown>; children: unknown[] }
 function nodes(tree: unknown): ElementNode[] {
@@ -44,7 +46,7 @@ function harness(file: string, context: object, api: object = {}) {
   const output: Record<string, (props: object) => ElementNode> = {};
   const source = fs.readFileSync(file, 'utf8');
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
-    module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true,
+    module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true, target: ts.ScriptTarget.ES2022,
   } }).outputText, {
     exports: output,
     require(name: string) {
@@ -55,7 +57,9 @@ function harness(file: string, context: object, api: object = {}) {
       if (name === '../utils/admin-filters') return filters;
       if (name === '../utils/phone') return phone;
       if (name === '../utils/school-settings') return schoolSettings;
-      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement','./SchoolRequestCenter'].includes(name)) {
+      if (name === '../utils/student-records') return studentRecords;
+      if (name === '../utils/class-name') return classNames;
+      if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./StudentManagement','./OperationsCenter','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement','./SchoolRequestCenter'].includes(name)) {
         return new Proxy({}, { get: (_, key) => String(key) });
       }
       throw new Error(`Unexpected component dependency: ${name}`);
@@ -81,6 +85,7 @@ async function run() {
   const roster = [{ id: 'roster-a', className: '5-A', studentName: 'Student A', parentName: 'Parent A', parentPhone: '', isClaimed: false },
     { id: 'roster-b', className: '6-B', studentName: 'Student B', parentName: 'Parent B', parentPhone: '', isClaimed: false }];
   const admin = harness('src/components/AdminView.tsx', {
+    refreshSchoolData: async () => {},
     currentSchool: { id: 'local' }, settings: {}, users: [], teachers: [], roster, auditLogs: [], isolationTestResults: [],
     appointments: [{ id: 'today', date: today, startTime: '09:00', status: 'pending' }, { id: 'other', date: '2099-12-31', startTime: '10:00', status: 'pending' }],
   });
@@ -105,10 +110,29 @@ async function run() {
   change(elements, 'admin-section', 'roster');
   elements = admin('AdminView', props);
   assert.equal(elements.filter((element) => element.type === 'tr').length, 0);
-  change(elements, 'parent-class', '5-A');
-  elements = admin('AdminView', props);
-  assert.deepEqual(elements.filter((element) => element.type === 'tr' && element.props.key).map((element) => element.props.key), ['roster-a']);
-  assert.equal(elements.find((element) => element.type === 'ParentManagement')?.props.selectedClass, '5-A');
+  assert.equal(elements.find((element) => element.type === 'StudentManagement')?.props.schoolId, 'local');
+  // Class selection now belongs to StudentManagement; exercise the actual component.
+  const students = harness('src/components/StudentManagement.tsx', {}, {
+    getManagedStudentRecords: async () => ({ classBulkDeleteEnabled: false, records: roster.map((r) => ({
+      id: r.id, kind: 'roster', name: r.studentName, className: r.className, studentNumber: '', birthDate: '',
+      parents: [{ fullName: r.parentName, phone: r.parentPhone, status: 'pending', rosterId: r.id }],
+    })) }),
+  });
+  const studentProps = { schoolId: 'local', schoolName: 'Test school', onChanged: async () => {}, onImport() {} };
+  students('StudentManagement', studentProps);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  elements = students('StudentManagement', studentProps);
+  assert.equal(elements.filter((element) => element.props.className === 'student-record-row').length, 2);
+  const classButton = elements.find((element) => element.type === 'button' && String(element.props.className).includes('student-class-card') && nodes(element).some((child) => child.type === 'strong' && child.children.includes('5/A')));
+  assert(classButton); (classButton.props.onClick as () => void)();
+  elements = students('StudentManagement', studentProps);
+  const rows = elements.filter((element) => element.props.className === 'student-record-row');
+  assert.equal(rows.length, 1);
+  assert(nodes(rows[0]).some((element) => element.type === 'strong' && element.children.includes('Student A')));
+  assert(!nodes(rows[0]).some((element) => element.children.includes('Student B')));
+  change(elements, 'student-record-search', 'no matching student');
+  elements = students('StudentManagement', studentProps);
+  assert.equal(elements.filter((element) => element.props.className === 'student-record-row').length, 0);
 
   const parent = harness('src/components/ParentManagement.tsx', {}, { getManagedParents: async () => ({ parents: [{
     id: 'parent', fullName: 'Fixture Parent', phone: '', status: 'inactive', students: [
@@ -136,7 +160,7 @@ async function run() {
   assert.doesNotMatch(parentSource, /Veli Parola Sıfırlama Kodu/);
   const adminSource = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
   assert.doesNotMatch(adminSource, /ACCOUNT_ACTIVATION|PASSWORD_RESET|authCodeRoster|createAuthCode|code-purpose|Parola sıfırlama kodu/);
-  console.log('Admin component date picker, today action, class-first roster/parent rendering and child actions PASS (mocked hooks).');
+  console.log('Admin component date picker, today action, delegated dynamic class/search filters, legacy parent filtering and child actions PASS (mocked hooks).');
 }
 run().catch((cause: unknown) => {
   console.error('Admin component filter test FAILED.', cause instanceof Error ? cause.message : 'Unknown error');

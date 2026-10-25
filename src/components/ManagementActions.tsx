@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Alert, Button, Dialog } from './ui';
+import { Alert, Button, Dialog, RecordAction } from './ui';
+import { Pencil, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { formatBirthDateInput, formatIsoBirthDateForInput, parseBirthDateInputToIso } from '../utils/birth-date';
@@ -12,12 +13,13 @@ interface Props {
   values: Record<string, string>;
   onChanged: () => Promise<void>;
   showRemove?: boolean;
+  compact?: boolean;
 }
 
 const titles = { teacher: 'Öğretmen', parent: 'Veli', student: 'Öğrenci', security: 'Güvenlik personeli', roster: 'Veli ve öğrenci kütüğü' };
 const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci Ad Soyad', phone: 'Telefon', email: 'E-posta', parentName: 'Veli Ad Soyad', parentPhone: 'Veli Telefon', studentName: 'Öğrenci Ad Soyad', branch: 'Branş', className: 'Sınıf', studentNumber: 'Okul No', birthDate: 'Doğum Tarihi' };
 
-export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true }: Props) {
+export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true, compact = false }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
   const initialDraft = Object.fromEntries(Object.entries(values).map(([key, value]) => [key,
     key === 'phone' || key === 'parentPhone' ? displayStoredTurkishPhone(value) : key === 'birthDate' ? formatIsoBirthDateForInput(value) : value]));
@@ -56,10 +58,12 @@ export function ManagementActions({ schoolId, kind, id, values, onChanged, showR
       setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.');
     } finally { pending.current = false; setBusy(false); }
   };
-  return <div className="mt-3">
+  const person = values.fullName || values.name || values.studentName || titles[kind];
+  const edit = () => { setDraft(initialDraft); setError(''); setSuccess(''); setMode('edit'); };
+  return <div className={compact ? 'record-actions' : 'mt-3'}>
     <div className="flex flex-wrap gap-2">
-      <Button variant="secondary" onClick={() => { setDraft(initialDraft); setError(''); setSuccess(''); setMode('edit'); }}>Düzenle</Button>
-      {showRemove && kind !== 'roster' && <Button variant="danger" onClick={() => { void openRemoval(); }}>{kind === 'student' ? 'Öğrenciyi okuldan kaldır' : 'Okuldan Kaldır'}</Button>}
+      {compact ? <RecordAction label={`${person} adlı ${titles[kind].toLocaleLowerCase('tr-TR')} kaydını düzenle`} icon={Pencil} onClick={edit} /> : <Button variant="secondary" onClick={edit}>Düzenle</Button>}
+      {showRemove && kind !== 'roster' && (compact ? <RecordAction danger label={`${person} adlı kişiyi okuldan kaldır`} icon={Trash2} onClick={() => void openRemoval()} /> : <Button variant="danger" onClick={() => { void openRemoval(); }}>{kind === 'student' ? 'Öğrenciyi okuldan kaldır' : 'Okuldan Kaldır'}</Button>)}
     </div>
     {success && <p role="status" className="text-sm mt-2">{success}</p>}
     {mode && <Dialog title={`${titles[kind]} — ${mode === 'edit' ? 'Bilgileri düzenle' : 'Okuldan kaldır'}`} onClose={() => { if (!busy) setMode(null); }} dismissible={!busy}>

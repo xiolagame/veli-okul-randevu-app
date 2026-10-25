@@ -29,7 +29,7 @@ import { appLifecycle } from '../platform/lifecycle';
 import { isCurrentMobileRefresh } from '../platform/mobile-refresh-guard';
 
 interface AppContextType {
-  refreshSchoolData: () => Promise<void>;
+  refreshSchoolData: (section?: 'staff' | 'appointments' | 'audit') => Promise<void>;
   refreshMobileData: () => Promise<void>;
   refreshPlatformSchools: () => Promise<void>;
   currentUser: User | null;
@@ -215,14 +215,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAdmin = role === 'admin';
     setUsersLoading(isAdmin);
     const [teachersRes, usersRes, studentsRes, availRes, aptsRes, notifsRes, settingsRes, auditRes, rosterRes] = await Promise.all([
-      api.getTeachers(schoolId).catch(() => { if (isAdmin) setUsersError('Öğretmen listesi yüklenemedi. Lütfen tekrar deneyin.'); return { teachers: [] }; }),
-      isAdmin ? api.getSecurityUsers(schoolId).catch(() => { setUsersError('Güvenlik personeli yüklenemedi. Lütfen tekrar deneyin.'); return { users: [] }; }) : Promise.resolve({ users: [] }),
-      api.getStudents(schoolId).catch(() => ({ students: [] })).then((result) => {
+      (isAdmin ? Promise.resolve({ teachers: [] }) : api.getTeachers(schoolId).catch(() => ({ teachers: [] }))),
+      Promise.resolve({ users: [] }),
+      (isAdmin ? Promise.resolve({ students: [] }) : api.getStudents(schoolId).catch(() => ({ students: [] }))).then((result) => {
         if (sequence === schoolLoadSequence.current && user) setCurrentUser((current) => current?.id === user.id ? { ...current, students: result.students } : current);
         return result;
       }),
-      api.getAvailability(schoolId).catch(() => ({ availability: [] })),
-      (role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
+      isAdmin ? Promise.resolve({ availability: [] }) : api.getAvailability(schoolId).catch(() => ({ availability: [] })),
+      (isAdmin || role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
         if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setAppointments(result.appointments);
         return result;
       }),
@@ -231,8 +231,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return result;
       }),
       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
-      role === 'admin' || role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
-      isAdmin ? api.getRoster(schoolId).catch(() => ({ roster: [] })) : Promise.resolve({ roster: [] }),
+      role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
+      Promise.resolve({ roster: [] }),
     ]);
     if (sequence !== schoolLoadSequence.current) return;
     if (!firstSchoolLoadMeasured.current) {
@@ -685,17 +685,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;
           }
         },
-        refreshSchoolData: async () => {
+        refreshSchoolData: async (section = 'staff') => {
           const schoolId = currentSchool?.id;
           if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
-          const [teacherData, userData, rosterData, logData] = await Promise.all([
-            api.getTeachers(schoolId), api.getSecurityUsers(schoolId), api.getRoster(schoolId), api.getAuditLogs(schoolId),
-          ]);
-          if (getActiveSchoolId() !== schoolId) return;
-          setTeachers(teacherData.teachers);
-          setUsers(userData.users);
-          setRoster(rosterData.roster);
-          setAuditLogs(logData.auditLogs);
+          const sequence = schoolLoadSequence.current;
+          const stillCurrent = () => getActiveSchoolId() === schoolId && schoolLoadSequence.current === sequence;
+          if (section === 'appointments') {
+            const result = await api.getAppointments(schoolId);
+            if (stillCurrent()) setAppointments(result.appointments);
+          } else if (section === 'audit') {
+            const result = await api.getAuditLogs(schoolId);
+            if (stillCurrent()) setAuditLogs(result.auditLogs);
+          } else {
+            setUsersLoading(true); setUsersError('');
+            try {
+              const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
+              if (!stillCurrent()) return;
+              setTeachers(teacherData.teachers); setUsers(userData.users);
+            } catch (cause) {
+              if (stillCurrent()) setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');
+              throw cause;
+            } finally { if (stillCurrent()) setUsersLoading(false); }
+          }
         },
         refreshPlatformSchools: async () => {
           if (!isPlatformAdmin) return;
