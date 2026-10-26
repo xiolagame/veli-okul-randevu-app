@@ -24,7 +24,7 @@ const result = await build({stdin:{contents:fixture,resolveDir:root,loader:'tsx'
     b.onLoad({filter:/.*/,namespace:'fixture'},args=>({loader:'js',contents:args.path==='context'?`export const useApp=()=>({currentSchool:{id:'a'},refreshSchoolData:async()=>{}});`:`
       const classes=[5,6,7,8].flatMap((grade)=>Array.from({length:grade<7?8:7},(_,i)=>grade+'-'+String.fromCharCode(65+i)));
       const records=Array.from({length:60},(_,i)=>({id:String(i),kind:'student',name:'TEST STUDENT '+i,className:classes[i%30],studentNumber:String(i).padStart(3,'0'),birthDate:'',parents:[]}));
-      let removedClass='';export const api={getManagedStudentRecords:async(school)=>({records:school==='a'?records.filter(r=>r.className!==removedClass):[],classBulkDeleteEnabled:true}),previewClassRemoval:async(school,className)=>({className,studentCount:2,relationCount:0,preservedAccounts:0,removableAccounts:0,appointmentCount:0,qrCount:0,snapshot:'test-snapshot'}),requestClassRemovalCode:async()=>({challengeId:'test-challenge'}),completeClassRemoval:async(school,className)=>{removedClass=className;return{success:true,removedCount:2,preservedAccounts:0,removedAccounts:0,removedAppointments:0}}};` }));
+      let removedClass='',multiRemoved=[];window.multiTest={calls:[]};export const api={getManagedStudentRecords:async(school)=>({records:school==='a'?records.filter(r=>r.className!==removedClass&&!multiRemoved.includes(r.className)):[],classBulkDeleteEnabled:true,classMultiDeleteEnabled:school==='a'}),previewClassRemoval:async(school,className)=>({className,studentCount:2,relationCount:0,preservedAccounts:0,removableAccounts:0,appointmentCount:0,qrCount:0,snapshot:'test-snapshot'}),requestClassRemovalCode:async()=>({challengeId:'test-challenge'}),previewMultiClassRemoval:async(school,classNames)=>{window.multiTest.calls.push('preview');return{classNames,studentCount:4,relationCount:2,preservedAccounts:1,removableAccounts:1,appointmentCount:2,qrCount:2,notificationCount:2,deliveryCount:1,snapshot:'multi-snapshot'}},requestMultiClassRemovalCode:async()=>{window.multiTest.calls.push('request');return{challengeId:'multi-challenge',resendAfterSeconds:60,expiresInSeconds:300}},cancelMultiClassRemoval:async()=>{window.multiTest.calls.push('cancel');if(window.multiTest.failCancel)throw Error('Synthetic network timeout');return{success:true}},completeMultiClassRemoval:async(school,classNames)=>{window.multiTest.calls.push('complete');multiRemoved=classNames;return{success:true,removedCount:4,preservedAccounts:1,removedAccounts:1}},completeClassRemoval:async(school,className)=>{removedClass=className;return{success:true,removedCount:2,preservedAccounts:0,removedAccounts:0,removedAppointments:0}}};` }));
   }
 }]});
 const cssFiles = fs.readdirSync('dist/client/assets').filter((name)=>name.endsWith('.css'));
@@ -43,6 +43,7 @@ let browser;
 try{
   browser=await chromium.launch({channel:'chrome',headless:true});
   const page=await browser.newPage();
+  await page.clock.install();
   const errors=[]; page.on('pageerror',(e)=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith('http://127.0.0.1:')?route.continue():route.abort());
   await page.goto('http://127.0.0.1:'+server.address().port);
@@ -76,6 +77,7 @@ try{
   await page.locator('.student-class-grid .student-class-card').first().click();
   assert.equal(await page.locator('.student-record-row').count(),2);
   assert.equal(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).count(),1);
+  assert(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).evaluate(button=>!!(button.compareDocumentPosition(document.getElementById('student-record-search'))&Node.DOCUMENT_POSITION_FOLLOWING)),'single delete must precede student search');
   await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).click();
   await page.getByLabel('Onaylamak için 5/A yazın').fill('6/A');
   assert(await page.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma kod gönder'}).isDisabled());
@@ -95,6 +97,60 @@ try{
     const sizes=await page.locator('.student-class-card').evaluateAll(items=>items.map(e=>({w:e.clientWidth,h:e.clientHeight})));
     assert(sizes.every(s=>s.w>=44&&s.h>=44));
   }
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Toplu silme modu',exact:true}).click();
+  assert(await page.locator('.student-class-all button').isDisabled());
+  const deleteMany=page.getByRole('button',{name:'Seçili Sınıfları Sil',exact:true});
+  assert(await deleteMany.isDisabled());
+  await page.getByRole('button',{name:'5/B 2 öğrenci',exact:true}).click();
+  assert(await deleteMany.isDisabled());
+  await page.getByRole('button',{name:'6/A 2 öğrenci',exact:true}).click();
+  assert.equal(await page.locator('.student-class-grid button[aria-pressed="true"]').count(),2);
+  assert(await deleteMany.evaluate(button=>!!(button.compareDocumentPosition(document.getElementById('student-record-search'))&Node.DOCUMENT_POSITION_FOLLOWING)));
+  await deleteMany.click();
+  const multiDialog=page.getByRole('dialog');
+  await multiDialog.getByRole('heading',{name:'Seçili sınıfları kalıcı sil'}).waitFor();
+  assert((await multiDialog.innerText()).includes('5/B, 6/A'));
+  const sendMany=multiDialog.getByRole('button',{name:'Kapsamı onayla ve kendi WhatsApp telefonuma tek kod gönder'});
+  assert(await sendMany.isDisabled());
+  assert.deepEqual(await page.evaluate(()=>window.multiTest.calls),['preview']);
+  await multiDialog.getByLabel('Onaylamak için SEÇİLİ SINIFLARI SİL yazın').fill('SEÇİLİ SINIFLARI SİL');
+  await sendMany.click();
+  await multiDialog.getByLabel('Çoklu silme WhatsApp kodu').waitFor();
+  assert.equal(await page.evaluate(()=>window.multiTest.calls.filter(c=>c==='request').length),1);
+  assert(await multiDialog.getByRole('button',{name:/^Yeniden gönder/}).isDisabled());
+  for(const width of [375,390,430,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert((await multiDialog.boundingBox()).width<=width);}
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:path.join(os.tmpdir(),'veli-multi-class-confirmation-mobile.png'),fullPage:true});
+  await page.evaluate(()=>{window.multiTest.failCancel=true;});
+  await multiDialog.getByRole('button',{name:'Vazgeç ve doğrulamayı iptal et'}).click();
+  await multiDialog.getByText('Kodun iptali sunucuda doğrulanamadı.',{exact:false}).waitFor();
+  assert(await multiDialog.isVisible(),'cancel failure must keep the confirmation dialog open');
+  await page.evaluate(()=>{window.multiTest.failCancel=false;});
+  await multiDialog.getByRole('button',{name:'Vazgeç ve doğrulamayı iptal et'}).click();
+  await multiDialog.waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(()=>window.multiTest.calls.filter(c=>c==='cancel').length),2);
+  await page.getByRole('button',{name:'6/A 2 öğrenci',exact:true}).click();
+  await page.getByRole('button',{name:'6/B 2 öğrenci',exact:true}).click();
+  // Cancel then change selection: a fresh preview/OTP is required.
+  await page.getByRole('button',{name:'Seçimi iptal et',exact:true}).click();
+  await page.getByRole('button',{name:'Toplu silme modu',exact:true}).click();
+  assert(await deleteMany.isDisabled());
+  await page.getByRole('button',{name:'5/B 2 öğrenci',exact:true}).click();
+  await page.getByRole('button',{name:'6/B 2 öğrenci',exact:true}).click();
+  await deleteMany.click();
+  await multiDialog.getByLabel('Onaylamak için SEÇİLİ SINIFLARI SİL yazın').fill('SEÇİLİ SINIFLARI SİL');
+  // Cooldown survives cancelled scope; controlled clock advance avoids sleeping.
+  await page.clock.runFor(61000);
+  await sendMany.click();
+  await multiDialog.getByLabel('Çoklu silme WhatsApp kodu').fill('12345');
+  assert(await multiDialog.getByRole('button',{name:'Tek kodla doğrula ve seçili sınıfları sil'}).isDisabled());
+  await multiDialog.getByLabel('Çoklu silme WhatsApp kodu').fill('123456');
+  await multiDialog.getByRole('button',{name:'Tek kodla doğrula ve seçili sınıfları sil'}).click();
+  await page.getByText('Seçili sınıflar kalıcı olarak silindi.',{exact:false}).waitFor();
+  assert.equal(await page.locator('.student-class-grid .student-class-card').count(),27);
+  assert.equal(await page.evaluate(()=>window.multiTest.calls.filter(c=>c==='request').length),2);
+  assert.equal(await page.evaluate(()=>window.multiTest.calls.filter(c=>c==='complete').length),1);
   const screenshot=path.join(os.tmpdir(),'veli-student-classes-desktop.png');
   // Keep all four composited glass rows inside the viewport for visual capture.
   await page.setViewportSize({width:1440,height:1600});
@@ -108,7 +164,8 @@ try{
   await page.locator('.student-class-all button').waitFor();
   assert.equal(await page.locator('.student-class-grid .student-class-card').count(),0);
   assert.equal(await page.locator('.student-record-row').count(),0);
+  assert.equal(await page.getByRole('button',{name:'Toplu silme modu',exact:true}).count(),0,'feature-disabled tenant must not expose multi-delete');
   assert.deepEqual(errors,[]);
-  console.log('Staff/student UI: exact template download, distinct icon buttons, existing staff dialogs, 30 dynamic class cards, pagination, selection, search, OTP confirmation, tenant switch and 375/390/430/768/1440px overflow checks PASS. Synthetic UI fixture; no real OTP/API calls.');
+  console.log('Staff/student UI: exact template download, distinct icon buttons, existing staff dialogs, 30 dynamic class cards, pagination, selection, search, single/multi OTP confirmation, cancelled scope revocation, explicit selections, tenant switch and 375/390/430/768/1440px overflow checks PASS. Synthetic UI fixture; no real OTP/API calls.');
   console.log('Visual fixture screenshot: '+screenshot);
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

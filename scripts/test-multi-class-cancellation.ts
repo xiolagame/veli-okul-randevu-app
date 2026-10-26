@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { MultiClassChallengeGuard } from '../src/utils/multi-class-challenge';
+import { MULTI_CLASS_CONFIRMATION } from '../src/utils/student-records';
+
+assert.equal(MULTI_CLASS_CONFIRMATION, 'SEÇİLİ SINIFLARI SİL');
+let attempts = 0;
+const guard = new MultiClassChallengeGuard(async () => { if (++attempts === 1) throw new Error('Synthetic timeout'); });
+guard.attach('fixture');
+await assert.rejects(() => guard.cancel());
+await guard.cancel(); await guard.cancel();
+assert.equal(attempts, 2, 'failed cancellation retains the handle for explicit retry');
+let resolve!: () => void;
+const calls: string[] = [];
+const disposed = new MultiClassChallengeGuard(id => { calls.push(id); return new Promise<void>(done => { resolve = done; }); });
+disposed.attach('old'); disposed.dispose();
+disposed.attach('late'); resolve();
+await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+assert.deepEqual(calls, ['old', 'late'], 'a late request response after leaving the screen must also be cancelled');
+resolve(); await disposed.cancel();
+let successfulCalls = 0;
+const consumed = new MultiClassChallengeGuard(async () => { successfulCalls++; });
+consumed.attach('consumed'); consumed.forget('consumed'); consumed.dispose();
+assert.equal(successfulCalls, 0);
+console.log('Multi-class cancellation lifecycle, timeout/retry, late response and UTF-8 confirmation PASS. No network.');

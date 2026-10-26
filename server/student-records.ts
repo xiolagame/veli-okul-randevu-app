@@ -6,7 +6,7 @@ import { hashSetupToken, generateStaffCode } from './activation-codes';
 import { isWhatsAppAuthEnabled, isWhatsAppPhoneEnabled, sendWhatsAppAuthenticationCode } from './whatsapp-cloud';
 import { normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizeClassName } from '../src/utils/class-name';
-import { SchoolStudentRecord, studentIdentity } from '../src/utils/student-records';
+import { MULTI_CLASS_CONFIRMATION, SchoolStudentRecord, studentIdentity } from '../src/utils/student-records';
 import { auditLogRepository, schoolLicenseRepository } from './repositories';
 import { canonicalOperationPhoneSql } from './operations';
 
@@ -19,6 +19,10 @@ type ParentRow = { id: string; student_id: string; parent_user_id: string; full_
 type SchoolState = { students: StudentRow[]; roster: RosterRow[]; parents: ParentRow[]; records: SchoolStudentRecord[] };
 const purpose = 'CLASS_BULK_DELETE';
 export const classBulkDeleteEnabled = () => process.env.CLASS_BULK_DELETE_ENABLED?.trim().toLowerCase() === 'true';
+export const classMultiDeleteEnabled = () => classBulkDeleteEnabled() && process.env.CLASS_MULTI_DELETE_ENABLED?.trim().toLowerCase() === 'true';
+const multiPurpose = 'CLASS_MULTI_DELETE';
+const multiPolicy = 'PERMANENT_CLASSES_V1';
+const multiConfirmation = MULTI_CLASS_CONFIRMATION;
 
 async function readState(tx: TransactionClient, schoolId: string): Promise<SchoolState> {
   const students = (await tx.query<StudentRow>('SELECT id,name,class_name,student_number,birth_date::text,updated_at FROM students WHERE school_id=$1 ORDER BY id', [schoolId])).rows;
@@ -170,7 +174,7 @@ async function permanentPlan(tx: TransactionClient, schoolId: string, state: Sch
 async function permanentSnapshot(tx: TransactionClient, schoolId: string, state: SchoolState, plan: PermanentPlan) {
   return hashSetupToken(JSON.stringify({ policy: 'PERMANENT_CLASS_V1', records: await snapshot(tx, schoolId, state), plan }));
 }
-async function permanentlyRemoveClass(tx: TransactionClient, schoolId: string, state: SchoolState, plan: PermanentPlan, actorId: string) {
+async function permanentlyRemoveClass(tx: TransactionClient, schoolId: string, state: SchoolState, plan: PermanentPlan, actorId: string, classNames?: string[]) {
   const studentIds = state.students.map(student => student.id);
   await tx.query('DELETE FROM notification_deliveries WHERE notification_id=ANY($1::text[])', [plan.notificationIds]);
   await tx.query('DELETE FROM notifications WHERE school_id=$1 AND id=ANY($2::text[])', [schoolId, plan.notificationIds]);
@@ -182,9 +186,10 @@ async function permanentlyRemoveClass(tx: TransactionClient, schoolId: string, s
   await tx.query("DELETE FROM invitations WHERE school_id=$1 AND target_role='parent' AND target_user_id=ANY($2::text[])", [schoolId, plan.detachableParentIds]);
   const removed = await tx.query('DELETE FROM users WHERE id=ANY($1::text[]) RETURNING id', [plan.removableParentIds]);
   if (removed.rows.length !== plan.removableParentIds.length) throw new StudentRecordError(409, 'Veli hesap ilişkileri değişti. İşlem yeniden incelenmeli.');
-  await auditLogRepository.createAuditLog({ schoolId, action: 'class.permanently_deleted', actorName: 'Yetkili yönetici', actorUserId: actorId,
+  await auditLogRepository.createAuditLog({ schoolId, action: classNames ? 'class.multi_permanently_deleted' : 'class.permanently_deleted', actorName: 'Yetkili yönetici', actorUserId: actorId,
     details: JSON.stringify({ classReference: hashSetupToken(state.records[0].className), studentsRemoved: state.records.length, relationsRemoved: state.parents.length,
-      appointmentsRemoved: plan.appointmentIds.length, preservedAccounts: plan.preservedAccounts, removedAccounts: removed.rows.length }) }, tx);
+      appointmentsRemoved: plan.appointmentIds.length, preservedAccounts: plan.preservedAccounts, removedAccounts: removed.rows.length,
+      ...(classNames ? { classCount: classNames.length, classReferences: classNames.map(name => hashSetupToken(name)), notificationsRemoved: plan.notificationIds.length, qrRemoved: plan.qrCount } : {}) }) }, tx);
   return { removedCount: state.records.length, preservedAccounts: plan.preservedAccounts, removedAccounts: removed.rows.length,
     removedAppointments: plan.appointmentIds.length, removedRelations: state.parents.length, removedQrPermissions: plan.qrCount };
 }
@@ -224,7 +229,7 @@ async function audit(tx: TransactionClient, req: AuthenticatedRequest, outcome: 
 }
 export const studentRecordsRouter = Router({ mergeParams: true });
 studentRecordsRouter.get('/', async (req: AuthenticatedRequest, res) => {
-  try { const state = await readState(await getDb(), req.membership!.schoolId); res.json({ records: state.records, classBulkDeleteEnabled: classBulkDeleteEnabled() }); }
+  try { const state = await readState(await getDb(), req.membership!.schoolId); res.json({ records: state.records, classBulkDeleteEnabled: classBulkDeleteEnabled(), classMultiDeleteEnabled: classMultiDeleteEnabled() }); }
   catch { res.status(500).json({ error: 'Öğrenci kayıtları alınamadı.' }); }
 });
 studentRecordsRouter.delete('/roster/:id', async (req: AuthenticatedRequest, res) => {
@@ -332,6 +337,143 @@ studentRecordsRouter.post('/class-removal/complete', async (req: AuthenticatedRe
     if ('changed' in result) return res.status(409).json({ error: 'Sınıf kayıtları değişti. Yeniden önizleyip onaylayın.' });
     res.json(result);
   } catch (error) { respond(error, res); }
+});
+// Separate contract and purpose: legacy single-class clients cannot authorize this operation.
+function multiClasses(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 100) throw new StudentRecordError(400, 'En az iki, en fazla 100 ayrı sınıf seçin.');
+  const names = value.map(name => typeof name === 'string' ? normalizeClassName(name) : null);
+  if (names.some(name => !name || name === '__ALL__') || new Set(names).size !== names.length) throw new StudentRecordError(400, 'Ayrı ve geçerli sınıflar seçin.');
+  return (names as string[]).sort();
+}
+function multiState(state: SchoolState, names: string[]): SchoolState {
+  const parts = names.map(name => classState(state, name));
+  if (parts.some(part => !part.records.length)) throw new StudentRecordError(409, 'Seçili sınıflar değişti veya bulunamadı. Önizlemeyi yenileyin.');
+  return { students: parts.flatMap(part => part.students), roster: parts.flatMap(part => part.roster), parents: parts.flatMap(part => part.parents), records: parts.flatMap(part => part.records) };
+}
+async function multiSnapshot(tx: TransactionClient, schoolId: string, state: SchoolState, plan: PermanentPlan, names: string[]) {
+  return hashSetupToken(JSON.stringify({ policy: multiPolicy, classNames: names, snapshot: await permanentSnapshot(tx, schoolId, state, plan) }));
+}
+async function multiAudit(tx: TransactionClient, req: AuthenticatedRequest, outcome: string, names: string[]) {
+  await auditLogRepository.createAuditLog({ schoolId: req.membership!.schoolId, action: 'class.multi_delete', actorName: 'Yetkili yönetici', actorUserId: req.user!.id,
+    details: JSON.stringify({ outcome, classCount: names.length, selectionHash: hashSetupToken(JSON.stringify(names)) }) }, tx);
+}
+studentRecordsRouter.use('/multi-class-removal', (_req, res, next) => {
+  if (!classMultiDeleteEnabled()) return res.status(404).json({ error: 'Çoklu sınıf silme etkin değil.' });
+  next();
+});
+studentRecordsRouter.post('/multi-class-removal/preview', async (req: AuthenticatedRequest, res) => {
+  try {
+    const names = multiClasses(req.body?.classNames);
+    const result = await (await getDb()).transaction(async tx => {
+      await actor(tx, req); await lockPermanentRecords(tx);
+      const schoolId = req.membership!.schoolId, state = multiState(await readState(tx, schoolId), names);
+      const plan = await permanentPlan(tx, schoolId, state);
+      await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE school_id=$1 AND target_user_id=$2 AND purpose=$3
+        AND consumed_at IS NULL AND revoked_at IS NULL AND (description::jsonb->>'selectionHash') IS DISTINCT FROM $4`,
+        [schoolId, req.user!.id, multiPurpose, hashSetupToken(JSON.stringify(names))]);
+      return { classNames: names, studentCount: plan.studentCount, relationCount: plan.relationCount, preservedAccounts: plan.preservedAccounts,
+        removableAccounts: plan.removableAccounts, appointmentCount: plan.appointmentCount, qrCount: plan.qrCount,
+        notificationCount: plan.notificationIds.length, deliveryCount: plan.deliveryIds.length, snapshot: await multiSnapshot(tx, schoolId, state, plan, names) };
+    });
+    res.json(result);
+  } catch (error) { respond(error, res); }
+});
+studentRecordsRouter.post('/multi-class-removal/cancel', async (req: AuthenticatedRequest, res) => {
+  try {
+    if (typeof req.body?.challengeId !== 'string') throw new StudentRecordError(400, 'Doğrulama işlemini kontrol edin.');
+    await (await getDb()).transaction(async tx => {
+      await actor(tx, req);
+      await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE id=$1 AND school_id=$2 AND target_user_id=$3 AND purpose=$4 AND consumed_at IS NULL`,
+        [req.body.challengeId, req.membership!.schoolId, req.user!.id, multiPurpose]);
+      await multiAudit(tx, req, 'CANCELLED', []);
+    });
+    res.json({ success: true });
+  } catch (error) { respond(error, res); }
+});
+studentRecordsRouter.post('/multi-class-removal/request-code', async (req: AuthenticatedRequest, res) => {
+  try {
+    const names = multiClasses(req.body?.classNames);
+    if (req.body?.deletionPolicy !== multiPolicy || req.body?.confirmation !== multiConfirmation || typeof req.body?.snapshot !== 'string') throw new StudentRecordError(400, 'Silme kapsamını açıkça onaylayın.');
+    const code = generateStaffCode(), token = crypto.randomUUID();
+    const result = await (await getDb()).transaction(async tx => {
+      const user = await actor(tx, req), schoolId = req.membership!.schoolId;
+      if (!isWhatsAppAuthEnabled() || !isWhatsAppPhoneEnabled(user.phone)) throw new StudentRecordError(403, 'WhatsApp doğrulaması kullanılamıyor.');
+      const limits = await tx.query<{ attempts: number }>(`INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at) VALUES($1,1,NOW())
+        ON CONFLICT(scope_hash) DO UPDATE SET attempts=CASE WHEN auth_rate_limits.window_started_at<NOW()-interval '15 minutes' THEN 1 ELSE auth_rate_limits.attempts+1 END,
+        window_started_at=CASE WHEN auth_rate_limits.window_started_at<NOW()-interval '15 minutes' THEN NOW() ELSE auth_rate_limits.window_started_at END RETURNING attempts`, [hashSetupToken('class-delete-rate:' + req.user!.id)]);
+      if (limits.rows[0].attempts > 3) { await multiAudit(tx, req, 'RATE_LIMITED', names); return { denied: true as const }; }
+      await lockPermanentRecords(tx);
+      const state = multiState(await readState(tx, schoolId), names), plan = await permanentPlan(tx, schoolId, state);
+      const digest = await multiSnapshot(tx, schoolId, state, plan, names);
+      if (digest !== req.body.snapshot) throw new StudentRecordError(409, 'Kayıtlar değişti. Önizlemeyi yenileyin.');
+      const recent = await tx.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2 AND purpose=$3 AND created_at>NOW()-interval '60 seconds' LIMIT 1`, [schoolId, req.user!.id, multiPurpose]);
+      if (recent.rows.length) throw new StudentRecordError(429, 'Yeni kod istemeden önce 60 saniye bekleyin.');
+      await tx.query(`UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE school_id=$1 AND target_user_id=$2 AND purpose=$3 AND consumed_at IS NULL AND revoked_at IS NULL`, [schoolId, req.user!.id, multiPurpose]);
+      // Store only fixed-size digests; invitations.description is VARCHAR(255), even for 100 classes.
+      await tx.query(`INSERT INTO invitations(id,school_id,token,description,is_active,expires_at,purpose,target_phone,target_user_id,target_role,code_hash,created_by,attempts)
+        VALUES($1::text,$2,$1::text,$3,TRUE,NOW()+interval '5 minutes',$4,$5,$6,'admin',$7,$6,0)`, [token, schoolId,
+        JSON.stringify({ policy: multiPolicy, selectionHash: hashSetupToken(JSON.stringify(names)), snapshot: digest, authVersion: user.auth_version }),
+        multiPurpose, user.phone, req.user!.id, hashSetupToken(`multi-class-delete:${token}:${req.user!.id}:${digest}:${code}`)]);
+      await multiAudit(tx, req, 'REQUESTED', names);
+      return { denied: false as const, phone: user.phone };
+    });
+    if (result.denied) throw new StudentRecordError(429, 'Çok fazla kod isteği. Lütfen daha sonra tekrar deneyin.');
+    try { await sendWhatsAppAuthenticationCode(result.phone, code); }
+    catch {
+      await (await getDb()).query('UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE id=$1', [token]);
+      await (await getDb()).transaction(tx => multiAudit(tx, req, 'DELIVERY_FAILED', names));
+      throw new StudentRecordError(503, 'Doğrulama kodu gönderilemedi.');
+    }
+    res.json({ challengeId: token, expiresInSeconds: 300, resendAfterSeconds: 60 });
+  } catch (error) { respond(error, res); }
+});
+studentRecordsRouter.post('/multi-class-removal/complete', async (req: AuthenticatedRequest, res) => {
+  try {
+    const names = multiClasses(req.body?.classNames);
+    if (req.body?.deletionPolicy !== multiPolicy || req.body?.confirmation !== multiConfirmation || typeof req.body?.challengeId !== 'string' || !/^\d{6}$/.test(req.body?.code || '')) throw new StudentRecordError(400, 'Silme kapsamını ve kodu kontrol edin.');
+    const result = await (await getDb()).transaction(async tx => {
+      const user = await actor(tx, req), schoolId = req.membership!.schoolId;
+      if (!isWhatsAppAuthEnabled() || !isWhatsAppPhoneEnabled(user.phone)) throw new StudentRecordError(403, 'WhatsApp doğrulaması kullanılamıyor.');
+      const challenge = (await tx.query<{ id: string; description: string; code_hash: string; target_phone: string; valid: boolean }>(`SELECT id,description,code_hash,target_phone,
+        (is_active AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() AND attempts<5) AS valid FROM invitations
+        WHERE id=$1 AND school_id=$2 AND target_user_id=$3 AND purpose=$4 FOR UPDATE`, [req.body.challengeId, schoolId, req.user!.id, multiPurpose])).rows[0];
+      if (!challenge?.valid) { await multiAudit(tx, req, 'REJECTED', names); return { denied: true as const }; }
+      const context = JSON.parse(challenge.description) as { policy: string; selectionHash: string; snapshot: string; authVersion: number };
+      if (context.policy !== multiPolicy || context.selectionHash !== hashSetupToken(JSON.stringify(names)) || context.authVersion !== user.auth_version || challenge.target_phone !== user.phone) {
+        await tx.query('UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE id=$1', [challenge.id]);
+        await multiAudit(tx, req, 'SCOPE_CHANGED', names); return { denied: true as const };
+      }
+      const expected = hashSetupToken(`multi-class-delete:${challenge.id}:${req.user!.id}:${context.snapshot}:${req.body.code}`);
+      if (challenge.code_hash.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(challenge.code_hash), Buffer.from(expected))) {
+        await tx.query('UPDATE invitations SET attempts=attempts+1,is_active=(attempts+1<5),revoked_at=CASE WHEN attempts+1>=5 THEN NOW() ELSE revoked_at END WHERE id=$1', [challenge.id]);
+        await multiAudit(tx, req, 'INVALID_CODE', names); return { denied: true as const };
+      }
+      await lockPermanentRecords(tx);
+      const fullState = await readState(tx, schoolId);
+      if (names.some(name => !fullState.records.some(record => record.className === name))) {
+        await tx.query('UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE id=$1', [challenge.id]);
+        await multiAudit(tx, req, 'SNAPSHOT_CHANGED', names); return { changed: true as const };
+      }
+      const state = multiState(fullState, names), plan = await permanentPlan(tx, schoolId, state);
+      if (await multiSnapshot(tx, schoolId, state, plan, names) !== context.snapshot) {
+        await tx.query('UPDATE invitations SET is_active=FALSE,revoked_at=NOW() WHERE id=$1', [challenge.id]);
+        await multiAudit(tx, req, 'SNAPSHOT_CHANGED', names); return { changed: true as const };
+      }
+      const removal = await permanentlyRemoveClass(tx, schoolId, state, plan, req.user!.id, names);
+      await tx.query('UPDATE invitations SET consumed_at=NOW(),is_active=FALSE WHERE id=$1', [challenge.id]);
+      await multiAudit(tx, req, 'COMPLETED', names); return { success: true as const, ...removal };
+    });
+    if ('denied' in result) return res.status(400).json({ error: 'Kod geçersiz veya süresi dolmuş.' });
+    if ('changed' in result) return res.status(409).json({ error: 'Kayıtlar değişti. Yeniden önizleyip onaylayın.' });
+    res.json(result);
+  } catch (error) {
+    // The destructive transaction rolls back, but its failure should still be auditable.
+    try {
+      const names = multiClasses(req.body?.classNames);
+      await (await getDb()).transaction(async tx => { await actor(tx, req); await multiAudit(tx, req, 'FAILED', names); });
+    } catch { /* An unavailable database may also prevent auditing; retain the original failure. */ }
+    respond(error, res);
+  }
 });
 function respond(error: unknown, res: import('express').Response) {
   res.status(error instanceof StudentRecordError ? error.status : 500).json({ error: error instanceof StudentRecordError ? error.message : 'Öğrenci işlemi tamamlanamadı.' });

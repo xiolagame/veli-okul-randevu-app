@@ -11,6 +11,7 @@ import { deliverSchoolAdminCode } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
+import { platformLicenseRouter } from './platform-licenses';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import {
   completePlatformEmailBinding,
@@ -27,6 +28,7 @@ function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/management\/student-records$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/management\/student-records\/roster\/[^/]+$/.test(path) && method === 'DELETE') return true;
   if (/^\/schools\/[^/]+\/management\/student-records\/class-removal\/(preview|request-code|complete)$/.test(path) && method === 'POST') return true;
+  if (/^\/schools\/[^/]+\/management\/student-records\/multi-class-removal\/(preview|request-code|complete|cancel)$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/management\/admins(?:\/[^/]+(?:\/resend)?)?$/.test(path) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/students\/[^/]+\/removal$/.test(path) && ['GET', 'DELETE'].includes(method)) return true;
@@ -64,6 +66,7 @@ platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
   next();
 });
 platformManagementRouter.use('/requests', platformRequestRouter);
+platformManagementRouter.use('/licenses', platformLicenseRouter);
 
 platformManagementRouter.get('/schools', async (_req, res) => {
   try {

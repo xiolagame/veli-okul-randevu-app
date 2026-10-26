@@ -11,6 +11,11 @@ export interface SchoolStudentRecord {
   parents: Array<{ id?: string; rosterId?: string; fullName: string; phone: string; status: string }>;
 }
 export const ALL_CLASSES = '__ALL__';
+export const MULTI_CLASS_CONFIRMATION = 'SEÇİLİ SINIFLARI SİL';
+export interface MultiClassRemovalPreview {
+  classNames: string[]; studentCount: number; relationCount: number; preservedAccounts: number;
+  removableAccounts: number; appointmentCount: number; qrCount: number; notificationCount: number; deliveryCount: number; snapshot: string;
+}
 export function studentRecordIssues(record: SchoolStudentRecord): string[] {
   const issues: string[] = [];
   if (!record.name.trim()) issues.push('Öğrenci adı eksik');
