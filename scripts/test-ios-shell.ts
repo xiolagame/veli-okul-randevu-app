@@ -45,7 +45,7 @@ assert.match(generatedCapacitorConfig, /"PushNotifications"[\s\S]*"presentationO
 assert.match(viteConfig, /\['android', 'ios'\]\.includes\(mode\)/);
 assert.match(viteConfig, /https:\/\/velirandevu\.com/);
 
-assert.match(infoPlist, /<key>NSCameraUsageDescription<\/key>\s*<string>Veli Randevu, öğrenci teslim QR kodunu doğrulamak için kamerayı kullanır\.<\/string>/);
+assert.match(infoPlist, /<key>NSCameraUsageDescription<\/key>\s*<string>Veli Randevu, okul girişindeki randevu QR kodunu doğrulamak için kamerayı kullanır\.<\/string>/);
 assert.doesNotMatch(infoPlist, /NSMicrophoneUsageDescription/);
 assert.doesNotMatch(infoPlist, /NSAllowsArbitraryLoads/);
 assert.match(infoPlist, /<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/);

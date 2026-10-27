@@ -8,6 +8,8 @@ import * as phone from '../src/utils/phone';
 import * as schoolSettings from '../src/utils/school-settings';
 import * as studentRecords from '../src/utils/student-records';
 import * as classNames from '../src/utils/class-name';
+import * as classColors from '../src/utils/class-card-colors';
+import * as multiClassChallenge from '../src/utils/multi-class-challenge';
 
 interface ElementNode { type: unknown; props: Record<string, unknown>; children: unknown[] }
 function nodes(tree: unknown): ElementNode[] {
@@ -60,6 +62,8 @@ function harness(file: string, context: object, api: object = {}) {
       if (name === '../utils/school-settings') return schoolSettings;
       if (name === '../utils/student-records') return studentRecords;
       if (name === '../utils/class-name') return classNames;
+      if (name === '../utils/class-card-colors') return classColors;
+      if (name === '../utils/multi-class-challenge') return multiClassChallenge;
       if (['lucide-react','./ui','./StaffManagement','./ParentManagement','./StudentManagement','./OperationsCenter','./AuditManagement','./ManagementActions','./BulkRosterImport','./SchoolInfo','./SchoolAdminManagement','./SchoolRequestCenter'].includes(name)) {
         return new Proxy({}, { get: (_, key) => String(key) });
       }
@@ -152,8 +156,8 @@ async function run() {
 
   const bulkRosterSource = fs.readFileSync('src/components/BulkRosterImport.tsx', 'utf8');
   assert.match(bulkRosterSource, /Excel Şablonunu İndir/);
-  assert.match(bulkRosterSource, /const buffer = await rosterTemplate\(\)/);
-  assert.match(bulkRosterSource, /link\.download = ROSTER_TEMPLATE_FILENAME/);
+  assert.match(bulkRosterSource, /const buffer\s*=\s*await rosterTemplate\(\)/);
+  assert.match(bulkRosterSource, /link\.download\s*=\s*ROSTER_TEMPLATE_FILENAME/);
   const authSource = fs.readFileSync('src/components/AuthView.tsx', 'utf8');
   assert.match(authSource, /Veli Hesabı Oluştur/);
   assert.match(authSource, /En az 5 karakter/);

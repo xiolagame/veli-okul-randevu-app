@@ -37,6 +37,7 @@ function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/(info|teachers|users|students|availability|appointments|audit-logs|settings|roster)$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/(teachers|staff|auth-codes)$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/staff\/(teacher|security)\/[^/]+\/resend-activation$/.test(path) && method === 'POST') return true;
+  if (/^\/schools\/[^/]+\/roster\/imports(?:\/[^/]+(?:\/(?:batches|reports))?)?$/.test(path) && ['GET','POST'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/roster\/bulk-upload$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/settings$/.test(path) && method === 'PUT') return true;
   if (/^\/schools\/[^/]+\/security\/test-isolation$/.test(path) && method === 'GET') return true;

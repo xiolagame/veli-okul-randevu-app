@@ -705,7 +705,7 @@ async function run() {
   }
 }
 
-run().catch((error) => {
+run().then(() => process.exit(0)).catch((error) => {
   console.error(error instanceof assert.AssertionError ? `Push assertion failed: ${error.message}` : 'Push notification tests failed.');
-  process.exitCode = 1;
+  process.exit(1);
 });

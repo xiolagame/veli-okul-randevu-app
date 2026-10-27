@@ -35,7 +35,7 @@ export function classSummaries(records: SchoolStudentRecord[]) {
 }
 export function classTone(className: string): string {
   const grade = Number(/^(\d+)/.exec(className)?.[1]);
-  return ({ 5: 'green', 6: 'blue', 7: 'orange', 8: 'red' } as Record<number, string>)[grade] || 'blue';
+  return ({ 5: 'green', 6: 'blue', 7: 'orange', 8: 'purple' } as Record<number, string>)[grade] || 'auto';
 }
 export function studentIdentity(name: string, className: string, number: string | null): string {
   return JSON.stringify([name.trim().toLocaleUpperCase('tr-TR'), normalizeClassName(className), number || '']);

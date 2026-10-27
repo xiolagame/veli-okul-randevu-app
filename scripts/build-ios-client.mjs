@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { iosSourceFingerprint } from './ios-source-fingerprint.mjs';
 
 const repositoryRoot = path.resolve(process.cwd());
 const iosApiOrigin = 'https://velirandevu.com';
@@ -26,3 +27,7 @@ run(process.execPath, [path.join(repositoryRoot, 'scripts', 'test-release-artifa
 for (const legacyTemplateAsset of ['adaptive-icon.png', 'splash-image.png']) {
   fs.rmSync(path.join(repositoryRoot, 'dist', 'client', legacyTemplateAsset), { force: true });
 }
+fs.mkdirSync(path.join(repositoryRoot, 'audit'), { recursive: true });
+fs.writeFileSync(path.join(repositoryRoot, 'audit', 'ios-build-source-manifest.json'), JSON.stringify({
+  mode: 'ios', apiOrigin: iosApiOrigin, builtAt: new Date().toISOString(), ...iosSourceFingerprint(),
+}, null, 2) + '\n');

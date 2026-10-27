@@ -3,6 +3,7 @@ import { Search, Users, Trash2, Plus, ChevronDown, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { ALL_CLASSES, MULTI_CLASS_CONFIRMATION, MultiClassRemovalPreview, classSummaries, classTone, SchoolStudentRecord, studentRecordIssues } from '../utils/student-records';
 import { normalizeClassName } from '../utils/class-name';
+import { classCardColors } from '../utils/class-card-colors';
 import { MultiClassChallengeGuard } from '../utils/multi-class-challenge';
 import { Alert, Button, Dialog, RecordAction, Skeleton } from './ui';
 import { ManagementActions } from './ManagementActions';
@@ -89,6 +90,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged = async () =
   });
   const classButton = (className: string, count: number) => <button type="button" key={className}
     className={`student-class-card class-tone-${className === ALL_CLASSES ? 'purple' : classTone(className)}`}
+    style={classCardColors(className, className === ALL_CLASSES)}
     disabled={busy || (multiMode && className === ALL_CLASSES)}
     aria-pressed={multiMode ? selectedClasses.includes(className) : selected === className} onClick={() => {
       if (multiMode) { if (className !== ALL_CLASSES) setSelectedClasses(previous => previous.includes(className) ? previous.filter(name => name !== className) : [...previous, className].sort()); }

@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.velirandevu.app',
   appName: 'Veli Randevu',
   webDir: 'dist/client',
-  loggingBehavior: 'debug',
+  loggingBehavior: 'none',
   backgroundColor: '#f6f8f7',
   plugins: {
     PushNotifications: {

@@ -341,8 +341,8 @@ async function run() {
   }
 }
 
-run().catch((cause: unknown) => {
+run().then(() => process.exit(0)).catch((cause: unknown) => {
   console.error('Account deletion test FAILED. No credentials, tokens or personal fixture data are logged.');
   if (cause instanceof Error) console.error(cause.message);
-  process.exitCode = 1;
+  process.exit(1);
 });

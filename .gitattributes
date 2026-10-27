@@ -1,0 +1,17 @@
+# Reproducible iOS/web source checkouts on Windows and macOS.
+/src/** text eol=lf
+/server/** text eol=lf
+/scripts/** text eol=lf
+/ios/** text eol=lf
+/audit/*.json text eol=lf
+/*.ts text eol=lf
+/*.json text eol=lf
+/*.yaml text eol=lf
+/*.html text eol=lf
+/.gitignore text eol=lf
+/.node-version text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.xlsx binary
+*.jar binary

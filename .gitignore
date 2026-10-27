@@ -98,3 +98,14 @@ credentials.json
 ios/App/App/GoogleService-Info.plist
 *.key
 .credentials
+
+# Local Netlify folder
+.netlify
+
+# Local databases, test outputs and generated audit evidence must not be staged.
+/server/data/
+/audit/**
+!/audit/production-source-manifest.json
+!/audit/ios-source-lock.json
+*.ipa
+*.pfx

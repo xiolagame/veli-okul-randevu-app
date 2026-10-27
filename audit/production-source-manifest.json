@@ -1,0 +1,2069 @@
+{
+  "deployId": "6adfb61f25d7939bddb03d01",
+  "baseCommit": "ade431bc346075019536d650130304c649ff6e0f",
+  "source": "C:/Users/XIO/Documents/Codex/veli-randevu-excel-colors-release",
+  "createdAt": "2026-10-26T22:45:04.655Z",
+  "note": "Source snapshot, not proof of deployed backend bytes. SQL archived only; never applied.",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "1a03655bd6fb4a07e76f9d43c857b31527fe819ca500abc571c14b3ea85b140e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "15b197805bb010500e63977ccca2857ae68a4174d1d2d932a656701232791143",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": ".node-version",
+      "sha256": "f6bca0e7f46a94bd3349fdb86511cbec4a9091e409b62dd2d6b8c1fdb9a3ce00",
+      "provenance": "production-tracked",
+      "canonicalSha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "capacitor.config.ts",
+      "sha256": "5342f60f9c7b88dc089672d7ef554216a86019c137b1c463a00ace247b989e2d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "98e98f36b0fcd385f60d5edca6e9243b42548fc4ba6b9b59d7b3a36ca91ea936",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "codemagic.yaml",
+      "sha256": "00b6291fba86ecf4a5f7d9dd45086ccf93943e6133f356b7cee085dd6c0cc56b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cd2d18726fc42006ed1e27e462d856e9451068b33bd45b4df1c630f17551899c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "index.html",
+      "sha256": "d29a3c346404ab77b754c4f5f0568b94fe4aef6a985b1f29e9a8c05e63659d59",
+      "provenance": "production-tracked",
+      "canonicalSha256": "64d820f3efa166f022125156f4c0d03269852ad65443d800371a76f626bcdd74",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/.gitignore",
+      "sha256": "617a0925d785475f90df5c1bbefa1d11251827dbc85b677f150f6825203b91b7",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2b7132a9943d2622e51e656897ca5162f56b121b40b423dedce1fbc699dba88a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App.xcodeproj/project.pbxproj",
+      "sha256": "9f39fddca79a707cb57ae1d417538829a00039728d2e803a5df030adc67243fe",
+      "provenance": "production-tracked",
+      "canonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
+      "sha256": "d557c2c32fc6258ec28981fa45dc847b76c9968beb90a2e26d13ef9c4ea45c30",
+      "provenance": "production-tracked",
+      "canonicalSha256": "dfa0f9bb85b95ccba9c6811adadf8cb407fb5d52088e89db83ebc308ec448542",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme",
+      "sha256": "393c98e1dda1771fa8a34784e4d5b71599322e5c9fbaf333acf34a66696ddfe9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9076d79dbe575750dfeba348296321b062a5da79828436c0e4717e27546f4fe4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/App.entitlements",
+      "sha256": "d4f8068741b973afa957a61cfd7f700136f56e3cbf39516344b663e9dc8bc02e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "080523135221b8a9ce7ab047e6845862af5f83c0610a8819a8af0d6f17a8d4a7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/AppDelegate.swift",
+      "sha256": "3b79c39534a025d319c9ddac99d5c79d8e9992dea407039e1c7d562b49904a5e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2b87ff061cb42c24c19fc0ba939bdb126b9d581ff25ff6b84808c70771e4df21",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
+      "sha256": "8bd892a0fba58f728004e85a26b190bb7a055a0b474411f02fd6ebb1adc8d1ed",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8bd892a0fba58f728004e85a26b190bb7a055a0b474411f02fd6ebb1adc8d1ed",
+      "hashMode": "binary"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "sha256": "b2de7cffe659ccbca7c99814f31bf1cfaf929ad17bec02148a22c554f1069899",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5c09bec6eede599b14fa9e4c44b03e7febebc930615a0cd70f02981c09dfe48a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/Contents.json",
+      "sha256": "e3047866fde813ceb40daea67de82fb9b476e5531f397a3bb9a707d5cc782893",
+      "provenance": "production-tracked",
+      "canonicalSha256": "972ec1fd42325872438eb085ac29e94f51c10788ec18ec5549439950866c541d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/Splash.imageset/Contents.json",
+      "sha256": "fa9c10e12df130722589e969cd2cc32892985e954bc5ca3eb299f93842fcc97e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "041481917eb249533ac6dd63d283bc6190b2d0642a93deda11b2ed0f6f7b605a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-1.png",
+      "sha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "hashMode": "binary"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732-2.png",
+      "sha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "hashMode": "binary"
+    },
+    {
+      "path": "ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732.png",
+      "sha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "dcc4eb36f4fb3a417df496865658714e95e1133353fc4b583d4c841abdacfdd0",
+      "hashMode": "binary"
+    },
+    {
+      "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
+      "sha256": "cced1b7ad3ee8bf2b775bd014e2172d050cadf4ab0b186addede4c96a01cc05d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "87a42e842164d75f39cca56a2cf743652f4d8e858f2eba12ae21a8ddcd9a21c6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Base.lproj/Main.storyboard",
+      "sha256": "1beac972dcbf6e9949d16a6afe5c81c64b8f59cde83457eb94d984b5ceafe12c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7b7dc7acc67134bfaa80e5ce9c9068ba53db5369b9b70248aa7439fc2b09daae",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/Info.plist",
+      "sha256": "692dc54dd1053d86c6eeef77843dee800701ebcafa2b08a13534414aea82db57",
+      "provenance": "production-tracked",
+      "canonicalSha256": "25bbbea361c037892f56b03df7e69d88c7f67637578b2fdf7fdebbe8c30d7df8",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/PrivacyInfo.xcprivacy",
+      "sha256": "082961a3ce0db2f8a958b2d0a9c5fe66365d0a2bd1da54a5679c6b6f6e3dbb1b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1a5ead98b42eac4c27542ea450f446f12151d6ee4de1ad55adea8982cb70439c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/App/SceneDelegate.swift",
+      "sha256": "7cb0a2e0def4c6f9ae8f6f19acb4d2a55562832dd476695fce0670cd4361aa2a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "738b9b96bb71d34d80cd8c1183cf7f8f6f2e789c64e46fb5fe6777a35ae12dfd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/CapApp-SPM/.gitignore",
+      "sha256": "3b1395a0338569bf1e7cff7768533057ac1459f16d7ba3fb523d8a87415b0cba",
+      "provenance": "production-tracked",
+      "canonicalSha256": "4b958e2b4dd57319aadef2551153c74b9cb5ffe9f89d6e3e491122a94913f016",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/CapApp-SPM/Package.swift",
+      "sha256": "a4150cdeccb1fc582ba64bf930c5bd807448b44ccdcdb8bc1c65f23c2840445a",
+      "provenance": "production-tracked",
+      "normalizedSha256": "b872e738797cca184e740aff90e8cc88eb70f13bddcf5a83a3211cd1666cb3a6",
+      "canonicalSha256": "b872e738797cca184e740aff90e8cc88eb70f13bddcf5a83a3211cd1666cb3a6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/CapApp-SPM/README.md",
+      "sha256": "6380be11935d0b364e3aadc2fe57061c022b5305a115763c51bd26b72b4edc6d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "42c535861f4a866e35f85764ed6af1ea046d6a409bf9852ecb00e5d292a1626e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/App/CapApp-SPM/Sources/CapApp-SPM/CapApp-SPM.swift",
+      "sha256": "15ceef2a868d7042fb52797f2e461da77b165e01f2da4b2d150e502ef9ded4a3",
+      "provenance": "production-tracked",
+      "canonicalSha256": "70bf9dafddc35e3877dfb133a996f5be7ccd1e132897a98fdbf4869ff605ece9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "ios/debug.xcconfig",
+      "sha256": "3601888693e169668827c9032ba524aa2d6ef77770681d12a0260783592764d6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "4838938a72b913b99cfda54a43bbe73f05893071dc6e3702b0adc44794b64272",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "netlify.toml",
+      "sha256": "dac148a9b1193e52dd0a9310634f7ca91165b68b44ebd780508e705c94849ee8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a6e14dd828d837cad3ffe89d1e2273581d1667fcb8c63705d9afdfaf709b179c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "netlify/functions/api.ts",
+      "sha256": "93ac2018f4c86a9582f8f5e65343f33352dee064dc817e009f41a5393b7a3446",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5b3c7861f70f7dcc599d1f9ce93d5ef8c7245c780edbfa87894258f4e90b5333",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "netlify/functions/appointment-reminders.ts",
+      "sha256": "5ef3abf5252d5c3de3068270fd1691e3a91f4add367e9ced69b99314c3cba5bb",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fd2ac6412329616b8e14ba6e06885f34a44136209cfe96b99f902e528e4e105d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "b47db991f4a53d0803885ef6689ea777f255b40dad2b57af329bc1fba1b95030",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c770693d9290926c77797f4b0b96e77ef00d5cb0ba246a19413e9650cd584626",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "package.json",
+      "sha256": "87c772fd0c81aa21b37b3fbf26b73a8a78ec3f9dd0511535314672630b40d142",
+      "provenance": "production-tracked",
+      "canonicalSha256": "39fd20d062c83303d01ee7ec3bf3106e46e51e4bd6ff902fbb4253b25ab8fedb",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "public/adaptive-icon.png",
+      "sha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/app-image.png",
+      "sha256": "1d5f9e9f69ee62a572d48a9537fbc8844d52c8b3f8297ee54a6d19b7ace9495d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1d5f9e9f69ee62a572d48a9537fbc8844d52c8b3f8297ee54a6d19b7ace9495d",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/branding/school-background.png",
+      "sha256": "1dd9d748636874720bc373f90f01ead2bcc96f39d537cb01ff950b475c9120b7",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1dd9d748636874720bc373f90f01ead2bcc96f39d537cb01ff950b475c9120b7",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/branding/veli-randevu-logo.png",
+      "sha256": "2fa3b64c1d4efa3d070255e5e4cf249afda5131d4776f7c5d466f179d85fadae",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2fa3b64c1d4efa3d070255e5e4cf249afda5131d4776f7c5d466f179d85fadae",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/favicon.png",
+      "sha256": "38240320cf730bf9164ef0744cf2a428c827c0312c0c42a057ac3a4b7de0aafd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "38240320cf730bf9164ef0744cf2a428c827c0312c0c42a057ac3a4b7de0aafd",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/icon.png",
+      "sha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/logo-small.png",
+      "sha256": "0bc8bd9f0d0a035ac8e19f4103106036c0bcb8bff5ea67618c460b9448ce5516",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0bc8bd9f0d0a035ac8e19f4103106036c0bcb8bff5ea67618c460b9448ce5516",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/logo.png",
+      "sha256": "f04433a4eea7eb25da485359ac3c448b579b0de464736f759f3d54f863fbefb5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f04433a4eea7eb25da485359ac3c448b579b0de464736f759f3d54f863fbefb5",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/ogrenci-veli-bilgi-formu.xlsx",
+      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx",
+      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/partial-react-logo.png",
+      "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
+      "sha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/react-logo.png",
+      "sha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/react-logo@2x.png",
+      "sha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/react-logo@3x.png",
+      "sha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/school-hero.jpg",
+      "sha256": "5071decb04f2a849f428051fa0a99f9c72c7d475d2b6ec2d9d6f8a3faa60d406",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5071decb04f2a849f428051fa0a99f9c72c7d475d2b6ec2d9d6f8a3faa60d406",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/splash-image.png",
+      "sha256": "1d5f9e9f69ee62a572d48a9537fbc8844d52c8b3f8297ee54a6d19b7ace9495d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1d5f9e9f69ee62a572d48a9537fbc8844d52c8b3f8297ee54a6d19b7ace9495d",
+      "hashMode": "binary"
+    },
+    {
+      "path": "public/whatsapp-login-icon.png",
+      "sha256": "42ac43191f83bee7ef7b79ccf0e00883c96d5978e19db2a2c86fe22a5c980163",
+      "provenance": "production-tracked",
+      "canonicalSha256": "42ac43191f83bee7ef7b79ccf0e00883c96d5978e19db2a2c86fe22a5c980163",
+      "hashMode": "binary"
+    },
+    {
+      "path": "scripts/audit-canonical-phone-collisions.ts",
+      "sha256": "1cf8a7d80aff869fbe5b21a58ba0d730c299493596d73ade5045013d129c41b6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2f7eed1df795a986c59ed5ba3799b46b6d2a18d50bcc608dbaae08cad56e4f33",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/build-android-client.mjs",
+      "sha256": "54561b2a028c14e05bb5b0a194766b3031495413d88c250f11135111dc26a8cd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "01fb31583cc1b6c9a09cc5048e963ef960d772d0a57fd5f837e912d63b5eb548",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/build-ios-client.mjs",
+      "sha256": "550b8804e59cbd41b90a32f6c0f6e8ab9598c84dce90df7ab042d934962e0c74",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d923dd6e6764b2af5317971660b11d99e0a2d274c49c1c45f03feb29839ed4ce",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/clean-build-artifacts.mjs",
+      "sha256": "093556f62eda3e64c8e85b415bc1f3658e11bf323412a7839b52fcc7888c2b95",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fa82b8af10bef10c4a1453d013c27c6a0dfa8ec81a9bbff551fbbb5699eef0ff",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/migrate-store-to-supabase.ts",
+      "sha256": "f9624902244e84fc59f0d8c2d29c4e1f2c939abb520b20d0176ebd29e48426a3",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9df9a7d65df42fd20315b3cd31c37929d470009a52683dd45b8cbbcab03ee45e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/normalize-person-names.ts",
+      "sha256": "7ed48fb96c02d0dfed38b424433ca30ab8cea7a6f3a419f4e11c852e7fb917cf",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0eb2d19e865030f5203d7ffdd4e3f5be3555212acc9acbe21a8ac5073ffcd90a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/sanitize-fcm-ios-logs.mjs",
+      "sha256": "122fba6f866f5fec76caa7929e54dd56039520cadc99811b1d1f22ecb9d3bc5f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1617e1ed92a7fde271f9a8293983bdcead595aa934a8322bef863b34d147f144",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-account-deletion.ts",
+      "sha256": "edfc49f8fe3f3b3f8e66a91148f66998328bdb7d21ef10234b77273723397908",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8ff42094eacdd97f15c2c3e237188f114ae202801907abadc3c396271b3993f8",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-activation-auth.ts",
+      "sha256": "df281e6adb00408d2e86522c234c35e8353d74c4348ead0f63285579d6e404ac",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f04103cf07aef25fc07ae6737a30108648c2bc52e653a7a49a7a748f5cf21fe0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-admin-filters.ts",
+      "sha256": "46f878c224b885414d2cd68d0a0722c2306171b5adea4bbec28dec86c9e80d35",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f38b86476f5b2a779e1472abbe107b4f221e289c743fbd3a08ac1f812df92f88",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-admin-hardening.ts",
+      "sha256": "45c2cb12d92bb411f241d27c0c9f472704094ab3a892a54e02a710c39997f3f1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5e34e4e2fa9889700fd824d7471b800dcf84fb9e2d71547a3d10230f6f644e17",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-admin-operations-ui.mjs",
+      "sha256": "504a7589f9144b1bbaf55d86a4793a78849a4aad024e14a253183ff5ad78954c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f8a1b19ea927c04d94eca1a7e53757bbfea22170e9ff1e63066a6edb063a673a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-admin-staff-management.ts",
+      "sha256": "06e00363dfe144da45a931a13f1918c43aa101c6708e7b01b9b35c6d4932ebf4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "220e5a922d32fe85b30306b194187ec28fe255643c2b2fec068e5bfdedd60905",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-admin-view-filters.ts",
+      "sha256": "41b8bed2d88439504173a4fcbfa9612e006a8a0e0a9e3a7332bf1585faea6160",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5c6016803e0738260b8dc4b0111405f8df124c881b69fefbd3b8abb82723b4a8",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-android-shell.ts",
+      "sha256": "5e80d812b2f644e684bf74ffe1f0dbc10ffad0cfb956f270e72f71211d42d1c2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1c52a772d2d4107ea449b0a2108830d2c1da6b5df85a96c0bfd7bdc475532bbc",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-api-postgres-integration.ts",
+      "sha256": "164d0f3b51d8be40f0ff019c7811c1515e672c42a5033df2b416fe394c32666e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1034a4422ecc6e7557e961acd28d3f904075d36f663684340e85bce22c1f5ea0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-appointment-slot-visibility.ts",
+      "sha256": "94767a0de4768a8b8846886ef1fb2b378f21307f83e9dfc3a243b9a7cee51318",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1cd86f775a101aed4d7f44a905ebbeb75d79ce1dd0883c1f82c48c92340accf9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-auth-fixtures.ts",
+      "sha256": "766f5061c5870a7388630a821a325b0c4f1c09d3c4017e7a3f79005fd7bdc4f4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-auth-performance-ui.mjs",
+      "sha256": "3c46b2dee5832280345985bfb91b8c5341e5bbdff3f69846ed8c128f6ef5ff9d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6ee246e04cd0a6a8cd9bc6086dafe4a3b4f0f84bac937db1499f796602cc8234",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-class-card-colors.ts",
+      "sha256": "668dd416072dc5517de10dcfad99b92888ec1c4b41790a91902c4e1e8ec16ee5",
+      "provenance": "production-untracked",
+      "canonicalSha256": "7ae536a073bd4ed5dfcbebdae068ad7f7e4e161e3b04a304b11a5b2d40032359",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-database-selection.ts",
+      "sha256": "c9c93877cddac39ece45fccba91ed313de69d5b265e1cc3f7227f99ac2b4d067",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0629389d14079bc119f60c5015c9e7c01d71f8493ca541e37715795b3457d8ff",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-first-student-empty-school.ts",
+      "sha256": "682902bfc3295921197df3f9b35868a034ab2276cd27ee52145870a7b96c0b4d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ca014b548195b02981e45b9bcead35ff2518b08b7f446a56f5ff2663b1b476a1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-help-center.mjs",
+      "sha256": "1ee741c9d48c2d659c880f5c2a46be476c96b6bb22dbea6c78e5483613c30e6e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c65b8a0583d3238005ff92355d8cebfd5d92e9f8cdd14df80a682720890c60f5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-identity-auth-attempts.ts",
+      "sha256": "a1a7652d6bc4f9418cdfcdad429e3d76095ad0f7d76fc6f1e76a56f7d7940210",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b1e4c31033d2e241b9e02c78f5d7f311cef68d32c894d96584114a9880fb30c5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-ios-push.ts",
+      "sha256": "f2435aed1d13c6950ebc261c07ef727a9ca8e38409e16144465d832c5f7ca970",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-ios-shell.ts",
+      "sha256": "fc7edd9042b1c8296bafc7e5be827ace4d301231a65bb1e1f740a62d98d6c5d8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-migration-idempotency.ts",
+      "sha256": "9d807c0d9589c187dbf61cec36d4173a680709b72aa24e46becea7f137f57ff2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "753bb0dde1ef1203b9ed03dda55f6c55f8ad075c2eb3a16f9344b3698c2a7698",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-mobile-platform-foundation.ts",
+      "sha256": "3b3864dae39310a96e52a9553889a13f0e35c2c61c51e5f64477d0f7d0597c5d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "da8a46bf6c0b6fc85315ad58f83b7dd74965db2be481d990a4a2abe074095df7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-multi-class-cancellation.ts",
+      "sha256": "4b73e3b325789de97236aa614745cdd7bcfd66ea6fff376f724f4cb006cd87d8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "157a3a20c29a19d1d8e861b1ce6f01106488503d65a80ada9ab782213644dbfc",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-multi-class-removal.ts",
+      "sha256": "0647382065db561a5fc15f10288de395963b40befc2b35b560863760870f206a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6b11e70659c829b97080d1c76c45827876965674d1da9cfe8303894f470d86c0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-native-secure-storage.ts",
+      "sha256": "d8dbe4cd31b6c89e44e2c922a334d367bc91bb1ea00d72e5a580cc84b3506fdf",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f9a784eef8250c902d730b74d623b8912771a0ddb6445ddbdcfe66344aed543e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-operations-center.ts",
+      "sha256": "fbe7471710b0a3d33d2ce3378f135d57232b16719e45925545ca574c5e6629d1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c2135dfcf3600ae9157d3f50da3e1b2d4ae27635ebec3541f7229e5d2233da14",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-parent-self-service-auth.ts",
+      "sha256": "aa46dd934ab1922db5e8bee14788a10bf76bd9e2b461883040fe1c7a2c505600",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f042b90282143584134e156a316b54f8bb42af9eef3dc66622ccd43cb846a6c7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-parent-ux.ts",
+      "sha256": "183cf57eb893364ad71d8e02c87947b7b46e3b0475a0255b98b0a05fd1ab063f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a0a707a23e36ffc4bc0f6f2e2119c74beb5814c268a1fcd770eb1b149fc3372a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-phone-centric-pilot-ui.mjs",
+      "sha256": "e2e2dd8acad303b7506a91a203f3be394a33157642c6f83448674fde2c94331d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "286114346b1de7b1dbcc3f905be6798bfb9db5de7d8723df3103e91f5cea7d39",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-phone-centric-web-ui.mjs",
+      "sha256": "26dedac6a4a8225232b2dff48c9501e9317625b6e3b76d01d2bc700e3e37ed10",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a2cd39766ea43e90c8f2cd52996702005214af5aea870e14f6bff3ee1b3b6e38",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-admin-navigation.ts",
+      "sha256": "10a13f94a978b2d1496cf119987c67e746b3041af4dee481be1b4315379e6714",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b98bd1417c566eebf8cc31ecb812e71f4833fb31af44318ee27351f9df9e9e9e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-audit-clear.ts",
+      "sha256": "91836cd728117cb24e651bf5957eb8c1d300e3d49a360eb924001311417c78c1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8461aedf45f475014e432de831fffbbb7e7ce355818cb6875767d9cbceb1f8f2",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-license-management.ts",
+      "sha256": "2e7c4dcda9eb952f619126721234110e74c2ce22cd8345056a37b186efa8c103",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f2df3076d18a6b5c61dffdd9c005962ed0a28e8305f0f353138cb13347b93628",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-license-ui.mjs",
+      "sha256": "256beee9212b7fe58f5fe449fd75f96099152dd91d9b48b808205fb9d888344e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "023d069c719ee74beeb0d9fb840422fb2a6c9581ce971cc4ed008df6d366c618",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-phone-binding.ts",
+      "sha256": "156d897d90654f4a8ac0e9a01b2ea38965d57e0c7adb8740da6827b7270ebf0b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "69614c3ad1112a016e2d90d3cba8b8ed9f634b59d0dda797a9af330757817a8d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-requests.ts",
+      "sha256": "604285f25c3cf473bca507aa9a528d0a83d7d3207939f03d11d309d9b04cc413",
+      "provenance": "production-tracked",
+      "canonicalSha256": "85d24bfd93035763a0dfcc451a9415f8e8aadda69a9bb6207408b50bc25c07ca",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-school-deletion.ts",
+      "sha256": "51b81e957d0ca007c4a4113e669534cbd6d0caf2c9cf7c10eba9398f446b2ee9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "52565a461abfdf84eb0b1477782673d0ff162e5fe9c14d728a421f83ab1281bd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-platform-unseen.ts",
+      "sha256": "209f65eff554bf24908133471fed4c63e8ee894dc98bf7510d8776f09addef4a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "994ef127aada1bf61dbd861fb2f96335bdb6ae3292b42cce5459acc449c8a1b5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-postgres-pool.mjs",
+      "sha256": "832175ed33840dcfb71bec023c107c1e08104223d55ace875215a95ac0c9f942",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fdcfae085c698f27b243847cc8c88250d4133a5546e282cb5c78a2ea66cfa6b3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-production-auth-guards.ts",
+      "sha256": "0614e65570c554740c9c5999e89b462c7bc193200da7065fa03645965928c3dd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "44ad0ebec93e5e4ab65a74e5206f4d728ec7b7604604fc510a6de2086b0d9544",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-provider-timeouts.ts",
+      "sha256": "d2776a4f600de5244c32bb765660e8827391f5c21bb180e876c0c21258e08396",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e7bda250805be2261015d0f4dec31801c101780829c572a108994a4bce49be53",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-provisioned-admin-phone-login.ts",
+      "sha256": "d810f9c8a68af835f64c1469db9f93f87096b62b97135718cec6532ab25aebc6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "83df5e71e7abc7b1888f33b7caf1914f8c4bfc12e9c9cab98395ee20033ed3bd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-push-notifications.ts",
+      "sha256": "45a3697a650914e2aa4d49740177f4937fbdb294f453f8b24aeffc2dc693ecb8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "617fd139832f3c9a08f22aabd1f4fd1605017850176ee680afa112076ce1edd1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-record-entry-center-ui.mjs",
+      "sha256": "9f4cd55d338ddb9253c1f5a120d1b22a8f912adb27830318d4102652cb3e8762",
+      "provenance": "production-tracked",
+      "canonicalSha256": "269b4d4e4c1fb49361f32d4009042397246076e737a9695fc7bcd94f7c42891e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-release-artifacts.mjs",
+      "sha256": "2d5c9234053c5fdf5deeda0e29cea40cbaaf64c59f4a0017aa56fd4413175b23",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9d91a57210582913acd0d2f2dfb5ecbe141f3e3c64ae6fca546fe12deef5c553",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-roster-excel-template.ts",
+      "sha256": "57eeec60d52ac7bef56de8140bd5a1f50697dd95bcf8b6116bcdfeb0a02b82c5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "32b39e5b4749833976cfd7152dc40a5e2a4f0127ecfa9c82245f7fad6e5df8c3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-roster-import-jobs.ts",
+      "sha256": "69b26255066d4d18e60460a3a1f341fcea26911ea831826e9490805545fbfa1e",
+      "provenance": "production-untracked",
+      "canonicalSha256": "6c3cc949f7aef386f66065bd76133dcf8e7bfff1ab9a83d1eeb27ca22139a1c6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-roster-qr-availability-security.ts",
+      "sha256": "d9c5b719a30eb2ead906c97d42f519b0724538dfd6e7bb57ca12f713984bda99",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cc58f8477ddc602cf7c4ddd3b9a28e6f9bf3f3c0600457f174f2198144d36701",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-school-admin-provisioning.ts",
+      "sha256": "b6e8c556cc07c85fd4c6b85db2786eeba1d807e991ebb95c5034bd4c0cc6120b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8c0b3190685d9e78b72a4f61c0d7dd2cdce8b9de4d79496a34fe214e8123aa63",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-school-license.ts",
+      "sha256": "25a4c8323bf2a021709dfd645278d1bf8422941548a7038ada02e3992be9021a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c01a740dc870f4cd4fc196eabe4904f9e93f6eca6e9bea487fd4b72e30e6088b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-school-roster-ui.ts",
+      "sha256": "20aae727165283f321e4b382c62cc53d5a320068f97fb78e4e043fcf69f8576b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "432f1f354fa65e4b9c2c661e212fb292b76c9a5e51da59ce58d2aeb19fc05f42",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-security-and-tenant-audit.ts",
+      "sha256": "91f361c493f269fcd0d0c7098d1e52302c8b9d79b97e10b875f65a6c75074b37",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5e2169aebbf4c4056f23c28aaaf50a2e9b87f9fbe2c04a66dbaa9cdeced16e8d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-security-camera-lifecycle.ts",
+      "sha256": "440a0b7da87ee780b4746940105f9834409e4bc842e1fa6c7cbf5bc3e7ac54ac",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e079beb52c9cb7d0f8ae48fd14c0bfb822deb67d40faef7f105e0db94f31d97f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-settings-email-reminders.ts",
+      "sha256": "302c331fd09f4b1493eb32262521fb4001c8ad4bf0fdf970a181190efed9f158",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c5a63841ee28750d25c697bd76905161bd3f13605e7bdf09b016237d70e1d30c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-staff-excel-template.ts",
+      "sha256": "49b662ee0e68c79c245e3ae8267275e7de55a73d47a8633dbed615488cff589c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "94956253255aad0c90bc151bb51ed95a5845d554bd2bc7ee33094cacaa919ef5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-student-class-management.ts",
+      "sha256": "32ab843642c60573ae1f9a849f217133ef38e71d70b6aa56a7de53ffc0930c29",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f3b9b7299e25a19d4758e8d35a265a087ceecb14df8622d4f01c3f342cd933cd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-student-management-ui.mjs",
+      "sha256": "713d1056ff657ecc7435f71aea79714fb35144ebb46791b553b45bc7b4d2c3f1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6e69ce2fe563c96c782b9579cc7474d7d0d057e27adb4f140beb96590a958714",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-student-read-performance.ts",
+      "sha256": "8bb8c62bca0691fa650f0a2cf08c7027f77f5f56b7a8040af31908b6613be8d0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "15be106df4772e90a71c0a99ffbb7fa20fa7e19d74932e4d816d818c51f9af44",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-student-removal-and-appointment-email.ts",
+      "sha256": "b2c8b9caa0c44e2b02838df754e16d488f7083ad14826a6de9298455f53ff9b6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "130ad3cfe047c653753cf79c3eb3d18cc2514172a2615aece8acfc21b2c1e260",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-support-conversations.ts",
+      "sha256": "41ff8bc6c5b8fc38304679a7b08544a5399f76492a79180fd54106674c52bb7b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b611823e7e23298a6cb58219bd4e7468a2be6389314c518a88392b46d890353f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-teacher-appointment-ownership.ts",
+      "sha256": "5ba9d74207e622fbf4082d162add0f34dd0820d48793ab4bf4717b22ab98ab5d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f97ff1c587985be3685a5ddd9788e7e8a1ade82704e262740d725f3f562a2a07",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-unified-whatsapp-login.ts",
+      "sha256": "f32c6058f8f942ebb4131192edb0e8dd7b8d86b473dee8558bc705c0794ed62d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f5b76448cf6583be15e4bf26be6aea5715fbf8f0da7b08da05c79871c9d557b1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-whatsapp-auth.ts",
+      "sha256": "788da078c9bf879d9d035bcf0387e8c90bb0b59a035a475f4a45ba14f9a11f7b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7b88a87f339541a390bb92620b8b610e9cd41cc4f0f7e9a3b22ff5b56a3ddf32",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-whatsapp-login-ui.ts",
+      "sha256": "b2b405b01e73f3a78605b4c7d14095cd9df2162e5acc6b5a1ef08879fae709c9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a4cd26af339af58a1758f1df1ac4e2c82ef86db9607e6d43e7f43ebf60a15915",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-whatsapp-migrations.ts",
+      "sha256": "26ec56d0b74eb6418710f82ae347be3915c7022a1195fd986c011eeb5329e7d4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c366c714b7e7fe33fd4e9b76e7e7aed19f5292dfd3e7d34885efc9f1b841bd0a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/test-whatsapp-pilot.ts",
+      "sha256": "0ccfcc03b4487f20fe7b1e554775742c37cc65185e06a109aeb944ac5d5bbabc",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e49c31d008a9a3e24af20d8e9985c12b5bc1baecb0b83181e5c0a8307b66c1db",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "scripts/verify-supabase-postgres.ts",
+      "sha256": "1ff41fb6df31353497a66fadd2174b71f8ca5dfb4b818627b8b34a76740fff9e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8ce98e4420ca473e3dd070a67fd3bda147c45f1185e5a7799a3e44cd2374eea1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server.ts",
+      "sha256": "3b8cef10b6596d967910a0a16ea22c13670f49a7c0ada37d54871793ef0fc552",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e09f0b5a8637f222dcd77eaab3693daa21bf77b5e7e66725a1616942c0337120",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/account-deletion.ts",
+      "sha256": "a8e63e0a0f0675e9b0977171d197cc8b2d3c12beafb590fcf597702df890262b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "bef08c340515f8df935bbfe68c4609c50252378ff70c778262f0af9947d976e3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/activation-codes.ts",
+      "sha256": "2c4f47516d656ff6da332638605b5e1238ec96b31530b5fac485aa016449362c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ca91b02675e4c80a2dd835d52bf123544cb572df959162ec6577584fa0b1acfa",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/admin-management.ts",
+      "sha256": "794ac463b14f555d79835dc4155de4632466f98f44b8d2c33185cc747c1d5ce3",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9adbf46dfae17fbbd2107a971b6d8bcc5e992aa6b99421d79e197beb415bc48b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/api.ts",
+      "sha256": "a6c3f6a054b48aa8139e198fdbc3baba1c53d54c900340ff861cea470585407b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/app.ts",
+      "sha256": "88aa318ddfb4673d577514de45acf36bc5b430343fae2a67edc1991bc4435871",
+      "provenance": "production-tracked",
+      "canonicalSha256": "401e18b4807d75ad4911ff43f5dde6ac99777ce6b0ea4500a9d984f6f4f61773",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/appointment-email.ts",
+      "sha256": "02f9d12ce61282d2bcf6f7b5ca7c6ede97f200eca63918ce8f22eef3f2d0fec5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1b97f606935a23395e3e2dddc31bad08e82cd060d1777ce65cda36576f6f45b1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/appointment-entry.ts",
+      "sha256": "98021be759f7c4f2d7ab6ed2810ad2eaf5201d149062778d9f9ef41dfab6cdfd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "773dcf8f62ed41568c628dbd470e4ccbc4679d32945463eb921f5b83058ef109",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/appointment-reminders.ts",
+      "sha256": "31094c489f6af4767ddf9d3219db01b9e7549a119df00bae668e6e8dc9c0c99d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "915d1b379c7060c0c15db4209ddf109c38b17f05a9ae928bc330ef9fe87c9a91",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/auth.ts",
+      "sha256": "cc03625037466e650b9df2b17b929fdc59057fa94fd4cdbf5ddd13a56ec6321b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "227d1371d52cea3eb70067c1067b163947bef782067c094620ea2c332f55d3c0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/client.ts",
+      "sha256": "bd2d01b03c956dcecbea5a62322a5f681069e4d5bb4ec8ab74cfaaff5917ec3f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e35d6d06ece79dd24cd75b1a2d5d30975d95e96e79a3488c6e7d9557faae5f88",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260922_add_password_hash.sql",
+      "sha256": "f8fba8d9e91dcd87f076dde0b5a17cdb6421268d4ed82f6ed92e360fcf827b91",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fbfd6f99afeaa70a2688ac809a61e22b620c0dc1d8eece224440351e6af8b263",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260923_add_appointment_qr_security.sql",
+      "sha256": "758c93bd607b67bd0d0ca63bc2c255a6cf9084761050012e4925f33f1a871f4e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5b61fbebab805889c78510907d4fd4cfca0708330acb27ff3bb9601f313338be",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260923_add_auth_code_target_role.sql",
+      "sha256": "f30fb98f293ca005b3a0579bd0d4b12de5b1a115f411e127c9eb2a6969b0ae35",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a108819a3e240322910d0355383c211b86675b7b4eb2e7b72b3bae6572748687",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260923_add_invitation_auth_codes.sql",
+      "sha256": "cdb2b57e834f8b1facf9e45b241ba8ae060ac3743f75f25b56f34d81d82de1e5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "15b11a88ef4522f212cd0304b8b7ac7ad9027bb707afa53a697e62492a06ed9c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260923_add_user_auth_version.sql",
+      "sha256": "dc3379ea9abd6183d40041f78e1669de5ce8eaf12747aed45199ef4d70508992",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b7e8d9676e32ecd901fb90cb5deeebeb9a1ced8d575f835731c9ccd0c19ae359",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260925_add_parent_birthdates_pending_staff.sql",
+      "sha256": "7e92e83f66594947bfac3b406a5ef8a880b07e69f976208fd936cb7c68f5fb8e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a4d16ac44af80c56c0e734bcc408692ac5d70cb8a014cb206705e34b2b423f82",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260925_add_school_disabled_at.sql",
+      "sha256": "058fcc52fb997fa1bc05fddaf1d067c029874623a3bd3b70628829c68500e065",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1121d617e02de1318f227d8fab080ab913c5f3585a6ab5a53763daa66ff0b223",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260926_add_parent_visibility.sql",
+      "sha256": "fa2516c9d7b2bd4e64ef84d9ba18102d8f9ac75e86066605a445290a359fbb29",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ec2fb11c9c8911d871e306377e4fd39be90bf5b70f416d374d247129fd1321a3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260926_preserve_appointments_on_parent_delete.sql",
+      "sha256": "17c1b281ecd9e420062cfaba3a85adf03952a2b74d9fda2a285a7ee130d0701c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "24e8104038115251117d4c53fcc51005eaf55a8170c11b830293646b024c98e2",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260928_add_school_licenses.sql",
+      "sha256": "2ae20737858060baca5c381ef714ffe4bda0c90dc52275daab70f70b8017840f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6c1fd9d32e0abed59cf8f19fec10915cc4b6230f8a2eaa1a1941add69db72ef5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260929_add_teacher_appointment_reminders.sql",
+      "sha256": "823b6b81793c625e0b238786627f2768d909d02d046b93126b74f5996993ad6f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e640f9f49995a750492f8e6e04e66295b067d7f9cab56aaf7fb1e758ca68fb7f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20260930_add_platform_requests.sql",
+      "sha256": "736696ad52ea8c5f8dd522bd4e0a6d5fc2d92b2e7671392b28dd56ce95fd00ab",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7e1443285950714301a3803a722b7776c71ba06a36bee61a89b983d28efcfd2d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261002_add_platform_request_messages.sql",
+      "sha256": "d9c2f1199a2279271fd44768f84d4e935409439732f0c67e7fe7b9d06ea731d7",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cb41b3b4e15cdd61e9f5ddda1fbf15e87fd99906625d61a5cae483f2efbba95e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261003_add_mobile_push_delivery.sql",
+      "sha256": "430de429125a577ce1ffdcc616a5b78703e6854f90e1ef4ca7817a9abd2b6234",
+      "provenance": "production-tracked",
+      "canonicalSha256": "833c07a600945d8af58050f5ec1edebe0a6e7a9495d1dd40e67f8fd7ff0baa7e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261003_add_platform_request_view_tracking.sql",
+      "sha256": "195c99380f73befe71ec437f90e7df6a3f3b8436b388a5e1450b4042d8865ca9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1dcef70b8d736d8bdebfe49597bc09b60f51081c7925d942a6b2cce5d7a5441e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261003_allow_platform_audit_event.sql",
+      "sha256": "9b2bfbeb6063a74543c2d11d595f492a61faa421d8506a5f63df87b6d960e207",
+      "provenance": "production-tracked",
+      "canonicalSha256": "71e4081706962c7626a89606b1917f07fc30fcfca2ebb4e99a43f1e6729699b7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261006_add_account_deletion.sql",
+      "sha256": "ba7db524f075e9384e6c948dd7d69aa2816d7a9f9e2f569825c9d7712582a750",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f0de54a7622e650fef35687fae7b88c8fe99158a18ab1dca19c601c39484f4ac",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261017_add_ios_push_registration_generation.sql",
+      "sha256": "3ec93052f0a164f9c1557ca86b5792188c412699b27796b4210fe3266913c298",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ac80471f639cec2d2a62195076abd8121564d6c43ba4b8bcb44c5e8c77e20363",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261017_allow_ios_fcm_push_devices.sql",
+      "sha256": "65ecdbc62bc0893b3df0bbb5b95bcecc625e5272a5db6397399dbace04a5c8b0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "774765dc32843ea9c379cf949253f58d1076c46fffc43d3adb83b0fb4506bf9a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261023_add_whatsapp_auth_challenges.sql",
+      "sha256": "f97c9bcd826648805e53e252a56776ac5d2ee868cbdcb802d955871ade7b03d6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1ce17b3a8ad72e9bb28dd8188ef2766357008e173fb5afa96ee7deb9d34bb230",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261023_unified_admin_whatsapp_purposes.sql",
+      "sha256": "3ab9967782fe4dbf95c19a0c5f9878c0cc3ab6de77f06ffde677c8c42afe7593",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1e1b6a7a2de5090a1e7861cf9e2e2bbe91364de024972c7f7c63eaab32cc0295",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261024_add_identity_auth_attempts.sql",
+      "sha256": "2b1b91190cc919f359f93ea9cb3c8d3739487de66b845f935c9a86190beda450",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6328aca3d0065a736c6abb010192d8d6db792771abb273ea2c549f1a46c151f6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261025_add_platform_email_bindings.sql",
+      "sha256": "edb32229840c198b11b478b52a94ca6f0c1db82cb99022b3b96b1648f3580bce",
+      "provenance": "production-tracked",
+      "canonicalSha256": "29d5f5896c58fe0710282295bb6c2695a9895c1a7b5577a667907dd6d0fad564",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261025_add_platform_phone_bindings.sql",
+      "sha256": "73d97db9d4821cdb999f61208f1fce77b6887d713d892ab4911471479832bf0c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9e08f9514c46f7603b3af72852ff1013326e79c5d7142837e70e495d78c41612",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/migrations/20261026_add_roster_import_jobs.sql",
+      "sha256": "6a9fef98cc990327713a89f07225f4cc2f6a8d954ea870ed464effd543ae9434",
+      "provenance": "production-untracked",
+      "canonicalSha256": "4cb6b50c8a47539c619dd3ea4ad4091753be0b53099566065817cdd0157086ab",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/postgres.ts",
+      "sha256": "ee8b0486fd69e3e970b34e3f0e295c67c5a256df6f5a7d9f032ff44fb6864054",
+      "provenance": "production-tracked",
+      "canonicalSha256": "435d0734e382b8f061d8fd7a7c0c7042dc4074ecc8615bf6457e1d786cc59f35",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/seed_supabase_migration.sql",
+      "sha256": "b77883dce976e534075f4dd82118bed5bcae11fe5344628539db8c056a8ca5f3",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d7f19dee0efa2e5dbddc05dd51748288925db3331cb7a87f8d3aca4a26d572a5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/supabase_schema.sql",
+      "sha256": "fa4f70e88ab7d018c6d47288f0d90daad1a29ffbffc5a64a4be7eb9bfcd470f9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "11aada73b28f0db9fe6469bc7f59064d0a4c8dc023860e5a63cc67956be30215",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/database/tls.ts",
+      "sha256": "f5c0130f6522c62a1bdaf23ef334d45be409f248e95c3e56d175e1b35d2e89b2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "77ad0ddb6f9359bbb65d18454040310e546067cdae23f1f1655c46ffced6556b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/db.ts",
+      "sha256": "59a32d2d2d7032e0d80546cfa73afa1078b49f48cd3edc8d8783f2bdd911e6e6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e845a8c90df177183989c636fb3257f172cab410d8ec0ab602ce089f0be13b75",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/email-template.ts",
+      "sha256": "223740756e60965b04cd6d4cee10198c215d06b7d4e35436556e345aa4c3d46a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2b8cef852b8c82da3b724903d975576e2b7d4077e3536048fccbdfabe15931bd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/email.ts",
+      "sha256": "2ab683ea6e004eb5f3c24212bd7129bd7a489d1f478acc1553f7e37428a3f8e5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "317662484e84cce1f524e7d10f3fe1c479875638e901a98d21970aa79d5fcebc",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/identity-auth-attempts.ts",
+      "sha256": "2e2e5b5222d7c21944ae4da6eca83afdda66ccb87c5464bf445c63e8c988fc55",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e9307c7551d08c6e6433da3c40e3b0c4e244bc156b28f750f58dda90fd4ef7c5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/operations.ts",
+      "sha256": "1b2394ad8dda412905872b5be3f8d9a005bbabbda2707a7bd0296153f011b812",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6196bf73ae8b16ee4b78d569cb0fa82c06762b73a2cb38a981f0b961b7415ad4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/passwords.ts",
+      "sha256": "37213e4077c14f8d501995d91937cdedfeaf0a6b3d05741347c84ab9713be794",
+      "provenance": "production-tracked",
+      "canonicalSha256": "4f107bbcc4aa9925f2c88a1dcc55e1740cb8f54bcec008a379312fdab668c679",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/phone-identity-audit.ts",
+      "sha256": "0c343430e5549d4dacbaf0c140e84b2ceed99611ed499e8dfdd8534f8994300c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f13bcf64c58ef98489c41b937c4fafb4bd19d49cb577a07c177e489c534b98f4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/platform-licenses.ts",
+      "sha256": "dbf3b2a06200694c06d15c2ee924917343adafab54a891cbfe787d0776577750",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fc572bdcef50aa797dd2813eb66fa5f9f7e4fb143de9a2dee98d2fdf4073a5a4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/platform-management.ts",
+      "sha256": "66943c12ab052a0f4987cd58010ea969b9f91c0e9d06a35ae957c85f38c51f8e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "00140d71c80b9217412c720de585c0336c326ac1d91d4c171c221d68574bc5ea",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/platform-phone-binding.ts",
+      "sha256": "99fa5c86d0f6a3dbed7925ea29a9a98a9a80f367f3a4a89f3594d255e1cca25b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "251062e1307946bc6e050b66f12191cacae4cac67ce89cfa8815bc8a14b219a1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/platform-requests.ts",
+      "sha256": "a1fab318e7be792e503e73819406a09fc7a1ccfe0737bbc0b34b58b491fec6e2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "081a92013cc7dab3e8714f93a1e3f6c2375373958b15f6265ef951f445665865",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/public-origin.ts",
+      "sha256": "c2ecfbd13bd3d1e5b820bff9dfe5204d97e3fb75561ad833908ce4eaf21da4a0",
+      "provenance": "production-tracked",
+      "canonicalSha256": "044412951a6ee08fb2073bccb238bb7cf4642bcd48f0c7f175741e5fcda47b02",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/push-notifications.ts",
+      "sha256": "c73570aee2f34f4acc3853e17a0bfb5e25bbda6cbd0025b4778a6d66c1cf9121",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f177c7b9ada35eb5afe38f0bf174bf74f7641f2b771e685f0d9fb49be27e32f9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/repositories/index.ts",
+      "sha256": "942dd7494ba8f25aa772beea074751189e0ec38ab812cf02b0a2cedd1aa62a20",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/roster-import-jobs.ts",
+      "sha256": "c2bcdc26a9a39d8272a7839df8c5a6a75a3bedcc1b09fa4024a0a8c85041e4e1",
+      "provenance": "production-untracked",
+      "canonicalSha256": "b1fd995d6e9d7c63fb24bad349e9ea335587327a917a2c1106e18fb3b102fc17",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/roster-import.ts",
+      "sha256": "9087598662113f061d0925894670ba01720d37a0ae336893a2575c374c8771e6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7f82b5008fd4d6a62f27cb6e9caa7a5486264768d2b6edb9dd412feed4957c20",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/scheduled-appointment-jobs.ts",
+      "sha256": "5e6cef84ae48f6067e64f1a65f31dcdd8341dcb12d642d5d33779f94a75b4060",
+      "provenance": "production-tracked",
+      "canonicalSha256": "df57fdb801eb2ded0316b7814986af3ac66b757dde08afd0f181d30963f634bb",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/school-admin-email.ts",
+      "sha256": "7a5c3fcc2939a78007cfc6041c4de54141ae98055449b22f3751766101d2a390",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7a13e11e94407f41f38c4e842b938e6ec712be288968e5212a07b406c7964857",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/school-license.ts",
+      "sha256": "c2439c53b25d6d7b9c3bd17b4e51c9929735dafd2c27899a5cf9e5c52dc7f8d4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b737a74794d7564f79a78066c2a4199daa0993ab19d62b74510caec0bba36c4b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/student-records.ts",
+      "sha256": "a93bf95750c94caf6ec4b7c9e5c393760a58133834d930fd907a53e17cf81980",
+      "provenance": "production-tracked",
+      "canonicalSha256": "4ed20753802392d97b3b2f40fa9b9d68e1741963917124df052815d7ddf017d4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/whatsapp-auth.ts",
+      "sha256": "6deb7cd2901c2dab5ca30697bf4db474241f8ef9fbed647a700a5b5cbca8e163",
+      "provenance": "production-tracked",
+      "canonicalSha256": "83db89e19a1f942aa3dc1f0888b547a5196b0373aaeca3939074a23ea86babab",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "server/whatsapp-cloud.ts",
+      "sha256": "f97b5f53d29e1e493a0903857bfeaca8205f40922fe1b08fdec4cdba4a9c94a9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8018f3204c8cfe60d3cd0fb03d08617b0b3d6fe29af389e4b6aa460f9d9c0e5e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/App.tsx",
+      "sha256": "c127fae145066eed12fb80fa0b67a1443cc70c0f919ff46c88119d65107eb684",
+      "provenance": "production-tracked",
+      "canonicalSha256": "8c88c9a492c7197b99b50033dddad7ea54a5c0865049ab95e58f280310fbc679",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/AdminView.tsx",
+      "sha256": "a7d20fe4e5687d2061fc7fd14de94799c76f728f869108fbc0932d2654c40d9b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/AppointmentEmailReview.tsx",
+      "sha256": "2631c51f6ad87d1534ece0170343f964203a61af51b47b6a44b273ca05049135",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2dc033683f53a2c963e1df84dfc9e089ed8e26ba28d656e45a70e5763df728e4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/AuditManagement.tsx",
+      "sha256": "5942ed4e3df20552e4321a1d1f64dfc72dcc616bfc6f852a9da003add2ebc56f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e8eb9d178ce07615c1f54cdd203ee0943d9249923aab7e5f62612ba4727e8939",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/AuthView.tsx",
+      "sha256": "2627af368a786d427217d0bd371ec0fdf0ad89dd95f4bf778e10caccd22ce51c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5d1b30e4fb2cd6329cff648e67a52f2f1cd93316efa9a7a949e507b70e778c6a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/AvailabilityCalendar.tsx",
+      "sha256": "32a07f67e8f411b8fecbf2afcd38c90903f9a1f777f98bc19c3373ad18a5a2ab",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/BulkRosterImport.tsx",
+      "sha256": "b6ecc29f6883aa24170597263c574d6bf52b365406aa71bc04dcb789c6bcce7f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2692ac081d703172638a452df81b2166c777d884a34cc266e4c8de3befd4334d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/BulkStaffImport.tsx",
+      "sha256": "ab0a77e51b8662447d31f57b0dbace28ec4a19ea9f029f0e118bc797b47ad1a5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d1c3caf433a1ce23cd2d67d4566149fb79a7e2844ae1520dab4db8263265ef65",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/DeleteAccountDialog.tsx",
+      "sha256": "4401d842a4946d7b4936f33130ea2b5812440af40f06307ff3db0371c7ca9356",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b1e4f035850aef5dd0084c14afff626a577814256bd04905a09a251bce27d55b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/HelpCenterPage.tsx",
+      "sha256": "e2cdb99092f5acfd17eba2c887769e27ba1d0193493c61ca6b6e0bfe13b90a6b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b72777f9657fe3915802dd1f2668f751a07b578220d4dde85f08050115566e6d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/HelpGuidePage.tsx",
+      "sha256": "7d3cf38770f730dd6a2a27a538b1a6ebcd6b6e0a0a6540b68156a09b902316fe",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ae5c6cb6705adafc31f8a5d0279998a2fb9cf39d61c79eea436f8914084422fe",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/LicenseManagement.tsx",
+      "sha256": "1dcd6463f23b27934d4432f9e28656fcfbb7c58c5a642c4ce368d76e1bb9f903",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cbf2a1d32d750e72549bae1068f2e61bb5a575d32d9f657e7900b0ea5be9e7fe",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/ManagementActions.tsx",
+      "sha256": "2b92dc5dbac454f2054c9b4fe805098fd0e12a260780b098201ca5f1dc0770bd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1e4cff545404ce3c1342741d05667ff892aab5e8d8139b7a77d8c3e824a1fdcf",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/Navbar.tsx",
+      "sha256": "2e7f8f141b97d8fe7db68d8cc6bd1359a0da8789fe5122c4d02d7c5b23991804",
+      "provenance": "production-tracked",
+      "canonicalSha256": "17f2a83e7ef424ef5fb11e62d5eb68eed1f53a4653531b0bd1269b08e2a40056",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/NotificationsModal.tsx",
+      "sha256": "03fee440b38e3a77002b0f7d6e819a7e8c707f5c66119b0cfe6ed83665d2669f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "057393ca0ffe41dcb487ffd69b81c4cd4f05667df50bd950b8bdf5fd011532e9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/OnboardingModal.tsx",
+      "sha256": "1235cb72c3773ea25ee1a38ce60ea9a9fbaa5fdceeec21d8e3d17e59e7b69688",
+      "provenance": "production-tracked",
+      "canonicalSha256": "bfacbc6e4c643ec3ec6b106bf40666c7c4af65fb0263e45abec597e59e61ce31",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/OperationsCenter.tsx",
+      "sha256": "e7af35897049486e6d97c834edfb19802036560e419023029e3470fc1e64f3e7",
+      "provenance": "production-tracked",
+      "canonicalSha256": "755932b9b93b181eaa848db72dc1260c4016f269fd4c3cfa8d8e3f5fc376e4eb",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/ParentManagement.tsx",
+      "sha256": "d767164757fb91c7728d46237ceaede426e8a9a906f2730ca46d6892778b4bdb",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fd1f9e6f8c3a5ee3565ed8a774b92752e23c473884a28458dc6abb346034b576",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/ParentView.tsx",
+      "sha256": "4b3957cc9c7132d91311df5c2c97628e0f1260eadced59c628a4fcfe62114e85",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/PhoneCentricLoginPanel.tsx",
+      "sha256": "2036db39e1f9868da41ca32796aeeac510e79e892089c07f72f917446dfff525",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9f4b1077343dc1bfac1ece97fc0862febd18389dfb34209270fca3efa61b7383",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/PlatformPhoneBinding.tsx",
+      "sha256": "1e8536d897a0fc5552662ecc2d34704dc557a5ff505f7c1dfa3f00e145499d3f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b9294c3dad4e29a3414aae06628880703cafd49a99409bbd576cad1d37606809",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/PlatformRequestCenter.tsx",
+      "sha256": "1f4d5d10cf7cf4538f50b19979d06eb84fb34b0c14151e3e5ec27772d6b4095b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "14b04b854b4300d617544ead70584cbfefe6bd882a6a2372634cea5e260b35a6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/PublicRequestPage.tsx",
+      "sha256": "77ffba210d662424feb9df24493961be3f2fe5dd7a44606b40abdfb7f9e4a68e",
+      "provenance": "production-tracked",
+      "canonicalSha256": "793644214492c7e04cf66516dad22f617af0950a5b212c1ce18e60179cf6c9b6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/PublicRequestSection.tsx",
+      "sha256": "eae7572b377e69429229cb94f25717bfc4433afea1eac9559bb411d58a2256e1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "54217f59a1169fa4d299de0e619146eb4354b9c39d7000ab8ea69ff09ef9c008",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/push-prompt-state.ts",
+      "sha256": "25a432b6ce607ee4a1fe5859a8a60886ebdd01f3c344425bcda33bd4e7e16c2a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "066b7a8a64117f7be2bbe9a67ab3b88aa6ee3adbf99bf8ccbc7c5e897c6b489a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/QRCodePass.tsx",
+      "sha256": "80095fdd66c4d8752b10fb3999eb1b808ec808b3b659dc7f85d4b3b0432ddf3a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SchoolAdminManagement.tsx",
+      "sha256": "b1d21412782dd096a46107efc318aaa62ffaf851971563562e68ce3f5040a955",
+      "provenance": "production-tracked",
+      "canonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SchoolInfo.tsx",
+      "sha256": "72a6de91e3078f7d59ad8420ef3e4782737fe9e69ded7457d821c884321bde92",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b6b00c774af75ff69802c331bb8b3b12555aabf02a5e90dafdbbadd93e66d90f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SchoolManagement.tsx",
+      "sha256": "e72aaff4dbe8891e04d76c51cfc3a407740c62f602d483b5aa7aeae993b10188",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SchoolRequestCenter.tsx",
+      "sha256": "fc85fcb7d8b595dcfff0a3309a455950d0220276754c5c41baba852dd6eb7715",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1fd8ebd996e4320ce765c1a08902c52b7ce0ba09bc92e292d36e5fa46ec33702",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SecurityView.tsx",
+      "sha256": "60b26391d9aa2558824a39584ad7da526710164ab089f86c2230deed205fe7fd",
+      "provenance": "production-tracked",
+      "canonicalSha256": "502f3272a4a968aaafa2f6eaee839090a911092a103d41d127a0ac84edc7eb70",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/StaffManagement.tsx",
+      "sha256": "28da58e6f886220dace885160a8f74a0290413f641f667fbd1396b2152b24018",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a16e695127e74923a7f09503ab423889404b2b7bdd8c0c141623693ee1df774c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/StudentManagement.tsx",
+      "sha256": "f09f4786825c7b80a7e7b43fb1866d32ca3f7c453e68ba3cf64c9d7152a079d9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/SupportConversation.tsx",
+      "sha256": "ac1627be899f738ab6e12354158e7f32e2a41e18ac4e0537df2d8cd9d7dfb5b4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "cce30209fba5f42ae0690932da18b1a4a0524c6cbe8cffffc1331daefa931529",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/TeacherView.tsx",
+      "sha256": "4844f8ed6410600fc3f0ef371402bbe2e11ba132a4ec9a20e9720cc2c5a07418",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/ui.tsx",
+      "sha256": "56de6ecda4b9b6c6cb91839a076926cf69652aaf8b475fc929211f7c8e22331a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "db78c3449f451013ea36ab52a5648155e5fcb5693098b497cbb782d5cf39143e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/UnifiedWhatsAppLoginPanel.tsx",
+      "sha256": "651c53077c8f2ac419ad8407c70509d01247f42a49036f15efd09360c685d12b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5941e2f350e4b1f6e947297d85159282b7e5b7dbb4790c2c2645410c772cf46c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/useHomeRefresh.tsx",
+      "sha256": "6c66b3b48605a0c03c13ce9962130ed06627b968602374d9fc9af40a24d85ec9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ad69c9a1ca082b4ff971f2a311c4f53fa03bdfa21a6dfcee8436ef72c0f7a2ae",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/components/WhatsAppAuthPanel.tsx",
+      "sha256": "e7c012c251b3bd1f1d3bf2506c285fde7ee61d9e16af50708c223bb61edd5877",
+      "provenance": "production-tracked",
+      "canonicalSha256": "72680be144f43833adcb2d2703cbdc7c0f508910fad44812977bd1572f114db6",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/content/help-content.ts",
+      "sha256": "0eac2d73796c8b5c66df12f7b4f27fc0d64d5c53320602e427fd1926bd773731",
+      "provenance": "production-tracked",
+      "canonicalSha256": "329f5d2d741dffc02dca10da013c4a141c52552ce58b33d7d1b7a63ced3fcf38",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/context/AppContext.tsx",
+      "sha256": "3430520b36366ecb3e4687bf05f6d3ecf84f0c28ac4b1b6739415633280038fb",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1302e0e3bea60335d4ffe080bce426311c2d063359b63563ae85ba6d3ddcc0cd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/data/mockData.ts",
+      "sha256": "3e03c2e5f2a684018af7cab6758cdd21fc481c5378548b15bb52fbb67f2fbf42",
+      "provenance": "production-tracked",
+      "canonicalSha256": "744d46f93956371df14be838f42b5eed324c86a35c256aabf10b30f0388dd0a3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/index.css",
+      "sha256": "c544af95cc8eef608d61482c094c1faf14987448866ca70b7918d399e93a4e9d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "12189245224be7d104e4a463b723fe730edb486a78d46ba623efb2651e08e34a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/main.tsx",
+      "sha256": "eb4acf7d3794d3e2692c57d91d09b39cde8c05ea715182cd5601869968a6e54d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6690b22ce8090911bc86f274cd60cc3fdd9760e1885ca82e0dd6adeb4c9b6473",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/android-camera-permission.ts",
+      "sha256": "5ce90c2c630908d6b2dd49f0adbc4e304078cf03c729ee35d8d3c5325f026c7f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b12c8187dd47465d284a3e04429855f7db294cb19484029ca15e9b1e4c3d5cd9",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/android-notification-settings.ts",
+      "sha256": "ee40eebd5760b3f532e861999b615b4aa6fb73fc28ecb850874794bb2eebc1d8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a7b43754982ac4b3bed84590c5a7fa3379ecc3ea08d4053e1ae0304ff215d77a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/android-push.ts",
+      "sha256": "78d4bf1c2480271f4ab95a1c9fdd16264e070e51168b207cbb5357e23be9d272",
+      "provenance": "production-tracked",
+      "canonicalSha256": "4b2feafba89d4bdc68c7fc062ce03111aad0c920acdd34e2e2ee58c06e6c0125",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/api-error.ts",
+      "sha256": "f9d98a92952cc818565b0b8ee85466d8a4d3aef6e2e519b6585b9e1d4af9c862",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fd317333a9508c508b8b1509891c0e52ab4f2e9f5f2c945f34a63ed70f6999ab",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/api-session-policy.ts",
+      "sha256": "fa5e15c4743d27e89b47153b2db966143dbee3728961b1a233c342e2673bb9b4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a84c40fbd1cef17626860ec119cd8930e5903fb5875f1525eadfde8be27bfaa0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/appointment-navigation.ts",
+      "sha256": "085b2b51e9ead5ef0c823bbdcaf21b18e4c4db1d0021c50f7f93913657629f1d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "33f0650e521fb1ba5aaf06e36a4ff374cac5b644f03a984b5d31018c0d0af596",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/auth-session.ts",
+      "sha256": "e0446ed5e0497eda2f275d2d92ae59aa85b5f79e41de5937066b8c5ceb3998fb",
+      "provenance": "production-tracked",
+      "canonicalSha256": "630997af8148c1c3fd855788b19fc6268f735647079b7d6b080ed69ccd857568",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/auth-token-store-selection.ts",
+      "sha256": "98d0fe6a325642a80da933e5192bc1c4ae5c71395f5a167881b6ae64e2882c8f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "03bfbb285c2ecde80f9d47fc7bd638bc8e55a3ecb710c3c10c5808fd49704ce8",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/auth-token-store.ts",
+      "sha256": "cc8c3eaf19d28e812b2b0346840ddca02e9d51138cd7834afe96818f7fb0573b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "05119aff20cf59500e754baf439665f8dc5eead9e0b6ff5e49d3bcb2492d04af",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/back-navigation.ts",
+      "sha256": "96e54aa7c3d07968c5cdbf4b6f15b9a0f979db3e7d50f08eba7196e4629df8e9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1a980e4349b3c91b60069dafc7a747cad718726961f85e2a0006f4052d9a7030",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/browser-lifecycle.ts",
+      "sha256": "1931ca3f8043210b95b9a6289c2635db860549d4a315c2efa9ef2df76308ae44",
+      "provenance": "production-tracked",
+      "canonicalSha256": "44464cf8eefc48889098376bde19252c125bfcde1168467b9afd3b2a353006ed",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/browser-network.ts",
+      "sha256": "1657acf624162a75927f18ecffe644f6631ba45b7568f0ca7c27599f717aa2f4",
+      "provenance": "production-tracked",
+      "canonicalSha256": "599603d854ab4e44568cd68007339b73d544a43a7a01c676baeb802ec31d2d80",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/client-preferences.ts",
+      "sha256": "1af21b2e0e443d04092aeef6d070d96f93a900dd77094ce9f71717401d9f07e8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1faed070e0dd98373689c29ab0b927ef26238600b6497b8d2d39f47002bed9dd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/ios-push.ts",
+      "sha256": "b4ae72129c6f2f505ba237f6aac8592d9b3a73deeadb2d878e8e106ae8d6b34c",
+      "provenance": "production-tracked",
+      "canonicalSha256": "08a0f926ab03c5221f0e4c44addd7cc2872ec278e08366567bff7492798caf7b",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/lifecycle.ts",
+      "sha256": "552f0568b8f2efdab9c40ab6bc60a0c54c07f72d8d21c8e920cf7babcc750132",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7f94bed9f945596a127c9eee16a1e46bca6ed668109d043d731f462e1b71b350",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/login-flow.ts",
+      "sha256": "81c44cf43e41d905f48b7eef3162fd0483e45e8029dd11acbb9490f5e5224251",
+      "provenance": "production-tracked",
+      "canonicalSha256": "87ea21cf9ac4806c0cce5aab8a7c4aa6eb197965e585377794628be4566b6050",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/mobile-push.ts",
+      "sha256": "9c05c98574f62b76acf1f03c0f68b1664fa0255d2b57b5113ddfd349bdae384b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0991653473c8c3935953b4f9731905b151e2d61ce4f22353cd27aa0d69220da4",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/mobile-refresh-guard.ts",
+      "sha256": "5345586dd1a1a88042cf8094cbf10b3f4ddc2a9f1ea99e67d5506456afe35996",
+      "provenance": "production-tracked",
+      "canonicalSha256": "5916eb5eea851fc0a28d0399bcab95cba293884b8415ea15047c529fd0eb2974",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/native-back-navigation.ts",
+      "sha256": "23cca4c468f86faf1905dde7a973ead1e54626cdb018417dec86eed59f9f298f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ac929ea9ed14f1cd76971e32bc40e374f4fd44fe8f61c2ae18874b9e1f5766e5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/native-lifecycle.ts",
+      "sha256": "c90deae16061591961e1c44c9c705fe78907c564cfbfe089998714dc62bfc5c9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "902c4871680d6956742d9800aad70b1413c8e4bfc745675d4eea7e7eaac3fc04",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/native-navigation-intent.ts",
+      "sha256": "15fa0287413d8bfb65d753ed5cc145df92e24d017b7aaaa880236d63dae0979a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b5e1aeb3c9b5b109902f22e465173a59f246b63052d6d2201c0ae14d847b179a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/native-network.ts",
+      "sha256": "2e8c680a005f515b53be870bab064b9002aec8b783beb2c82a17e4d6a83e7d9f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e10a27dd0b493fd07e61d139833949fe1fd198bf30d20b9d11ebed22745f2824",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/native-secure-auth-token-store.ts",
+      "sha256": "3443fa565580b6e9c5f9fd3e3d05f08c427cc9f876e4e77d3c85b9320e4bb00d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "989a19bdd70f5d28b0b16cb8cb0900491d23b74fe842fd122971fe70d8722b54",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/navigation-intent.ts",
+      "sha256": "caa97d4c7b167d6b43af60e1f897d5bf676f7e330ba05923e3d3554f16ba0340",
+      "provenance": "production-tracked",
+      "canonicalSha256": "00c886a2da16c8184896c88d1688b32f4e33ad3427df649bc62574cde5e637bd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/network.ts",
+      "sha256": "7e9cd991c0d26a00b0f9ccf135590ca453b606429f7a2c5a826f5f2e5c5e3611",
+      "provenance": "production-tracked",
+      "canonicalSha256": "b13a5b8bd67a56b2fb91d2497cc085933e76b38ebdf2fa1a2af8465099becd93",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/pull-to-refresh.ts",
+      "sha256": "caf5883ddbfcf640ebdffa4b0c19ff9b239aed87dce0121861657555c832105a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fec436c4e790d38ef3feea370585bf3cad84a47b5d1d2eb0a7557a9880d98535",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/push-eligibility.ts",
+      "sha256": "946276deb5b0edbb1e60103a7758f4c565e61fabcdc733907be10727f49dacac",
+      "provenance": "production-tracked",
+      "canonicalSha256": "77fd3f3f93c221ebd4145cdff1284c92d0e99019cf29838905406210752a4c48",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/runtime-platform.ts",
+      "sha256": "0d6b025e90c7879df5095c2f3775e44211f7472a7adf0bf170ef2efce1241912",
+      "provenance": "production-tracked",
+      "canonicalSha256": "21a8321ef59c61825224354b8fb290023d3f093ca45d7ebc7586987d27470b16",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/school-resolution.ts",
+      "sha256": "5f1f7005f3f86ecabe88b65f450e895a7ec509ec5c990d5443d58ff3de36062b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "15e0705afd57385cf21d4393f04b2f60df1b8223d01054458d790e0e502f792a",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/platform/session-restore.ts",
+      "sha256": "f20c0d187454bc35b6049ed089583df803e2ce3c5b83215034f33ea74836541f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "1f20b6f6066b02b0c8dda208bbf4a4403b5cec2c79e43fdedfec4995775c6489",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/services/api.ts",
+      "sha256": "2c4147854332a1824a320a77334e489262d412566a2fa409f114f0f5fccc2e65",
+      "provenance": "production-tracked",
+      "canonicalSha256": "eb8a46d19afbed74d0fe7e8d766db27dc9466a46dd1b617ccd47743276cc120f",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/types.ts",
+      "sha256": "f4997b7afaa3b56cffdb2d6b7abf953e0aebb9d10e5fc57970a1390eb5eb3d7f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/types/licenses.ts",
+      "sha256": "f6097a7207b8cd1f15d9b073045a2c67ea8c68d7be8dabe86f0208609de8f45b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "67b7776ba9237b908513996c3463ead1775f92e1ed890cb027e95b91ad666ef7",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/types/management.ts",
+      "sha256": "5f2b9cd990cb47784486fb758f4c1f3aa52c387cbbe5f5eba71804073edc3d28",
+      "provenance": "production-tracked",
+      "canonicalSha256": "596f6fa86314e33e8b0366edc979128d94bd2b4974d6904d293fd8af0370dca3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/types/operations.ts",
+      "sha256": "1f5693bebeda956b15eea0b4a51cae6a5f19a9d502934eeb6c583f47169aa256",
+      "provenance": "production-tracked",
+      "canonicalSha256": "24f40cb216f062880bf3f389a34f6e5cedb67cafbe80faa42d295db5efca0fa5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/types/platform.ts",
+      "sha256": "3c2239f7795d255443e505ae32ddac31e6ec9c15ae886b614e4682ec3fa4c92d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "9df942a51faf53663e335866256c3b5fad1c05bd3b7f37dc9582cbdc0488d7a5",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/admin-filters.ts",
+      "sha256": "6b496507cbab723d0937182008fd22ae722ba14aa0c167c85b30419e2d2a835d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e87ae51a926c2632127c6da8f185af085320cb10492b6fc368aae27e77ec92dd",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/appointment-slots.ts",
+      "sha256": "9ce06fb26c1354dc32c5c08b7190dca6dc1ebc6a09c6850cf6eba3dfa9927b6f",
+      "provenance": "production-tracked",
+      "canonicalSha256": "db7fbc09cc6a1783eee0c573a1f63e801df49a1a742ee3bbc7ec1a9c31ec37bf",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/audit-display.ts",
+      "sha256": "aedcf365e0e189ebdd59565ccc8857a5092a7eb44f0fa75614482c71086cebb3",
+      "provenance": "production-tracked",
+      "canonicalSha256": "473266f76c1e9dd7477e689396d05975c08ad4f8da3605ceb260d6c025cb45e0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/availability.ts",
+      "sha256": "fb69c5bf8c59c9fa2db5cbb6a0333a5d6ea309e1b8d65b708e754b97e67be352",
+      "provenance": "production-tracked",
+      "canonicalSha256": "35c0c612f9ba7cf42034e04b19af3a92ea498a623dd5c4951e61413a516863a1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/birth-date.ts",
+      "sha256": "92b5dd30ae9d94961db780d45e062eee9c84fbf1ddf0afc1406a5b4267287a9a",
+      "provenance": "production-tracked",
+      "canonicalSha256": "6dd1420c0be2f6443da9bef2ea38020f5ae1b6d5df95e455fbbeb245ae143acc",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/class-card-colors.ts",
+      "sha256": "b5a4f33a6a5bea6d1de415f0128d3d115629b7e3c5c9ca2093d963a2358a4108",
+      "provenance": "production-untracked",
+      "canonicalSha256": "b5a4f33a6a5bea6d1de415f0128d3d115629b7e3c5c9ca2093d963a2358a4108",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/class-name.ts",
+      "sha256": "13a7eacfc9c415005ac8a4c21e26c50d955753de5f6095d01f90bd17a432df95",
+      "provenance": "production-tracked",
+      "canonicalSha256": "82dd98fd970d87f6519353d041cd4f8cbf05f422c750e8f6da65efa0ba9e5673",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/dates.ts",
+      "sha256": "c4a138784bb207df5502a7a2416628a663877d893adc09336fb95454232a8e5d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d340cbb076a19a2acfbefbfa631e9ad306d315138634242d264c450271e78a9e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/license-code.ts",
+      "sha256": "b1fbeae1a26275cda906eaf5d7b6671e1e5d3f0cc2966b88b2892004a2bbd92d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0ae8c367a48b5b2430a21586654fe017633cddde74279329dd91cebbd2f86594",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/license-management.ts",
+      "sha256": "a1cd9c98ecf0fe080efcb39314933e1733f8df873bd68736e9afe7c144637b5d",
+      "provenance": "production-tracked",
+      "canonicalSha256": "7dad1515a1791cff81cefcdcaab72ade32dbd724e8b53b25decef29eea5801c3",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/multi-class-challenge.ts",
+      "sha256": "083265723d3fa8dd8609256ddb3f4007c87b068ec75f4ec4fc548653795d594b",
+      "provenance": "production-tracked",
+      "canonicalSha256": "59cf8ae23501e2a4cdcc6b4f2130b18c260112f9edf6844f6131479024370e1c",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/person-name.ts",
+      "sha256": "34bac0e789231559deec991cadfcf4ec21e676047ce015f3af2b944a752e9951",
+      "provenance": "production-tracked",
+      "canonicalSha256": "eaadd0901243619e76315a0ae4eea99323be63a3c172527ca2654bdbb0683e17",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/phone.ts",
+      "sha256": "317dfb40a62ec56a9807176894e787e2bb07d3d1a2dd10fd418b8b4e4ba55b87",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ce085e38d13956c82f878a9390548166bf2e04f4901631475712c466d094d652",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/platform-request-ui.ts",
+      "sha256": "ae0da0b2d53b443e115637d1a73158812e5a668e4e0f6b32fa5dbfef393b07d2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "02e63959aa6c3a1c83870b9f2a07fb3299c4596adacee7dc243f63f73e600787",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/public-request-route.ts",
+      "sha256": "5099a24606f34878ba02bbf6ee637a462452b65f678779e407303c11267db8d6",
+      "provenance": "production-tracked",
+      "canonicalSha256": "c9ebfd25a1f78ebe3082e4dfb93336a846945971ce749634da256d744172ea92",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/request-token.ts",
+      "sha256": "89c0f140be473d8c72d50a56344aa59e6b8a71780c25ced0cd7ef87554ecdb25",
+      "provenance": "production-tracked",
+      "canonicalSha256": "35feee7cdc1de1d5679d5cc8e20c9a657a0e3f6cd42fb2a31385c9725ad3b098",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/roster-files.ts",
+      "sha256": "64bed1eeaa5c31b317df4f6739601ffb94b1c645bcc12058af47622f2bbf0592",
+      "provenance": "production-tracked",
+      "canonicalSha256": "abb9c56dedc99e4ef5a5eb939e135e562b0de458ed34133cff1b02820d036eac",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/roster-import.ts",
+      "sha256": "a8ac8436764bfa84c578fca94272d46a13dabd693c0b9520b612913d7cc5b1c8",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d845b0a73fcaad128d6ead57ce85c61ca2ffb80e0582f7d4a31e020749684998",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/roster-transfer.ts",
+      "sha256": "8c53c4b75a37668c3f43ab9bf31fd08a26a24e35da876d86ad86ca25782e7f89",
+      "provenance": "production-untracked",
+      "canonicalSha256": "8c53c4b75a37668c3f43ab9bf31fd08a26a24e35da876d86ad86ca25782e7f89",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/roster-worker.ts",
+      "sha256": "89ba8a0134b726690abf452451b180c345b25ec34154aa7230a76939777170ba",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ab1850abd615847b8ccd83827a2b3431fd180168bc818668292567032a3129f0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/school-code.ts",
+      "sha256": "8c5e181d310249a4d6c6c8d4775f7469781348487054f86aea22063860b8b2c1",
+      "provenance": "production-tracked",
+      "canonicalSha256": "e999febca30307a148656772836c6af1dbff3617652fd6da16d99ddb5c7b8976",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/school-settings.ts",
+      "sha256": "36227a07a052366aad28dab6cb5f02584f68e3658bb9a753bdac06454e5b5377",
+      "provenance": "production-tracked",
+      "canonicalSha256": "a1b28097b777fbaa4a6bf77fd128346428e902eec2122e489b272c8c5c30d2ec",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/staff-form.ts",
+      "sha256": "56f14b87a46caea9849f997accf5c58559ad195c4809ac4146999be209998030",
+      "provenance": "production-tracked",
+      "canonicalSha256": "d8d9cefbd83436a995b6f3b1ed76d9b8ed05c54a91b07be44844f2c6ec8f0d20",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/staff-import.ts",
+      "sha256": "2ea9f208b41ddee6ed5031b6a90c5fbfadce1ad2eb2629b1bb7532311ec24cb5",
+      "provenance": "production-tracked",
+      "canonicalSha256": "29459500c0e994dd564c5e68a62a5544c7dc9cc19e6dbed0fec9e9a44e6c2f87",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/utils/student-records.ts",
+      "sha256": "a294f055b15d53d5e15b9a5df7098a65d032692f730b38ff0556925c96ca9840",
+      "provenance": "production-tracked",
+      "canonicalSha256": "0a31dfc66ab0a489c4a75e9ab16bc56c7099185f74995c73bf11c2406e78f8c0",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "src/vite-env.d.ts",
+      "sha256": "9c440d4fe0e29a82c96fbeac9c90862b034cd24b7244aa4634b453f9aebf1fe2",
+      "provenance": "production-tracked",
+      "canonicalSha256": "fb363e502027778a334d784224dce9c6b772b061cd1151bb8ab6e934abcc608e",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "7ffe9a3e7511751e299e34c5d761044380b88629c54a9243d2c48e0590dc57c9",
+      "provenance": "production-tracked",
+      "canonicalSha256": "2729130b72c949fd0340c22b32870eebbea4fed1d6b75417512bff06091bd9a1",
+      "hashMode": "text-lf"
+    },
+    {
+      "path": "vite.config.ts",
+      "sha256": "72759585ed559531cdc34368134fb045c2b11ab61c87cc165b8089dc81ff7d00",
+      "provenance": "production-tracked",
+      "canonicalSha256": "ccd15e129fc029eadc0802b308e07c5960eb0779bb40449d34f6d7ec1d843a9e",
+      "hashMode": "text-lf"
+    }
+  ],
+  "canonicalNote": "Original raw SHA-256 retained. canonicalSha256 normalizes CRLF to LF for declared text files only; binary bytes remain exact."
+}

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {evaluateSecurityQr} from '../server/appointment-entry';
+import {remainingResendSeconds} from '../src/platform/otp-resend-clock';
+import type {Appointment} from '../src/types';
+const a={id:'synthetic',teacherId:'t',parentId:'p',teacherName:'T',teacherBranch:'TEST',parentName:'P',parentPhone:'',studentName:'S',className:'5-A',date:'2026-10-27',startTime:'10:00',endTime:'10:20',status:'booked',createdAt:''} satisfies Appointment;
+for(const [time,decision] of [['06:29','TOO_EARLY'],['06:30','APPROVED'],['07:50','APPROVED'],['07:51','EXPIRED']] as const) assert.equal(evaluateSecurityQr(a,new Date('2026-10-27T'+time+':00Z')).decision,decision);
+assert.equal(evaluateSecurityQr(a,new Date('2026-10-26T07:00:00Z')).decision,'TOO_EARLY');
+assert.equal(evaluateSecurityQr(a,new Date('2026-10-28T07:00:00Z')).decision,'EXPIRED');
+for(const status of ['pending','cancelled','rejected','checked_in','checked_out'] as const) assert.equal(evaluateSecurityQr({...a,status},new Date('2026-10-27T07:00:00Z')).allowed,false);
+assert.equal(remainingResendSeconds(61000,1000),60);assert.equal(remainingResendSeconds(61000,61500),0);assert.equal(remainingResendSeconds(61000,2000),59);
+console.log('QR Istanbul date/early/late inclusive boundaries, states and suspended OTP wall-clock calculations PASS.');

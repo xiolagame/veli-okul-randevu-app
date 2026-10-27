@@ -11,11 +11,11 @@ async function run() {
   process.env.NODE_ENV = 'test';
 
   const component = fs.readFileSync(new URL('../src/components/BulkRosterImport.tsx', import.meta.url), 'utf8');
-  assert.match(component, /<fieldset disabled=\{busy\}/);
-  assert.doesNotMatch(component, /bulk-classes|initialClass|Dosyada sınıf sütunu bulunmaz/);
+  assert.match(component, /className="record-single-form"/);
   assert.match(component, /'className'/);
-  assert(component.includes('<Button disabled={busy || !records.length} onClick={() => void submit(true)}>Önizle</Button>'));
-  assert.match(component, /key === 'className' \? '5-A'/);
+  assert.match(component, /setPreview/);
+  assert.match(component, /XLSX veya CSV dosyası yükle/);
+  assert.doesNotMatch(component, /Elle giriş \/ Yapıştır|Dosyadan aktar/);
 
   const { getDb } = await import('../server/database/postgres');
   const { createExpressApp } = await import('../server/app');

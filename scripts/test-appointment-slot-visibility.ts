@@ -164,8 +164,8 @@ async function run() {
   }
 }
 
-run().catch((cause: unknown) => {
+run().then(() => process.exit(0)).catch((cause: unknown) => {
   const location = cause instanceof Error ? cause.stack?.split('\n').find((line) => line.includes('test-appointment-slot-visibility.ts:'))?.trim() : undefined;
   console.error(`Appointment slot visibility tests FAILED. ${location || ''} No credentials or response bodies are logged.`);
-  process.exitCode = 1;
+  process.exit(1);
 });

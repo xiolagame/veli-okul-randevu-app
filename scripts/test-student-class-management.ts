@@ -277,7 +277,7 @@ async function main() {
     assert.equal((await request('POST',prefix+'/class-removal/preview',admin.token,{className:'4-Z'})).status,409);
 
     const thirty = Array.from({ length: 30 }, (_, i) => ({ id: String(i), kind: 'student' as const, name: 'TEST', className: `${5 + Math.floor(i / 10)}-${String.fromCharCode(65 + i % 10)}`, studentNumber: '001', birthDate: '', parents: [] }));
-    assert.equal(classSummaries(thirty).length, 30); assert.equal(classTone('5-A'), 'green'); assert.equal(classTone('8-C'), 'red');
+    assert.equal(classSummaries(thirty).length, 30); assert.equal(classTone('5-A'), 'green'); assert.equal(classTone('8-C'), 'purple');
     assert(deliveries > 0);
     console.log('Student/class management: tenant/role guards, dynamic counts, actor-scoped OTP, attempts/expiry/revocation, snapshot drift, rate/delivery errors, rollback, concurrency and shared parent preservation and permanent appointment deletion PASS.');
   } finally {

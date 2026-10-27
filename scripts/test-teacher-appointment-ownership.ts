@@ -159,7 +159,7 @@ async function run() {
   }
 }
 
-run().catch(() => {
+run().then(() => process.exit(0)).catch(() => {
   console.error('Teacher appointment ownership test FAILED. No credentials or response bodies are logged.');
-  process.exitCode = 1;
+  process.exit(1);
 });

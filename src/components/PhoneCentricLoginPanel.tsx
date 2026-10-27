@@ -5,6 +5,9 @@ import { api } from '../services/api';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { Alert, Button } from './ui';
+import { getRuntimePlatform } from '../platform/runtime-platform';
+import { appLifecycle } from '../platform/lifecycle';
+import { remainingResendSeconds } from '../platform/otp-resend-clock';
 
 type Step = 'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE';
 
@@ -22,16 +25,34 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
   const [schoolCode, setSchoolCode] = useState('');
   const [requiresSchoolCode, setRequiresSchoolCode] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (getRuntimePlatform() === 'IOS') return;
     if (cooldown <= 0) return;
     const timer = window.setInterval(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearInterval(timer);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (getRuntimePlatform() !== 'IOS' || !resendAvailableAt) return;
+    const update = () => setCooldown(remainingResendSeconds(resendAvailableAt));
+    update();
+    const timer = window.setInterval(update, 1000);
+    const unsubscribe = appLifecycle.subscribe(state => { if (state === 'ACTIVE') update(); });
+    document.addEventListener('visibilitychange', update);
+    window.addEventListener('pageshow', update);
+    return () => {
+      window.clearInterval(timer);
+      unsubscribe();
+      document.removeEventListener('visibilitychange', update);
+      window.removeEventListener('pageshow', update);
+    };
+  }, [resendAvailableAt]);
 
   const reset = () => {
     setStep('PHONE');
@@ -42,6 +63,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     setSchoolCode('');
     setRequiresSchoolCode(false);
     setCooldown(0);
+    setResendAvailableAt(0);
     setError('');
     setMessage('');
   };
@@ -58,6 +80,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     setAttemptId(response.attemptId);
     setChallengeId(response.challengeId);
     setCooldown(response.resendAfterSeconds);
+    if (getRuntimePlatform() === 'IOS') setResendAvailableAt(Date.now() + response.resendAfterSeconds * 1000);
     setMessage('Lütfen telefonunuza gelen WhatsApp onay kodunu girin.');
     setStep('WHATSAPP_CODE');
   };

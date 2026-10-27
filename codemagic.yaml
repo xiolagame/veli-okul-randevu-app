@@ -1,17 +1,18 @@
+# Manual workflows only. Cloud UI triggers must also remain disabled.
 workflows:
   ios-ci-check:
-    name: iOS CI Check (unsigned)
+    name: iOS CI Check (manual, no upload)
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
-      xcode: 26.6
+      xcode: "26.6"
       node: 24.17.0
       vars:
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
-        XCODE_SCHEME: "App"
-        DERIVED_DATA_PATH: "build/DerivedData"
-        SOURCE_PACKAGES_PATH: "build/SourcePackages"
-        XCODE_LOG_PATH: "build/logs"
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        DERIVED_DATA_PATH: build/DerivedData
+        SOURCE_PACKAGES_PATH: build/SourcePackages
+        XCODE_LOG_PATH: build/logs
     scripts:
       - name: Show pinned tool versions
         script: |
@@ -20,34 +21,31 @@ workflows:
           npm --version
           xcodebuild -version
           swift --version
-
+          bash scripts/verify-apple-toolchain.sh
       - name: Install locked JavaScript dependencies
         script: |
           set -euo pipefail
           npm ci
           npx cap --version
-
+      - name: Verify frozen iOS source
+        script: |
+          set -euo pipefail
+          node scripts/verify-ios-source-lock.mjs
+      - name: Build production artifacts locally (no deploy)
+        script: |
+          set -euo pipefail
+          npm run build
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
           npm run ios:sync
-
       - name: Run TypeScript and focused regression checks
         script: |
           set -euo pipefail
           npm run lint
-          npm run test:mobile-platform
-          npm run test:secure-storage
-          npm run test:ios-shell
-          npm run test:ios-push
-          npm run test:push-notifications
-          npm run test:account-deletion
-
-      - name: Build production web and server artifacts
-        script: |
-          set -euo pipefail
-          npm run build
-
+          node scripts/run-ios-regressions.mjs --ci
+          node scripts/verify-ios-web-package.mjs
+          node scripts/verify-ios-provenance.mjs
       - name: Verify Capacitor sync preserved native project settings
         script: |
           set -euo pipefail
@@ -59,7 +57,6 @@ workflows:
             ios/App/App/AppDelegate.swift \
             ios/App/App/SceneDelegate.swift \
             ios/App/CapApp-SPM/Package.swift
-
       - name: Resolve Swift packages
         script: |
           set -euo pipefail
@@ -70,7 +67,6 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -clonedSourcePackagesDirPath "$CM_BUILD_DIR/$SOURCE_PACKAGES_PATH" \
             2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/spm-resolution.log"
-
       - name: Build unsigned iOS Simulator app
         script: |
           set -euo pipefail
@@ -91,27 +87,29 @@ workflows:
       - build/logs/*.log
       - build/DerivedData/Build/Products/Release-iphonesimulator/App.app
       - ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-
+      - audit/*manifest.json
+      - audit/*verification.json
+      - audit/test-results.json
   ios-signed-ipa:
-    name: iOS Signed IPA (manual)
+    name: iOS Signed IPA (manual, no upload)
     instance_type: mac_mini_m2
     max_build_duration: 60
     integrations:
-      app_store_connect: "Codemagic Veli Randevu"
+      app_store_connect: Codemagic Veli Randevu
     environment:
       groups:
         - firebase_credentials
-      xcode: 26.6
+      xcode: "26.6"
       node: 24.17.0
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.velirandevu.app
       vars:
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
-        XCODE_SCHEME: "App"
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6823597940"
-        SOURCE_PACKAGES_PATH: "build/SourcePackages"
-        XCODE_LOG_PATH: "build/logs"
+        SOURCE_PACKAGES_PATH: build/SourcePackages
+        XCODE_LOG_PATH: build/logs
     scripts:
       - name: Show pinned tool versions
         script: |
@@ -120,18 +118,24 @@ workflows:
           npm --version
           xcodebuild -version
           swift --version
-
+          bash scripts/verify-apple-toolchain.sh
       - name: Install locked JavaScript dependencies
         script: |
           set -euo pipefail
           npm ci
           npx cap --version
-
+      - name: Verify frozen iOS source
+        script: |
+          set -euo pipefail
+          node scripts/verify-ios-source-lock.mjs
+      - name: Build production artifacts locally (no deploy)
+        script: |
+          set -euo pipefail
+          npm run build
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
           npm run ios:sync
-
       - name: Require Firebase iOS config for signed IPA
         script: |
           set -euo pipefail
@@ -143,23 +147,13 @@ workflows:
           umask 077
           printf '%s' "$FCM_GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$PLIST_PATH"
           plutil -lint "$PLIST_PATH" >/dev/null
-
       - name: Run TypeScript and focused regression checks
         script: |
           set -euo pipefail
           npm run lint
-          npm run test:mobile-platform
-          npm run test:secure-storage
-          npm run test:ios-shell
-          npm run test:ios-push
-          npm run test:push-notifications
-          npm run test:account-deletion
-
-      - name: Build production web and server artifacts
-        script: |
-          set -euo pipefail
-          npm run build
-
+          node scripts/run-ios-regressions.mjs --ci
+          node scripts/verify-ios-web-package.mjs
+          node scripts/verify-ios-provenance.mjs
       - name: Verify Capacitor sync preserved native project settings
         script: |
           set -euo pipefail
@@ -171,7 +165,6 @@ workflows:
             ios/App/App/AppDelegate.swift \
             ios/App/App/SceneDelegate.swift \
             ios/App/CapApp-SPM/Package.swift
-
       - name: Resolve Swift packages
         script: |
           set -euo pipefail
@@ -182,7 +175,6 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -clonedSourcePackagesDirPath "$CM_BUILD_DIR/$SOURCE_PACKAGES_PATH" \
             2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/spm-resolution.log"
-
       - name: Set unique App Store build number
         script: |
           set -euo pipefail
@@ -191,25 +183,162 @@ workflows:
           cd "$CM_BUILD_DIR/ios/App"
           agvtool new-version -all "$NEXT_BUILD_NUMBER"
           echo "Using App Store build number $NEXT_BUILD_NUMBER"
-
       - name: Apply App Store signing profile
         script: |
           set -euo pipefail
           xcode-project use-profiles
-
       - name: Build signed IPA
         script: |
           set -euo pipefail
           xcode-project build-ipa \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
+      - name: Verify signed IPA without uploading
+        script: |
+          set -euo pipefail
+          bash scripts/verify-ios-ipa.sh
     artifacts:
       - build/ios/ipa/*.ipa
       - build/logs/*.log
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: false
-        submit_to_app_store: false
+      - build/ios/ipa/*.sha256
+      - audit/*manifest.json
+      - audit/*verification.json
+      - audit/test-results.json
+  ios-testflight:
+    name: iOS TestFlight (explicit approval and commit required)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: Codemagic Veli Randevu
+    environment:
+      groups:
+        - firebase_credentials
+      xcode: "26.6"
+      node: 24.17.0
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.velirandevu.app
+      vars:
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        APP_STORE_APPLE_ID: "6823597940"
+        SOURCE_PACKAGES_PATH: build/SourcePackages
+        XCODE_LOG_PATH: build/logs
+    scripts:
+      - name: Require explicit TestFlight approval for this commit
+        script: |
+          set -euo pipefail
+          if [ "${IOS_TESTFLIGHT_APPROVAL:-}" != "UPLOAD_TO_TESTFLIGHT" ] || [ -z "${IOS_APPROVED_COMMIT:-}" ] || [ "$IOS_APPROVED_COMMIT" != "$(git rev-parse HEAD)" ]; then
+            echo "TestFlight upload is locked. Explicit approval and exact commit are required."
+            exit 1
+          fi
+      - name: Show pinned tool versions
+        script: |
+          set -euo pipefail
+          node --version
+          npm --version
+          xcodebuild -version
+          swift --version
+          bash scripts/verify-apple-toolchain.sh
+      - name: Install locked JavaScript dependencies
+        script: |
+          set -euo pipefail
+          npm ci
+          npx cap --version
+      - name: Verify frozen iOS source
+        script: |
+          set -euo pipefail
+          node scripts/verify-ios-source-lock.mjs
+      - name: Build production artifacts locally (no deploy)
+        script: |
+          set -euo pipefail
+          npm run build
+      - name: Build and sync the Capacitor iOS shell
+        script: |
+          set -euo pipefail
+          npm run ios:sync
+      - name: Require Firebase iOS config for signed IPA
+        script: |
+          set -euo pipefail
+          if [ -z "${FCM_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "Required Codemagic secret FCM_GOOGLE_SERVICE_INFO_PLIST is unavailable."
+            exit 1
+          fi
+          PLIST_PATH="$CM_BUILD_DIR/ios/App/App/GoogleService-Info.plist"
+          umask 077
+          printf '%s' "$FCM_GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > "$PLIST_PATH"
+          plutil -lint "$PLIST_PATH" >/dev/null
+      - name: Run TypeScript and focused regression checks
+        script: |
+          set -euo pipefail
+          npm run lint
+          node scripts/run-ios-regressions.mjs --ci
+          node scripts/verify-ios-web-package.mjs
+          node scripts/verify-ios-provenance.mjs
+      - name: Verify Capacitor sync preserved native project settings
+        script: |
+          set -euo pipefail
+          git diff --exit-code -- \
+            ios/App/App.xcodeproj/project.pbxproj \
+            ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme \
+            ios/App/App/Info.plist \
+            ios/App/App/PrivacyInfo.xcprivacy \
+            ios/App/App/AppDelegate.swift \
+            ios/App/App/SceneDelegate.swift \
+            ios/App/CapApp-SPM/Package.swift
+      - name: Resolve Swift packages
+        script: |
+          set -euo pipefail
+          mkdir -p "$CM_BUILD_DIR/$XCODE_LOG_PATH"
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/$SOURCE_PACKAGES_PATH" \
+            2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/spm-resolution.log"
+      - name: Set unique App Store build number
+        script: |
+          set -euo pipefail
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID")
+          NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          cd "$CM_BUILD_DIR/ios/App"
+          agvtool new-version -all "$NEXT_BUILD_NUMBER"
+          echo "Using App Store build number $NEXT_BUILD_NUMBER"
+      - name: Apply App Store signing profile
+        script: |
+          set -euo pipefail
+          xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+      - name: Verify signed IPA without uploading
+        script: |
+          set -euo pipefail
+          bash scripts/verify-ios-ipa.sh
+      - name: Recheck approval immediately before upload
+        script: |
+          set -euo pipefail
+          if [ "${IOS_TESTFLIGHT_APPROVAL:-}" != "UPLOAD_TO_TESTFLIGHT" ] || [ -z "${IOS_APPROVED_COMMIT:-}" ] || [ "$IOS_APPROVED_COMMIT" != "$(git rev-parse HEAD)" ]; then
+            echo "TestFlight upload is locked. Explicit approval and exact commit are required."
+            exit 1
+          fi
+      - name: Upload approved build to TestFlight only
+        script: |
+          set -euo pipefail
+          IPAS=("$CM_BUILD_DIR"/build/ios/ipa/*.ipa)
+          [ "${#IPAS[@]}" -eq 1 ] && [ -f "${IPAS[0]}" ]
+          app-store-connect publish --path "${IPAS[0]}" --testflight
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/logs/*.log
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+      - build/ios/ipa/*.sha256
+      - audit/*manifest.json
+      - audit/*verification.json
+      - audit/test-results.json

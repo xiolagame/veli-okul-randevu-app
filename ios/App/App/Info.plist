@@ -29,7 +29,7 @@
 	<key>FirebaseMessagingAutoInitEnabled</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>Veli Randevu, öğrenci teslim QR kodunu doğrulamak için kamerayı kullanır.</string>
+	<string>Veli Randevu, okul girişindeki randevu QR kodunu doğrulamak için kamerayı kullanır.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

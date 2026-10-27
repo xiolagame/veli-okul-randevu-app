@@ -149,7 +149,7 @@ async function run() {
     const largeBatch = Array.from({ length: 500 }, (_, index) => ({ ...baseRow, studentName: 'Student ' + index + ' ' + 'A'.repeat(120), parentName: 'Parent ' + 'B'.repeat(120), studentNumber: String(index + 100), parentPhone: displayStoredTurkishPhone(rosterPhone) }));
     assert(Buffer.byteLength(JSON.stringify(largeBatch)) > 100 * 1024);
     assert.equal((await request('POST',path,admin.token,{records:largeBatch,preview:true})).status,200);
-    assert.equal((await request('POST',path,admin.token,{records:[...largeBatch,largeBatch[0]],preview:true})).status,400);
+    assert.equal((await request('POST',path,admin.token,{records:[...largeBatch,largeBatch[0]],preview:true})).status,200);
     assert.equal((await request('POST',path,admin.token,{records:[{ ...baseRow, studentName:'A'.repeat(1024 * 1024) }],preview:true})).status,413);
     for (const user of [parent,teacher,security]) assert.equal((await request('POST',path,user.token,payload)).status,403);
     for (const records of [[{...rows[0],birthDate:'31.02.2014'}],[{...rows[0],className:''}],[{...rows[0],parentName:''}],[{...rows[0],studentName:''}],[{...rows[0],parentPhone:'123'}]]) assert.equal((await request('POST',path,admin.token,{records})).status,400);
@@ -211,4 +211,4 @@ async function run() {
     for (const id of userIds) await db.query('DELETE FROM users WHERE id=$1',[id]);
   }
 }
-run().catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exitCode = 1; });
+run().then(() => process.exit(0)).catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exit(1); });

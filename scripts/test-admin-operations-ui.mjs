@@ -24,6 +24,7 @@ const all={
  'pending-appointments':[meeting('later','10:00','pending')],today:[meeting('early','08:00','booked'),meeting('later','10:00','pending')],
  missing:[{id:'missing-student',kind:'missing',name:'MISSING STUDENT',issues:['Sınıf eksik'],editKind:'student',values:{name:'MISSING STUDENT',className:'',studentNumber:'003'}}]
 };all.teachers=all['pending-staff'];all.appointments=all.today;
+const importJobs=new Map();
 function summary(){return {counts:Object.fromEntries(Object.entries(all).map(([key,values])=>[key,key==='missing'&&fixed?0:values.length])),statuses:{booked:1,pending:1}}}
 export const api=new Proxy({}, {get(_,name){return async(...args)=>{calls.push({name,args});switch(name){
 case'getMe':return{user:{id:'admin',firstName:'TEST',lastName:'ADMIN',phone,isPhoneVerified:true},memberships:[member]};
@@ -34,6 +35,8 @@ case'getOperationPage':{if(window.opsTest.failPage)throw Error('Synthetic page e
 case'getTeachers':return{teachers:staff};case'getSecurityUsers':return{users:[{id:'security',firstName:'TEST',lastName:'SECURITY',phone,email:'security@example.test',accountStatus:'pending'}]};
 case'createStaff':{const data=args[1];staff.unshift({id:'created-teacher',firstName:'NEW',lastName:'TEACHER',phone:data.phone,email:data.email,branch:data.branch,accountStatus:'pending'});return{success:true,message:'Synthetic create accepted'}};
 case'getManagedStudentRecords':if(window.opsTest.holdRecords)await new Promise(resolve=>window.opsTest.releaseRecords=resolve);return{records:[...records],classBulkDeleteEnabled:false};
+case'startRosterImport':{const[,id,manifestHash,totalRows]=args;const job={id,manifestHash,totalRows,nextBatch:0,processed:0,added:0,skipped:0,invalid:0,status:'RUNNING',batchSize:100};importJobs.set(id,job);return job;}
+case'sendRosterBatch':{const[,id,index,rows]=args;const job=importJobs.get(id);for(const row of rows)records.push({id:'imported-'+records.length,kind:'roster',name:row.studentName,className:row.className,studentNumber:row.studentNumber,birthDate:'',parents:[{rosterId:'imported-roster',fullName:row.parentName,phone:row.parentPhone,status:'pending'}]});Object.assign(job,{nextBatch:index+1,processed:rows.length,added:rows.length,status:'COMPLETED'});return{job,batch:{index,processed:rows.length,added:rows.length,skipped:0,invalid:0,errors:[]}};}
 case'importRoster':{const rows=args[1].map(record=>({record,status:'valid',errors:[]}));if(!args[2]){for(const row of rows){records.push({id:'imported-'+records.length,kind:'roster',name:row.record.studentName,className:row.record.className,studentNumber:row.record.studentNumber,birthDate:'',parents:[{rosterId:'imported-roster',fullName:row.record.parentName,phone:row.record.parentPhone,status:'pending'}]})}}return{rows,addedCount:args[2]?0:rows.length,skippedCount:0}}
 case'getManagedSchoolAdmins':return{admins:[{id:'admin-one',fullName:'ACTIVE ADMIN',phone,email:'admin@example.test',status:'active'},{id:'admin-two',fullName:'PENDING ADMIN',phone,email:'pending@example.test',status:'pending'}]};
 case'getAppointments':return{appointments:all.today.map(i=>i.appointment)};case'getAuditLogs':return{auditLogs:[]};
@@ -41,13 +44,15 @@ case'updateManagedRecord':fixed=true;return{success:true};case'resendStaffActiva
 default:throw Error('Unexpected fixture API method: '+String(name));}}}});`;
 const bundle = await build({ stdin: { contents: entry, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, write: false, format: 'iife',
   define: { 'process.env.NODE_ENV': '"test"', 'import.meta.env': '{"PROD":false,"DEV":true}' }, plugins: [{ name: 'isolated-api', setup(b) {
+    b.onLoad({filter:/BulkRosterImport\.tsx$/},args=>({contents:fs.readFileSync(args.path,'utf8').replace("new URL('../utils/roster-worker.ts',import.meta.url)","new URL('/roster-worker.js', location.origin)"),loader:'tsx',resolveDir:path.dirname(args.path)}));
     b.onResolve({ filter: /services\/api$/ }, () => ({ path: 'api', namespace: 'fixture' }));
     b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents: apiFixture }));
   } }] });
+const worker=await build({entryPoints:['src/utils/roster-worker.ts'],bundle:true,write:false,format:'esm',platform:'browser'});
 const css = fs.readdirSync('dist/client/assets').filter(n => n.endsWith('.css')).map(n => fs.readFileSync(path.join('dist/client/assets', n), 'utf8')).join('\n');
 const server = http.createServer((req, res) => {
-  res.setHeader('content-type', req.url === '/bundle.js' ? 'text/javascript' : req.url === '/style.css' ? 'text/css' : 'text/html');
-  res.end(req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
+  res.setHeader('content-type', req.url?.endsWith('.js') ? 'text/javascript' : req.url === '/style.css' ? 'text/css' : 'text/html');
+  res.end(req.url === '/roster-worker.js' ? worker.outputFiles[0].text : req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
@@ -58,6 +63,16 @@ try {
   await page.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:') ? route.continue() : route.abort());
   await page.goto('http://127.0.0.1:' + server.address().port);
   await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).waitFor();
+  await page.evaluate(() => { document.documentElement.dataset.runtimePlatform = 'ios'; });
+  for (const width of [375, 390, 430, 507, 768, 820, 1024, 1180]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `iOS admin overflow at ${width}`);
+    if (width < 768) {
+      assert.equal(await page.locator('.admin-header').evaluate(e => e.getBoundingClientRect().height), 1, 'duplicate mobile header must not occupy a layout row');
+      assert(await page.getByLabel('Yönetim bölümü', { exact: true }).isVisible());
+    }
+  }
+  await page.setViewportSize({ width: 1366, height: 768 });
   await page.waitForFunction(() => window.opsTest.calls.some(c => c.name === 'getOperationSummary'));
   assert.equal(await page.getByText('Kolay ve güvenilir randevu sistemi.').count(), 0);
   assert.equal(await page.getByText('Hesap yönetimi', { exact: true }).count(), 0);
@@ -108,7 +123,7 @@ try {
   await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).click(); await drawer.getByText('Kayıtlar alınamadı. Lütfen tekrar deneyin.').waitFor();
   await page.evaluate(() => { window.opsTest.failPage = false; }); await drawer.getByRole('button', { name: 'Tekrar dene' }).click(); await drawer.locator('.operation-result').first().waitFor(); await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(os.tmpdir(), 'veli-operations-desktop.png'), fullPage: true });
-  for (const width of [375, 390, 430, 768, 1366, 1920]) {
+  for (const width of [375, 390, 430, 768, 820, 1024, 1180, 1366, 1920]) {
     await page.setViewportSize({ width, height: width < 768 ? 844 : 1080 });
     await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).click(); await drawer.locator('.operation-result').first().waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -128,11 +143,11 @@ try {
   const loadsBeforeImport=await page.evaluate(()=>window.opsTest.calls.filter(call=>call.name==='getManagedStudentRecords').length);
   await page.getByRole('button',{name:'Kayıt ekle',exact:true}).click();
   await page.getByRole('tab',{name:'Toplu kayıt',exact:true}).click();
-  await drawer.getByRole('button',{name:'Elle giriş / Yapıştır',exact:true}).click();
-  for(const [label,value] of [['Öğrenci Ad Soyad','IMPORTED STUDENT'],['Öğrenci No','1001'],['Sınıf/Şube','7-D'],['Veli Ad Soyad','IMPORTED PARENT'],['Veli Telefonu','05551234567']]) await drawer.getByLabel(label+' — satır 1',{exact:true}).fill(value);
+  await drawer.getByLabel('XLSX veya CSV dosyası yükle').setInputFiles({name:'fixture.csv',mimeType:'text/csv',buffer:Buffer.from('Öğrenci Ad Soyad,Öğrenci No,Sınıf/Şube,Veli Ad Soyad,Veli Telefonu\nIMPORTED STUDENT,1001,7-D,IMPORTED PARENT,05551234567')});
+  await drawer.getByText('1 öğrenci okundu.',{exact:true}).waitFor();
   await drawer.getByRole('button',{name:'Önizle',exact:true}).click();
   await drawer.getByRole('button',{name:'İçe Aktar',exact:true}).click();
-  await drawer.getByText('1 kayıt eklendi; 0 mevcut kayıt atlandı.',{exact:true}).waitFor();
+  await drawer.getByText('1 kayıt eklendi; 0 mevcut kayıt atlandı; 0 hatalı kayıt atlandı.',{exact:true}).waitFor();
   await page.getByText('1001 öğrenci listeleniyor.',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.opsTest.calls.filter(call=>call.name==='getManagedStudentRecords').length),loadsBeforeImport+1,'bulk import must refresh the student list exactly once');
   await drawer.getByRole('button',{name:'Kapat',exact:true}).click();
@@ -142,7 +157,7 @@ try {
   await page.getByRole('navigation', { name: 'Yönetim bölümleri' }).getByRole('button', { name: 'Okul Yöneticileri', exact: true }).click();
   await page.locator('.school-admin-record-row').first().waitFor(); assert.equal(await page.locator('.school-admin-record-row').count(), 2);
   assert(await page.getByRole('button', { name: 'ACTIVE ADMIN adlı yöneticiyi okuldan kaldır' }).isDisabled());
-  for (const width of [375, 390, 430, 1366]) {
+  for (const width of [375, 390, 430, 768, 820, 1024, 1180, 1440]) {
     await page.setViewportSize({ width, height: 844 }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   }
   for (const width of [375,390,430]) {

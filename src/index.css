@@ -605,20 +605,19 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 .class-removal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
 .class-removal-actions p { flex: 1 1 100%; overflow-wrap: anywhere; }
 .class-removal-actions .ui-button { max-width: 100%; white-space: normal; }
-.student-class-card:disabled { cursor: not-allowed; opacity: .55; }
+.student-class-card:disabled { cursor: not-allowed; opacity: 1; border-style: dashed; }
 .student-class-groups { display: grid; gap: .65rem; }
 .student-class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap: .65rem; }
-.student-class-card { --class-accent: #1d4ed8; display: grid; grid-template-columns: auto 1fr; align-content: center; gap: .15rem .6rem; width: 100%; min-height: 70px; padding: .7rem; border-radius: .65rem; border: 1px solid color-mix(in srgb, var(--class-accent) 15%, white); color: var(--class-accent); background: linear-gradient(135deg, #ffffffeb, color-mix(in srgb, var(--class-accent) 8%, #ffffffeb)); box-shadow: 0 2px 8px #16372b05; backdrop-filter: blur(8px); text-align: left; cursor: pointer; transition: background .15s, box-shadow .15s; }
-.student-class-card .student-class-icon { grid-column: 1; grid-row: 1 / 3; display: grid; place-items: center; align-self: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--class-accent) 12%, transparent); }
-.student-class-card strong { color: #263b36; font-size: .875rem; }
-.student-class-card .student-class-count { grid-column: 2; font-size: .75rem; color: #354b41; }
-.student-class-card:hover { background: color-mix(in srgb, var(--class-accent) 13%, white); }
-.student-class-card[aria-pressed="true"] { border-color: var(--class-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--class-accent) 25%, transparent); }
-.student-class-card:focus-visible { outline: 3px solid var(--class-accent); outline-offset: 3px; }
-.class-tone-purple { --class-accent: #6d28d9; }
-.class-tone-green { --class-accent: #166534; }
-.class-tone-orange { --class-accent: #9a3412; }
-.class-tone-red { --class-accent: #b91c1c; }
+.student-class-card { --class-bg: var(--class-light-bg); --class-end: var(--class-light-end); --class-hover: var(--class-light-hover); --class-accent: var(--class-light-accent); --class-icon-bg: var(--class-light-icon); --class-text: #172b36; --class-count: #20313b; display: grid; grid-template-columns: auto 1fr; align-content: center; gap: .15rem .6rem; width: 100%; min-height: 70px; padding: .7rem; border-radius: .65rem; border: 1px solid var(--class-accent); color: var(--class-accent); background: linear-gradient(135deg, var(--class-bg), var(--class-end)); box-shadow: 0 2px 8px #16372b05; backdrop-filter: blur(8px); text-align: left; cursor: pointer; transition: background .15s, box-shadow .15s; }
+.student-class-card .student-class-icon { grid-column: 1; grid-row: 1 / 3; display: grid; place-items: center; align-self: center; width: 34px; height: 34px; border-radius: 50%; background: var(--class-icon-bg); }
+.student-class-card strong { color: var(--class-text); min-width: 0; overflow-wrap: anywhere; font-size: .875rem; }
+.student-class-card .student-class-count { grid-column: 2; font-size: .75rem; color: var(--class-count); }
+.student-class-card:hover { background: var(--class-hover); }
+.student-class-card[aria-pressed="true"] { border-color: var(--class-accent); box-shadow: inset 0 0 0 1px var(--class-accent), 0 0 0 2px var(--class-accent); }
+.student-class-card:focus-visible { outline: 3px solid var(--class-accent); outline-offset: 3px; box-shadow: 0 0 0 7px var(--class-bg); }
+@media(prefers-color-scheme:dark) { .student-class-card { --class-bg: var(--class-dark-bg); --class-end: var(--class-dark-end); --class-hover: var(--class-dark-hover); --class-accent: var(--class-dark-accent); --class-icon-bg: var(--class-dark-icon); --class-text: #f1f5f9; --class-count: #dbe6ef; } }
+:where(.dark, [data-theme="dark"]) .student-class-card { --class-bg: var(--class-dark-bg); --class-end: var(--class-dark-end); --class-hover: var(--class-dark-hover); --class-accent: var(--class-dark-accent); --class-icon-bg: var(--class-dark-icon); --class-text: #f1f5f9; --class-count: #dbe6ef; }
+[data-theme="light"] .student-class-card { --class-bg: var(--class-light-bg); --class-end: var(--class-light-end); --class-hover: var(--class-light-hover); --class-accent: var(--class-light-accent); --class-icon-bg: var(--class-light-icon); --class-text: #172b36; --class-count: #20313b; }
 
 /* School management density; shared public and parent layouts remain unchanged. */
 .management-section, .school-dashboard { display: grid; gap: 12px; min-width: 0; }
@@ -797,3 +796,54 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 @media(max-width: 540px) { .license-management { padding: 12px; gap: 14px; }.license-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }.license-metric { padding: 12px; gap: 8px; }.license-metric strong { font-size: 1.5rem; }.license-filters { grid-template-columns: 1fr; }.license-details { grid-template-columns: 1fr; gap: 4px; }.license-details dd { margin-bottom: 8px; }.license-pagination { justify-content: flex-start; } }
 .license-management .section-heading { margin: 0; align-items: flex-start; }
 .license-management .license-actions .ui-button-secondary { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.record-bulk-content { width: min(100%,1000px); margin-inline: auto; display: grid; gap: 16px; min-width: 0; }
+.record-bulk-content progress { width: 100%; accent-color: #047857; }
+.record-bulk-content code { overflow-wrap: anywhere; }
+
+/* Keep the shared section heading accessible without a mobile layout row. */
+/* iOS landscape cutouts and fixed overlays need their own safe-area gutters. */
+html[data-runtime-platform="ios"] #root {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  overflow-wrap: anywhere;
+}
+html[data-runtime-platform="ios"] :is(.topbar-inner, .hero-card, .teacher-card, .appointment-card, .page-heading, .pass-details > div) > * { min-width: 0; }
+html[data-runtime-platform="ios"] :is(.profile-trigger, .admin-open, .icon-button, .calendar-heading button) { min-width: 44px; min-height: 44px; }
+html[data-runtime-platform="ios"] .availability-calendar { padding: 0; border: 0; }
+html[data-runtime-platform="ios"] .calendar-days { gap: 0; }
+html[data-runtime-platform="ios"] .calendar-days button { min-height: 44px; }
+html[data-runtime-platform="ios"] .profile-label { min-width: 0; max-width: 10rem; }
+html[data-runtime-platform="ios"] .profile-trigger strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-runtime-platform="ios"] .admin-open { white-space: nowrap; flex-shrink: 0; }
+html[data-runtime-platform="ios"] .pass-details > div { display: grid; grid-template-columns: minmax(5.5rem, .8fr) minmax(0, 2fr); gap: 12px; }
+html[data-runtime-platform="ios"] .dialog-backdrop {
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+html[data-runtime-platform="ios"] .dialog-panel {
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+  overflow-wrap: anywhere;
+}
+html[data-runtime-platform="ios"] .auth-form-side-ios {
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px) + var(--auth-keyboard-inset, 0px));
+}
+html[data-runtime-platform="ios"] .auth-form-side :is(input, select, textarea, button) { scroll-margin-block: 24px; }
+html[data-runtime-platform="ios"] :is(.school-trigger, .profile-trigger, .admin-mobile-nav select) { min-height: 44px; }
+html[data-runtime-platform="ios"] .auth-form-wrap { min-width: 0; overflow-wrap: anywhere; }
+html[data-runtime-platform="ios"] .admin-backdrop {
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (max-width: 767px) {
+  .admin-no-duplicate-header .admin-header {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}

@@ -6,7 +6,7 @@ import { subscribeToNativeNavigationIntents } from './platform/native-navigation
 import { getRuntimePlatform } from './platform/runtime-platform';
 import './index.css';
 
-if (getRuntimePlatform() === 'ANDROID') document.documentElement.dataset.runtimePlatform = 'android';
+if (getRuntimePlatform() !== 'WEB') document.documentElement.dataset.runtimePlatform = getRuntimePlatform().toLowerCase();
 
 const disposeNativeNavigationIntents = subscribeToNativeNavigationIntents();
 if (import.meta.hot) import.meta.hot.dispose(disposeNativeNavigationIntents);

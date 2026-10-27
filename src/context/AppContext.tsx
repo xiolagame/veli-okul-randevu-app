@@ -670,7 +670,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsolationTestResults(res.results);
       return res.results;
     } catch (err: any) {
-      console.error('Test isolation error:', err);
+      console.error('Isolation check could not be completed.');
       return [];
     }
   };

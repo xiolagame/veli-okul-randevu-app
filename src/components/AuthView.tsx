@@ -10,6 +10,7 @@ import { getRuntimePlatform } from '../platform/runtime-platform';
 import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
 import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
 import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
+import { allowLegacyPhoneFallback, resolveLoginEntry } from '../platform/login-capability-policy';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -71,7 +72,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const loginButtonRef = useRef<HTMLButtonElement>(null);
   const passwordLoginPending = useRef(false);
   const authSideRef = useRef<HTMLElement>(null);
-  const usePhoneCentricLogin = phoneCentricAuthEnabled && (getRuntimePlatform() === 'WEB' || passwordLoginMode === null);
+  const loginEntry = resolveLoginEntry(getRuntimePlatform(), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null);
+  const usePhoneCentricLogin = loginEntry === 'phone';
 
   useEffect(() => {
     let active = true;
@@ -96,9 +98,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       const inset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
       authSideRef.current?.style.setProperty('--auth-keyboard-inset', `${inset}px`);
       const focused = document.activeElement;
-      if (focused !== phoneRef.current && focused !== passwordRef.current) return;
-      const target = focused === phoneRef.current ? passwordRef.current : loginButtonRef.current;
-      const bottom = target?.getBoundingClientRect().bottom ?? 0;
+      if (!(focused instanceof HTMLElement) || !authSideRef.current?.contains(focused) || !focused.matches('input, select, textarea, button')) return;
+      const bottom = focused.getBoundingClientRect().bottom;
       const visibleBottom = viewport.offsetTop + viewport.height;
       if (bottom > visibleBottom - 20) window.scrollBy(0, bottom - visibleBottom + 20);
     };
@@ -108,15 +109,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     };
     viewport.addEventListener('resize', updateViewport);
     viewport.addEventListener('scroll', updateViewport);
-    phoneRef.current?.addEventListener('focus', onFocus);
-    passwordRef.current?.addEventListener('focus', onFocus);
+    const authSide = authSideRef.current;
+    authSide?.addEventListener('focusin', onFocus);
     updateViewport();
     return () => {
       window.clearTimeout(focusTimer);
       viewport.removeEventListener('resize', updateViewport);
       viewport.removeEventListener('scroll', updateViewport);
-      phoneRef.current?.removeEventListener('focus', onFocus);
-      passwordRef.current?.removeEventListener('focus', onFocus);
+      authSide?.removeEventListener('focusin', onFocus);
     };
   }, []);
 
@@ -378,10 +378,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {getRuntimePlatform() === 'WEB' && capabilitiesStatus !== 'ready' ? (capabilitiesStatus === 'loading'
+          {loginEntry === 'loading' || loginEntry === 'error' ? (loginEntry === 'loading'
             ? <p role="status">Giriş seçenekleri yükleniyor…</p>
             : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
-            : getRuntimePlatform() === 'WEB' && !phoneCentricAuthEnabled ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={getRuntimePlatform() !== 'WEB'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
+            : loginEntry === 'unavailable' ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={allowLegacyPhoneFallback(getRuntimePlatform())} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
             ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
             : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
           {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}
