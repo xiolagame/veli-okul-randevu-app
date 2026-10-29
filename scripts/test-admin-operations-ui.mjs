@@ -52,7 +52,7 @@ const worker=await build({entryPoints:['src/utils/roster-worker.ts'],bundle:true
 const css = fs.readdirSync('dist/client/assets').filter(n => n.endsWith('.css')).map(n => fs.readFileSync(path.join('dist/client/assets', n), 'utf8')).join('\n');
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', req.url?.endsWith('.js') ? 'text/javascript' : req.url === '/style.css' ? 'text/css' : 'text/html');
-  res.end(req.url === '/roster-worker.js' ? worker.outputFiles[0].text : req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
+  res.end(req.url === '/roster-worker.js' ? worker.outputFiles[0].text : req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr" data-theme="'+(process.env.UI_THEME==='dark'?'dark':'light')+'"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;

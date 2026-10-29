@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "branch": "feature/ios-codemagic-final-20261029",
+  "branch": "feature/review-demo-theme-20261029",
   "baseline": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "hashMode": "UTF-8 text LF normalized; binary exact; lock itself excluded",
   "files": [
@@ -310,7 +310,7 @@
     },
     {
       "path": "audit/license-reminder-overlay.json",
-      "sha256": "5d829487a01a387580825bb3cd57fbd88409a8df4b33dd0b228013f3994da591"
+      "sha256": "67c02037a2daa642849e8f3c2a98bb59248d656059969f1e23e04bd37d39d837"
     },
     {
       "path": "audit/production-source-manifest.json",
@@ -329,8 +329,36 @@
       "sha256": "dc213c7aef6436ef165ebe2a2a642a1d56fc5f01060ddf4b87ee998b88420622"
     },
     {
+      "path": "deploy/review/Dockerfile",
+      "sha256": "44b91d40a5d0b6f70e6dd57ea448dfca5c52cb1a4e3d90120f85c2d291f799e3"
+    },
+    {
+      "path": "deploy/review/RUNBOOK.md",
+      "sha256": "ad533fdca1135ce4eb3c05db0a0c0cf0cdd9c0e8c2146f999a13ed1fd38b56fd"
+    },
+    {
+      "path": "deploy/review/compose.yaml",
+      "sha256": "4c08df3169c087f8e681442beaff1303c3392fe8db55495f6c6519775b132592"
+    },
+    {
+      "path": "deploy/review/least-privilege.sql",
+      "sha256": "f2cc6bf67c012da99869c315a6696295ff280c339b88bf0702e547fa23c15c9a"
+    },
+    {
+      "path": "deploy/review/nginx.conf",
+      "sha256": "48920669744645b5dde07bed3b5e9eca4488ba67ef28230dc62f080bea9db40f"
+    },
+    {
+      "path": "deploy/review/runtime-schema.sql",
+      "sha256": "6a053188026f9828a8219bfc3098e20cc4b4260d1e349c30a76c1617c1abd5bf"
+    },
+    {
       "path": "design_guidelines.json",
       "sha256": "fe9dcb171322cd0d3dfafbb8378b0243e606f413204e941f2c6b9357a58bfc68"
+    },
+    {
+      "path": "docs/REVIEW-DEMO-THEME-SETUP.md",
+      "sha256": "4d364265e57aa0ea7c39dea119f39379dba3c604ca9a14dd5b9560e16e3d245d"
     },
     {
       "path": "docs/SUPABASE_BACKUP_DISASTER_RECOVERY.md",
@@ -346,7 +374,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "64d820f3efa166f022125156f4c0d03269852ad65443d800371a76f626bcdd74"
+      "sha256": "84ed9af9e12e2f8a96190bb8856f665a859d51f948fcd8167b4de01c2278ee95"
     },
     {
       "path": "ios/.gitignore",
@@ -598,7 +626,11 @@
     },
     {
       "path": "scripts/refresh-ios-source-lock.mjs",
-      "sha256": "a5c84a5876119bb6dcf8ca04b242a6d4f774ccba00fc7894c054d1be35b774db"
+      "sha256": "b6e7843873ca42035041fca6e9987991d04db6364f764fedc73c53a18c1609c0"
+    },
+    {
+      "path": "scripts/review-admin.ts",
+      "sha256": "eb859b7862210c96c6793f4c1829cff83982e7937be6c353633027fc2d9caa1f"
     },
     {
       "path": "scripts/run-ios-regressions.mjs",
@@ -607,6 +639,10 @@
     {
       "path": "scripts/sanitize-fcm-ios-logs.mjs",
       "sha256": "1617e1ed92a7fde271f9a8293983bdcead595aa934a8322bef863b34d147f144"
+    },
+    {
+      "path": "scripts/start-review-service.ts",
+      "sha256": "c396ff0d43166dc4f6c595303283a66028539161359d9047b7fdee3097568300"
     },
     {
       "path": "scripts/test-account-deletion.ts",
@@ -626,7 +662,7 @@
     },
     {
       "path": "scripts/test-admin-operations-ui.mjs",
-      "sha256": "43f2ffaa0a1fd61ed6a0c644846c27093e571ad30118228e37b1e9e617d8e184"
+      "sha256": "213dec86126c04e9bba22f3281ab9ee5a2d4e5dd18f249fe5a219cdc1ed2e812"
     },
     {
       "path": "scripts/test-admin-staff-management.ts",
@@ -638,7 +674,7 @@
     },
     {
       "path": "scripts/test-android-shell.ts",
-      "sha256": "1c52a772d2d4107ea449b0a2108830d2c1da6b5df85a96c0bfd7bdc475532bbc"
+      "sha256": "77682862ddf6f3ad9cae14f2f3cb348090f3c0e1540fa5d6cd31c6b02536e717"
     },
     {
       "path": "scripts/test-api-postgres-integration.ts",
@@ -813,6 +849,10 @@
       "sha256": "52565a461abfdf84eb0b1477782673d0ff162e5fe9c14d728a421f83ab1281bd"
     },
     {
+      "path": "scripts/test-platform-theme.mjs",
+      "sha256": "46a4f46c76d40bf49c7adcc08fc1da0c1fb3b4cd35a57ec9f15b4acc73f37af3"
+    },
+    {
       "path": "scripts/test-platform-unseen.ts",
       "sha256": "994ef127aada1bf61dbd861fb2f96335bdb6ae3292b42cce5459acc449c8a1b5"
     },
@@ -843,6 +883,30 @@
     {
       "path": "scripts/test-release-artifacts.mjs",
       "sha256": "9d91a57210582913acd0d2f2dfb5ecbe141f3e3c64ae6fca546fe12deef5c553"
+    },
+    {
+      "path": "scripts/test-review-access.ts",
+      "sha256": "47a2026c3940cb92f8e808f5965230327a872ae6b449a7563fb9cddbb6e56c99"
+    },
+    {
+      "path": "scripts/test-review-boundaries.mjs",
+      "sha256": "6bda557a439febce22cba6370acd80f547494d65499d376d36e7195782221e83"
+    },
+    {
+      "path": "scripts/test-review-client.mjs",
+      "sha256": "ceabaf1abe1a2a1cc661d067afbb8e1e345ad6826d0b40a8f4cd01f923b998b2"
+    },
+    {
+      "path": "scripts/test-review-integration.ts",
+      "sha256": "f0edd3ef8cb58e4b5f410ff285aca1ca3e01d17d69644d1ab14948d735bf4943"
+    },
+    {
+      "path": "scripts/test-review-login-ui.mjs",
+      "sha256": "219e31db02e4b19fb88b56a601991a3fe5a438960996f7bfd7d54dcc39df4fe6"
+    },
+    {
+      "path": "scripts/test-review-role-themes.mjs",
+      "sha256": "9a41376c9520079f762ae9e5933d0d8309ab69807d325f75c4405ff915a95bd8"
     },
     {
       "path": "scripts/test-roster-excel-template.ts",
@@ -909,6 +973,14 @@
       "sha256": "8f3393cf2ab982a56990c7ae605fc3be0678792b8c703553ad2be91ba6c8eceb"
     },
     {
+      "path": "scripts/test-theme-bootstrap.mjs",
+      "sha256": "84f5ba6fc273b659c6f25dae0a996000385be92402ddcfb5aa1863fdf428a4d1"
+    },
+    {
+      "path": "scripts/test-theme-ui.mjs",
+      "sha256": "335787add50072f7c8e4ef4d0984a3e9f861c2b307028f1f22ba9e54d6b5a470"
+    },
+    {
       "path": "scripts/test-unified-whatsapp-login.ts",
       "sha256": "f5b76448cf6583be15e4bf26be6aea5715fbf8f0da7b08da05c79871c9d557b1"
     },
@@ -929,6 +1001,10 @@
       "sha256": "e49c31d008a9a3e24af20d8e9985c12b5bc1baecb0b83181e5c0a8307b66c1db"
     },
     {
+      "path": "scripts/theme-contrast-audit.mjs",
+      "sha256": "50996a8df5eae04a1955ead9bca3323e1699067fa81378bb720add1b9ad020b1"
+    },
+    {
       "path": "scripts/verify-apple-toolchain.sh",
       "sha256": "1b4c3fcf34589e0235089eb26caa4fca619a825f5b2b80ea2382f6819fe56ae2"
     },
@@ -938,11 +1014,11 @@
     },
     {
       "path": "scripts/verify-ios-license-sync.mjs",
-      "sha256": "9eb52d0a0aca6895761b43806ea9326b440d619781adf5afc489df0ae3f342a2"
+      "sha256": "0aef233aabfb5e60785ad160fb5005a60f262b33a1b7b7787c5c6caf5069331c"
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",
-      "sha256": "78e18d0c5073fd3265d7308df8500b1249db94f21c854e2a27442ffb7de0c985"
+      "sha256": "6718baac11dc322c6808f5deba7e0d01a238e5a231481cbd248faf6c6995ef4a"
     },
     {
       "path": "scripts/verify-ios-source-lock.mjs",
@@ -1173,6 +1249,38 @@
       "sha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522"
     },
     {
+      "path": "server/review-access.ts",
+      "sha256": "f8390c374281ab9b860306f048c2b715237dbd4e9dc47a9b05276e86a0b1366f"
+    },
+    {
+      "path": "server/review-audit.ts",
+      "sha256": "bd385a8322595b37192032a71a0ebc36a1d30aa349c22e369813d0069f2e3fe2"
+    },
+    {
+      "path": "server/review-fixtures.ts",
+      "sha256": "c878a6737aa09a04f4d4cd26a44ec6fdc79d676bc11b5c3cfba342d86834a9f3"
+    },
+    {
+      "path": "server/review-maintenance.ts",
+      "sha256": "f66e06db62a2d04dfffba6bbb50fec094922bb9fb72a6203e9359fe02b5c17b2"
+    },
+    {
+      "path": "server/review-operations.ts",
+      "sha256": "5798a3d17359fcc2b7b40ded0c529e397a3533d822c4979da5f275dcd620878c"
+    },
+    {
+      "path": "server/review-outbound.ts",
+      "sha256": "8c8ccc569db29ef828c7ca06e5b35c85dc76057121452caba318248ec0fa9a44"
+    },
+    {
+      "path": "server/review-service.ts",
+      "sha256": "97e622058172b3507e730b328fddda150d3431d133437842709531e97bea5b0b"
+    },
+    {
+      "path": "server/review-settings.ts",
+      "sha256": "1f96254d71ab6f27f918edfa3e7b994269912466c3e5ae1e6c1723847d902a50"
+    },
+    {
       "path": "server/roster-import-jobs.ts",
       "sha256": "b1fd995d6e9d7c63fb24bad349e9ea335587327a917a2c1106e18fb3b102fc17"
     },
@@ -1222,7 +1330,7 @@
     },
     {
       "path": "src/components/AuthView.tsx",
-      "sha256": "ef99bc8a775f08d0c677981c637efca206eb76c842a5a0d9e9aea432a7aec207"
+      "sha256": "9b4326ecad00dbe07d23ee9ee85a72bad9ef47007adcdaba6e1c8fc6b2456ec4"
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
@@ -1238,11 +1346,11 @@
     },
     {
       "path": "src/components/DeleteAccountDialog.tsx",
-      "sha256": "b1e4f035850aef5dd0084c14afff626a577814256bd04905a09a251bce27d55b"
+      "sha256": "3f6622203d028f281679c018a106858cdc8d4143a70f3b480a841f5839bfd7b2"
     },
     {
       "path": "src/components/HelpCenterPage.tsx",
-      "sha256": "063826d3825a0134dc7a043f9ac197f72f6273ba5a8a7f4edbc7752409675922"
+      "sha256": "759c25e48f720cc1aff9e792d4577ae53c90267bd74937261608bf31fe6ad2f9"
     },
     {
       "path": "src/components/HelpGuidePage.tsx",
@@ -1302,7 +1410,7 @@
     },
     {
       "path": "src/components/PublicRequestPage.tsx",
-      "sha256": "392012aa27a022496cdbed9b58b87eb2b234e2141b34d917268ec767c6ae653f"
+      "sha256": "46514c34ba9fd3d790d8967268b64af8f69894fc7bbb2784d68cdeeab17bb6bd"
     },
     {
       "path": "src/components/PublicRequestSection.tsx",
@@ -1311,6 +1419,14 @@
     {
       "path": "src/components/QRCodePass.tsx",
       "sha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e"
+    },
+    {
+      "path": "src/components/ReviewBanner.tsx",
+      "sha256": "438ce3929add989cc819677843aaf948de3ab783053ca0d8de231cd2787c6d27"
+    },
+    {
+      "path": "src/components/ReviewLogin.tsx",
+      "sha256": "f04d9acaa810f494c3873c3a45ccd5ff2079122035c346f92beb6a1d05282ca5"
     },
     {
       "path": "src/components/SchoolAdminManagement.tsx",
@@ -1349,6 +1465,10 @@
       "sha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054"
     },
     {
+      "path": "src/components/ThemeSwitcher.tsx",
+      "sha256": "934005171d15e8617ebbe8c40ce23fac1fd5e6d8434dcbdd3e460e837f05525b"
+    },
+    {
       "path": "src/components/UnifiedWhatsAppLoginPanel.tsx",
       "sha256": "5941e2f350e4b1f6e947297d85159282b7e5b7dbb4790c2c2645410c772cf46c"
     },
@@ -1362,7 +1482,7 @@
     },
     {
       "path": "src/components/ui.tsx",
-      "sha256": "db78c3449f451013ea36ab52a5648155e5fcb5693098b497cbb782d5cf39143e"
+      "sha256": "17e17706d20875dd4513c531d90883b786f992f68f8eb43434a87a5068c285fb"
     },
     {
       "path": "src/components/useHomeRefresh.tsx",
@@ -1386,7 +1506,7 @@
     },
     {
       "path": "src/main.tsx",
-      "sha256": "266fb8ebef178354ae06649b774901d450de8db1e37ad36f6faa99ccb8639eb9"
+      "sha256": "221b183361d9934716cd86c63aaa3765cad7356f7a0dd5997893d3275df27e06"
     },
     {
       "path": "src/platform/android-camera-permission.ts",
@@ -1505,6 +1625,10 @@
       "sha256": "77fd3f3f93c221ebd4145cdff1284c92d0e99019cf29838905406210752a4c48"
     },
     {
+      "path": "src/platform/review-origin.ts",
+      "sha256": "822df76bccd1381723f7e5f49ddf534708be7ac0a92e447dc2eb298d1c77b12b"
+    },
+    {
       "path": "src/platform/runtime-platform.ts",
       "sha256": "21a8321ef59c61825224354b8fb290023d3f093ca45d7ebc7586987d27470b16"
     },
@@ -1517,8 +1641,16 @@
       "sha256": "1f20b6f6066b02b0c8dda208bbf4a4403b5cec2c79e43fdedfec4995775c6489"
     },
     {
+      "path": "src/platform/theme.ts",
+      "sha256": "239944119465c668b7a5fb0bb821404f1c85f831856355358067ec68e46edae5"
+    },
+    {
       "path": "src/services/api.ts",
-      "sha256": "c955c085c415ffb821e9447d3eb684ab8fc8848cef5fd088967ab4993e0421f9"
+      "sha256": "22aaa859fef362ab4e0e262fe92d6737bfff7833aa1585ef25b60e165c721564"
+    },
+    {
+      "path": "src/theme.css",
+      "sha256": "57ed6522d1e1548d1e7b03dafb40901401d0033da7c6a4f575386196cf7d1e92"
     },
     {
       "path": "src/types.ts",

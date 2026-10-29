@@ -16,6 +16,7 @@ import {
 import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../platform/api-session-policy';
 import { ApiError } from '../platform/api-error';
 import { authSession } from '../platform/auth-session';
+import {isReviewToken,reviewOrigin} from '../platform/review-origin';
 import { getActiveSchoolId, getPlatformTargetSchoolId } from '../platform/client-preferences';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -23,7 +24,7 @@ const REQUEST_TIMEOUT_MS = 20_000;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const requestToken = await authSession.getToken();
-  const authenticatedRequestToken = isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
+  const authenticatedRequestToken = isReviewToken(requestToken)||isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
   const currentSchoolId = getActiveSchoolId();
   const platformTargetSchoolId = getPlatformTargetSchoolId();
   const headers: Record<string, string> = {
@@ -42,7 +43,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const targetScopedEndpoint = platformTargetSchoolId && endpoint.startsWith('/api/schools/')
     ? `/api/platform-target/${encodeURIComponent(platformTargetSchoolId)}${endpoint.slice(4)}`
     : endpoint;
-  const url = `${API_BASE_URL}${targetScopedEndpoint}`;
+  const url = `${isReviewToken(requestToken)?reviewOrigin():API_BASE_URL}${targetScopedEndpoint}`;
   const abortController = new AbortController();
   let timedOut = false;
   const handleExternalAbort = () => abortController.abort(options.signal?.reason);
@@ -312,6 +313,7 @@ export const api = {
       })[];
     }>('/api/user/me'),
 
+  refreshReviewScenarios: () => request<{success:true;simulation:true;message:string}>('/api/review/scenarios/refresh',{method:'POST'}),
   requestAccountDeletionWhatsappCode: () =>
     request<{ success: boolean; message: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
       '/api/user/me/deletion/whatsapp-code', { method: 'POST' }),

@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, Check, CheckCircle2, Clock, LogIn, LogOut, X, XCircle, type LucideIcon } from 'lucide-react';
 import type { AppointmentStatus } from '../types';
 import { registerBackHandler } from '../platform/back-navigation';
+import {ThemeSwitcher} from './ThemeSwitcher';
 
 export function Brand({ light = false }: { light?: boolean }) {
-  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span></div>;
+  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span><ThemeSwitcher/></div>;
 }
 
 export function Button({ variant = 'primary', className = '', type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'quiet' | 'danger' }) {

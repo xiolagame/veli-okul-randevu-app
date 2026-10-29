@@ -4,6 +4,7 @@ import { getHelpGuide, helpCategories } from '../content/help-content';
 import { getHelpSlug, HELP_PATH } from '../utils/public-request-route';
 import { Button } from './ui';
 import { HelpGuidePage } from './HelpGuidePage';
+import {ThemeSwitcher} from './ThemeSwitcher';
 
 interface HelpCenterPageProps {
   pathname: string;
@@ -36,6 +37,7 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
   return <main className="help-page">
     <div className="help-page-shell">
       <header className="help-page-header">
+        <ThemeSwitcher/>
         <Button variant="quiet" className="public-page-back" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
       </header>
       {slug && guide

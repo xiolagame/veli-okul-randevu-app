@@ -10,6 +10,7 @@ import { getRuntimePlatform } from '../platform/runtime-platform';
 import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
 import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
 import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
+import {ReviewLogin} from './ReviewLogin';
 import { allowLegacyPhoneFallback, resolveLoginEntry } from '../platform/login-capability-policy';
 
 interface AuthViewProps {
@@ -403,6 +404,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
           {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setPasswordLoginMode(null)}>WhatsApp ile girişe dön</button>}
           </>}
+          {import.meta.env?.VITE_REVIEW_API_ORIGIN&&<ReviewLogin/>}
           <button type="button" className="auth-help-link" onClick={onOpenHelp}>Yardım, Kullanım Rehberi ve Yasal Bilgiler<ArrowRight size={16} /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>

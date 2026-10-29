@@ -4,6 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {contentHash} from './ios-artifact-policy.mjs';
 execFileSync('git',['diff','--exit-code'],{stdio:'pipe'});
 const lock=JSON.parse(fs.readFileSync('audit/ios-source-lock.json'));
+lock.branch=execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim();
 const paths=execFileSync('git',['ls-files','-z'],{encoding:'utf8'}).split('\0').filter(p=>p&&p!=='audit/ios-source-lock.json').sort();
 const data=execFileSync('git',['cat-file','--batch'],{input:paths.map(p=>':'+p).join('\n')+'\n',maxBuffer:100*1024*1024});
 let offset=0;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import capacitorConfig from '../capacitor.config';
 import viteConfig from '../vite.config';
 
@@ -210,7 +211,13 @@ assert.match(backupRules, /<device-transfer>[\s\S]*<exclude domain="root" path="
 const nativeTheme = read('android/app/src/main/res/values/styles.xml');
 assert.match(nativeTheme, /AppTheme\.NoActionBar" parent="Theme\.AppCompat\.Light\.NoActionBar"/);
 assert.match(nativeTheme, /android:forceDarkAllowed">false</);
-assert.match(read('src/main.tsx'), /getRuntimePlatform\(\) === 'ANDROID'.*dataset\.runtimePlatform = 'android'/);
+const runtimeLine=read('src/main.tsx').split('\n').find(line=>line.startsWith('if (getRuntimePlatform()'));
+assert(runtimeLine,'Native runtime attribute initializer missing');
+for(const platform of ['ANDROID','IOS','WEB']){
+  const document={documentElement:{dataset:{} as Record<string,string>}};
+  vm.runInNewContext(runtimeLine,{document,getRuntimePlatform:()=>platform});
+  assert.equal(document.documentElement.dataset.runtimePlatform,platform==='WEB'?undefined:platform.toLowerCase());
+}
 const authStyles = read('src/index.css');
 assert.match(authStyles, /html\[data-runtime-platform="android"\] \.auth-form-wrap \{[^}]*background: rgba\(255, 255, 255, \.94\)/);
 assert.match(authStyles, /html\[data-runtime-platform="android"\] \.auth-form-side \{[^}]*safe-area-inset-bottom/);

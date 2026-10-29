@@ -3,6 +3,7 @@
   "productionSource": "C:/Users/XIO/Documents/Codex/veli-randevu-license-reminders-release-20261028",
   "iosBase": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "scope": "Frontend license-reminder overlay only; not a full production sync; no backend transfer",
+  "reviewIntegration": "API client adds separate review-origin routing; the five license operations and original production source hashes are unchanged.",
   "files": [
     {
       "path": "src/components/LicenseWhatsAppPanel.tsx",
@@ -27,7 +28,7 @@
     {
       "path": "src/services/api.ts",
       "productionSha256": "c9976824d964646737671a6eca4b55612114a3e100a9d24eda24ee431dad81e8",
-      "iosCanonicalSha256": "c955c085c415ffb821e9447d3eb684ab8fc8848cef5fd088967ab4993e0421f9"
+      "iosCanonicalSha256": "22aaa859fef362ab4e0e262fe92d6737bfff7833aa1585ef25b60e165c721564"
     },
     {
       "path": "src/types/license-reminders.ts",

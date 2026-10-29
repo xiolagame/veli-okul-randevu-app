@@ -2,6 +2,9 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (()=>{let theme;try{theme=localStorage.getItem('veli.theme');}catch{}if(theme!=='light'&&theme!=='dark')theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();
+    </script>
     <link rel="icon" type="image/png" href="/branding/veli-randevu-logo.png" />
     <link rel="apple-touch-icon" href="/branding/veli-randevu-logo.png" />
     <meta property="og:image" content="/branding/veli-randevu-logo.png" />

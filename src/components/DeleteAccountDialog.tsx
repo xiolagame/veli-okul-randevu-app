@@ -18,7 +18,8 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const requestId = useRef(crypto.randomUUID());
   const passwordInput = useRef<HTMLInputElement>(null);
-  const requiresPassword = currentUser?.deletionVerification !== 'whatsapp';
+  const isReview = currentUser?.id.startsWith('review-') === true;
+  const requiresPassword = isReview || currentUser?.deletionVerification !== 'whatsapp';
 
   useEffect(() => {
     if (step === 1) passwordInput.current?.focus();
@@ -46,15 +47,15 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
 
   return <Dialog
     title="Hesabımı sil"
-    description="Hesabınızı ve kişisel giriş bilgilerinizi kalıcı olarak silin."
+    description={isReview ? 'Sentetik demo hesabında silme işlemini inceleyin; gerçek kullanıcı silinmez.' : 'Hesabınızı ve kişisel giriş bilgilerinizi kalıcı olarak silin.'}
     onClose={onClose}
     dismissible={!pending}
     className="account-deletion-dialog"
   >
     <StepIndicator active={step} labels={['Bilgilendirme', 'Kimlik doğrulama']} />
     {step === 0 ? <div className="account-deletion-content">
-      <Alert tone="warning"><strong>Bu işlem geri alınamaz.</strong><p className="mt-1">Silme tamamlandığında bu hesapla yeniden giriş yapamazsınız.</p></Alert>
-      <section aria-labelledby="deletion-removes-title">
+      <Alert tone="warning"><strong>{isReview ? 'Demo silme simülasyonu' : 'Bu işlem geri alınamaz.'}</strong><p className="mt-1">{isReview ? 'Yalnız bu demo hesabının tüm oturumları kapatılır. Sentetik okul ve diğer hesaplar korunur; aynı inceleme bilgileriyle tekrar giriş yapabilirsiniz. Gerçek mesaj gönderilmez.' : 'Silme tamamlandığında bu hesapla yeniden giriş yapamazsınız.'}</p></Alert>
+      {!isReview && <><section aria-labelledby="deletion-removes-title">
         <h3 id="deletion-removes-title"><Trash2 size={18} aria-hidden="true" />Kalıcı olarak silinecekler</h3>
         <ul className="account-deletion-list">
           <li><Check size={16} aria-hidden="true" />Ad, telefon, e-posta ve parola özeti</li>
@@ -67,7 +68,7 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
         <h3 id="deletion-keeps-title"><ShieldCheck size={18} aria-hidden="true" />Anonim olarak korunabilecekler</h3>
         <p>Okulun öğrenci kaydı ile zorunlu randevu, işlem ve güvenlik kayıtları silinmez. Bu kayıtlardaki adınız ve iletişim bilgileriniz kaldırılır; “Silinmiş Kullanıcı” olarak gösterilirsiniz.</p>
       </section>
-      <p className="account-deletion-note"><AlertTriangle size={17} aria-hidden="true" />İşlem sunucu tarafından tamamlandıktan sonra bu cihazdaki güvenli oturum da temizlenir. Kayıtlı e-postanız varsa tamamlanma bildirimi gönderilmeye çalışılır.</p>
+      <p className="account-deletion-note"><AlertTriangle size={17} aria-hidden="true" />İşlem sunucu tarafından tamamlandıktan sonra bu cihazdaki güvenli oturum da temizlenir. Kayıtlı e-postanız varsa tamamlanma bildirimi gönderilmeye çalışılır.</p></>}
       <div className="form-actions"><Button variant="secondary" onClick={onClose}>Vazgeç</Button><Button variant="danger" onClick={() => setStep(1)}>Devam et</Button></div>
     </div> : <form className="form-stack account-deletion-form" onSubmit={submit}>
       {error && <Alert tone="danger">{error}</Alert>}
@@ -84,8 +85,8 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
         }}><MessageCircle size={18} aria-hidden="true" />WhatsApp doğrulama kodu gönder</Button> : <label className="field" htmlFor="delete-account-whatsapp-code">6 haneli WhatsApp kodu<input id="delete-account-whatsapp-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={whatsappCode} onChange={(event) => setWhatsappCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>}
       </div>}
       <label className="field" htmlFor="delete-account-confirmation">Onaylamak için <strong>{CONFIRMATION_PHRASE}</strong> yazın<input id="delete-account-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value.toLocaleUpperCase('tr-TR'))} autoComplete="off" spellCheck={false} required aria-describedby="delete-account-confirmation-hint" /></label>
-      <p id="delete-account-confirmation-hint" className="field-hint">Silme işlemi sunucuda tek transaction içinde tamamlanır; tamamlanmadan oturumunuz kapatılmaz.</p>
-      <div className="form-actions"><Button variant="secondary" disabled={pending} onClick={() => { setError(''); setStep(0); }}>Geri</Button><Button type="submit" variant="danger" disabled={pending || (requiresPassword ? !password : !whatsappChallengeId || whatsappCode.length !== 6) || confirmation.trim() !== CONFIRMATION_PHRASE}>{pending ? 'Hesap siliniyor…' : 'Hesabımı kalıcı olarak sil'}</Button></div>
+      <p id="delete-account-confirmation-hint" className="field-hint">{isReview ? 'Demo silme tamamlandığında tüm oturumlarınız geçersiz kılınır; sentetik hesap tekrar kullanılabilir.' : 'Silme işlemi sunucuda tek transaction içinde tamamlanır; tamamlanmadan oturumunuz kapatılmaz.'}</p>
+      <div className="form-actions"><Button variant="secondary" disabled={pending} onClick={() => { setError(''); setStep(0); }}>Geri</Button><Button type="submit" variant="danger" disabled={pending || (requiresPassword ? !password : !whatsappChallengeId || whatsappCode.length !== 6) || confirmation.trim() !== CONFIRMATION_PHRASE}>{pending ? 'İşlem tamamlanıyor…' : isReview ? 'Demo silmeyi tamamla' : 'Hesabımı kalıcı olarak sil'}</Button></div>
     </form>}
   </Dialog>;
 }
