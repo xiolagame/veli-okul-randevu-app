@@ -34,9 +34,10 @@ services:
       REVIEW_JWT_SECRET_FILE: /run/secrets/jwt-secret
       REVIEW_IDENTITIES_JSON_FILE: /run/secrets/identities
       SUPABASE_DB_CA_B64_FILE: /run/secrets/db-ca-b64
+      AUTH_CODE_SECRET_FILE: /run/secrets/auth-code-secret
       REVIEW_AUDIT_FILE: /audit/access.jsonl
       REVIEW_ALLOWED_ORIGINS: ${REVIEW_ALLOWED_ORIGINS:?explicit origins required}
-    secrets: [database-url, jwt-secret, identities, db-ca-b64]
+    secrets: [database-url, jwt-secret, identities, db-ca-b64, auth-code-secret]
     volumes: ["${REVIEW_AUDIT_DIR:?pre-created audit directory required}:/audit"]
     tmpfs: [/tmp]
     networks: [isolated]
@@ -67,3 +68,4 @@ secrets:
   jwt-secret: {file: "${REVIEW_SECRETS_DIR:?}/jwt-secret"}
   identities: {file: "${REVIEW_SECRETS_DIR:?}/identities.json"}
   db-ca-b64: {file: "${REVIEW_SECRETS_DIR:?}/db-ca-b64"}
+  auth-code-secret: {file: "${REVIEW_SECRETS_DIR:?}/auth-code-secret"}

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 export function loadReviewSecretFiles(){
- for(const key of ['REVIEW_DATABASE_URL','REVIEW_JWT_SECRET','REVIEW_IDENTITIES_JSON','SUPABASE_DB_CA_B64']){
+ for(const key of ['REVIEW_DATABASE_URL','REVIEW_JWT_SECRET','REVIEW_IDENTITIES_JSON','SUPABASE_DB_CA_B64','AUTH_CODE_SECRET']){
   const file=process.env[key+'_FILE'];if(file){if(process.env[key])throw Error('Ambiguous review secret configuration');process.env[key]=fs.readFileSync(file,'utf8').trim();}
  }
 }

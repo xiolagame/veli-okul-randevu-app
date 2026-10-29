@@ -22,6 +22,9 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'veli-review-audit-'));const file
 child(`import{createReviewAudit}from ${JSON.stringify(audit)};const write=createReviewAudit(process.env.FIXTURE_AUDIT);await write({action:'login',identity:'review-apple-parent',result:'accepted'});`,{FIXTURE_AUDIT:file});
 child(`import{createReviewAudit}from ${JSON.stringify(audit)};await createReviewAudit(process.env.FIXTURE_AUDIT)({action:'revoke',identity:'review-apple-parent',result:'disabled'});`,{FIXTURE_AUDIT:file});
 const lines=fs.readFileSync(file,'utf8').trim().split('\n').map(x=>JSON.parse(x));assert.equal(lines.length,2);assert.equal(lines[0].action,'login');assert.equal(lines[1].action,'revoke');
+const codeSecretFile=path.join(dir,'fixture-auth-code-secret');fs.writeFileSync(codeSecretFile,'isolated-review-fixture-auth-code-secret');
+const settings=pathToFileURL(path.resolve('server/review-settings.ts')).href;
+child(`import assert from'node:assert/strict';import{loadReviewSecretFiles}from ${JSON.stringify(settings)};delete process.env.AUTH_CODE_SECRET;loadReviewSecretFiles();assert.equal(process.env.AUTH_CODE_SECRET,'isolated-review-fixture-auth-code-secret');assert.throws(loadReviewSecretFiles,/Ambiguous/);`,{AUTH_CODE_SECRET_FILE:codeSecretFile});
 const compose=YAML.parse(fs.readFileSync('deploy/review/compose.yaml','utf8'));
 assert.equal(compose.networks.isolated.internal,true);
 assert.deepEqual(compose.services['review-api'].networks,['isolated']);
@@ -30,5 +33,7 @@ assert.equal(compose.services['review-api'].ports,undefined);assert.equal(compos
 assert.equal(compose.services['review-api'].read_only,true);
 assert(!compose.services['review-api'].secrets.includes('db-password'));
 assert.equal(compose.services['review-api'].environment.REVIEW_TRUST_PROXY_HOPS,'1');
+assert.equal(compose.services['review-api'].environment.AUTH_CODE_SECRET_FILE,'/run/secrets/auth-code-secret');
+assert(compose.services['review-api'].secrets.includes('auth-code-secret'));
 const proxy=fs.readFileSync('deploy/review/nginx.conf','utf8');assert(proxy.includes('proxy_set_header X-Forwarded-For $remote_addr'));assert(!proxy.includes('proxy_pass $'));
 console.log('Review boundaries PASS: real auth crypto rejects cross-key tokens in both directions; fetch/http/https blocked; durable audit survives process restart; isolated-only API/DB compose and fixed TLS proxy configuration. Container/network runtime NOT tested.');

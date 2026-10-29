@@ -334,11 +334,11 @@
     },
     {
       "path": "deploy/review/RUNBOOK.md",
-      "sha256": "ad533fdca1135ce4eb3c05db0a0c0cf0cdd9c0e8c2146f999a13ed1fd38b56fd"
+      "sha256": "91d05919e5b850985f4303e631dc8b9b193510c1d877c572b1d2a7c059c8296e"
     },
     {
       "path": "deploy/review/compose.yaml",
-      "sha256": "4c08df3169c087f8e681442beaff1303c3392fe8db55495f6c6519775b132592"
+      "sha256": "099e6133d8c2ee4fd41a14d54c472c3af071ec286be3ea319d84981e28e539f3"
     },
     {
       "path": "deploy/review/least-privilege.sql",
@@ -890,7 +890,7 @@
     },
     {
       "path": "scripts/test-review-boundaries.mjs",
-      "sha256": "6bda557a439febce22cba6370acd80f547494d65499d376d36e7195782221e83"
+      "sha256": "1a632e610a85bdfe09a53a0ffd3d3dc0ffb59f8044e3b3b0bb3dba43a552140f"
     },
     {
       "path": "scripts/test-review-client.mjs",
@@ -1278,7 +1278,7 @@
     },
     {
       "path": "server/review-settings.ts",
-      "sha256": "1f96254d71ab6f27f918edfa3e7b994269912466c3e5ae1e6c1723847d902a50"
+      "sha256": "98bebc898b0d09ae4618213a5d716f4455c26421e0a13f7218cc2728ce84d679"
     },
     {
       "path": "server/roster-import-jobs.ts",
