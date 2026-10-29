@@ -11,6 +11,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         DERIVED_DATA_PATH: build/DerivedData
+        VITE_REVIEW_API_ORIGIN: https://veli-review-demo.duckdns.org
         SOURCE_PACKAGES_PATH: build/SourcePackages
         XCODE_LOG_PATH: build/logs
     scripts:
@@ -40,7 +41,7 @@ workflows:
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
-          npm run ios:sync
+          npm run ios:sync:review
       - name: Run TypeScript and focused regression checks
         script: |
           set -euo pipefail
@@ -111,6 +112,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6823597940"
+        VITE_REVIEW_API_ORIGIN: https://veli-review-demo.duckdns.org
         SOURCE_PACKAGES_PATH: build/SourcePackages
         XCODE_LOG_PATH: build/logs
     scripts:
@@ -140,7 +142,7 @@ workflows:
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
-          npm run ios:sync
+          npm run ios:sync:review
       - name: Require Firebase iOS config for signed IPA
         script: |
           set -euo pipefail
@@ -230,6 +232,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6823597940"
+        VITE_REVIEW_API_ORIGIN: https://veli-review-demo.duckdns.org
         SOURCE_PACKAGES_PATH: build/SourcePackages
         XCODE_LOG_PATH: build/logs
     scripts:
@@ -266,7 +269,7 @@ workflows:
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
-          npm run ios:sync
+          npm run ios:sync:review
       - name: Require Firebase iOS config for signed IPA
         script: |
           set -euo pipefail

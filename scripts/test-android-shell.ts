@@ -113,8 +113,13 @@ assert.match(variablesGradle, /targetSdkVersion\s*=\s*36/);
 const appGradle = read('android/app/build.gradle');
 assert.match(appGradle, /namespace\s*=\s*["']com\.velirandevu\.app["']/);
 assert.match(appGradle, /applicationId\s+["']com\.velirandevu\.app["']/);
-assert.match(appGradle, /versionCode\s+1\b/);
-assert.match(appGradle, /versionName\s+["']1\.0\.0["']/);
+assert.match(appGradle, /versionCode requestedVersionCode\.toInteger\(\)/);
+assert.match(appGradle, /gradleProperty\('VELI_ANDROID_VERSION_CODE'\)/);
+assert.match(appGradle, /environmentVariable\('VELI_ANDROID_VERSION_CODE'\)/);
+assert.match(appGradle, /getOrElse\('1'\)/);
+assert.match(appGradle, /versionName requestedVersionName/);
+assert.ok(appGradle.includes("gradleProperty('VELI_ANDROID_VERSION_NAME')"));
+assert.ok(appGradle.includes("getOrElse('1.0.0')"));
 
 const mainActivity = read('android/app/src/main/java/com/velirandevu/app/MainActivity.java');
 const notificationSettingsPlugin = read('android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java');

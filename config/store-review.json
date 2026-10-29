@@ -1,0 +1,7 @@
+{
+  "reviewApiOrigin": "https://veli-review-demo.duckdns.org",
+  "productionApiOrigin": "https://velirandevu.com",
+  "welcomeHeading": "Okulunuza Hoş Geldiniz",
+  "reviewEntryLabel": "Mağaza inceleme erişimi",
+  "bundleIdentifier": "com.velirandevu.app"
+}

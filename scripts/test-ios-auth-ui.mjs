@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{res.setHeader('content-type',req.url=
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 let browser;
 try{
- browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ browser=await chromium.launch({channel:'chrome',headless:true,args:['--disable-gpu']});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().startsWith('http://127.0.0.1:')?r.continue():r.abort());
  const open=async()=>{await page.goto('http://127.0.0.1:'+server.address().port);await page.getByRole('status').waitFor();assert.equal(await page.locator('input[type=password]').count(),0);};
  const ready=async()=>{await page.evaluate(()=>window.authFixture.resolve({whatsappAuthEnabled:true,unifiedLoginEnabled:true,phoneCentricAuthEnabled:true}));await page.locator('#phone-centric-phone').waitFor();};

@@ -74,7 +74,7 @@
     },
     {
       "path": "android/app/build.gradle",
-      "sha256": "638d78698c07e34c714dc48b72b9cb50641472294db10674248ef2f988fbe25b"
+      "sha256": "d9f27c087b283747dd707437f71e0d0accb607f3fa3e7dececd4a3b8bc0d61d3"
     },
     {
       "path": "android/app/capacitor.build.gradle",
@@ -326,7 +326,11 @@
     },
     {
       "path": "codemagic.yaml",
-      "sha256": "dc213c7aef6436ef165ebe2a2a642a1d56fc5f01060ddf4b87ee998b88420622"
+      "sha256": "1044aff639b4d7bf012418b5dc53b046b715bdf3874fa4d901b317340388e861"
+    },
+    {
+      "path": "config/store-review.json",
+      "sha256": "420e168b063cd3aac97846916bce9813d165e8c23f7a6fb633efd875dd03df0e"
     },
     {
       "path": "deploy/review/Dockerfile",
@@ -359,6 +363,10 @@
     {
       "path": "docs/REVIEW-DEMO-THEME-SETUP.md",
       "sha256": "4d364265e57aa0ea7c39dea119f39379dba3c604ca9a14dd5b9560e16e3d245d"
+    },
+    {
+      "path": "docs/STORE-REVIEW-BUILD.md",
+      "sha256": "532f690fca4696af9149d122756d843399b312b5f2d668dfd633203af0b1c056"
     },
     {
       "path": "docs/SUPABASE_BACKUP_DISASTER_RECOVERY.md",
@@ -498,7 +506,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "df265bc4ea29a51659b78f989b10cb448723510f4ede4aa241283666a6941b18"
+      "sha256": "2f953b5ec9dc86960a62dfc28fc4868e1d1664c2a70c185f2d431c3dad4b0fe4"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -582,7 +590,7 @@
     },
     {
       "path": "scripts/audit-ios-command-chain.mjs",
-      "sha256": "a9adb5d60575ac05777f9b053ef4a74eb9207bacbf1ea9bce306329b2af86cc4"
+      "sha256": "d1b470a1a1f5ee30ab451a100c58481262b0cbffe4c1df161003c3bef8c20821"
     },
     {
       "path": "scripts/audit-ios-lock.mjs",
@@ -623,6 +631,10 @@
     {
       "path": "scripts/normalize-person-names.ts",
       "sha256": "0eb2d19e865030f5203d7ffdd4e3f5be3555212acc9acbe21a8ac5073ffcd90a"
+    },
+    {
+      "path": "scripts/prepare-store-review.mjs",
+      "sha256": "cb616d076be6644e16326964fe70e8242039e0e4591c8e671b114ddee988de5f"
     },
     {
       "path": "scripts/refresh-ios-source-lock.mjs",
@@ -674,7 +686,7 @@
     },
     {
       "path": "scripts/test-android-shell.ts",
-      "sha256": "77682862ddf6f3ad9cae14f2f3cb348090f3c0e1540fa5d6cd31c6b02536e717"
+      "sha256": "678f0aa8f6e2c870ef53329ecaf4c700c3ba0881609dd29b83d44a898b240073"
     },
     {
       "path": "scripts/test-api-postgres-integration.ts",
@@ -722,7 +734,7 @@
     },
     {
       "path": "scripts/test-ios-auth-ui.mjs",
-      "sha256": "7073eafcaf9f19b1914b89d9517a02f029155c72f6638c08495eff2ffa5ebf26"
+      "sha256": "96904ac08826e9adaee02ddd96471c238ce537660e3e8b5a6b49155d7a65ac6a"
     },
     {
       "path": "scripts/test-ios-build-portability.mjs",
@@ -734,7 +746,7 @@
     },
     {
       "path": "scripts/test-ios-license-ui.mjs",
-      "sha256": "001909ca8c261937d359a68a8b8007cdd2d04c4441467cf27d399f2d448b2065"
+      "sha256": "04e0a10d68bb37d1365cd5ad1bf3c175929b42d873ef2b3efd97473622a832ad"
     },
     {
       "path": "scripts/test-ios-login-policy.ts",
@@ -949,6 +961,14 @@
       "sha256": "94956253255aad0c90bc151bb51ed95a5845d554bd2bc7ee33094cacaa919ef5"
     },
     {
+      "path": "scripts/test-store-review-config.mjs",
+      "sha256": "27121ab1b14cee32e7a4649976c2952b25a38c5ed8d97f474520560084c3cbc8"
+    },
+    {
+      "path": "scripts/test-store-review-login.mjs",
+      "sha256": "4a462799078175f4a622477ffc48ff9c350ddab8f6383d6743bd42def522e3c5"
+    },
+    {
       "path": "scripts/test-student-class-management.ts",
       "sha256": "f3b9b7299e25a19d4758e8d35a265a087ceecb14df8622d4f01c3f342cd933cd"
     },
@@ -1014,7 +1034,7 @@
     },
     {
       "path": "scripts/verify-ios-license-sync.mjs",
-      "sha256": "0aef233aabfb5e60785ad160fb5005a60f262b33a1b7b7787c5c6caf5069331c"
+      "sha256": "5a0fcc701621aa5f19b1acc9ce5113028dddabdf0481e01f9198ed9faa5ae617"
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",
@@ -1027,6 +1047,10 @@
     {
       "path": "scripts/verify-ios-web-package.mjs",
       "sha256": "4fbaf3951f7b58883a9c4df552f959911e705deeff37a9acdc7392e7569caef8"
+    },
+    {
+      "path": "scripts/verify-store-review-package.mjs",
+      "sha256": "2df9f82945a50842d269a4ef4f414245c1c6b5fc4f309682ac78aa13c30acd9e"
     },
     {
       "path": "scripts/verify-supabase-postgres.ts",
