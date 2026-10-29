@@ -32,6 +32,7 @@ workflows:
         script: |
           set -euo pipefail
           node scripts/verify-ios-source-lock.mjs
+          node scripts/test-ios-source-lock.mjs
       - name: Build production artifacts locally (no deploy)
         script: |
           set -euo pipefail
@@ -131,6 +132,7 @@ workflows:
         script: |
           set -euo pipefail
           node scripts/verify-ios-source-lock.mjs
+          node scripts/test-ios-source-lock.mjs
       - name: Build production artifacts locally (no deploy)
         script: |
           set -euo pipefail
@@ -256,6 +258,7 @@ workflows:
         script: |
           set -euo pipefail
           node scripts/verify-ios-source-lock.mjs
+          node scripts/test-ios-source-lock.mjs
       - name: Build production artifacts locally (no deploy)
         script: |
           set -euo pipefail
