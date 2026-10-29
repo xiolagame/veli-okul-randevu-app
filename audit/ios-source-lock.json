@@ -18,7 +18,7 @@
     },
     {
       "path": ".emergent/cron/webhook-crons",
-      "sha256": "3316ba2b83cc1326f2af9988f35f498989ff8412bac6691fec4f28f42df905c7"
+      "sha256": "e343effd30a8ae85b4a3f564e5f340683a1a27ac6b596f4c963a6ff19bd10699"
     },
     {
       "path": ".emergent/cron/webhook_crond.sh",
@@ -38,7 +38,7 @@
     },
     {
       "path": ".gitattributes",
-      "sha256": "1d44113ab39361cab18439291c43b5386d161b3693ad0e592f96f2b0b40a3bf1"
+      "sha256": "61f8fdfb5a186b4ce2bdd560d2d230832fc7dd9a30b9b95380dc6b0479553966"
     },
     {
       "path": ".gitconfig",

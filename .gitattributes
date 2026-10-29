@@ -10,6 +10,7 @@
 /*.html text eol=lf
 /.gitignore text eol=lf
 /.node-version text eol=lf
+/.emergent/cron/webhook-crons text eol=lf
 *.png binary
 *.jpg binary
 *.jpeg binary
