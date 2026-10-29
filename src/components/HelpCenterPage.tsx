@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { getHelpGuide, helpCategories } from '../content/help-content';
 import { getHelpSlug, HELP_PATH } from '../utils/public-request-route';
-import { Brand, Button } from './ui';
+import { Button } from './ui';
 import { HelpGuidePage } from './HelpGuidePage';
 
 interface HelpCenterPageProps {
@@ -36,8 +36,7 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
   return <main className="help-page">
     <div className="help-page-shell">
       <header className="help-page-header">
-        <Brand />
-        <Button variant="quiet" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
+        <Button variant="quiet" className="public-page-back" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
       </header>
       {slug && guide
         ? <HelpGuidePage guide={guide} onBack={onGuideBack} />

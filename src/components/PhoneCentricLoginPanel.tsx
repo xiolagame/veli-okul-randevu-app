@@ -151,13 +151,10 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     }
   };
 
-  return <div className="form-stack" aria-labelledby="phone-centric-heading">
+  return <div className="form-stack phone-centric-login" aria-labelledby="auth-heading" aria-describedby="phone-centric-description">
     <div className="whatsapp-auth-heading">
       <span className="whatsapp-login-logo"><img src="/whatsapp-login-icon.png" alt="" aria-hidden="true" /></span>
-      <div>
-        <h3 id="phone-centric-heading">Telefon Numaranızla Giriş Yapın</h3>
-        <p>Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>
-      </div>
+      <p id="phone-centric-description">Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>
     </div>
     {error && <Alert tone="danger">{error}</Alert>}
     {message && <Alert tone={step === 'WHATSAPP_CODE' ? 'info' : 'success'}>{message}</Alert>}

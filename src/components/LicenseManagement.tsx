@@ -1,3 +1,4 @@
+import { LicenseWhatsAppPanel } from './LicenseWhatsAppPanel';
 import React, { useEffect, useRef, useState } from 'react';
 import { CalendarClock, CheckCircle2, Clock, Search, School, PauseCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
@@ -8,6 +9,7 @@ import { formatDateTime } from '../utils/dates';
 
 const displayTime = (value: string | null) => value ? formatDateTime(value) : '—';
 export function LicenseManagement() {
+  const [whatsappSchool,setWhatsappSchool]=useState<string|null>(null);
   const [filters, setFilters] = useState({ q:'', status:'', threshold:30, sort:'priority', problems:false, page:0 });
   const [search, setSearch] = useState('');
   const [data, setData] = useState<LicensePage | null>(null);
@@ -48,10 +50,11 @@ export function LicenseManagement() {
   const patch = (value: Partial<typeof filters>) => setFilters(previous=>({...previous,...value,page:0}));
   const badge = (license: PlatformLicense) => <span className={`license-badge license-${license.viewStatus}`}>{licenseStatusLabels[license.viewStatus]}</span>;
   const remaining = (license: PlatformLicense) => !license.licenseId?'—':license.expired?'Süre doldu':license.remainingDays===null?'Süresiz':`${license.remainingDays} gün`;
-  const actions = (license: PlatformLicense) => license.licenseId ? <div className="license-actions"><Button variant="secondary" onClick={()=>open(license,'expiry')}>Lisansı Düzenle</Button>
+  const actions = (license: PlatformLicense) => license.licenseId ? <div className="license-actions"><Button variant="quiet" onClick={()=>{setSelected(null);setWhatsappSchool(license.schoolId);}}>WhatsApp Hatırlatmaları</Button><Button variant="secondary" onClick={()=>open(license,'expiry')}>Lisansı Düzenle</Button>
     {license.status==='active' && <Button variant="quiet" onClick={()=>open(license,'suspend')}>Durdur</Button>}
     {license.status==='suspended' && <Button variant="quiet" onClick={()=>open(license,'resume')}>Yeniden Etkinleştir</Button>}</div> : <span className="text-sm">Legacy erişim korunuyor</span>;
   return <section className="license-management" aria-label="Lisans Yönetimi">
+    {whatsappSchool&&<LicenseWhatsAppPanel key={whatsappSchool} schoolId={whatsappSchool} onClose={()=>setWhatsappSchool(null)}/>}
     <header className="section-heading"><div><p className="eyebrow">PLATFORM / LİSANSLAR</p><h2>Lisans Yönetimi</h2><p>Okulların lisans sürelerini izleyin ve erişim durumlarını güvenle yönetin.</p></div></header>
     {success && <Alert tone="success">{success}</Alert>}
     {error && <Alert tone="danger">{error}<Button variant="quiet" onClick={()=>setReload(value=>value+1)}>Tekrar dene</Button></Alert>}

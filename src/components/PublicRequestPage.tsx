@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft, BadgeHelp } from 'lucide-react';
 import { getPublicRequestPreset } from '../utils/public-request-route';
-import { Brand, Button } from './ui';
+import { Button } from './ui';
 import { PublicRequestSection } from './PublicRequestSection';
 
 export function PublicRequestPage({ onBack, backLabel = 'Giriş ekranına dön' }: { onBack: () => void; backLabel?: string }) {
@@ -10,8 +10,7 @@ export function PublicRequestPage({ onBack, backLabel = 'Giriş ekranına dön' 
   return <main className="public-request-page">
     <div className="public-request-page-shell">
       <header className="public-request-page-header">
-        <Brand />
-          <Button variant="quiet" onClick={onBack}><ArrowLeft size={18} />{backLabel}</Button>
+        <Button variant="quiet" className="public-page-back" onClick={onBack}><ArrowLeft size={18} />{backLabel}</Button>
       </header>
       <section className="public-request-page-card" aria-labelledby="public-request-page-title">
         <div className="public-request-page-copy">

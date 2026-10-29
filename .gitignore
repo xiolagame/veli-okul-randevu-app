@@ -109,3 +109,7 @@ ios/App/App/GoogleService-Info.plist
 !/audit/ios-source-lock.json
 *.ipa
 *.pfx
+
+!/audit/license-reminder-overlay.json
+/previews/
+/*-final.log

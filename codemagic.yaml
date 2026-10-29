@@ -45,7 +45,8 @@ workflows:
           npm run lint
           node scripts/run-ios-regressions.mjs --ci
           node scripts/verify-ios-web-package.mjs
-          node scripts/verify-ios-provenance.mjs
+          node scripts/verify-ios-provenance.mjs --archived-baseline-only
+          node scripts/test-ios-license-client.mjs
       - name: Verify Capacitor sync preserved native project settings
         script: |
           set -euo pipefail
@@ -153,7 +154,8 @@ workflows:
           npm run lint
           node scripts/run-ios-regressions.mjs --ci
           node scripts/verify-ios-web-package.mjs
-          node scripts/verify-ios-provenance.mjs
+          node scripts/verify-ios-provenance.mjs --archived-baseline-only
+          node scripts/test-ios-license-client.mjs
       - name: Verify Capacitor sync preserved native project settings
         script: |
           set -euo pipefail
@@ -276,7 +278,8 @@ workflows:
           npm run lint
           node scripts/run-ios-regressions.mjs --ci
           node scripts/verify-ios-web-package.mjs
-          node scripts/verify-ios-provenance.mjs
+          node scripts/verify-ios-provenance.mjs --archived-baseline-only
+          node scripts/test-ios-license-client.mjs
       - name: Verify Capacitor sync preserved native project settings
         script: |
           set -euo pipefail

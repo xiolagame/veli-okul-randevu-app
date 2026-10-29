@@ -81,6 +81,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getLicenseWhatsApp: (schoolId:string,page=0) => request<import('../types/license-reminders').LicenseReminderOverview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp?page=${page}`),
+  previewLicenseWhatsApp: (schoolId:string) => request<import('../types/license-reminders').LicenseReminderPreview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/preview`,{method:'POST',body:'{}'}),
+  confirmLicenseWhatsApp: (schoolId:string,operationId:string) => request<{operationId:string;status:string;workerAccepted:boolean}>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/confirm`,{method:'POST',body:JSON.stringify({operationId,confirmed:true})}),
+  getLicenseWhatsAppPreference: (schoolId:string) => request<{enabled:boolean;canEnable:boolean;needsReconfirmation?:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`),
+  setLicenseWhatsAppPreference: (schoolId:string,enabled:boolean) => request<{enabled:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`,{method:'PUT',body:JSON.stringify({enabled})}),
   registerPushDevice: (data: { installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string; registrationGeneration?: number }) =>
     request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
   deactivatePushDevice: (installationId: string, registrationGeneration?: number) =>
