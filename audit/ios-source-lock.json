@@ -382,7 +382,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "84ed9af9e12e2f8a96190bb8856f665a859d51f948fcd8167b4de01c2278ee95"
+      "sha256": "6d68688d9c6e72e287abc15bc49a063fb6ff0d14b21f1b62d56f33495fab9ef1"
     },
     {
       "path": "ios/.gitignore",
@@ -438,7 +438,7 @@
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
-      "sha256": "87a42e842164d75f39cca56a2cf743652f4d8e858f2eba12ae21a8ddcd9a21c6"
+      "sha256": "af6359ed660312bada6e2e0be5c90157ad68a37e50cdff544a05ecde6799079d"
     },
     {
       "path": "ios/App/App/Base.lproj/Main.storyboard",
@@ -446,7 +446,7 @@
     },
     {
       "path": "ios/App/App/Info.plist",
-      "sha256": "f41926edc0404400709ee18cc711d1f6e6f266218c91804643c5d13f8e77acc8"
+      "sha256": "5a1f3e295675252b51c8c09cd6bb28a5617c9329a8b89f73ad9f31cbd914aa38"
     },
     {
       "path": "ios/App/App/PrivacyInfo.xcprivacy",
@@ -966,7 +966,7 @@
     },
     {
       "path": "scripts/test-store-review-login.mjs",
-      "sha256": "4a462799078175f4a622477ffc48ff9c350ddab8f6383d6743bd42def522e3c5"
+      "sha256": "de84eefb81e3f8cf9fef9e93275645f9f9c885a495b191740720f9a35a7eda3c"
     },
     {
       "path": "scripts/test-student-class-management.ts",
@@ -994,7 +994,7 @@
     },
     {
       "path": "scripts/test-theme-bootstrap.mjs",
-      "sha256": "84f5ba6fc273b659c6f25dae0a996000385be92402ddcfb5aa1863fdf428a4d1"
+      "sha256": "a8b96f555e5129aa6b56b5ec97d980a8e96bd0f7617263a34bad7543a4f76215"
     },
     {
       "path": "scripts/test-theme-ui.mjs",
@@ -1038,7 +1038,7 @@
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",
-      "sha256": "6718baac11dc322c6808f5deba7e0d01a238e5a231481cbd248faf6c6995ef4a"
+      "sha256": "944f934d5d56ad4502b8e5abbdb7914fa23bbeabc9cea3b888b727d010cbeeb3"
     },
     {
       "path": "scripts/verify-ios-source-lock.mjs",
@@ -1530,7 +1530,7 @@
     },
     {
       "path": "src/main.tsx",
-      "sha256": "221b183361d9934716cd86c63aaa3765cad7356f7a0dd5997893d3275df27e06"
+      "sha256": "e1de696a274b4228de43fd144776bd0244839658ac7344a7cbaa4336636ca7aa"
     },
     {
       "path": "src/platform/android-camera-permission.ts",
@@ -1666,7 +1666,7 @@
     },
     {
       "path": "src/platform/theme.ts",
-      "sha256": "239944119465c668b7a5fb0bb821404f1c85f831856355358067ec68e46edae5"
+      "sha256": "ec3acee2aed807d45db351745a218481438d47f149400daf070d362439f8bb3a"
     },
     {
       "path": "src/services/api.ts",

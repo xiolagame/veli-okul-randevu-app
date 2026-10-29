@@ -13,6 +13,8 @@ allowed.add('index.html');
 allowed.add('src/components/ui.tsx');
 allowed.add('scripts/test-android-shell.ts');
 allowed.add('src/components/DeleteAccountDialog.tsx');
+// Reviewed iOS-only light launch background; Splash image/layout remain unchanged.
+allowed.add('ios/App/App/Base.lproj/LaunchScreen.storyboard');
 const changes=[],unchanged=[],normalized=[];
 for(const file of manifest.files) {
   // Local source access is optional on CI. The archived manifest remains mandatory.

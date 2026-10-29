@@ -7,8 +7,11 @@ import { getRuntimePlatform } from './platform/runtime-platform';
 import './index.css';
 import './theme.css';
 import {ReviewBanner} from './components/ReviewBanner';
+import {initializeIosThemeChrome} from './platform/theme';
 
 if (getRuntimePlatform() !== 'WEB') document.documentElement.dataset.runtimePlatform = getRuntimePlatform().toLowerCase();
+const disposeIosThemeChrome = initializeIosThemeChrome();
+if (import.meta.hot) import.meta.hot.dispose(disposeIosThemeChrome);
 
 const disposeNativeNavigationIntents = subscribeToNativeNavigationIntents();
 if (import.meta.hot) import.meta.hot.dispose(disposeNativeNavigationIntents);
