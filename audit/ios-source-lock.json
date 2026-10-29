@@ -50,11 +50,15 @@
     },
     {
       "path": ".node-version",
-      "sha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53"
+      "sha256": "98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9"
     },
     {
       "path": "IOS-FINAL-20261029.md",
       "sha256": "ccd9266427c83c593420fa052a0e7f15a8353e803624187a85f8a17fe952e2cc"
+    },
+    {
+      "path": "IOS-V8-FIX-20261029.md",
+      "sha256": "d772f32c8c8715790a3d094bcb7970bbadedbaefb0d4fab86fa7823290044048"
     },
     {
       "path": "README.md",
@@ -322,7 +326,7 @@
     },
     {
       "path": "codemagic.yaml",
-      "sha256": "e45f8a37b889e5f9f43b0209497acec1a18963775c3ecaf4addcb0687852f472"
+      "sha256": "e1b4aceca868e0770a30a52d68a8b5956177f853cfc0c2c77d14dfc6338dff53"
     },
     {
       "path": "design_guidelines.json",
@@ -594,7 +598,7 @@
     },
     {
       "path": "scripts/run-ios-regressions.mjs",
-      "sha256": "9199152fe7ed6e7260eead41983089171ae5417a7dbcd47dc5a2cc3f62b6cd33"
+      "sha256": "eb75810aaa1aa740c0cc2e726d9ec247bb905d07f4c5a46278c882270b10d49e"
     },
     {
       "path": "scripts/sanitize-fcm-ios-logs.mjs",
@@ -930,7 +934,7 @@
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",
-      "sha256": "f9162d49300faef60d3468891828e98e9d1bafdf9cdfa6b77159fd0e57c2f5b7"
+      "sha256": "78e18d0c5073fd3265d7308df8500b1249db94f21c854e2a27442ffb7de0c985"
     },
     {
       "path": "scripts/verify-ios-source-lock.mjs",

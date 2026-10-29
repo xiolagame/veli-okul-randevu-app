@@ -7,6 +7,8 @@ import { contentHash } from './ios-artifact-policy.mjs';
 const sha=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const manifest=JSON.parse(fs.readFileSync('audit/production-source-manifest.json','utf8'));
 const allowed=new Set(['src/components/HelpCenterPage.tsx','src/components/PublicRequestPage.tsx','src/components/LicenseManagement.tsx','src/components/Navbar.tsx','src/services/api.ts','src/platform/api-session-policy.ts','.gitignore','ios/App/App/Info.plist','scripts/test-ios-shell.ts','src/components/PhoneCentricLoginPanel.tsx','scripts/test-record-entry-center-ui.mjs','scripts/test-student-management-ui.mjs','capacitor.config.ts','codemagic.yaml','package.json','package-lock.json','src/components/AuthView.tsx','src/context/AppContext.tsx','src/index.css','src/main.tsx','scripts/test-whatsapp-login-ui.ts','scripts/test-push-notifications.ts','scripts/test-school-roster-ui.ts','scripts/test-appointment-slot-visibility.ts','scripts/test-account-deletion.ts','scripts/test-teacher-appointment-ownership.ts','scripts/test-roster-import-jobs.ts','scripts/test-admin-operations-ui.mjs','scripts/build-ios-client.mjs']);
+// Reviewed CI runtime pin; production application behavior is unchanged.
+allowed.add('.node-version');
 const changes=[],unchanged=[],normalized=[];
 for(const file of manifest.files) {
   // Local source access is optional on CI. The archived manifest remains mandatory.

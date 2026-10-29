@@ -19,6 +19,7 @@ workflows:
           set -euo pipefail
           node --version
           npm --version
+          node -p '"V8 " + process.versions.v8 + " / " + process.platform + " " + process.arch'
           xcodebuild -version
           swift --version
           bash scripts/verify-apple-toolchain.sh
@@ -117,6 +118,7 @@ workflows:
           set -euo pipefail
           node --version
           npm --version
+          node -p '"V8 " + process.versions.v8 + " / " + process.platform + " " + process.arch'
           xcodebuild -version
           swift --version
           bash scripts/verify-apple-toolchain.sh
@@ -241,6 +243,7 @@ workflows:
           set -euo pipefail
           node --version
           npm --version
+          node -p '"V8 " + process.versions.v8 + " / " + process.platform + " " + process.arch'
           xcodebuild -version
           swift --version
           bash scripts/verify-apple-toolchain.sh

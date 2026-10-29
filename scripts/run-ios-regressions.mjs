@@ -11,6 +11,7 @@ const pure=['test-ios-roster-edge-cases.ts','test-security-camera-lifecycle.ts',
 const database=['test-ios-role-api-matrix.ts','test-push-notifications.ts','test-appointment-slot-visibility.ts','test-school-roster-ui.ts','test-security-and-tenant-audit.ts','test-identity-auth-attempts.ts','test-account-deletion.ts','test-roster-import-jobs.ts','test-teacher-appointment-ownership.ts'];
 const selected=process.argv.includes('--only')?[process.argv[process.argv.indexOf('--only')+1]]:[...pure,...database,'test-ios-release-safety.mjs'];
 const results=[];
+console.log(JSON.stringify({node:process.version,v8:process.versions.v8,platform:process.platform,arch:process.arch,execution:'sequential isolated child processes'}));
 for(const name of selected) {
   if(![...pure,...database,'test-ios-release-safety.mjs'].includes(name)) throw new Error('Unknown test');
   let cwd=root;
@@ -23,10 +24,13 @@ for(const name of selected) {
     for(const file of ['capacitor.config.ts','codemagic.yaml','package.json']) fs.copyFileSync(path.join(root,file),path.join(cwd,file));
   }
   const started=Date.now();
-  const result=spawnSync(process.execPath,['--import',pathToFileURL(path.join(root,'node_modules/tsx/dist/loader.mjs')).href,path.join(root,'scripts',name)],{cwd,env,encoding:'utf8',timeout:240000});
+  // Node 24/V8 can abort while reclaiming Wasm JIT code. Keep Wasm code
+  // alive only for each short-lived, isolated PGlite process. JS GC stays on.
+  const runtimeArgs=database.includes(name)?['--no-wasm-code-gc']:[];
+  const result=spawnSync(process.execPath,[...runtimeArgs,'--import',pathToFileURL(path.join(root,'node_modules/tsx/dist/loader.mjs')).href,path.join(root,'scripts',name)],{cwd,env,encoding:'utf8',timeout:240000,maxBuffer:16*1024*1024});
   if(fs.existsSync(path.join(cwd,'role-api-results.json')))fs.copyFileSync(path.join(cwd,'role-api-results.json'),path.join(root,'audit/phase3a/role-api-results.json'));
   process.stdout.write(result.stdout||'');process.stderr.write(result.stderr||'');
-  results.push({test:name,status:result.status===0?'PASS':'FAIL',exitCode:result.status,error:result.error?.code,durationMs:Date.now()-started});
+  results.push({test:name,status:result.status===0&&!result.error&&!result.signal?'PASS':'FAIL',exitCode:result.status,signal:result.signal,error:result.error?.code,node:process.version,v8:process.versions.v8,runtimeArgs,durationMs:Date.now()-started});
   fs.writeFileSync(path.join(root,'audit/test-results.json'),JSON.stringify(results,null,2)+'\n');
 }
 fs.mkdirSync(path.join(root,'audit'),{recursive:true});
