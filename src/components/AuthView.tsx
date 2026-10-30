@@ -7,6 +7,7 @@ import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneI
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { getRuntimePlatform } from '../platform/runtime-platform';
+import { setAndroidLoginSurface } from '../platform/android-system-bars';
 import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
 import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
 import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
@@ -75,6 +76,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const authSideRef = useRef<HTMLElement>(null);
   const loginEntry = resolveLoginEntry(getRuntimePlatform(), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null);
   const usePhoneCentricLogin = loginEntry === 'phone';
+
+  useEffect(() => {
+    if (getRuntimePlatform() !== 'ANDROID') return;
+    setAndroidLoginSurface(true);
+    return () => setAndroidLoginSurface(false);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -405,7 +412,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setPasswordLoginMode(null)}>WhatsApp ile girişe dön</button>}
           </>}
           {import.meta.env?.VITE_REVIEW_API_ORIGIN&&<ReviewLogin/>}
-          <button type="button" className="auth-help-link" onClick={onOpenHelp}>Yardım, Kullanım Rehberi ve Yasal Bilgiler<ArrowRight size={16} /></button>
+          <button type="button" className="auth-help-link" onClick={onOpenHelp} aria-label="Yardım, Kullanım Rehberi ve Yasal Bilgiler"><span className="auth-help-label-full">Yardım, Kullanım Rehberi ve Yasal Bilgiler</span><span className="auth-help-label-android" aria-hidden="true">Yardım ve yasal bilgiler</span><ArrowRight size={16} aria-hidden="true" /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
             <Button variant="secondary" className="w-full" onClick={onOpenPublicRequest}>Lisans / İletişim<ArrowRight size={17} /></Button>

@@ -1,0 +1,58 @@
+/* Android only: preserve the shared web/iOS layout and approved photo/palette. */
+@media (max-width: 767px) {
+  html[data-runtime-platform="android"] .auth-form-side {
+    padding: calc(12px + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)))
+      calc(12px + max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px)))
+      calc(12px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)))
+      calc(12px + max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px)));
+  }
+  html[data-runtime-platform="android"] .auth-form-wrap {
+    min-width: 0;
+    padding: clamp(1rem, 4vw, 1.5rem);
+  }
+  html[data-runtime-platform="android"] .auth-mobile-brand { margin-bottom: 1.25rem; }
+  html[data-runtime-platform="android"] .auth-mobile-brand .brand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    font-size: clamp(1rem, 4.5vw, 1.125rem);
+    line-height: 1.3;
+  }
+  html[data-runtime-platform="android"] .auth-mobile-brand .brand-logo { width: 2rem; height: 2rem; }
+  html[data-runtime-platform="android"] .auth-mobile-brand .brand-name {
+    flex: 1 0 auto;
+    min-width: 0;
+    max-width: calc(100% - 2.5rem);
+    font-size: 1em;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  html[data-runtime-platform="android"] .auth-mobile-brand .theme-switcher { margin-left: auto; }
+  html[data-runtime-platform="android"] .auth-mobile-brand .theme-switcher button { width: 48px; min-height: 48px; }
+  html[data-runtime-platform="android"] .auth-form-wrap > h2 {
+    margin: .5rem 0 1.25rem;
+    font-size: clamp(1.15rem, 5.8vw, 1.55rem);
+    line-height: 1.3;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+  html[data-runtime-platform="android"] .phone-centric-login { gap: 1.25rem; }
+  html[data-runtime-platform="android"] .phone-centric-login form { gap: 1.125rem; }
+  html[data-runtime-platform="android"] .phone-centric-login .whatsapp-auth-heading { gap: .75rem; }
+  html[data-runtime-platform="android"] .phone-centric-login .whatsapp-auth-heading p { font-size: .8125rem; line-height: 1.55; }
+  html[data-runtime-platform="android"] .phone-centric-login .field { gap: .5rem; }
+  html[data-runtime-platform="android"] .auth-form-wrap :is(.ui-button, .auth-help-link) { min-height: 48px; }
+  html[data-runtime-platform="android"] .auth-form-wrap .auth-help-link {
+    margin-top: .5rem;
+    padding: .625rem .25rem;
+    gap: .5rem;
+    line-height: 1.5;
+  }
+  html[data-runtime-platform="android"] .auth-help-link > svg { flex-shrink: 0; }
+  html[data-runtime-platform="android"] .auth-form-wrap .public-request-cta { margin-top: .5rem; padding-top: 1rem; gap: .75rem; }
+  html[data-runtime-platform="android"] .auth-form-wrap :is(input, button) { scroll-margin-block: 1.5rem; }
+}
+.auth-help-label-android { display: none; }
+html[data-runtime-platform="android"] .auth-help-label-full { display: none; }
+html[data-runtime-platform="android"] .auth-help-label-android { display: inline; }
