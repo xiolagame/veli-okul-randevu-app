@@ -33,6 +33,8 @@ export async function createReviewService(){
   const {createToken,verifyToken}=await import('./auth');
   const identities=()=>{
     const rows=JSON.parse(reviewRegistryText()) as ReviewIdentity[];
+    const roles=['admin','teacher','parent','security'];
+    if(new Set(rows.map(x=>x.loginName||x.id)).size!==rows.length||rows.some(x=>x.loginName!==undefined&&x.loginName!==x.store+(roles.indexOf(x.id.split('-').at(-1)||'')+1)))throw Error('Invalid review login aliases');
     if(rows.length!==8||new Set(rows.map(x=>x.id)).size!==rows.length||rows.some(x=>!/^review-(apple|google)-(admin|teacher|parent|security)$/.test(x.id)||x.schoolId!=='review-'+x.store||x.userId!==x.id||!x.id.startsWith('review-'+x.store+'-')||!/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/.test(x.passwordHash)||typeof x.enabled!=='boolean'||!Number.isInteger(x.version)||x.version<1))throw Error('Invalid review registry');
     return rows;
   };

@@ -87,6 +87,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     let active = true;
     setCapabilitiesStatus('loading');
     api.getAuthCapabilities().then((result) => {
+      if (getRuntimePlatform() === 'ANDROID' && (
+        typeof result?.whatsappAuthEnabled !== 'boolean' ||
+        (result.unifiedLoginEnabled !== undefined && typeof result.unifiedLoginEnabled !== 'boolean') ||
+        (result.phoneCentricAuthEnabled !== undefined && typeof result.phoneCentricAuthEnabled !== 'boolean')
+      )) throw new Error('Invalid authentication capabilities');
       if (active) {
         setWhatsappAuthEnabled(result.whatsappAuthEnabled);
         setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);

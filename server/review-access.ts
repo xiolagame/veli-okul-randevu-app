@@ -5,7 +5,7 @@ import type { User, SchoolMembership } from '../src/types';
 
 export interface ReviewIdentity {
   id: string; store: 'apple'|'google'; schoolId: string; userId: string;
-  passwordHash: string; version: number; enabled: boolean;
+  passwordHash: string; version: number; enabled: boolean; loginName?: string;
 }
 export interface ReviewDependencies {
   identities: () => ReviewIdentity[];
@@ -23,10 +23,11 @@ export function createReviewAccess(d:ReviewDependencies) {
     try {
       const id=typeof req.body?.identity==='string'?req.body.identity.slice(0,80):'';
       const password=typeof req.body?.password==='string'?req.body.password:'';
-      const scope=crypto.createHash('sha256').update(id).digest('hex');
+      const identity=d.identities().find(x=>(x.loginName||x.id)===id&&x.enabled);
+      // Login aliases share the canonical identity's existing attempt budget.
+      const scope=crypto.createHash('sha256').update(identity?.id||id).digest('hex');
       const allowed=await d.limit('ip:'+req.ip,30) && await d.limit('id:'+scope,8);
       if(!allowed){await d.audit({action:'login',identity:scope,result:'limited'});res.status(429).json({error:'Çok fazla deneme. Lütfen bekleyin.'});return;}
-      const identity=d.identities().find(x=>x.id===id&&x.enabled);
       // Always perform a password hash comparison, including unknown identities.
       const valid=verifyPassword(password.slice(0,128),identity?.passwordHash||'scrypt$00000000000000000000000000000000$'+'0'.repeat(128));
       const user=identity&&valid&&password.length<=128?await d.user(identity.userId):null;

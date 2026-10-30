@@ -160,12 +160,12 @@ try {
       await capture(scaled.page, theme + '-insets');
       scaled.failCapabilities(true);
       await scaled.page.reload();
-      // Preserve Android's existing legacy fallback on capability failure.
-      // iOS uses a different retry contract; this visual task must not rewrite it.
-      await scaled.page.locator('#login-phone').waitFor();
+      // A failed capability request must never select a different auth protocol.
+      await scaled.page.getByRole('button', {name:'Tekrar dene',exact:true}).waitFor();
+      assert.equal(await scaled.page.locator('#login-phone, #phone-centric-phone').count(),0);
       assert.equal(await scaled.page.locator('#auth-heading').innerText(), 'Okulunuza Hoş Geldiniz');
       scaled.failCapabilities(false);
-      await scaled.page.reload();
+      await scaled.page.getByRole('button', {name:'Tekrar dene',exact:true}).click();
       await scaled.page.locator('#phone-centric-phone').waitFor();
       results.push({ name: theme + '-scaled-text-keyboard-insets-capability-refresh', status: 'PASS' });
     } finally { await scaled.context.close(); }

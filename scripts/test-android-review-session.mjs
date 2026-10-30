@@ -68,7 +68,7 @@ try{
   });
   const login=async()=>{
    await page.getByRole('button',{name:'Mağaza inceleme erişimi',exact:true}).click();
-   await page.getByLabel('İnceleme kimliği').fill(account.id);await page.getByLabel('İnceleme parolası').fill(account.password);
+   await page.getByLabel('İnceleme kimliği').fill(account.loginName||account.id);await page.getByLabel('İnceleme parolası').fill(account.password);
    await page.getByRole('button',{name:'Demo okuluna gir',exact:true}).click();
    await page.locator('.review-banner').waitFor({timeout:30000});
   };

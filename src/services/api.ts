@@ -17,13 +17,17 @@ import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../p
 import { ApiError } from '../platform/api-error';
 import { authSession } from '../platform/auth-session';
 import {isReviewToken,reviewOrigin} from '../platform/review-origin';
+import {getRuntimePlatform} from '../platform/runtime-platform';
 import { getActiveSchoolId, getPlatformTargetSchoolId } from '../platform/client-preferences';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 20_000;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const requestToken = await authSession.getToken();
+  // Android must discover production login capabilities even when a review token
+  // survived an interrupted/offline restore. Never route this public request to Oracle.
+  const publicAndroidCapabilities = endpoint === '/api/public/auth-capabilities' && getRuntimePlatform() === 'ANDROID';
+  const requestToken = publicAndroidCapabilities ? null : await authSession.getToken();
   const authenticatedRequestToken = isReviewToken(requestToken)||isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
   const currentSchoolId = getActiveSchoolId();
   const platformTargetSchoolId = getPlatformTargetSchoolId();

@@ -373,12 +373,20 @@
       "sha256": "8c95766543e4560de97c6ac4797516c5ab369caa4036fbf09ddfe7910cab5572"
     },
     {
+      "path": "docs/ANDROID-STARTUP-REVIEW-ALIASES-20261030.md",
+      "sha256": "36e15d92ab4151d647db4ad1221170fbff66c84b47aaec93a255913cad8d585f"
+    },
+    {
       "path": "docs/REVIEW-DEMO-THEME-SETUP.md",
       "sha256": "4d364265e57aa0ea7c39dea119f39379dba3c604ca9a14dd5b9560e16e3d245d"
     },
     {
       "path": "docs/STORE-REVIEW-BUILD.md",
       "sha256": "532f690fca4696af9149d122756d843399b312b5f2d668dfd633203af0b1c056"
+    },
+    {
+      "path": "docs/STORE-REVIEW-LOGIN-NOTES-20261030.md",
+      "sha256": "0e303dbd5ba06920ef3cb2a70f35b95f2a569604772f3202e196acba5927467f"
     },
     {
       "path": "docs/SUPABASE_BACKUP_DISASTER_RECOVERY.md",
@@ -697,16 +705,20 @@
       "sha256": "5c6016803e0738260b8dc4b0111405f8df124c881b69fefbd3b8abb82723b4a8"
     },
     {
+      "path": "scripts/test-android-auth-startup.mjs",
+      "sha256": "c26f3be5a9ecbef4aaf70d0e8e840a34edb85a7c8b46ad7ec9286e40c1923954"
+    },
+    {
       "path": "scripts/test-android-demo-push-safety.ts",
       "sha256": "aed6db6000a19d2955b7775412bd93a8701e7f6b53fdc517f66841f60acf5c84"
     },
     {
       "path": "scripts/test-android-login-polish.mjs",
-      "sha256": "2816bcb53d9a2fb58d3d52b38a9a9360b86c2c97b713ba30f2f0cfb57beb2e93"
+      "sha256": "243394c5242b643fabd141b732831dc966416f1d653ede8344c13d0a8707290f"
     },
     {
       "path": "scripts/test-android-review-session.mjs",
-      "sha256": "81b3776210bd9c0c3257cc91bf0171a1995da21d912d2eff5c4079eec8ee6abb"
+      "sha256": "8362e97451961eb24d6220467db7f03c0cc71e507c4ea1da4b3794bfc4dc899e"
     },
     {
       "path": "scripts/test-android-shell.ts",
@@ -774,7 +786,7 @@
     },
     {
       "path": "scripts/test-ios-login-policy.ts",
-      "sha256": "62eaf88ac6faabe73f7d5ce48abf69342e7c0b11cef9ac93b47585f3ff3f6073"
+      "sha256": "dd6898ab3039e09055ab834c1a8fb46f58e1e3900d2422d3a5b5ceac801d3caa"
     },
     {
       "path": "scripts/test-ios-push.ts",
@@ -925,12 +937,16 @@
       "sha256": "47a2026c3940cb92f8e808f5965230327a872ae6b449a7563fb9cddbb6e56c99"
     },
     {
+      "path": "scripts/test-review-aliases.ts",
+      "sha256": "21a522731528d1b37e9a1dc40ff54598e1aa253fef49ada4d24e0805d18825e5"
+    },
+    {
       "path": "scripts/test-review-boundaries.mjs",
       "sha256": "1a632e610a85bdfe09a53a0ffd3d3dc0ffb59f8044e3b3b0bb3dba43a552140f"
     },
     {
       "path": "scripts/test-review-client.mjs",
-      "sha256": "ceabaf1abe1a2a1cc661d067afbb8e1e345ad6826d0b40a8f4cd01f923b998b2"
+      "sha256": "ae32932d53240528e3ee0e59913920db49b2fa05304d85350da1fab7c2177e92"
     },
     {
       "path": "scripts/test-review-integration.ts",
@@ -1298,7 +1314,7 @@
     },
     {
       "path": "server/review-access.ts",
-      "sha256": "f8390c374281ab9b860306f048c2b715237dbd4e9dc47a9b05276e86a0b1366f"
+      "sha256": "c616fcbf2e800257ac72d8c86f0dcbe38fb1c5bf066debae44fbbfd34563b82d"
     },
     {
       "path": "server/review-audit.ts",
@@ -1322,7 +1338,7 @@
     },
     {
       "path": "server/review-service.ts",
-      "sha256": "97e622058172b3507e730b328fddda150d3431d133437842709531e97bea5b0b"
+      "sha256": "5908fce662b94a385f7e1787aa682fa5a77473b01f3b57c73a989d2cd9d7d56b"
     },
     {
       "path": "server/review-settings.ts",
@@ -1382,7 +1398,7 @@
     },
     {
       "path": "src/components/AuthView.tsx",
-      "sha256": "901822c99b28090c6ccdedc8d7db76ef9af9f0ae4cc76c548ea7a79aacd30ad6"
+      "sha256": "a6c174602f4d6ac4e4d34a40399889588871f4eb38aaa3f4726415ffb66f9567"
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
@@ -1626,7 +1642,7 @@
     },
     {
       "path": "src/platform/login-capability-policy.ts",
-      "sha256": "196904db73c4c4618814a84a6e6ac8b7e8e5728a9502591d4c6d6349f98e4868"
+      "sha256": "d729c3b11d131a46195743abd9db322e402bc18e5314156185c59e8d23396e9e"
     },
     {
       "path": "src/platform/login-flow.ts",
@@ -1702,7 +1718,7 @@
     },
     {
       "path": "src/services/api.ts",
-      "sha256": "22aaa859fef362ab4e0e262fe92d6737bfff7833aa1585ef25b60e165c721564"
+      "sha256": "03342d6da50b1184be5de51eea20461a8155478857d8aba9fffb21ef85738ca4"
     },
     {
       "path": "src/theme.css",
