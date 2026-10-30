@@ -13,6 +13,10 @@ allowed.add('index.html');
 allowed.add('src/components/ui.tsx');
 allowed.add('scripts/test-android-shell.ts');
 allowed.add('src/components/DeleteAccountDialog.tsx');
+// Reviewed Android-only Firebase availability guard; no iOS/provider configuration change.
+allowed.add('src/platform/android-notification-settings.ts');
+allowed.add('src/platform/android-push.ts');
+allowed.add('android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java');
 const changes=[],unchanged=[],normalized=[];
 for(const file of manifest.files) {
   // Local source access is optional on CI. The archived manifest remains mandatory.

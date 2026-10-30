@@ -71,6 +71,11 @@ export class AndroidPushManager {
     this.userId = userId;
     this.onForeground = onForeground;
     this.onStatus = onStatus;
+    if (userId.startsWith('review-')) {
+      this.onForeground = null;
+      this.emitStatus('unavailable');
+      return;
+    }
     if (this.starting) return this.starting;
     this.starting = this.attachListeners();
     try { await this.starting; } catch {
@@ -87,7 +92,7 @@ export class AndroidPushManager {
     if (this.handles.length) return;
     this.handles.push(await this.native.addListener('registration', ({ value }) => {
       const owner = this.userId;
-      if (!owner || this.closing) return;
+      if (!owner || owner.startsWith('review-') || this.closing) return;
       this.backendRegistered = false;
       const registration = this.deviceApi.registerPushDevice({ installationId: this.getInstallationId(), platform: 'ANDROID', provider: 'FCM',
         targetKind: 'REGISTRATION_TOKEN', providerTarget: value, appId: 'com.velirandevu.app' })
@@ -163,12 +168,21 @@ export class AndroidPushManager {
     this.onStatus?.(status);
   }
 
+  private async canCallFirebase(): Promise<boolean> {
+    if (this.userId?.startsWith('review-')) return false;
+    try {
+      const { configured } = await this.notificationSettings.getPushAvailability();
+      return configured === true && !this.userId?.startsWith('review-');
+    }
+    catch { return false; } // Older/missing host plugin: fail closed, never call Firebase.
+  }
+
   private async register(): Promise<void> {
     if (this.nativeRegistration) return this.nativeRegistration;
     this.nativeRegistration = (async () => {
       await this.native.createChannel({ id: CHANNEL_ID, name: 'Randevu bildirimleri',
         description: 'Randevu talebi ve sonuç bildirimleri', importance: 4, visibility: 1 });
-      if (!this.closing) await this.native.register();
+      if (!this.closing && await this.canCallFirebase()) await this.native.register();
     })();
     try { await this.nativeRegistration; } finally { this.nativeRegistration = null; }
   }
@@ -178,11 +192,12 @@ export class AndroidPushManager {
     this.backendRegistered = false;
     this.emitStatus(status);
     await this.deviceApi.deactivatePushDevice(this.getInstallationId()).catch(() => {});
-    await this.native.unregister().catch(() => {});
+    if (await this.canCallFirebase()) await this.native.unregister().catch(() => {});
   }
 
   async refreshPermission(): Promise<void> {
     if (!this.userId || this.closing || this.runtimePlatform() !== 'ANDROID') return;
+    if (!await this.canCallFirebase()) { this.emitStatus('unavailable'); return; }
     try {
       const permission = await this.native.checkPermissions();
       if (permission.receive !== 'granted') {
@@ -207,6 +222,7 @@ export class AndroidPushManager {
 
   async enable(): Promise<PushStatus> {
     if (!this.userId || this.runtimePlatform() !== 'ANDROID') return 'unavailable';
+    if (!await this.canCallFirebase()) { this.emitStatus('unavailable'); return 'unavailable'; }
     try {
       const permission = await this.native.requestPermissions();
       if (permission.receive !== 'granted') {
@@ -237,6 +253,7 @@ export class AndroidPushManager {
   async beforeLogout(): Promise<void> {
     if (this.sessionCleanup) return this.sessionCleanup;
     if (!this.userId || this.runtimePlatform() !== 'ANDROID') return;
+    if (this.userId.startsWith('review-')) { await this.clearAuthenticatedRuntime(); return; }
     const cleanup = (async () => {
       this.closing = true;
       if (this.starting) await this.starting.catch(() => {});
@@ -245,7 +262,7 @@ export class AndroidPushManager {
       let backendDeactivated = false;
       let nativeUnregistered = false;
       try { await this.deviceApi.deactivatePushDevice(this.getInstallationId()); backendDeactivated = true; } catch {}
-      try { await this.native.unregister(); nativeUnregistered = true; } catch {}
+      if (await this.canCallFirebase()) try { await this.native.unregister(); nativeUnregistered = true; } catch {}
       if (!backendDeactivated && !nativeUnregistered) {
         this.closing = false;
         throw new Error('Push device could not be unregistered');
@@ -260,12 +277,13 @@ export class AndroidPushManager {
   async afterSessionInvalidated(): Promise<void> {
     if (this.sessionCleanup) return this.sessionCleanup;
     if (!this.userId || this.runtimePlatform() !== 'ANDROID') return;
+    if (this.userId.startsWith('review-')) { await this.clearAuthenticatedRuntime(); return; }
     const cleanup = (async () => {
       this.closing = true;
       if (this.starting) await this.starting.catch(() => {});
       if (this.nativeRegistration) await this.nativeRegistration.catch(() => {});
       await Promise.all(this.registrations);
-      await this.native.unregister().catch(() => {});
+      if (await this.canCallFirebase()) await this.native.unregister().catch(() => {});
       await this.native.removeAllDeliveredNotifications().catch(() => {});
       await this.clearAuthenticatedRuntime();
     })();

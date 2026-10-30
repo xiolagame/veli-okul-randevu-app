@@ -14,6 +14,22 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class NotificationSettingsPlugin extends Plugin {
 
     @PluginMethod
+    public void getPushAvailability(PluginCall call) {
+        boolean configured = false;
+        try {
+            // Inspect the existing default app; never initialize Firebase or add credentials.
+            // Reflection keeps Firebase an optional runtime dependency of this host plugin.
+            Class.forName("com.google.firebase.FirebaseApp").getMethod("getInstance").invoke(null);
+            configured = true;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            // Missing/uninitialized Firebase must be a recoverable feature state.
+        }
+        JSObject result = new JSObject();
+        result.put("configured", configured);
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void areNotificationsEnabled(PluginCall call) {
         boolean enabled = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
         JSObject result = new JSObject();

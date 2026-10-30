@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "branch": "feature/review-demo-theme-20261029",
+  "branch": "feature/android-login-polish-20261030",
   "baseline": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "hashMode": "UTF-8 text LF normalized; binary exact; lock itself excluded",
   "files": [
@@ -93,16 +93,20 @@
       "sha256": "e1754b2518aa4beec761d8362d4c12b93c5ce644bc4ee0eaf4975d8b0e5fdb9d"
     },
     {
+      "path": "android/app/src/main/java/com/velirandevu/app/AndroidSystemBarsPlugin.java",
+      "sha256": "5ad85e63d2c3065367304b03e2092da62f2e2e94c3cf755167d65f2cd1c392a7"
+    },
+    {
       "path": "android/app/src/main/java/com/velirandevu/app/CameraPermissionPlugin.java",
       "sha256": "fb5a3320ef7895258e14b8f6ab4931dd383f2881a72e82af63f657157e5aaac6"
     },
     {
       "path": "android/app/src/main/java/com/velirandevu/app/MainActivity.java",
-      "sha256": "aa30bbd38bc501c29e9330b976ec936f9f279e3c120a0a276076668bfa5cde09"
+      "sha256": "51349d80eea8faa2336d804a912d58c989052e2e64891c2fda27272e6bee8a80"
     },
     {
       "path": "android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java",
-      "sha256": "0a221f53339907daeb059d4cd1f6eabb27d17bdd2202b94e557a456d4b3ff5e0"
+      "sha256": "574d8540a1802a24e4cf5ae13c55eb435f1e298947596bdb030d34e2bfc75cfc"
     },
     {
       "path": "android/app/src/main/res/drawable-land-hdpi/splash.png",
@@ -258,7 +262,7 @@
     },
     {
       "path": "android/app/src/main/res/values/styles.xml",
-      "sha256": "1dd9aa386fa8c08c323fb6153c317e05709a8218b0bdd7eda1dc8fa9d87690fb"
+      "sha256": "7fbae8623d857babe8020f599f06894f87ae076d7768c400a786f7fffd299f8b"
     },
     {
       "path": "android/app/src/main/res/xml/data_extraction_rules.xml",
@@ -359,6 +363,14 @@
     {
       "path": "design_guidelines.json",
       "sha256": "fe9dcb171322cd0d3dfafbb8378b0243e606f413204e941f2c6b9357a58bfc68"
+    },
+    {
+      "path": "docs/ANDROID-DEMO-CRASH-20261030.md",
+      "sha256": "5d22017d0b4f080265b025db0286e7235fa103c911b0c54918706af10de2bec2"
+    },
+    {
+      "path": "docs/ANDROID-LOGIN-POLISH-20261030.md",
+      "sha256": "8c95766543e4560de97c6ac4797516c5ab369caa4036fbf09ddfe7910cab5572"
     },
     {
       "path": "docs/REVIEW-DEMO-THEME-SETUP.md",
@@ -685,6 +697,18 @@
       "sha256": "5c6016803e0738260b8dc4b0111405f8df124c881b69fefbd3b8abb82723b4a8"
     },
     {
+      "path": "scripts/test-android-demo-push-safety.ts",
+      "sha256": "aed6db6000a19d2955b7775412bd93a8701e7f6b53fdc517f66841f60acf5c84"
+    },
+    {
+      "path": "scripts/test-android-login-polish.mjs",
+      "sha256": "2816bcb53d9a2fb58d3d52b38a9a9360b86c2c97b713ba30f2f0cfb57beb2e93"
+    },
+    {
+      "path": "scripts/test-android-review-session.mjs",
+      "sha256": "81b3776210bd9c0c3257cc91bf0171a1995da21d912d2eff5c4079eec8ee6abb"
+    },
+    {
       "path": "scripts/test-android-shell.ts",
       "sha256": "678f0aa8f6e2c870ef53329ecaf4c700c3ba0881609dd29b83d44a898b240073"
     },
@@ -886,7 +910,7 @@
     },
     {
       "path": "scripts/test-push-notifications.ts",
-      "sha256": "e839e71f24d7d16bc420f65d2850556a63a70b2ecec894b7769f712ca792b62c"
+      "sha256": "52fab9ee013d892a974c20e293005bfee9d970b9d1e0faa07cb4dedc05acd851"
     },
     {
       "path": "scripts/test-record-entry-center-ui.mjs",
@@ -1038,7 +1062,7 @@
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",
-      "sha256": "6718baac11dc322c6808f5deba7e0d01a238e5a231481cbd248faf6c6995ef4a"
+      "sha256": "550dcc28b6c2f77dda346b3db4781ef0962ddc2426443ddfc63ec5511cda0d91"
     },
     {
       "path": "scripts/verify-ios-source-lock.mjs",
@@ -1341,6 +1365,10 @@
       "sha256": "8c88c9a492c7197b99b50033dddad7ea54a5c0865049ab95e58f280310fbc679"
     },
     {
+      "path": "src/android-auth.css",
+      "sha256": "05acbe62d867a59695629e0199a5697cb7da3269381c5f736c6ae4eee694ca75"
+    },
+    {
       "path": "src/components/AdminView.tsx",
       "sha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff"
     },
@@ -1354,7 +1382,7 @@
     },
     {
       "path": "src/components/AuthView.tsx",
-      "sha256": "9b4326ecad00dbe07d23ee9ee85a72bad9ef47007adcdaba6e1c8fc6b2456ec4"
+      "sha256": "901822c99b28090c6ccdedc8d7db76ef9af9f0ae4cc76c548ea7a79aacd30ad6"
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
@@ -1530,7 +1558,7 @@
     },
     {
       "path": "src/main.tsx",
-      "sha256": "221b183361d9934716cd86c63aaa3765cad7356f7a0dd5997893d3275df27e06"
+      "sha256": "44c81764d1c9c36b41601c32917b65e50cec6080343ba8ae059933a1703d4960"
     },
     {
       "path": "src/platform/android-camera-permission.ts",
@@ -1538,11 +1566,15 @@
     },
     {
       "path": "src/platform/android-notification-settings.ts",
-      "sha256": "a7b43754982ac4b3bed84590c5a7fa3379ecc3ea08d4053e1ae0304ff215d77a"
+      "sha256": "5a62679f3a51646cff6d8d14125eed51015ae6978fd83fdb405922b04b3c1c4f"
     },
     {
       "path": "src/platform/android-push.ts",
-      "sha256": "4b2feafba89d4bdc68c7fc062ce03111aad0c920acdd34e2e2ee58c06e6c0125"
+      "sha256": "5a9aaece2382aab753dab5fe8c82a88b387ec458602d3c02cc6d38315031b30b"
+    },
+    {
+      "path": "src/platform/android-system-bars.ts",
+      "sha256": "95448cdfb4d43b1b89dccd61384abdf52e9f6b28db4b8f8230e1cc6990948c8a"
     },
     {
       "path": "src/platform/api-error.ts",
