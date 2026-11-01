@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {SchoolReadCache,isSchoolReadCacheable} from '../src/platform/school-read-cache';
+let time=0,calls=0;const cache=new SchoolReadCache(()=>time);
+const key='/api/schools/a/management/student-records';
+let finish!:(v:{id:string})=>void;
+const one=cache.get('user1/session1/a/admin',key,()=>{calls++;return new Promise<{id:string}>(r=>finish=r)});
+const two=cache.get('user1/session1/a/admin',key,async()=>{throw Error('duplicate request')});
+await Promise.resolve();assert.equal(calls,1);finish({id:'synthetic-a'});assert.deepEqual(await one,await two);
+assert.equal((await cache.get('user1/session1/a/admin',key,async()=>{throw Error('fresh refetch')})).id,'synthetic-a');
+time=31_000;assert.equal(cache.peek<{id:string}>('user1/session1/a/admin',key)?.id,'synthetic-a');
+await cache.get('user1/session1/a/admin',key,async()=>({id:'updated-a'}));
+assert.equal(cache.peek<{id:string}>('user1/session1/a/admin',key)?.id,'updated-a');
+time=400_000;assert.equal(cache.peek('user1/session1/a/admin',key),undefined);
+for(const scope of ['user2/session2/a/admin','user1/session3/a/admin','user1/session3/b/admin','user1/session3/b/teacher','platform/session4/b/target']){
+ assert.equal(cache.peek(scope,key),undefined);
+ await cache.get(scope,key,async()=>({id:scope}));
+ assert.equal(cache.peek('user1/session1/a/admin',key),undefined);
+}
+cache.clear();assert.equal(cache.peek('platform/session4/b/target',key),undefined);
+let complete!:(v:number)=>void;
+const old=cache.get('old',key,()=>new Promise<number>(r=>complete=r));await Promise.resolve();cache.clear();
+await cache.get('new',key,async()=>2);const rejected=assert.rejects(old,{name:'StaleSchoolReadError'});complete(1);await rejected;
+assert.equal(cache.peek('new',key),2);assert.equal(cache.peek('old',key),undefined);
+await assert.rejects(cache.get('new','error',async()=>{throw Error('synthetic network')}));
+assert.equal(cache.peek('new','error'),undefined);
+for(let i=0;i<40;i++)await cache.get('new','bounded/'+i,async()=>i);
+assert.equal(cache.peek('new','bounded/0'),undefined);
+for(const route of [key,'/api/schools/a/teachers','/api/schools/a/users?role=security','/api/schools/a/management/operations','/api/schools/a/appointments','/api/schools/a/requests'])assert(isSchoolReadCacheable(route));
+for(const route of ['/api/auth/phone/request-code','/api/schools/a/audit-logs','/api/schools/a/qr/verify','/api/schools/a/management/classes/preview','/api/public/auth-capabilities'])assert(!isSchoolReadCacheable(route));
+console.log('School read cache PASS: dedup, freshness, stale retention/expiry, user/session/school/role/target isolation, clear, in-flight race, retry and bounds.');

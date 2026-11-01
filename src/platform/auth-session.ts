@@ -1,3 +1,4 @@
+import { schoolReadCache } from './school-read-cache';
 import { AuthTokenStore } from './auth-token-store';
 import { runtimeAuthTokenStore } from './auth-token-store-selection';
 
@@ -14,6 +15,8 @@ export class AuthSessionManager {
   private listeners = new Set<SessionInvalidationListener>();
 
   constructor(private readonly store: AuthTokenStore) {}
+
+  getCacheRevision(): number { return this.revision; }
 
   async hydrate(): Promise<string | null> {
     if (this.hydrated) return this.token;
@@ -39,6 +42,7 @@ export class AuthSessionManager {
   }
 
   async setToken(token: string): Promise<void> {
+    schoolReadCache.clear();
     const revision = ++this.revision;
     this.token = token;
     this.hydrated = true;
@@ -51,6 +55,7 @@ export class AuthSessionManager {
   }
 
   async clearToken(): Promise<void> {
+    schoolReadCache.clear();
     const previousToken = this.token;
     const revision = ++this.revision;
     this.token = null;
@@ -64,6 +69,7 @@ export class AuthSessionManager {
   }
 
   async clearTokenAfterRemoteInvalidation(): Promise<void> {
+    schoolReadCache.clear();
     this.revision += 1;
     this.token = null;
     this.hydrated = true;
@@ -72,6 +78,7 @@ export class AuthSessionManager {
 
   async clearTokenIfCurrent(expectedToken: string): Promise<boolean> {
     if (this.token !== expectedToken) return false;
+    schoolReadCache.clear();
     this.revision += 1;
     this.token = null;
     this.hydrated = true;
@@ -84,6 +91,7 @@ export class AuthSessionManager {
     if (!currentToken || currentToken !== rejectedToken) return;
     if (this.invalidationPromise) return this.invalidationPromise;
 
+    schoolReadCache.clear();
     const invalidationRevision = ++this.revision;
     this.token = null;
     this.hydrated = true;

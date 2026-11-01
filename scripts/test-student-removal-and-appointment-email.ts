@@ -12,12 +12,12 @@ async function run() {
   process.env.EMAIL_FROM = 'local@example.test';
   const originalFetch = globalThis.fetch;
   const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
-  const messages: Array<{ to: string[]; html: string }> = [];
+  const messages: Array<{ to: string[]; subject: string; html: string }> = [];
   let failEmail = false;
   globalThis.fetch = async (input, init) => {
     if (String(input).startsWith('https://api.resend.com/emails')) {
       if (failEmail) return new Response('{}', { status: 503 });
-      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; html: string };
+      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; subject: string; html: string };
       messages.push(payload);
       return new Response('{}', { status: 200 });
     }
@@ -58,7 +58,7 @@ async function run() {
     users.push(user.id);
     await userRepository.updatePasswordHash(user.id, hashPassword(password));
     if (role) await membershipRepository.createOrActivate({ schoolId: school, userId: user.id, role });
-    return { ...user, token: createToken({ userId: user.id, phone: user.phone, auth_version: 0 }) };
+    return { ...user, token: createToken({ userId: user.id, phone: user.phone, auth_version: 0, auth_method: role==='teacher'||role==='security'?'phone_centric':'password' }) };
   }
   async function student(parent: { id: string; phone: string }, name: string, number: string, school = schoolA) {
     const id = `student-${crypto.randomUUID()}`;
@@ -112,6 +112,8 @@ async function run() {
     assert.equal(booked.status, 200);
     const appointmentId = (booked.body.appointment as { id: string }).id;
     assert.equal(messages.length, 1);
+    assert.equal(messages[0].subject,'Yeni randevu talebiniz var');
+    assert(messages[0].html.includes('data-email-preheader'));
     assert.deepEqual(messages[0].to, ['teacher-a@example.test']);
     for (const text of ['ONLY STUDENT', '5-A', (booked.body.appointment as { parentName: string }).parentName,
       '02/01/2090', '10:00', '10:15', 'Randevu Talebini İncele', 'Veli Notu', '&lt;b&gt;deneme sınavını&lt;/b&gt;']) {

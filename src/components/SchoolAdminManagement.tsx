@@ -1,16 +1,17 @@
+import { ApiError } from '../platform/api-error';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock, KeyRound, Plus, Shield, Trash2, Pencil } from 'lucide-react';
 import { api } from '../services/api';
 import { ManagedSchoolAdmin } from '../types/management';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
-import { Alert, Button, Dialog, EmptyState, RecordAction, Skeleton } from './ui';
+import { Alert, Button, Dialog, EmptyState, RecordAction } from './ui';
 
 type FormMode = { kind: 'create' } | { kind: 'edit' | 'remove'; admin: ManagedSchoolAdmin } | null;
 
 export function SchoolAdminManagement({ schoolId, schoolName = 'Seçili okul', onChanged }: { schoolId: string; schoolName?: string; onChanged: () => Promise<void> }) {
-  const [admins, setAdmins] = useState<ManagedSchoolAdmin[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [admins, setAdmins] = useState<ManagedSchoolAdmin[]>(()=>api.peekCached?.<{admins:ManagedSchoolAdmin[]}>(`/api/schools/${schoolId}/management/admins`)?.admins || []);
+  const [loading, setLoading] = useState(()=>!api.peekCached?.(`/api/schools/${schoolId}/management/admins`));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -32,9 +33,9 @@ export function SchoolAdminManagement({ schoolId, schoolName = 'Seçili okul', o
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setLoading(!api.peekCached?.(`/api/schools/${schoolId}/management/admins`));
     api.getManagedSchoolAdmins(schoolId).then((result) => { if (!cancelled) setAdmins(result.admins); })
-      .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Okul yöneticileri yüklenemedi.'); })
+      .catch((cause) => { if (!cancelled) {if(cause instanceof ApiError && [401,403].includes(cause.status))setAdmins([]);setError(cause instanceof Error ? cause.message : 'Okul yöneticileri yüklenemedi.');} })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [schoolId]);
@@ -69,14 +70,13 @@ export function SchoolAdminManagement({ schoolId, schoolName = 'Seçili okul', o
     finally { setBusy(false); }
   };
 
-  if (loading) return <Skeleton />;
   return <section className="management-section">
     <div className="section-heading"><div><h3>Okul Yöneticileri</h3><p>Bu okulun yönetim yetkisine sahip kişileri ve bekleyen aktivasyonları yönetin.</p></div><Button onClick={openCreate}><Plus size={18} />Yeni Yönetici</Button></div>
     {message && <Alert tone="success">{message}</Alert>}
     {error && !mode && <Alert tone="danger">{error}</Alert>}
     <label className="field">Okul yöneticisi ara<input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, telefon veya e-posta" /></label>
     {error && !mode && <Button variant="secondary" onClick={() => { setError(''); void load().catch(() => setError('Okul yöneticileri yüklenemedi.')); }}>Tekrar dene</Button>}
-    {!error && !filtered.length ? <EmptyState icon={Shield} title={admins.length ? 'Eşleşen yönetici bulunmuyor' : 'Okul yöneticisi bulunmuyor'} description="Aramanızı kontrol edin veya ilk yöneticiyi ekleyin." /> : <div className="management-list"><table className="management-table"><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>E-posta</th><th>Bağlı Okul</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
+    {loading ? <p role="status" className="panel-loading">Okul yöneticileri yükleniyor…</p> : !error && !filtered.length ? <EmptyState icon={Shield} title={admins.length ? 'Eşleşen yönetici bulunmuyor' : 'Okul yöneticisi bulunmuyor'} description="Aramanızı kontrol edin veya ilk yöneticiyi ekleyin." /> : <div className="management-list"><table className="management-table"><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>E-posta</th><th>Bağlı Okul</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
       {filtered.slice(currentPage * 25, currentPage * 25 + 25).map((admin) => <tr key={admin.id} className="school-admin-record-row"><td data-label="Ad Soyad"><strong>{admin.fullName}</strong></td><td data-label="Telefon">{displayStoredTurkishPhone(admin.phone)}</td><td data-label="E-posta">{admin.email}</td><td data-label="Bağlı Okul">{schoolName}</td><td data-label="Durum"><span className={`status-badge tone-${admin.status === 'active' ? 'success' : 'warning'}`}>{admin.status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{admin.status === 'active' ? 'Aktif' : 'Aktivasyon bekliyor'}</span></td><td data-label="İşlemler"><div className="record-actions"><RecordAction label={`${admin.fullName} adlı yöneticiyi düzenle`} icon={Pencil} onClick={() => openEdit(admin)} />{admin.status === 'pending' && <RecordAction label={`${admin.fullName} için aktivasyon e-postasını yeniden gönder`} icon={KeyRound} disabled={resending} onClick={async () => { setError(''); setResending(true); try { const result = await api.resendManagedSchoolAdminActivation(schoolId, admin.id); setMessage(result.message); } catch (cause) { setError(cause instanceof Error ? cause.message : 'E-posta gönderilemedi.'); } finally { setResending(false); } }} />}<RecordAction danger label={`${admin.fullName} adlı yöneticiyi okuldan kaldır`} icon={Trash2} disabled={admin.status === 'active' && activeCount <= 1} title={admin.status === 'active' && activeCount <= 1 ? 'Son etkin yönetici kaldırılamaz.' : undefined} onClick={() => { setMode({ kind: 'remove', admin }); setError(''); }} /></div></td></tr>)}
     </tbody></table></div>}
     {pages > 1 && <nav className="management-pagination" aria-label="Yönetici sayfaları"><Button variant="secondary" disabled={!currentPage} onClick={() => setPage(currentPage - 1)}>Önceki</Button><span>{currentPage + 1} / {pages}</span><Button variant="secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>Sonraki</Button></nav>}

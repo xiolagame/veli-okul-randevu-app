@@ -1,3 +1,4 @@
+import { ApiError } from '../platform/api-error';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
@@ -18,7 +19,9 @@ import {
 import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { authSession } from '../platform/auth-session';
-import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
+import { clearAuthSensitivePreferences, setActiveSchoolRole, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
+import { isReviewToken } from '../platform/review-origin';
+import { revokeSessionWithinBudget } from '../platform/remote-logout';
 import { LoginResult, performLogin } from '../platform/login-flow';
 import { mobilePush } from '../platform/mobile-push';
 import { pendingNavigationIntent } from '../platform/navigation-intent';
@@ -55,7 +58,7 @@ interface AppContextType {
   isLoading: boolean;
   authStorageError: boolean;
   accountDeletionNotice: string | null;
-  switchSchool: (schoolId: string) => Promise<void>;
+  switchSchool: (schoolId: string, role?: SchoolMembership['role']) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
   whatsappLogin: (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }) => Promise<LoginResult>;
@@ -77,7 +80,7 @@ interface AppContextType {
   cancelAppointment: (appointmentId: string) => Promise<void>;
   verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
-  createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
+  createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
@@ -204,6 +207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
+    setActiveSchoolRole(platformContext ? null : membership?.role || null);
     if (!schoolId) return;
     const dataStarted = performance.now();
     const sequence = ++schoolLoadSequence.current;
@@ -341,12 +345,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser?.id, restoreSession]);
 
   // Switch Active School
-  const switchSchool = async (schoolId: string) => {
+  const switchSchool = async (schoolId: string, role?: SchoolMembership['role']) => {
     const platformSchool = isPlatformAdmin && platformSchools.find((school) => school.id === schoolId && !school.disabledAt);
-    const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active') || null;
+    const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active' && (!role || item.role === role)) || null;
     if (isPlatformAdmin && !platformSchool) return;
     if (!platformSchool && (!membership || !schools.some((school) => school.id === schoolId))) return;
-    if (!isPlatformAdmin && currentUser?.role === 'security') return;
     schoolLoadSequence.current += 1;
     setUsers([]);
     setUsersError('');
@@ -457,6 +460,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Logout
   const logout = async () => {
     await mobilePush.beforeLogout();
+    if (!isReviewToken(await authSession.getToken())) {
+      await revokeSessionWithinBudget(signal => api.logout(signal));
+    }
     await authSession.clearToken();
     pendingNavigationIntent.clear();
     clearRuntimeSession();
@@ -564,19 +570,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const result = await api.getAuditLogs(schoolId);
       if (stillCurrent()) setAuditLogs(result.auditLogs);
     } else {
-      setUsersLoading(true); setUsersError('');
+      const cachedStaff=api.peekCached?.(`/api/schools/${schoolId}/teachers`) && api.peekCached?.(`/api/schools/${schoolId}/users?role=security`);
+      setUsersLoading(!cachedStaff); setUsersError('');
       try {
         const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
         if (!stillCurrent()) return;
         setTeachers(teacherData.teachers); setUsers(userData.users);
       } catch (cause) {
-        if (stillCurrent()) setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');
+        if (stillCurrent()) {if(cause instanceof ApiError && [401,403].includes(cause.status)){setTeachers([]);setUsers([]);}setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');}
         throw cause;
       } finally { if (stillCurrent()) setUsersLoading(false); }
     }
   }, [currentSchool?.id, currentMembership?.role, platformContextActive]);
 
-  const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => {
+  const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => {
     if (!currentSchool) throw new Error('Aktif okul bulunamadı.');
     try {
       const result = await api.createStaff(currentSchool.id, data);

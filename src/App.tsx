@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { AuthView } from './components/AuthView';
+import { WebWelcome } from './components/WebWelcome';
 import { Brand, Button, EmptyState, Skeleton } from './components/ui';
 import { Building2, ShieldAlert, QrCode, Shield } from 'lucide-react';
 import { HELP_PATH, isHelpPath, LEGACY_HELP_SUPPORT_PATH, PUBLIC_CONTACT_PATH, PUBLIC_REQUEST_PATH } from './utils/public-request-route';
@@ -16,7 +17,8 @@ import { mobilePush } from './platform/mobile-push';
 const ParentView = lazy(() => import('./components/ParentView').then((module) => ({ default: module.ParentView })));
 const TeacherView = lazy(() => import('./components/TeacherView').then((module) => ({ default: module.TeacherView })));
 const SecurityView = lazy(() => import('./components/SecurityView').then((module) => ({ default: module.SecurityView })));
-const AdminView = lazy(() => import('./components/AdminView').then((module) => ({ default: module.AdminView })));
+const loadAdminView = () => import('./components/AdminView').then((module) => ({ default: module.AdminView }));
+const AdminView = lazy(loadAdminView);
 const SchoolManagement = lazy(() => import('./components/SchoolManagement').then((module) => ({ default: module.SchoolManagement })));
 const NotificationsModal = lazy(() => import('./components/NotificationsModal').then((module) => ({ default: module.NotificationsModal })));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal').then((module) => ({ default: module.OnboardingModal })));
@@ -52,6 +54,14 @@ export const AppContent: React.FC = () => {
   }, [currentUser?.id, currentUser?.role, currentMembership?.id, isPlatformAdmin, platformContextActive]);
 
   useEffect(() => { setPushAppointmentIntent(null); }, [currentUser?.id, currentSchool?.id]);
+  useEffect(() => {
+    if(isLoading || currentUser?.role !== 'admin') return;
+    const connection=(navigator as Navigator & {connection?:{saveData?:boolean;effectiveType?:string}}).connection;
+    if(connection?.saveData || ['slow-2g','2g'].includes(connection?.effectiveType || '')) return;
+    // Code only, after login. No school/module data is prefetched.
+    const timer=window.setTimeout(()=>{void loadAdminView().catch(()=>{});},1000);
+    return ()=>window.clearTimeout(timer);
+  },[isLoading,currentUser?.id,currentUser?.role]);
 
   useEffect(() => {
     if (isLoading || !currentUser || !currentSchool || isPlatformAdmin || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;
@@ -168,7 +178,9 @@ export const AppContent: React.FC = () => {
     }
     return (
       <>
+        <WebWelcome onRequest={() => navigateStandalonePage(PUBLIC_REQUEST_PATH)} onHelp={() => navigateStandalonePage(HELP_PATH)}>
         <AuthView onOpenOnboarding={() => setShowOnboardingModal(true)} onOpenPublicRequest={() => navigateStandalonePage(PUBLIC_REQUEST_PATH)} onOpenHelp={() => navigateStandalonePage(HELP_PATH)} />
+        </WebWelcome>
         {showOnboardingModal && <Suspense fallback={<div className="page-shell"><Skeleton rows={2} /></div>}>
           <OnboardingModal
             isOpen={showOnboardingModal}
@@ -261,7 +273,7 @@ export const AppContent: React.FC = () => {
       )}
 
       {showAdminModal && (
-        <AdminView onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined} />
+        <AdminView key={`${sessionKey}:${currentUser.role}:${platformContextActive}:${authSession.getCacheRevision?.() ?? 0}`} onManageSchools={canManageSchools ? () => openPlatformManagement('overview') : undefined} />
       )}
 
       {showOnboardingModal && (

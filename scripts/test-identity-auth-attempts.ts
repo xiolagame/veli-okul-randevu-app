@@ -341,7 +341,8 @@ async function run() {
       currentStage = 'phone-centric parent automatic activation';
       const deliveriesBeforeRegistration = whatsappDeliveryCount;
       const unauthorizedRegistration = await request('/auth/phone/request-code', { phone: unregisteredPhone });
-      assert.equal(unauthorizedRegistration.status, 200);
+      assert.equal(unauthorizedRegistration.status, 400);
+      assert.deepEqual(unauthorizedRegistration.body,{error:'Bu numara sisteme kayıtlı değil.'});
       assert.equal(whatsappDeliveryCount, deliveriesBeforeRegistration, 'phone possession without an authorized roster must not send or claim');
       const registrationStart = await request('/auth/phone/request-code', { phone: registrationPhone });
       assert.equal(registrationStart.status, 200);

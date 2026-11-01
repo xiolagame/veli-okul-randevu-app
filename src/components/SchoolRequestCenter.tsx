@@ -1,3 +1,4 @@
+import { ApiError } from '../platform/api-error';
 import React, { useEffect, useState } from 'react';
 import { Clock3, LifeBuoy, MessageSquare, Send, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -18,8 +19,9 @@ export function SchoolRequestCenter() {
   const [subject, setSubject] = useState<(typeof categories)[number]>('Teknik Sorun');
   const [message, setMessage] = useState('');
   const [token, setToken] = useState(createRequestToken);
-  const [requests, setRequests] = useState<PlatformRequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const snapshot=()=>api.peekCached?.<{requests:PlatformRequestItem[]}>(`/api/schools/${currentSchool?.id}/requests`);
+  const [requests, setRequests] = useState<PlatformRequestItem[]>(()=>snapshot()?.requests || []);
+  const [loading, setLoading] = useState(()=>!snapshot());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -36,9 +38,9 @@ export function SchoolRequestCenter() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    setLoading(!snapshot());
     try { setRequests((await api.getSchoolRequests(currentSchool.id)).requests); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Talepler yüklenemedi.'); }
+    catch (cause) { if(cause instanceof ApiError && [401,403].includes(cause.status))setRequests([]);setError(cause instanceof Error ? cause.message : 'Talepler yüklenemedi.'); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, [currentSchool?.id]);

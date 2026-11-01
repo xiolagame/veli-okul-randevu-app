@@ -48,7 +48,7 @@ async function run() {
     users.push(user.id);
     await userRepository.updatePasswordHash(user.id, passwordHash);
     await membershipRepository.createOrActivate({ schoolId, userId: user.id, role });
-    return { ...user, token: createToken({ userId: user.id, phone, auth_version: 0 }) };
+    return { ...user, token: createToken({ userId: user.id, phone, auth_version: 0, auth_method: role==='teacher'||role==='security'?'phone_centric':'password' }) };
   };
   const addStudent = async (schoolId: string, parentId: string, name: string, className: string) => {
     const id = `slots-student-${crypto.randomUUID()}`;

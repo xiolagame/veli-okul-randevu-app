@@ -6,6 +6,7 @@ import { canUseAndroidPush, canUseMobilePush } from '../src/platform/push-eligib
 import { pendingNavigationIntent } from '../src/platform/navigation-intent';
 import { AuthSessionManager } from '../src/platform/auth-session';
 import { pushPromptState } from '../src/components/push-prompt-state';
+import { revokeSessionWithinBudget } from '../src/platform/remote-logout';
 
 type Listener = (event: never) => void;
 
@@ -845,7 +846,14 @@ async function testLogoutOverlapsBackendRevocationAndStuckRegistration() {
 
 async function testLogoutClearsAuthAfterBoundedPushCleanup() {
   const source = readFileSync(new URL('../src/context/AppContext.tsx', import.meta.url), 'utf8');
-  assert.match(source, /const logout = async \(\) => \{\s*await mobilePush\.beforeLogout\(\);\s*await authSession\.clearToken\(\);/);
+  const logout=source.slice(source.indexOf('const logout = async () => {'),source.indexOf('const deleteAccount = async'));
+  assert(logout.indexOf('await mobilePush.beforeLogout()') < logout.indexOf('await revokeSessionWithinBudget('));
+  assert(logout.indexOf('await revokeSessionWithinBudget(') < logout.indexOf('await authSession.clearToken()'));
+  assert.equal(await revokeSessionWithinBudget(async()=>{},30),true);
+  assert.equal(await revokeSessionWithinBudget(async()=>{throw Error('synthetic offline');},30),false);
+  let aborted=false;const started=performance.now();
+  assert.equal(await revokeSessionWithinBudget(signal=>{signal.addEventListener('abort',()=>{aborted=true;});return new Promise(()=>{});},30),false);
+  assert(aborted);assert(performance.now()-started<500,'hung revocation must not keep credentials open');
   const navbar = readFileSync(new URL('../src/components/Navbar.tsx', import.meta.url), 'utf8');
   assert.match(navbar, /title="Hesabım" dismissible=\{!isLoggingOut\}/, 'logout keeps the account modal open until cleanup completes');
   assert.match(navbar, /isLoggingOut \? <p role="status"[^>]*>Oturum kapatılıyor…<\/p> : <>/, 'push status must be hidden while logging out');

@@ -57,10 +57,11 @@ export async function runAppointmentReminderJob(options: { limit?: number; schoo
         if (!record?.teacher_email) return false;
         const date = record.date.split('-').reverse().join('/');
         const email = renderBrandedEmail({
-          subtitle: 'Randevu Hatırlatması',
+          subtitle: '30 dakika sonra randevunuz var',
+          preheader: '30 dakika sonra randevunuz var. Görüşme bilgilerinizi kontrol edin.',
           greeting: record.teacher_name,
           intro: [
-            'Randevunuza 30 dakika kaldı.',
+            '30 dakika sonra randevunuz var.',
             `Okul: ${record.school_name}`,
             'Görüşme programınızı kontrol ederek zamanında hazır olun.',
           ],
@@ -73,7 +74,7 @@ export async function runAppointmentReminderJob(options: { limit?: number; schoo
         });
         await sendEmail({
           to: record.teacher_email,
-          subject: 'Veli Randevu — Randevunuza 30 Dakika Kaldı',
+          subject: '30 dakika sonra randevunuz var',
           ...email,
           idempotencyKey: `teacher-appointment-reminder-30m/${record.id}`,
         });

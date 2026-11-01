@@ -22,7 +22,8 @@ run(
   [path.join(repositoryRoot, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--mode', 'ios'],
   { ...process.env, VITE_API_BASE_URL: iosApiOrigin },
 );
-run(process.execPath, [path.join(repositoryRoot, 'scripts', 'test-release-artifacts.mjs'), '--client-only']);
+run(process.execPath, [path.join(repositoryRoot, 'scripts', 'prune-native-web-only-assets.mjs')]);
+run(process.execPath, [path.join(repositoryRoot, 'scripts', 'test-release-artifacts.mjs'), '--client-only','--native']);
 
 for (const legacyTemplateAsset of ['adaptive-icon.png', 'splash-image.png']) {
   fs.rmSync(path.join(repositoryRoot, 'dist', 'client', legacyTemplateAsset), { force: true });

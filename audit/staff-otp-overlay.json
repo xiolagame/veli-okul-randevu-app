@@ -1,0 +1,678 @@
+{
+  "baseCommit": "ecbedc4fac7d657fff147d647625736c7be29c05",
+  "scope": "Local staff WhatsApp OTP, notification preservation, reviewed iOS light-theme carryover unchanged web welcome restoration and original public help presentation recovery",
+  "files": [
+    {
+      "path": ".gitignore",
+      "baselineCanonicalSha256": "e6bbff733956a71bf0b7d2aa7b333babdbd2d3098a256667a69fbbeaabcf5c8a",
+      "archivedProductionCanonicalSha256": "15b197805bb010500e63977ccca2857ae68a4174d1d2d932a656701232791143",
+      "currentCanonicalSha256": "bc76ce24cd365766436376ca5b352add4de0308601d82d233d97eaebfe6c94bc"
+    },
+    {
+      "path": "index.html",
+      "baselineCanonicalSha256": "84ed9af9e12e2f8a96190bb8856f665a859d51f948fcd8167b4de01c2278ee95",
+      "archivedProductionCanonicalSha256": "64d820f3efa166f022125156f4c0d03269852ad65443d800371a76f626bcdd74",
+      "currentCanonicalSha256": "6d68688d9c6e72e287abc15bc49a063fb6ff0d14b21f1b62d56f33495fab9ef1"
+    },
+    {
+      "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
+      "baselineCanonicalSha256": "87a42e842164d75f39cca56a2cf743652f4d8e858f2eba12ae21a8ddcd9a21c6",
+      "archivedProductionCanonicalSha256": "87a42e842164d75f39cca56a2cf743652f4d8e858f2eba12ae21a8ddcd9a21c6",
+      "currentCanonicalSha256": "af6359ed660312bada6e2e0be5c90157ad68a37e50cdff544a05ecde6799079d"
+    },
+    {
+      "path": "ios/App/App/Info.plist",
+      "baselineCanonicalSha256": "f41926edc0404400709ee18cc711d1f6e6f266218c91804643c5d13f8e77acc8",
+      "archivedProductionCanonicalSha256": "25bbbea361c037892f56b03df7e69d88c7f67637578b2fdf7fdebbe8c30d7df8",
+      "currentCanonicalSha256": "5a1f3e295675252b51c8c09cd6bb28a5617c9329a8b89f73ad9f31cbd914aa38"
+    },
+    {
+      "path": "ops/staff-otp/preflight.sql",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "6df933b394889eb29c5fbd1f14d584a5eadf4608946c2265bfd1a62d50035a77"
+    },
+    {
+      "path": "ops/staff-otp/rollback.sql",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "fbf63acf44e498170bb67ea79f022e843439b48022b1238d97efee0df33f71c6"
+    },
+    {
+      "path": "public/welcome/header-clean.png",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a5bc259c94c299369b5c53ec5d5669b71b37f051d71ec2083aa3291681954e00"
+    },
+    {
+      "path": "public/welcome/login-scene.png",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "8d604423a4cb195b8966552c07333db89b64dc6f099739628534e38dee71dfad"
+    },
+    {
+      "path": "public/welcome/scene.png",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "b33130041c2a990b36748a0871bbbcc67870b368c036041169af2b02512b86e2"
+    },
+    {
+      "path": "public/welcome/transition.mp4",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "627f274835c8a81a34fc9bdbf33153e6c1d32c26593a2e6c16911589ce7cf173"
+    },
+    {
+      "path": "scripts/build-android-client.mjs",
+      "baselineCanonicalSha256": "01fb31583cc1b6c9a09cc5048e963ef960d772d0a57fd5f837e912d63b5eb548",
+      "archivedProductionCanonicalSha256": "01fb31583cc1b6c9a09cc5048e963ef960d772d0a57fd5f837e912d63b5eb548",
+      "currentCanonicalSha256": "184bf1ec2349218a155c4435189cba819e6d06b803f40a45ec3ee79fe93e16b5"
+    },
+    {
+      "path": "scripts/build-ios-client.mjs",
+      "baselineCanonicalSha256": "068e0336670822a754b6ebb575e5abfe2b503da93dc67a3cd0039a76cab3b4b3",
+      "archivedProductionCanonicalSha256": "d923dd6e6764b2af5317971660b11d99e0a2d274c49c1c45f03feb29839ed4ce",
+      "currentCanonicalSha256": "207b95122982092ec075130915bf7c4eb33acbf3c2eb6f5722560f9a4b87a982"
+    },
+    {
+      "path": "scripts/dev-staff-preview.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "384356247369acc13ce3f999dea88f802b9e921676929625ab3fb0cf4b3c4c2c"
+    },
+    {
+      "path": "scripts/prune-native-web-only-assets.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "05319c5aa575aa638f6206da6d75fd2a73e94c733550ab49e05c286929b3fd79"
+    },
+    {
+      "path": "scripts/refresh-staff-otp-overlay.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "7fc1638ab795ed3aacc92bbc38ef60eb3dd0e62ecd42ec0ed58b297f04492a8e"
+    },
+    {
+      "path": "scripts/test-account-deletion.ts",
+      "baselineCanonicalSha256": "f23b745ca924c82c4e88c505d446fb4fb4a33bf0d61d023027d1c2bc6aa03a13",
+      "archivedProductionCanonicalSha256": "8ff42094eacdd97f15c2c3e237188f114ae202801907abadc3c396271b3993f8",
+      "currentCanonicalSha256": "58b38d6d6412edf0e8b433809e02b878dbfb9bc7384521884f76a6e283cd0608"
+    },
+    {
+      "path": "scripts/test-admin-cache-behaviour.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "88d2e2e2a2569eeaa74537cbd28f2748f8307922e44617fb8d0be0fea616ef65"
+    },
+    {
+      "path": "scripts/test-admin-navigation-performance.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "fa08555f4d9b51152c3d6398b194a72fd6294d23420441c462daa1be050df325"
+    },
+    {
+      "path": "scripts/test-android-auth-startup.mjs",
+      "baselineCanonicalSha256": "c26f3be5a9ecbef4aaf70d0e8e840a34edb85a7c8b46ad7ec9286e40c1923954",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "d5c05c376bc0c02c1a683f22e5214225124409e3e2b121a625056a680e6d0193"
+    },
+    {
+      "path": "scripts/test-appointment-slot-visibility.ts",
+      "baselineCanonicalSha256": "7dc2a66f50e851a885269a2a3d1fff94a4fe016bf1bf52c4eecc018d2b62f900",
+      "archivedProductionCanonicalSha256": "1cd86f775a101aed4d7f44a905ebbeb75d79ce1dd0883c1f82c48c92340accf9",
+      "currentCanonicalSha256": "cdd8fc73f5f3052e1a4c8f37e4da31ee84bad1fbf6d1e3d79dd4012af282de19"
+    },
+    {
+      "path": "scripts/test-auth-fixtures.ts",
+      "baselineCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
+      "archivedProductionCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
+      "currentCanonicalSha256": "2403ba1a886a0f4c80498bdf482ca8ac19bb43615062ce6ea688a968dc155007"
+    },
+    {
+      "path": "scripts/test-compact-navbar.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "2093fced7e63a3e17638786526d57cdd924703ed674e497b34005e21b0295b2a"
+    },
+    {
+      "path": "scripts/test-email-mobile.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "217726fd25cf242b2d9a12fd529b54b6b5039638f999f31aaf0ba3d95ea6430f"
+    },
+    {
+      "path": "scripts/test-email-presentation.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "5ea91d8ec63b4b676e72d733ffcd363fa2c83b0144817b4ace1dccab447e1403"
+    },
+    {
+      "path": "scripts/test-help-design-recovery.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "d0bb8b3e9dbd36b33b5ccc23c107e4d626c9b5f91ca659dabb41ef7e03bc1466"
+    },
+    {
+      "path": "scripts/test-identity-auth-attempts.ts",
+      "baselineCanonicalSha256": "b1e4c31033d2e241b9e02c78f5d7f311cef68d32c894d96584114a9880fb30c5",
+      "archivedProductionCanonicalSha256": "b1e4c31033d2e241b9e02c78f5d7f311cef68d32c894d96584114a9880fb30c5",
+      "currentCanonicalSha256": "02472b1fc7b8a688460b402ec3e658fa467cc7cc960187718735d76c6ec7fc76"
+    },
+    {
+      "path": "scripts/test-ios-auth-ui.mjs",
+      "baselineCanonicalSha256": "96904ac08826e9adaee02ddd96471c238ce537660e3e8b5a6b49155d7a65ac6a",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "883ba80553f868c51db91475787b112b4a8103a28f1fda61730cb8ea0c19b978"
+    },
+    {
+      "path": "scripts/test-ios-license-client.mjs",
+      "baselineCanonicalSha256": "25dd9bff6cf193a6bf8d94e028535fe3179133f05369ab0a43e2b283320174c0",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "8c979fbd1614679723cf3814cf4538ccad7e709a47ff4937d387b9bb35b9fb36"
+    },
+    {
+      "path": "scripts/test-ios-push.ts",
+      "baselineCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
+      "archivedProductionCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
+      "currentCanonicalSha256": "f89aedc9aa51adfae69ea39c41e3462faa7a0ea2cc54596263ff162d63901ab8"
+    },
+    {
+      "path": "scripts/test-loading-theme.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "3e7f5295dfc026fde72cea23e684369aad27d9d12976ccc730da7f3e7683c486"
+    },
+    {
+      "path": "scripts/test-phone-centric-web-ui.mjs",
+      "baselineCanonicalSha256": "a2cd39766ea43e90c8f2cd52996702005214af5aea870e14f6bff3ee1b3b6e38",
+      "archivedProductionCanonicalSha256": "a2cd39766ea43e90c8f2cd52996702005214af5aea870e14f6bff3ee1b3b6e38",
+      "currentCanonicalSha256": "e210e7c0ae5c244d35d769bd9f61d1272b15e5ed3cacc21d44eb8dcdf10538db"
+    },
+    {
+      "path": "scripts/test-platform-requests.ts",
+      "baselineCanonicalSha256": "85d24bfd93035763a0dfcc451a9415f8e8aadda69a9bb6207408b50bc25c07ca",
+      "archivedProductionCanonicalSha256": "85d24bfd93035763a0dfcc451a9415f8e8aadda69a9bb6207408b50bc25c07ca",
+      "currentCanonicalSha256": "cacb8af11e23747575e668d5f938df73df34683d9c1c388fc7a12e1f5bacf391"
+    },
+    {
+      "path": "scripts/test-release-artifacts.mjs",
+      "baselineCanonicalSha256": "9d91a57210582913acd0d2f2dfb5ecbe141f3e3c64ae6fca546fe12deef5c553",
+      "archivedProductionCanonicalSha256": "9d91a57210582913acd0d2f2dfb5ecbe141f3e3c64ae6fca546fe12deef5c553",
+      "currentCanonicalSha256": "67c107da66ba87ce69652a0fab0e984a52f4d9406d7f5b25d1a828ad14e48133"
+    },
+    {
+      "path": "scripts/test-review-client.mjs",
+      "baselineCanonicalSha256": "ae32932d53240528e3ee0e59913920db49b2fa05304d85350da1fab7c2177e92",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a5498fe5d797fae8b6d081cfbc6c22f225b0d8d6d5fe23cd0e6a43f519504cc7"
+    },
+    {
+      "path": "scripts/test-review-integration.ts",
+      "baselineCanonicalSha256": "f0edd3ef8cb58e4b5f410ff285aca1ca3e01d17d69644d1ab14948d735bf4943",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a10b025b50a06639ba4181fc09058460ad64c1cb9ba8f61fca2a0f089809b07e"
+    },
+    {
+      "path": "scripts/test-review-role-themes.mjs",
+      "baselineCanonicalSha256": "9a41376c9520079f762ae9e5933d0d8309ab69807d325f75c4405ff915a95bd8",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "1cb95094f6d671108372f11dc0f6d9c7d09b3b946b9ac61873bf63007e6989f4"
+    },
+    {
+      "path": "scripts/test-school-cache-lifecycle.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "d72218c3790996e0ef469dc36aea1f81a213161dfbe9ab39e46f06b5b97326a4"
+    },
+    {
+      "path": "scripts/test-school-read-api.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "0a09ddc4fd13d37633f3f5bece64c98fb3a1be953a5007206c19dbf1595c76cd"
+    },
+    {
+      "path": "scripts/test-school-read-cache.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "36ef412440f4bd879721a1aaa7d65d30e2fb01d510dfd6824fa7d489ae9d5623"
+    },
+    {
+      "path": "scripts/test-school-roster-ui.ts",
+      "baselineCanonicalSha256": "f2591181cd67a4f355d81d9401343e0e7f7847989b5d156a9fff8fc67bb2da85",
+      "archivedProductionCanonicalSha256": "432f1f354fa65e4b9c2c661e212fb292b76c9a5e51da59ce58d2aeb19fc05f42",
+      "currentCanonicalSha256": "2676186a1178914005e728566fe4d1cea7343d1c19d0b0a4059b43a25ceae281"
+    },
+    {
+      "path": "scripts/test-security-and-tenant-audit.ts",
+      "baselineCanonicalSha256": "5e2169aebbf4c4056f23c28aaaf50a2e9b87f9fbe2c04a66dbaa9cdeced16e8d",
+      "archivedProductionCanonicalSha256": "5e2169aebbf4c4056f23c28aaaf50a2e9b87f9fbe2c04a66dbaa9cdeced16e8d",
+      "currentCanonicalSha256": "1984f3d8ef1d0b221d45efc92a302f05c72d80c418037db6cba0dd1d1fce609a"
+    },
+    {
+      "path": "scripts/test-settings-email-reminders.ts",
+      "baselineCanonicalSha256": "c5a63841ee28750d25c697bd76905161bd3f13605e7bdf09b016237d70e1d30c",
+      "archivedProductionCanonicalSha256": "c5a63841ee28750d25c697bd76905161bd3f13605e7bdf09b016237d70e1d30c",
+      "currentCanonicalSha256": "693039ba9c679d21ea5ddf219fb4338ab4f9cb8da45b307fc15b157027a7aad7"
+    },
+    {
+      "path": "scripts/test-staff-excel-template.ts",
+      "baselineCanonicalSha256": "94956253255aad0c90bc151bb51ed95a5845d554bd2bc7ee33094cacaa919ef5",
+      "archivedProductionCanonicalSha256": "94956253255aad0c90bc151bb51ed95a5845d554bd2bc7ee33094cacaa919ef5",
+      "currentCanonicalSha256": "be01466867f7b32213b9bf54580e3503c63d509529fbe6cba015a5369c54299d"
+    },
+    {
+      "path": "scripts/test-staff-otp-master.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "19d003eae9613d122356d2f413fce79811300cc86ce07c41554b96929234132f"
+    },
+    {
+      "path": "scripts/test-staff-phone-migration.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "f26d8dfc2d2eeb09f28f03a051a3c74b99b86bce5b8297f1d4227c92aa63940c"
+    },
+    {
+      "path": "scripts/test-staff-preview-ui.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a2f4d83e001ee8cba18c79fa9919500270826eb2b256594d830310bcdf61c9ed"
+    },
+    {
+      "path": "scripts/test-store-review-login.mjs",
+      "baselineCanonicalSha256": "4a462799078175f4a622477ffc48ff9c350ddab8f6383d6743bd42def522e3c5",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "4b5bc6022c2937272d290f468812e1d2e6268819f73a01de0a36cc200353f38c"
+    },
+    {
+      "path": "scripts/test-student-removal-and-appointment-email.ts",
+      "baselineCanonicalSha256": "130ad3cfe047c653753cf79c3eb3d18cc2514172a2615aece8acfc21b2c1e260",
+      "archivedProductionCanonicalSha256": "130ad3cfe047c653753cf79c3eb3d18cc2514172a2615aece8acfc21b2c1e260",
+      "currentCanonicalSha256": "8b0d3eb22ae42b2327084a8ea0cf504cac6e20eb2ecf89e18cc30d14cf2ee49e"
+    },
+    {
+      "path": "scripts/test-support-conversations.ts",
+      "baselineCanonicalSha256": "b611823e7e23298a6cb58219bd4e7468a2be6389314c518a88392b46d890353f",
+      "archivedProductionCanonicalSha256": "b611823e7e23298a6cb58219bd4e7468a2be6389314c518a88392b46d890353f",
+      "currentCanonicalSha256": "f66b6156f2597af71487db071f5257c7cf0940e77b3706db70f5560788b7b87b"
+    },
+    {
+      "path": "scripts/test-teacher-appointment-ownership.ts",
+      "baselineCanonicalSha256": "8f3393cf2ab982a56990c7ae605fc3be0678792b8c703553ad2be91ba6c8eceb",
+      "archivedProductionCanonicalSha256": "f97ff1c587985be3685a5ddd9788e7e8a1ade82704e262740d725f3f562a2a07",
+      "currentCanonicalSha256": "1195fa3cf40bca6763bd784905f9ec5dfa5ffa503b570bcb2b68de5db798f9de"
+    },
+    {
+      "path": "scripts/test-theme-bootstrap.mjs",
+      "baselineCanonicalSha256": "84f5ba6fc273b659c6f25dae0a996000385be92402ddcfb5aa1863fdf428a4d1",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a8b96f555e5129aa6b56b5ec97d980a8e96bd0f7617263a34bad7543a4f76215"
+    },
+    {
+      "path": "scripts/test-theme-ui.mjs",
+      "baselineCanonicalSha256": "335787add50072f7c8e4ef4d0984a3e9f861c2b307028f1f22ba9e54d6b5a470",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "909ca1b12082d3ed5960cead2a53a762cd86c43e4d4b8cf950d72d3b07d32e36"
+    },
+    {
+      "path": "scripts/test-whatsapp-login-ui.ts",
+      "baselineCanonicalSha256": "30ed10e859749a4a3b2b4f0dc3e34b4a92d37da6f588f29a4201061757b84a7b",
+      "archivedProductionCanonicalSha256": "a4cd26af339af58a1758f1df1ac4e2c82ef86db9607e6d43e7f43ebf60a15915",
+      "currentCanonicalSha256": "7bd4869d64c625c64c6fdc8598c735945c2880a346e64ee92fad6217d35ef87d"
+    },
+    {
+      "path": "scripts/verify-ios-provenance.mjs",
+      "baselineCanonicalSha256": "550dcc28b6c2f77dda346b3db4781ef0962ddc2426443ddfc63ec5511cda0d91",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "85f92daf434344a12854d10155272bc2189509a73294cde79632646e601ae06f"
+    },
+    {
+      "path": "scripts/verify-store-review-package.mjs",
+      "baselineCanonicalSha256": "2df9f82945a50842d269a4ef4f414245c1c6b5fc4f309682ac78aa13c30acd9e",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "fdcd8e506ff5ba3b2939a13655d8c2606f0abd1a0adb48b3586612784c656a1f"
+    },
+    {
+      "path": "server/account-deletion.ts",
+      "baselineCanonicalSha256": "bef08c340515f8df935bbfe68c4609c50252378ff70c778262f0af9947d976e3",
+      "archivedProductionCanonicalSha256": "bef08c340515f8df935bbfe68c4609c50252378ff70c778262f0af9947d976e3",
+      "currentCanonicalSha256": "91626beec79cf456130d7deb5bb03fff98ed9a345a7b04ea15f7edd46232cd0e"
+    },
+    {
+      "path": "server/admin-management.ts",
+      "baselineCanonicalSha256": "9adbf46dfae17fbbd2107a971b6d8bcc5e992aa6b99421d79e197beb415bc48b",
+      "archivedProductionCanonicalSha256": "9adbf46dfae17fbbd2107a971b6d8bcc5e992aa6b99421d79e197beb415bc48b",
+      "currentCanonicalSha256": "0c87724a37511c3109709fe4fc3ba716cf9daa502f8d9516e89425c69ea8cbc6"
+    },
+    {
+      "path": "server/api.ts",
+      "baselineCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
+      "archivedProductionCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
+      "currentCanonicalSha256": "0f25b152516b3ab49c5f78692656795c4a11ba47946ec68c760dc85dbca8a847"
+    },
+    {
+      "path": "server/app.ts",
+      "baselineCanonicalSha256": "401e18b4807d75ad4911ff43f5dde6ac99777ce6b0ea4500a9d984f6f4f61773",
+      "archivedProductionCanonicalSha256": "401e18b4807d75ad4911ff43f5dde6ac99777ce6b0ea4500a9d984f6f4f61773",
+      "currentCanonicalSha256": "a8b7d65fdecbcb0d73b991ce488e241050306a47e9a7743064e1fd6a25c60f51"
+    },
+    {
+      "path": "server/appointment-email.ts",
+      "baselineCanonicalSha256": "1b97f606935a23395e3e2dddc31bad08e82cd060d1777ce65cda36576f6f45b1",
+      "archivedProductionCanonicalSha256": "1b97f606935a23395e3e2dddc31bad08e82cd060d1777ce65cda36576f6f45b1",
+      "currentCanonicalSha256": "b1d1aeb0b03bab7bbff17b503e2bf0ecdb8637452c8709632a8bfb1831b1be3a"
+    },
+    {
+      "path": "server/appointment-reminders.ts",
+      "baselineCanonicalSha256": "915d1b379c7060c0c15db4209ddf109c38b17f05a9ae928bc330ef9fe87c9a91",
+      "archivedProductionCanonicalSha256": "915d1b379c7060c0c15db4209ddf109c38b17f05a9ae928bc330ef9fe87c9a91",
+      "currentCanonicalSha256": "6d31baa68bc17aa25cf0b780a14afad37293a5ac0a2030318a5d8f8ea07a13ff"
+    },
+    {
+      "path": "server/auth.ts",
+      "baselineCanonicalSha256": "227d1371d52cea3eb70067c1067b163947bef782067c094620ea2c332f55d3c0",
+      "archivedProductionCanonicalSha256": "227d1371d52cea3eb70067c1067b163947bef782067c094620ea2c332f55d3c0",
+      "currentCanonicalSha256": "0e8ef20a39bba667eaf76867bd19b020da933a22c9c8a385dbd1d64869a5d135"
+    },
+    {
+      "path": "server/database/migrations/20261031173726_staff_phone_activation.sql",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "48eb5c4218147337022e558daa49a5a23ec3f83a1b147b9c0d680365ae90da68"
+    },
+    {
+      "path": "server/database/supabase_schema.sql",
+      "baselineCanonicalSha256": "11aada73b28f0db9fe6469bc7f59064d0a4c8dc023860e5a63cc67956be30215",
+      "archivedProductionCanonicalSha256": "11aada73b28f0db9fe6469bc7f59064d0a4c8dc023860e5a63cc67956be30215",
+      "currentCanonicalSha256": "0c446dee2b6c4407423e2a26581c5255008142a4c828f9b1ebb47ad66e1ecfba"
+    },
+    {
+      "path": "server/email-template.ts",
+      "baselineCanonicalSha256": "2b8cef852b8c82da3b724903d975576e2b7d4077e3536048fccbdfabe15931bd",
+      "archivedProductionCanonicalSha256": "2b8cef852b8c82da3b724903d975576e2b7d4077e3536048fccbdfabe15931bd",
+      "currentCanonicalSha256": "73a8611d361459cf2a1e0f166037a851e8886d64fe943c86751f1b71f6654814"
+    },
+    {
+      "path": "server/operations.ts",
+      "baselineCanonicalSha256": "6196bf73ae8b16ee4b78d569cb0fa82c06762b73a2cb38a981f0b961b7415ad4",
+      "archivedProductionCanonicalSha256": "6196bf73ae8b16ee4b78d569cb0fa82c06762b73a2cb38a981f0b961b7415ad4",
+      "currentCanonicalSha256": "0e2fcfde80b45b1c8e8d4a2f5417cae485e426ccb08753a91d21fd54d4655d1e"
+    },
+    {
+      "path": "server/platform-requests.ts",
+      "baselineCanonicalSha256": "081a92013cc7dab3e8714f93a1e3f6c2375373958b15f6265ef951f445665865",
+      "archivedProductionCanonicalSha256": "081a92013cc7dab3e8714f93a1e3f6c2375373958b15f6265ef951f445665865",
+      "currentCanonicalSha256": "2edd68f32218cc09760ba72d9a0a3f6134383de64db9147aae18dafa1c9365dd"
+    },
+    {
+      "path": "server/push-notifications.ts",
+      "baselineCanonicalSha256": "f177c7b9ada35eb5afe38f0bf174bf74f7641f2b771e685f0d9fb49be27e32f9",
+      "archivedProductionCanonicalSha256": "f177c7b9ada35eb5afe38f0bf174bf74f7641f2b771e685f0d9fb49be27e32f9",
+      "currentCanonicalSha256": "69643d15a8cafa965a149ae012af437af1262fe331c32b86988686a2a6357a8e"
+    },
+    {
+      "path": "server/repositories/index.ts",
+      "baselineCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
+      "archivedProductionCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
+      "currentCanonicalSha256": "03dbc3c63f8089badea338e762e7aa3a418a566d8e7578ce097ce107bc0655c9"
+    },
+    {
+      "path": "server/route-param.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "07123739ccf00fbe8833ee76db369e5f2dbaaf866349f97ad6b3ea8ad706ac6c"
+    },
+    {
+      "path": "server/school-admin-email.ts",
+      "baselineCanonicalSha256": "7a13e11e94407f41f38c4e842b938e6ec712be288968e5212a07b406c7964857",
+      "archivedProductionCanonicalSha256": "7a13e11e94407f41f38c4e842b938e6ec712be288968e5212a07b406c7964857",
+      "currentCanonicalSha256": "265b671d6ba204c81fbfe775ec9435bcc2140b36573aecb0ef5e76486b7d9aac"
+    },
+    {
+      "path": "server/staff-session-security.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "e02b3d66510c72f8d728b0caa318c3e6e6b4bef63999e9ddf83969f378d355fa"
+    },
+    {
+      "path": "server/whatsapp-auth.ts",
+      "baselineCanonicalSha256": "83db89e19a1f942aa3dc1f0888b547a5196b0373aaeca3939074a23ea86babab",
+      "archivedProductionCanonicalSha256": "83db89e19a1f942aa3dc1f0888b547a5196b0373aaeca3939074a23ea86babab",
+      "currentCanonicalSha256": "0f13039da2a7ad656101e3de889aa08dc7567493487184bf0eec836a9e74f3d9"
+    },
+    {
+      "path": "src/App.tsx",
+      "baselineCanonicalSha256": "8c88c9a492c7197b99b50033dddad7ea54a5c0865049ab95e58f280310fbc679",
+      "archivedProductionCanonicalSha256": "8c88c9a492c7197b99b50033dddad7ea54a5c0865049ab95e58f280310fbc679",
+      "currentCanonicalSha256": "7497e479bf89840526b784377d0c546cd7eda1feabb23723b2d098c0532740a3"
+    },
+    {
+      "path": "src/components/AdminView.tsx",
+      "baselineCanonicalSha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff",
+      "archivedProductionCanonicalSha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff",
+      "currentCanonicalSha256": "2f5d89ec4459dcceb9b7d59c23c5254f39d6b452fbb2b15e5f3949836adf63b2"
+    },
+    {
+      "path": "src/components/AuthView.tsx",
+      "baselineCanonicalSha256": "a6c174602f4d6ac4e4d34a40399889588871f4eb38aaa3f4726415ffb66f9567",
+      "archivedProductionCanonicalSha256": "5d1b30e4fb2cd6329cff648e67a52f2f1cd93316efa9a7a949e507b70e778c6a",
+      "currentCanonicalSha256": "c1bfb837a672098bc6d96a4912e418caeffe8d938ee48fd85d84c7a4d9ae5ffd"
+    },
+    {
+      "path": "src/components/BulkStaffImport.tsx",
+      "baselineCanonicalSha256": "d1c3caf433a1ce23cd2d67d4566149fb79a7e2844ae1520dab4db8263265ef65",
+      "archivedProductionCanonicalSha256": "d1c3caf433a1ce23cd2d67d4566149fb79a7e2844ae1520dab4db8263265ef65",
+      "currentCanonicalSha256": "ed9dda1f5129fe50a8b9c72733ebf4897d6405eef34b3a6833cb16f088a64d0e"
+    },
+    {
+      "path": "src/components/HelpCategoryArt.tsx",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "5ede1204f9df0e27752897984d4b94cef9c820bec3b2968612635f9a3ac03859"
+    },
+    {
+      "path": "src/components/HelpCenterPage.tsx",
+      "baselineCanonicalSha256": "759c25e48f720cc1aff9e792d4577ae53c90267bd74937261608bf31fe6ad2f9",
+      "archivedProductionCanonicalSha256": "b72777f9657fe3915802dd1f2668f751a07b578220d4dde85f08050115566e6d",
+      "currentCanonicalSha256": "262e0d6f7c8d7a1e91980dd2464f980afce29f294327391e508a8dd26ce9ad9b"
+    },
+    {
+      "path": "src/components/HelpGuidePage.tsx",
+      "baselineCanonicalSha256": "ae5c6cb6705adafc31f8a5d0279998a2fb9cf39d61c79eea436f8914084422fe",
+      "archivedProductionCanonicalSha256": "ae5c6cb6705adafc31f8a5d0279998a2fb9cf39d61c79eea436f8914084422fe",
+      "currentCanonicalSha256": "0d5b898d973ce7c34b5018af425f645406520fd783026d0ec60a6ab999f0c1cf"
+    },
+    {
+      "path": "src/components/ManagementActions.tsx",
+      "baselineCanonicalSha256": "1e4cff545404ce3c1342741d05667ff892aab5e8d8139b7a77d8c3e824a1fdcf",
+      "archivedProductionCanonicalSha256": "1e4cff545404ce3c1342741d05667ff892aab5e8d8139b7a77d8c3e824a1fdcf",
+      "currentCanonicalSha256": "655cae4a49db648687382201c6716d19f9c0b58be4c7de2b804ceb7fe7045de7"
+    },
+    {
+      "path": "src/components/Navbar.tsx",
+      "baselineCanonicalSha256": "4ad6cc744ebbd874cb0115e084d47004766b4f5758b6883a53b5c26be131fc3d",
+      "archivedProductionCanonicalSha256": "17f2a83e7ef424ef5fb11e62d5eb68eed1f53a4653531b0bd1269b08e2a40056",
+      "currentCanonicalSha256": "f9d1638cbcf8177ca7efe8778a2aeb1cc5d2a7a6f77c8ccebb80689b268ad630"
+    },
+    {
+      "path": "src/components/OperationsCenter.tsx",
+      "baselineCanonicalSha256": "755932b9b93b181eaa848db72dc1260c4016f269fd4c3cfa8d8e3f5fc376e4eb",
+      "archivedProductionCanonicalSha256": "755932b9b93b181eaa848db72dc1260c4016f269fd4c3cfa8d8e3f5fc376e4eb",
+      "currentCanonicalSha256": "d8d2b596ab056f800b602992186a34b248d45b66182111501b7c67d942b4c703"
+    },
+    {
+      "path": "src/components/PhoneCentricLoginPanel.tsx",
+      "baselineCanonicalSha256": "f1c8f0bd63328df014e710d699f9af385bd52000654056ceac9e835bc53df50c",
+      "archivedProductionCanonicalSha256": "9f4b1077343dc1bfac1ece97fc0862febd18389dfb34209270fca3efa61b7383",
+      "currentCanonicalSha256": "6cbcfef7dfdd10763176726344414c832261dfb91ec6b03fac25405494bfadb7"
+    },
+    {
+      "path": "src/components/PublicRequestPage.tsx",
+      "baselineCanonicalSha256": "46514c34ba9fd3d790d8967268b64af8f69894fc7bbb2784d68cdeeab17bb6bd",
+      "archivedProductionCanonicalSha256": "793644214492c7e04cf66516dad22f617af0950a5b212c1ce18e60179cf6c9b6",
+      "currentCanonicalSha256": "728b1da6568c44b70dd1c91a7b495b46068321defebc07edf244c12cba85c04d"
+    },
+    {
+      "path": "src/components/SchoolAdminManagement.tsx",
+      "baselineCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
+      "archivedProductionCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
+      "currentCanonicalSha256": "68beddf022c105ac5993448b1e191ce40369703412633eda2c5ff625f3856a6f"
+    },
+    {
+      "path": "src/components/SchoolInfo.tsx",
+      "baselineCanonicalSha256": "b6b00c774af75ff69802c331bb8b3b12555aabf02a5e90dafdbbadd93e66d90f",
+      "archivedProductionCanonicalSha256": "b6b00c774af75ff69802c331bb8b3b12555aabf02a5e90dafdbbadd93e66d90f",
+      "currentCanonicalSha256": "b9ac47e49c0cf7c9c7e16a96137bf86b85f242786d6e77b226df1a9c5ee071ee"
+    },
+    {
+      "path": "src/components/SchoolRequestCenter.tsx",
+      "baselineCanonicalSha256": "1fd8ebd996e4320ce765c1a08902c52b7ce0ba09bc92e292d36e5fa46ec33702",
+      "archivedProductionCanonicalSha256": "1fd8ebd996e4320ce765c1a08902c52b7ce0ba09bc92e292d36e5fa46ec33702",
+      "currentCanonicalSha256": "3a3d0ea0b055521bf5af7cbb94cd72cb764f600b69251e29b4834d1cc703947b"
+    },
+    {
+      "path": "src/components/StaffManagement.tsx",
+      "baselineCanonicalSha256": "a16e695127e74923a7f09503ab423889404b2b7bdd8c0c141623693ee1df774c",
+      "archivedProductionCanonicalSha256": "a16e695127e74923a7f09503ab423889404b2b7bdd8c0c141623693ee1df774c",
+      "currentCanonicalSha256": "e530ea6346573fa396a268445166af3ebb383a68bce79369098a046d84873e4d"
+    },
+    {
+      "path": "src/components/StudentManagement.tsx",
+      "baselineCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
+      "archivedProductionCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
+      "currentCanonicalSha256": "85aa48c63be4ff6ac9a072e10dae2b6fc35041e8cfb80817c94008539d68f88e"
+    },
+    {
+      "path": "src/components/ThemeSwitcher.tsx",
+      "baselineCanonicalSha256": "934005171d15e8617ebbe8c40ce23fac1fd5e6d8434dcbdd3e460e837f05525b",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "50e2c43f058b4c7c6f39b43b3f16283889568ba19218f6eb6aa3a39ba2deae87"
+    },
+    {
+      "path": "src/components/WebWelcome.tsx",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "feb5f1f0f6e0875c64a1562a9af8102f2cd0e5fbddf6993ba259629226d5d3ea"
+    },
+    {
+      "path": "src/components/help-presentation.css",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "e1efbea8ffb4b2f21a77eb2fe690e9b6916c35545ffd763f73605105d9a7a4b0"
+    },
+    {
+      "path": "src/components/ui.tsx",
+      "baselineCanonicalSha256": "17e17706d20875dd4513c531d90883b786f992f68f8eb43434a87a5068c285fb",
+      "archivedProductionCanonicalSha256": "db78c3449f451013ea36ab52a5648155e5fcb5693098b497cbb782d5cf39143e",
+      "currentCanonicalSha256": "0233f2363bb628eb93aa872b4ed41c9e49d22e0137b5f36afa0fec6508a3c9bb"
+    },
+    {
+      "path": "src/components/web-welcome.css",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "34285a3cf7800ee750a89e8398c8688ecc4b698924efae917d2d8682b6f3e5d8"
+    },
+    {
+      "path": "src/content/help-content.ts",
+      "baselineCanonicalSha256": "329f5d2d741dffc02dca10da013c4a141c52552ce58b33d7d1b7a63ced3fcf38",
+      "archivedProductionCanonicalSha256": "329f5d2d741dffc02dca10da013c4a141c52552ce58b33d7d1b7a63ced3fcf38",
+      "currentCanonicalSha256": "b4a10b6ed2b459febc4f474e3a313d0d909b0502793eecfdf8f0b06291370fa5"
+    },
+    {
+      "path": "src/context/AppContext.tsx",
+      "baselineCanonicalSha256": "43c92babdc8d99008d82ab408cac8bd835201bc3b281eeaa2d861fe5eef4645a",
+      "archivedProductionCanonicalSha256": "1302e0e3bea60335d4ffe080bce426311c2d063359b63563ae85ba6d3ddcc0cd",
+      "currentCanonicalSha256": "6de1ec7f723d2abef99b27a3b0dea0bf98638138ee8798d083c3dd79479b06eb"
+    },
+    {
+      "path": "src/index.css",
+      "baselineCanonicalSha256": "430f3120b92cb0a73b5be187acb2533f0b7bdcd693cbc81978fe8b73e24d1945",
+      "archivedProductionCanonicalSha256": "12189245224be7d104e4a463b723fe730edb486a78d46ba623efb2651e08e34a",
+      "currentCanonicalSha256": "a9e03e9efc442b2f0d5ae8c55d4416322a8d104979f21681b4364a03c0a365a3"
+    },
+    {
+      "path": "src/main.tsx",
+      "baselineCanonicalSha256": "44c81764d1c9c36b41601c32917b65e50cec6080343ba8ae059933a1703d4960",
+      "archivedProductionCanonicalSha256": "6690b22ce8090911bc86f274cd60cc3fdd9760e1885ca82e0dd6adeb4c9b6473",
+      "currentCanonicalSha256": "8c4b594d4686d30be50ade54cb94e410310fd0aa0e3a6e519c883bcc8a4644df"
+    },
+    {
+      "path": "src/platform/NativeWebWelcome.tsx",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "0ce5018e8759ff711f1aa10ffbded5d49cdba7ff1e4a3a1107b63bdb20ae926e"
+    },
+    {
+      "path": "src/platform/api-session-policy.ts",
+      "baselineCanonicalSha256": "7e20257327b40e5d4c0c494c4f69a5ce009f4dad898e57c574dc33b2572928cc",
+      "archivedProductionCanonicalSha256": "a84c40fbd1cef17626860ec119cd8930e5903fb5875f1525eadfde8be27bfaa0",
+      "currentCanonicalSha256": "f4cdbd7e95572c8d6bd3c23b00129f3e5e4098c226f89b9b4929b69eaa8ac254"
+    },
+    {
+      "path": "src/platform/auth-session.ts",
+      "baselineCanonicalSha256": "630997af8148c1c3fd855788b19fc6268f735647079b7d6b080ed69ccd857568",
+      "archivedProductionCanonicalSha256": "630997af8148c1c3fd855788b19fc6268f735647079b7d6b080ed69ccd857568",
+      "currentCanonicalSha256": "3301687c5e4132cad5c880bafde39cc1df5a6dd521d7afe9d5610da140421926"
+    },
+    {
+      "path": "src/platform/client-preferences.ts",
+      "baselineCanonicalSha256": "1faed070e0dd98373689c29ab0b927ef26238600b6497b8d2d39f47002bed9dd",
+      "archivedProductionCanonicalSha256": "1faed070e0dd98373689c29ab0b927ef26238600b6497b8d2d39f47002bed9dd",
+      "currentCanonicalSha256": "ce8926d4e896815155a88babde21182f4aa7a9146ec7d88d8bba5b771030b45c"
+    },
+    {
+      "path": "src/platform/remote-logout.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "4326937abedc8d722b3c748dbf78c5e0da305d19c58d228bfd09753f65208ee9"
+    },
+    {
+      "path": "src/platform/school-read-cache.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "c1538d3a2114a63e8088d238481fd85a6660952618ebdf71cb637b9af1a2b814"
+    },
+    {
+      "path": "src/platform/theme.ts",
+      "baselineCanonicalSha256": "239944119465c668b7a5fb0bb821404f1c85f831856355358067ec68e46edae5",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "ec3acee2aed807d45db351745a218481438d47f149400daf070d362439f8bb3a"
+    },
+    {
+      "path": "src/services/api.ts",
+      "baselineCanonicalSha256": "03342d6da50b1184be5de51eea20461a8155478857d8aba9fffb21ef85738ca4",
+      "archivedProductionCanonicalSha256": "eb8a46d19afbed74d0fe7e8d766db27dc9466a46dd1b617ccd47743276cc120f",
+      "currentCanonicalSha256": "f5485cd14f97f9d1bb165b2f61fc53473c9aa5a63537b98e7da865da5bc1bb5b"
+    },
+    {
+      "path": "src/theme.css",
+      "baselineCanonicalSha256": "57ed6522d1e1548d1e7b03dafb40901401d0033da7c6a4f575386196cf7d1e92",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "680d63705d2e8ab9a32669cafc850988ce78786320e971e7ef236c5a2833f844"
+    },
+    {
+      "path": "src/types.ts",
+      "baselineCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
+      "archivedProductionCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
+      "currentCanonicalSha256": "fc3752d92a933c86c99d8d8645f5b63bb1f554eea25c73c7d5184905579dee11"
+    },
+    {
+      "path": "src/utils/staff-form.ts",
+      "baselineCanonicalSha256": "d8d9cefbd83436a995b6f3b1ed76d9b8ed05c54a91b07be44844f2c6ec8f0d20",
+      "archivedProductionCanonicalSha256": "d8d9cefbd83436a995b6f3b1ed76d9b8ed05c54a91b07be44844f2c6ec8f0d20",
+      "currentCanonicalSha256": "970c82b49b0d88c84eee1c9cd52985aa3aa9af4ea075451489f347befcbec0d9"
+    },
+    {
+      "path": "src/utils/staff-import.ts",
+      "baselineCanonicalSha256": "29459500c0e994dd564c5e68a62a5544c7dc9cc19e6dbed0fec9e9a44e6c2f87",
+      "archivedProductionCanonicalSha256": "29459500c0e994dd564c5e68a62a5544c7dc9cc19e6dbed0fec9e9a44e6c2f87",
+      "currentCanonicalSha256": "8e7d1f1bcdc8847a54650b1ba6d6d0b199bf2876e0f4121fe68a3aad9509b64a"
+    },
+    {
+      "path": "vite.config.ts",
+      "baselineCanonicalSha256": "ccd15e129fc029eadc0802b308e07c5960eb0779bb40449d34f6d7ec1d843a9e",
+      "archivedProductionCanonicalSha256": "ccd15e129fc029eadc0802b308e07c5960eb0779bb40449d34f6d7ec1d843a9e",
+      "currentCanonicalSha256": "02d6ec694f0ecd1731974e9c098521f3df233c5637631035f879ad12758a569e"
+    }
+  ]
+}

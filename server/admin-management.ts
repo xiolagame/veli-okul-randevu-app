@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
-import { authMiddleware, tenantGuard, AuthenticatedRequest } from './auth';
+import { authMiddleware, tenantGuard, AuthenticatedRequest, canUsePlatformAuthority } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
 import { auditLogRepository, invitationRepository, userRepository } from './repositories';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
@@ -11,6 +11,7 @@ import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { deliverSchoolAdminCode } from './school-admin-email';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
+import { revokeStaffProofs } from './staff-session-security';
 import { removeSingleStudent, StudentRecordError, studentRecordsRouter } from './student-records';
 import { operationsRouter } from './operations';
 
@@ -32,6 +33,7 @@ async function revokeCodes(tx: TransactionClient, schoolId: string, phone: strin
     WHERE school_id = $1 AND target_role = $2
       AND regexp_replace(target_phone, '[^0-9]', '', 'g') IN ($3,$4,$5)
       AND consumed_at IS NULL AND revoked_at IS NULL`, [schoolId, role, ...digits]);
+  if (role === 'teacher' || role === 'security') await revokeStaffProofs(tx, phone);
 }
 
 export const adminManagementRouter = Router({ mergeParams: true });
@@ -314,11 +316,11 @@ adminManagementRouter.delete('/admins/:id', async (req: AuthenticatedRequest, re
 });
 
 adminManagementRouter.delete('/audit-logs', async (req: AuthenticatedRequest, res) => {
+  if (!canUsePlatformAuthority(req.user) || req.platformTargetSchoolId !== req.membership!.schoolId) return res.status(403).json({ error: 'Okul yönetimi güvenlik günlüklerini silemez.' });
   try {
-    const db = await getDb();
-    await db.query('DELETE FROM audit_logs WHERE school_id = $1', [req.membership!.schoolId]);
-    res.json({ success: true });
-  } catch { res.status(500).json({ error: 'İşlem günlüğü temizlenemedi.' }); }
+    await (await getDb()).query('DELETE FROM audit_logs WHERE school_id=$1',[req.membership!.schoolId]);
+    res.json({success:true});
+  }catch{res.status(500).json({error:'İşlem günlüğü temizlenemedi.'});}
 });
 
 async function removalImpact(client: TransactionClient, schoolId: string, studentId: string, parentId: string) {
@@ -470,11 +472,12 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
             pendingSecurity = true;
             oldPhone = pending.rows[0].phone;
             oldName = pending.rows[0].full_name;
-            oldEmail = pending.rows[0].email;
+          oldEmail = pending.rows[0].email || '';
           } else throw new ManagementError(404, 'Kayıt bulunamadı.');
         }
         if (userId && isPlatformAdmin(userId)) throw new ManagementError(403, 'Platform hesabının kimlik bilgileri okul ekranından değiştirilemez.');
         if (removing) {
+          if (kind === 'teacher' || kind === 'security') await revokeStaffProofs(tx, oldPhone, userId);
           if (kind === 'teacher') {
             const appointments = await tx.query<{id:string}>(`SELECT id FROM appointments WHERE school_id=$1 AND teacher_id=$2`,[schoolId,id]);
             cancelledAppointments = appointments.rows.length;
@@ -521,11 +524,14 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           const lastName = names.join(' ');
           if (firstName.length > 100 || lastName.length > 100) throw new ManagementError(400, 'Ad veya soyad çok uzun.');
           const branch = kind === 'teacher' ? textField(req.body.branch, 100) : null;
-          const emailProvided = req.body.email !== undefined;
-          const email = emailProvided ? emailField(req.body.email) : oldEmail;
+          // Teacher email belongs to this profile's notifications, not the global login identity.
+          // Existing security email is retained as legacy data and never requested or rewritten.
+          const emailProvided = kind !== 'security' && req.body.email !== undefined;
+          const email = kind === 'teacher' ? emailField(emailProvided ? req.body.email : oldEmail)
+            : emailProvided ? emailField(req.body.email) : oldEmail;
           const phoneChanged = normalizeTurkishPhone(oldPhone) !== phone;
           const emailChanged = emailProvided && oldEmail.trim().toLowerCase() !== email;
-          if (emailChanged) {
+          if (emailChanged && kind !== 'teacher') {
             const duplicateEmail = await tx.query(`SELECT id FROM users WHERE id IS DISTINCT FROM $1 AND LOWER(email)=LOWER($2)
               UNION ALL SELECT id FROM teacher_profiles WHERE user_id IS DISTINCT FROM $1
                 AND NOT (school_id=$3 AND id=$4) AND LOWER(email)=LOWER($2)
@@ -538,7 +544,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               "SELECT phone,email,concat_ws(' ',first_name,last_name) AS full_name FROM users WHERE id=$1 FOR UPDATE", [userId]);
             const otherSchools = await tx.query(
               'SELECT id FROM school_memberships WHERE user_id=$1 AND school_id<>$2 LIMIT 1', [userId, schoolId]);
-            if (otherSchools.rows.length && (identity.rows[0]?.phone !== phone || (identity.rows[0]?.email || '').toLowerCase() !== email || normalizePersonName(identity.rows[0]?.full_name || '') !== fullName)) {
+            if (otherSchools.rows.length && (normalizeTurkishPhone(identity.rows[0]?.phone) !== phone || (kind !== 'teacher' && (identity.rows[0]?.email || '').toLowerCase() !== email) || normalizePersonName(identity.rows[0]?.full_name || '') !== fullName)) {
               throw new ManagementError(409, 'Birden fazla okula bağlı hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
             const duplicate = await tx.query(
@@ -550,11 +556,15 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
             if (otherRoles.rows.length && (phoneChanged || fullName !== normalizePersonName(oldName))) {
               throw new ManagementError(409, 'Birden fazla rolü olan hesabın kimlik bilgileri bu ekrandan değiştirilemez.');
             }
-            await tx.query(`UPDATE users SET first_name=$2,last_name=$3,phone=$4::varchar(20),
+            if ((kind === 'teacher' || kind === 'security') && phoneChanged) {
+              await revokeStaffProofs(tx, oldPhone, userId, false);
+              await tx.query('UPDATE users SET is_phone_verified=FALSE WHERE id=$1', [userId]);
+            }
+            if (kind !== 'teacher' || phoneChanged || fullName !== normalizePersonName(oldName)) await tx.query(`UPDATE users SET first_name=$2,last_name=$3,phone=$4::varchar(20),
               email=CASE WHEN $6::boolean THEN $5::varchar(150) ELSE email END,
               auth_version=auth_version + CASE WHEN phone<>$4::varchar(20)
                 OR ($6::boolean AND COALESCE(email,'')<>$5::varchar(150)) THEN 1 ELSE 0 END,
-              updated_at=NOW() WHERE id=$1`, [userId, firstName, lastName, phone, email, emailProvided]);
+              updated_at=NOW() WHERE id=$1`, [userId, firstName, lastName, phone, email, emailProvided && kind !== 'teacher']);
           } else if (phoneChanged) {
             const duplicate = await tx.query(
               `SELECT id FROM users WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`,
@@ -593,7 +603,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               WHERE school_id=$1 AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($4,$5,$6)`,
               [schoolId, fullName, phone, ...digits]);
           }
-          if (phoneChanged || emailChanged) await revokeCodes(tx, schoolId, oldPhone, kind);
+          if (phoneChanged || (emailChanged && kind !== 'teacher')) await revokeCodes(tx, schoolId, oldPhone, kind);
         }
       }
       await auditLogRepository.createAuditLog({

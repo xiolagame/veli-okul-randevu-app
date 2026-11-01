@@ -220,7 +220,10 @@ export const userRepository = {
          WHERE sm.user_id = u.id AND sm.school_id = $1
            AND sm.role = 'security' AND sm.status = 'active'
        )
-       ORDER BY u.first_name, u.last_name, u.id;`,
+       UNION ALL
+       SELECT ps.id,ps.first_name,ps.last_name,ps.phone,ps.email,'pending' AS account_status
+       FROM pending_staff ps WHERE ps.school_id=$1 AND ps.role='security'
+       ORDER BY first_name, last_name, id;`,
       [schoolId]
     );
     return result.rows.map((row) => ({

@@ -62,7 +62,7 @@ try{
   await page.screenshot({path:`audit/theme-roles/${name}-${theme}-${width}.png`,fullPage:true});
  }
  for(const theme of ['light','dark'])for(const width of [375,820,1180]){
-  await render('parent');await page.setViewportSize({width,height:width===820?375:844});await page.getByRole('button',{name:theme==='dark'?'Koyu mod':'Açık mod',exact:true}).first().click();
+  await render('parent');await page.setViewportSize({width,height:width===820?375:844});if(await page.evaluate(()=>document.documentElement.dataset.theme||'light')!==theme)await page.getByRole('button',{name:theme==='dark'?'Koyu mod':'Açık mod',exact:true}).first().click();
   for(const role of ['parent','teacher']){
    await render(role);await check(role+'-home',width,theme);
    const tabs=role==='parent'?['Öğretmenler','Randevular','Bildirimler','Profil']:['Randevular','Müsaitlik','Profil'];

@@ -14,6 +14,7 @@ assert.deepEqual(actual,expected,'Missing or stale assets in native shell');
 for(const value of [config.reviewApiOrigin,config.productionApiOrigin,config.welcomeHeading,config.reviewEntryLabel])assert(javascript.includes(value),'Missing compiled review feature: '+value);
 for(const oldHeading of ['Telefon numaranızla giriş yapın','Telefon Numaranızla Giriş Yapın'])assert(!javascript.includes(oldHeading),'Old login heading in compiled native package');
 assert(!files.some(p=>/\.(mp4|webm|mov)$/i.test(p)),'Cinematic media included in native web package');
+assert(!javascript.includes('/welcome/'),'Web welcome video/component references included in native JavaScript');
 for(const p of ['src/App.tsx','src/components/AuthView.tsx'])assert(!/<video\b|NotebookZoom|CinematicWelcome/.test(fs.readFileSync(p,'utf8')),'Web welcome in native auth source');
 const capacitor=JSON.parse(fs.readFileSync(platform==='ios'?'ios/App/App/capacitor.config.json':'android/app/src/main/assets/capacitor.config.json'));
 assert.equal(capacitor.appId,config.bundleIdentifier);assert(!capacitor.server?.url,'Native local origin was replaced');assert.equal(capacitor.loggingBehavior,'none');

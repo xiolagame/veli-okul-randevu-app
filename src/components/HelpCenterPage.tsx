@@ -4,6 +4,7 @@ import { getHelpGuide, helpCategories } from '../content/help-content';
 import { getHelpSlug, HELP_PATH } from '../utils/public-request-route';
 import { Button } from './ui';
 import { HelpGuidePage } from './HelpGuidePage';
+import {HelpCategoryArt, HelpTopicIcon} from './HelpCategoryArt';
 import {ThemeSwitcher} from './ThemeSwitcher';
 
 interface HelpCenterPageProps {
@@ -33,6 +34,7 @@ function HelpLink({ path, onNavigate, children, className = '' }: { path: string
 export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = false, onBack, onGuideBack, onNavigate }: HelpCenterPageProps) {
   const slug = getHelpSlug(pathname);
   const guide = getHelpGuide(slug);
+  const category = helpCategories.find(entry => entry.items.some(item => item.slug === slug));
 
   return <main className="help-page">
     <div className="help-page-shell">
@@ -41,7 +43,7 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
         <Button variant="quiet" className="public-page-back" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
       </header>
       {slug && guide
-        ? <HelpGuidePage guide={guide} onBack={onGuideBack} />
+        ? <HelpGuidePage guide={guide} theme={category?.id} onBack={onGuideBack} />
         : <>
           {slug && !guide && <section className="help-not-found" role="status"><h1>Yardım sayfası bulunamadı</h1><p>Aradığınız başlık taşınmış veya henüz yayınlanmamış olabilir.</p><Button onClick={() => onNavigate(HELP_PATH)}>Yardım merkezine dön</Button></section>}
           {!slug && <>
@@ -52,13 +54,13 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
             <div className="help-category-grid">
               {helpCategories.map((category) => {
                 const Icon = categoryIcons[category.icon];
-                return <section key={category.id} className="help-category" aria-labelledby={`help-category-${category.id}`}>
-                  <header><span><Icon size={22} aria-hidden="true" /></span><div><h2 id={`help-category-${category.id}`}>{category.title}</h2><p>{category.description}</p></div></header>
+                return <section key={category.id} className="help-category" data-help-theme={category.id} aria-labelledby={`help-category-${category.id}`}>
+                  <header><span><Icon size={22} aria-hidden="true" /></span><div><h2 id={`help-category-${category.id}`}>{category.title}</h2><p>{category.description}</p></div><HelpCategoryArt theme={category.id}/></header>
                   <nav aria-label={category.title}>
                     {category.items.map((item) => {
                       const path = item.path ?? `${HELP_PATH}/${item.slug}`;
                       return <HelpLink key={path} path={path} onNavigate={onNavigate} className="help-topic-link">
-                      <span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={18} aria-hidden="true" />
+                      <HelpTopicIcon slug={item.slug}/><span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={18} aria-hidden="true" />
                       </HelpLink>;
                     })}
                   </nav>

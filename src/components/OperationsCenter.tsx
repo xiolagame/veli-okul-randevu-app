@@ -1,5 +1,6 @@
+import { ApiError } from '../platform/api-error';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronRight, Clock, GraduationCap, KeyRound, RefreshCw, UserRound, TriangleAlert } from 'lucide-react';
+import { Calendar, ChevronRight, Clock, GraduationCap, RefreshCw, UserRound, TriangleAlert } from 'lucide-react';
 import { api } from '../services/api';
 import { OperationCategory, OperationItem, OperationPage, OperationSummary } from '../types/operations';
 import { AppointmentStatus } from '../types';
@@ -20,7 +21,7 @@ const statuses: AppointmentStatus[] = ['pending', 'booked', 'checked_in', 'check
 const statusLabels = ['Onay bekliyor', 'Onaylandı', 'Giriş yapıldı', 'Tamamlandı', 'İptal edildi', 'Reddedildi'];
 
 export function OperationsCenter({ schoolId, onOpenRecords }: { schoolId: string; onOpenRecords: (kind: 'student' | 'staff') => void }) {
-  const [summary, setSummary] = useState<OperationSummary | null>(null);
+  const [summary, setSummary] = useState<OperationSummary | null>(()=>api.peekCached?.<OperationSummary>(`/api/schools/${schoolId}/management/operations`) || null);
   const [summaryError, setSummaryError] = useState('');
   const [active, setActive] = useState<OperationCategory | null>(null);
   const [search, setSearch] = useState('');
@@ -33,14 +34,13 @@ export function OperationsCenter({ schoolId, onOpenRecords }: { schoolId: string
   const [noticeError, setNoticeError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [resending, setResending] = useState(false);
   const mounted = useRef(true);
   const inFlightSummary = useRef<Promise<void> | null>(null);
   const loadSummary = useCallback(() => {
     if (inFlightSummary.current) return inFlightSummary.current;
     const pending = api.getOperationSummary(schoolId).then((result) => {
       if (mounted.current) { setSummary(result); setSummaryError(''); }
-    }).catch(() => { if (mounted.current) setSummaryError('Operasyon özeti alınamadı.'); })
+    }).catch((cause) => { if (mounted.current) {if(cause instanceof ApiError && [401,403].includes(cause.status))setSummary(null);setSummaryError('Operasyon özeti alınamadı.');} })
       .finally(() => { inFlightSummary.current = null; });
     inFlightSummary.current = pending;
     return pending;
@@ -69,15 +69,13 @@ export function OperationsCenter({ schoolId, onOpenRecords }: { schoolId: string
     {item.students?.map((student) => <div className="record-detail-person" key={student.id}><div><strong>{student.name}</strong><p>{student.className} · No: {student.studentNumber || '—'}</p></div><ManagementActions compact schoolId={schoolId} kind="roster" id={student.id} values={{ studentName: student.name, className: student.className, studentNumber: student.studentNumber, parentName: item.name, parentPhone: item.phone || '', ...(student.birthDate ? { birthDate: student.birthDate } : {}) }} onChanged={refresh} showRemove={false} /></div>)}
     {item.issues && <Alert tone="warning">{item.issues.join(' · ')}</Alert>}
     {item.editKind && item.values && <ManagementActions compact schoolId={schoolId} kind={item.editKind} id={item.id} values={item.values} onChanged={refresh} showRemove={false} />}
-    {item.role && item.status === 'pending' && <Button variant="secondary" disabled={resending} onClick={async () => {
-      setResending(true); setNotice(''); setNoticeError(false); try { const result = await api.resendStaffActivation(schoolId, item.role!, item.id); setNotice(result.message); } catch (cause) { setNoticeError(true); setNotice(cause instanceof Error ? cause.message : 'E-posta yeniden gönderilemedi.'); } finally { setResending(false); }
-    }}><KeyRound size={16} />Mevcut aktivasyon e-postasını yeniden gönder</Button>}
+    {item.role && item.status === 'pending' && <p className="field-hint">İlk başarılı WhatsApp girişinde otomatik etkinleşir. E-posta veya aktivasyon kodu gerekmez.</p>}
     {!item.appointment && <Button variant="quiet" onClick={() => { setActive(null); onOpenRecords(item.role ? 'staff' : 'student'); }}>İlgili okul kayıtlarını aç</Button>}
   </div>;
   return <div className="school-dashboard">
-    {summaryError && <Alert tone="danger">{summaryError} <Button variant="quiet" onClick={() => void loadSummary()}>Tekrar dene</Button></Alert>}
+    {summaryError && <Alert tone="danger">{summaryError} <Button variant="quiet" onClick={() => { api.invalidateSchoolReads?.(); void loadSummary(); }}>Tekrar dene</Button></Alert>}
     <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü randevu" value={count('today')} onClick={() => open('today')} /><Metric icon={Clock} label="Onay bekleyen" value={count('pending-appointments')} onClick={() => open('pending-appointments')} /><Metric icon={GraduationCap} label="Öğretmen" actionLabel="öğretmenleri göster" value={count('teachers')} onClick={() => open('teachers')} /></div>
-    <div className="operation-overview-grid"><section className="surface operation-center" aria-label="Operasyon Merkezi"><div className="section-heading"><div><h3>Operasyon Merkezi</h3><p>İşlem gerektiren kayıtları inceleyin.</p></div><RecordAction label="Operasyon özetini yenile" icon={RefreshCw} onClick={() => void loadSummary()} /></div>
+    <div className="operation-overview-grid"><section className="surface operation-center" aria-label="Operasyon Merkezi"><div className="section-heading"><div><h3>Operasyon Merkezi</h3><p>İşlem gerektiren kayıtları inceleyin.</p></div><RecordAction label="Operasyon özetini yenile" icon={RefreshCw} onClick={() => { api.invalidateSchoolReads?.(); void loadSummary(); }} /></div>
       {!summary && !summaryError && <span role="status">Özet yükleniyor…</span>}
       {categories.map(({ id, title, icon: Icon }) => <button type="button" className="operation-category" key={id} onClick={() => open(id)}><Icon size={18} aria-hidden="true" /><span>{title}</span><strong>{count(id)}</strong><ChevronRight size={16} aria-hidden="true" /></button>)}
     </section><section className="surface operation-status"><div className="section-heading"><div><h3>Görüşmelerin Durumu</h3><p>Tüm tarihler</p></div></div>{statuses.map((value) => <button type="button" className="operation-status-row" key={value} onClick={() => open('appointments', value)}><StatusBadge status={value} /><strong>{summary ? summary.statuses[value] || 0 : '—'}</strong></button>)}</section></div>

@@ -81,7 +81,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     setChallengeId(response.challengeId);
     setCooldown(response.resendAfterSeconds);
     if (getRuntimePlatform() === 'IOS') setResendAvailableAt(Date.now() + response.resendAfterSeconds * 1000);
-    setMessage('Lütfen telefonunuza gelen WhatsApp onay kodunu girin.');
+    setMessage('WhatsApp doğrulama kodunuz gönderildi. 6 haneli kodu girin.');
     setStep('WHATSAPP_CODE');
   };
 
@@ -156,16 +156,16 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
       <span className="whatsapp-login-logo"><img src="/whatsapp-login-icon.png" alt="" aria-hidden="true" /></span>
       <p id="phone-centric-description">Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>
     </div>
-    {error && <Alert tone="danger">{error}</Alert>}
-    {message && <Alert tone={step === 'WHATSAPP_CODE' ? 'info' : 'success'}>{message}</Alert>}
+    {message && <Alert tone="info">{message}</Alert>}
     <form onSubmit={submit} className="form-stack">
       <label className="field" htmlFor="phone-centric-phone">Telefon numaranız
         <div className="field-icon"><Phone size={18} aria-hidden="true" />
           <input id="phone-centric-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14}
             value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))}
-            placeholder="0555 123 45 67" readOnly={busy || step !== 'PHONE'} required />
+            placeholder="0555 123 45 67" readOnly={busy || step !== 'PHONE'} aria-invalid={step === 'PHONE' && !!error} aria-describedby={error ? 'phone-centric-error' : undefined} required />
         </div>
       </label>
+      {error && <div id="phone-centric-error"><Alert tone="danger">{error}</Alert></div>}
       {step === 'WHATSAPP_CODE' && <label className="field" htmlFor="phone-centric-code">WhatsApp doğrulama kodu
         <div className="field-icon"><ShieldCheck size={18} aria-hidden="true" />
           <input id="phone-centric-code" type="text" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go"

@@ -3,6 +3,7 @@ export interface RejectedTokenInvalidator {
 }
 
 export function isAuthenticatedApiEndpoint(endpoint: string): boolean {
+  if (endpoint === '/api/auth/logout') return true;
   const pathname = endpoint.split(/[?#]/, 1)[0];
   const publicEndpoints = new Set(['/api/public/school-context', '/api/public/requests']);
   // This authenticated preference route lives under /auth; keep OTP routes public.

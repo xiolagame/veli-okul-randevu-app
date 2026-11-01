@@ -151,7 +151,7 @@ async function run() {
     equal(storedPlatformMessage.rows[0].sender_kind, 'PLATFORM_ADMIN', 'sender kind cannot be forged');
     equal(storedPlatformMessage.rows[0].sender_name_snapshot, 'Veli Randevu Destek', 'platform sender snapshot is product support identity');
     equal(platformReply.body.emailNotificationSent, true, 'platform reply sends school notification');
-    check(emails.some((email) => email.to === adminA.email && email.subject.includes('Yanıt Geldi')), 'school notification uses server-side request email snapshot');
+    check(emails.some((email) => email.to === adminA.email && email.subject === 'Destek talebinize yanıt geldi'), 'school notification uses server-side request email snapshot');
 
     const emailCountBeforeDuplicate = emails.length;
     const duplicateReply = await request('POST', `/platform/requests/${supportId}/messages`, platform.token, { requestToken: platformMessageToken, message: 'Platform yanıtı.' });
@@ -170,7 +170,7 @@ async function run() {
     );
     equal(storedSchoolMessage.rows[0].sender_user_id, adminA2.user.id, 'school sender user derives from auth');
     equal(storedSchoolMessage.rows[0].sender_kind, 'SCHOOL_ADMIN', 'school sender kind cannot be forged');
-    check(emails.some((email) => email.to === 'platform-support@example.test' && email.subject.includes('Yeni Mesaj')), 'school reply notifies configured platform recipient');
+    check(emails.some((email) => email.to === 'platform-support@example.test' && email.subject === 'Destek talebine yeni mesaj'), 'school reply notifies configured platform recipient');
     const platformThread = await request('GET', `/platform/requests/${supportId}/messages`, platform.token);
     equal((platformThread.body.messages as Array<Record<string, unknown>>).length, 3, 'platform sees initial and both replies');
     equal((await request('GET', `/schools/${schoolA}/requests/${supportId}/messages`, adminA.token)).status, 200, 'school sees platform reply');

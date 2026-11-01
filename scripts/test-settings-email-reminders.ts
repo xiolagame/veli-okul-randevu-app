@@ -33,7 +33,7 @@ async function run() {
   globalThis.fetch = async (input, init) => {
     if (String(input).startsWith('https://api.resend.com/emails')) {
       const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; subject: string; html: string; text?: string };
-      if (failReminder && payload.subject.includes('30 Dakika')) return new Response('{}', { status: 503 });
+      if (failReminder && payload.subject === '30 dakika sonra randevunuz var') return new Response('{}', { status: 503 });
       emails.push({ ...payload, idempotencyKey: new Headers(init?.headers).get('Idempotency-Key') });
       return new Response(JSON.stringify({ id: 'local-email' }), { status: 200 });
     }
@@ -74,7 +74,7 @@ async function run() {
     await db.query(`INSERT INTO users(id,phone,first_name,last_name,email,password_hash,auth_version)
       VALUES($1,$2,'LOCAL','FIXTURE',$3,'local-nonempty-hash',0)`, [id, userPhone, email || null]);
     await db.query(`INSERT INTO school_memberships(school_id,user_id,role,status) VALUES($1,$2,$3,'active')`, [schoolId, id, role]);
-    return { id, phone: userPhone, token: createToken({ userId: id, phone: userPhone, auth_version: 0 }) };
+    return { id, phone: userPhone, token: createToken({ userId: id, phone: userPhone, auth_version: 0, auth_method: role==='teacher'||role==='security'?'phone_centric':'password' }) };
   }
 
   async function appointment(id: string, teacherId: string, status: string, studentName: string, minutesFromNow = 20, schoolId = schoolA) {
@@ -126,7 +126,7 @@ async function run() {
     assert(unsafe.text.includes('VELİ RANDEVU'));
     const adminEmail = schoolAdminEmail('School <A>', 'ABC123', 'Admin & One', '123456');
     assert(adminEmail.html.includes('School &lt;A&gt;'));
-    assert(adminEmail.text.includes('Aktivasyon Kodu: 123456'));
+    assert(adminEmail.text.includes('E-posta Doğrulama Kodu: 123456'));
     const adminSource = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
     assert(!adminSource.includes('setDefaultSlotInput(Number(event.target.value))'));
     for (const file of ['server/api.ts', 'server/appointment-email.ts', 'server/school-admin-email.ts', 'server/appointment-reminders.ts']) {
@@ -208,8 +208,10 @@ async function run() {
     assert.equal(firstRun.sent, 1);
     assert.equal(emails.length, emailCountBeforeReminder + 1);
     const reminderEmail = emails.at(-1)!;
+    assert.equal(reminderEmail.subject,'30 dakika sonra randevunuz var');
+    assert(reminderEmail.html.includes('data-email-preheader'));
     assert.equal(reminderEmail.idempotencyKey, `teacher-appointment-reminder-30m/${approvedId}`);
-    assert(reminderEmail.text?.includes('Randevunuza 30 dakika kaldı'));
+    assert(reminderEmail.text?.includes('30 dakika sonra randevunuz var'));
     assert(reminderEmail.html.includes('&lt;script&gt;STUDENT&lt;/script&gt;'));
     assert(!reminderEmail.html.includes('VELIQR1:'));
     assert.equal((await db.query('SELECT status,teacher_reminder_30m_sent_at FROM appointments WHERE id=$1', [approvedId])).rows[0].status, 'booked');

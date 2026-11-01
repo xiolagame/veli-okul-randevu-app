@@ -298,11 +298,13 @@ export async function requestWhatsAppAuthChallenge(input: {
   const schoolCode = typeof input.schoolCode === 'string' ? input.schoolCode.trim() : undefined;
   const requesterAllowed = phone && await withinRateLimit(`${input.requesterKey}:${input.purpose}:requester`, 30, 15);
   const targetAllowed = phone && await withinRateLimit(`${input.requesterKey}:${input.purpose}:${phone}`, 6, 15);
-  if (!phone || !requesterAllowed || !targetAllowed) {
+  const phoneAllowed = phone && await withinRateLimit(`phone:${input.purpose}:${phone}`, 6, 15);
+  if (!phone || !requesterAllowed || !targetAllowed || !phoneAllowed) {
     throw new WhatsAppAuthError(429, 'Doğrulama isteği şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin.');
   }
   const dummyId = crypto.randomUUID();
   if (!isWhatsAppPhoneEnabled(phone)) {
+    if (input.phoneCentric) throw new WhatsAppAuthError(403, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
     return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
   }
   const resolved = input.purpose === 'auto'
@@ -315,7 +317,18 @@ export async function requestWhatsAppAuthChallenge(input: {
     schoolCode,
     authenticatedUserId: input.authenticatedUserId,
   });
-  if (!target) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
+  if (!target) {
+    if (input.phoneCentric) throw new WhatsAppAuthError(400, 'Bu numara sisteme kayıtlı değil.');
+    return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
+  }
+  if (target.userId && (target.role === 'teacher' || target.role === 'security')) {
+    const denied = await (await getDb()).query(`SELECT 1 FROM school_memberships
+      WHERE school_id=$1 AND user_id=$2 AND role=$3 AND status<>'active'`, [target.schoolId,target.userId,target.role]);
+    if (denied.rows.length) {
+      if (input.phoneCentric) throw new WhatsAppAuthError(403, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
+      return {challengeId:dummyId,expiresInSeconds:300,resendAfterSeconds:60};
+    }
+  }
 
   const challengeId = crypto.randomUUID();
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
@@ -331,7 +344,7 @@ export async function requestWhatsAppAuthChallenge(input: {
       [phone, purpose, target.schoolId],
     );
     if (recent.rows[0] && new Date(recent.rows[0].resend_available_at).getTime() > Date.now()) {
-      if (input.purpose === 'auto') {
+      if (input.purpose === 'auto' && !input.phoneCentric) {
         cooldownMasked = true;
         return;
       }
@@ -357,9 +370,9 @@ export async function requestWhatsAppAuthChallenge(input: {
     await sendWhatsAppAuthenticationCode(phone, code);
   } catch (error) {
     await db.query('UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challengeId]);
-    // Do not expose eligible-account existence through provider failures. Never claim delivery.
+    // Legacy unified callers retain their masked response. Phone-centric callers receive a delivery error.
     console.warn('[WhatsApp Auth] Delivery unavailable; challenge revoked.');
-    if (input.purpose === 'auto') return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
+    if (input.purpose === 'auto' && !input.phoneCentric) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
     throw error;
   }
   return { challengeId, expiresInSeconds: 300, resendAfterSeconds: 60 };
@@ -454,6 +467,12 @@ async function activateStaff(tx: TransactionClient, challenge: ChallengeRow): Pr
   await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
   const existing = await userRepository.getByPhone(challenge.target_phone, tx);
   let userId: string;
+  if (existing) {
+    const denied = await tx.query(`SELECT 1 FROM school_memberships
+      WHERE school_id=$1 AND user_id=$2 AND role=$3 AND status<>'active'`,
+      [challenge.school_id, existing.id, challenge.target_role]);
+    if (denied.rows.length) throw new Error('INVALID_WHATSAPP_CHALLENGE');
+  }
   if (challenge.target_role === 'teacher') {
     const conflictingPhone = await tx.query(
       `SELECT id FROM teacher_profiles WHERE school_id<>$1 AND account_deleted_at IS NULL
@@ -480,7 +499,6 @@ async function activateStaff(tx: TransactionClient, challenge: ChallengeRow): Pr
       phone: challenge.target_phone,
       firstName: profile.rows[0].first_name,
       lastName: profile.rows[0].last_name,
-      email: profile.rows[0].email || undefined,
       isPhoneVerified: true,
     }, tx);
     const linked = await tx.query(
@@ -508,7 +526,6 @@ async function activateStaff(tx: TransactionClient, challenge: ChallengeRow): Pr
       phone: challenge.target_phone,
       firstName: pending.rows[0].first_name,
       lastName: pending.rows[0].last_name,
-      email: pending.rows[0].email,
       isPhoneVerified: true,
     }, tx);
     await membershipRepository.createOrActivate({ schoolId: challenge.school_id, userId: created.id, role: 'security' }, tx);
@@ -525,6 +542,26 @@ async function activateStaff(tx: TransactionClient, challenge: ChallengeRow): Pr
   const user = await userRepository.getById(userId, tx);
   if (!user) throw new Error('INVALID_WHATSAPP_CHALLENGE');
   return user;
+}
+
+// A verified person may already be a parent when an administrator adds a staff role.
+// Discover assignments on the server only, after phone proof; never revive a revoked role.
+async function activateAdditionalStaff(tx: TransactionClient, challenge: ChallengeRow, user: User) {
+  const digits = getTurkishPhoneLookupDigits(challenge.target_phone)!;
+  const pending = await tx.query<{ id: string; school_id: string; role: 'teacher'|'security'; full_name: string }>(`
+    SELECT id,school_id,'teacher'::text AS role,concat_ws(' ',first_name,last_name) AS full_name
+      FROM teacher_profiles WHERE user_id IS NULL AND account_deleted_at IS NULL
+        AND regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3)
+    UNION ALL SELECT id,school_id,'security',concat_ws(' ',first_name,last_name)
+      FROM pending_staff WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3)`, digits);
+  for (const row of pending.rows) {
+    if (normalizePersonName(row.full_name) !== normalizePersonName(`${user.firstName} ${user.lastName}`)) continue;
+    const school = await tx.query('SELECT 1 FROM schools WHERE id=$1 AND disabled_at IS NULL', [row.school_id]);
+    if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(row.school_id, tx)) continue;
+    const denied = await tx.query(`SELECT 1 FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role=$3 AND status<>'active'`, [row.school_id,user.id,row.role]);
+    if (denied.rows.length) continue;
+    await activateStaff(tx, {...challenge, school_id:row.school_id,target_profile_id:row.id,target_role:row.role,target_user_id:user.id});
+  }
 }
 
 async function queueAdminEmailAfterPhoneVerification(tx: TransactionClient, challenge: ChallengeRow): Promise<PendingAdminEmail> {
@@ -719,6 +756,9 @@ export async function verifyWhatsAppAuthChallenge(input: {
       user = await activateStaff(tx, challenge);
     }
     if (!user) return null;
+    await userRepository.verifyPhone(user.id, tx);
+    user = { ...user, isPhoneVerified: true };
+    if (challenge.purpose === 'login' || challenge.purpose === 'staff_activation') await activateAdditionalStaff(tx, challenge, user);
     const memberships = challenge.purpose === 'school_admin_login'
       ? (await membershipRepository.getMembershipsByUserId(user.id, tx)).filter((membership) =>
         membership.role === 'admin' && membership.status === 'active' && membership.schoolId === challenge.school_id)
@@ -783,7 +823,7 @@ export async function requestPhoneCentricAuthChallenge(input: {
     const parentNames = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
     if (!school || !digits || existingMembership?.role === 'parent' ||
         parentNames.size !== 1 || !await schoolLicenseRepository.isAccessAllowed(school.id)) {
-      return { attemptId: crypto.randomUUID(), challengeId: crypto.randomUUID(), expiresInSeconds: 300, resendAfterSeconds: 60 };
+      throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
     }
   }
   const challenge = await requestWhatsAppAuthChallenge({
@@ -800,7 +840,7 @@ export async function requestPhoneCentricAuthChallenge(input: {
     [challenge.challengeId],
   );
   const record = row.rows[0];
-  if (!record) return { attemptId: crypto.randomUUID(), ...challenge };
+  if (!record || record.revoked_at) throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
   try {
     const user = record.target_user_id ? await userRepository.getById(record.target_user_id) : null;
     const attempt = await createIdentityAuthAttempt({
@@ -855,6 +895,10 @@ export async function verifyPhoneCentricAuthChallenge(input: {
   const attempt = await getIdentityAuthAttempt(attemptId);
   if (!attempt || attempt.canonicalPhone !== phone || attempt.whatsappChallengeId !== challengeId ||
       attempt.status !== 'PHONE_CHALLENGE_ISSUED') return null;
+  if (attempt.targetUserId) {
+    const identity = await userRepository.getById(attempt.targetUserId);
+    if (!identity || identity.authVersion !== attempt.authVersionAtStart) return null;
+  }
 
   if (attempt.flowType === 'PLATFORM_LOGIN') {
     const platform = await verifyPlatformPhoneFactor({ challengeId, phone, code });

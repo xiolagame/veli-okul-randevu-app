@@ -4,8 +4,10 @@ import {currentTheme,selectTheme} from '../platform/theme';
 export function ThemeSwitcher(){
  const [theme,setTheme]=useState(currentTheme);
  useEffect(()=>{const refresh=()=>setTheme(currentTheme());window.addEventListener('veli:theme',refresh);return()=>window.removeEventListener('veli:theme',refresh);},[]);
- return <div className="theme-switcher" role="group" aria-label="Görünüm">
-  <button aria-label="Açık mod" aria-pressed={theme==='light'} onClick={()=>selectTheme('light')}><Sun size={19} aria-hidden="true"/></button>
-  <button aria-label="Koyu mod" aria-pressed={theme==='dark'} onClick={()=>selectTheme('dark')}><Moon size={19} aria-hidden="true"/></button>
+ const dark=theme==='dark';
+ return <div className="theme-switcher">
+  <button type="button" aria-label={dark?'Açık mod':'Koyu mod'} title={dark?'Koyu tema etkin · Açık moda geç':'Açık tema etkin · Koyu moda geç'} data-active-theme={theme} onClick={()=>selectTheme(dark?'light':'dark')}>
+   {dark?<Moon size={19} aria-hidden="true"/>:<Sun size={19} aria-hidden="true"/>}
+  </button>
  </div>;
 }

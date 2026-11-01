@@ -18,7 +18,7 @@ try{
   new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)scan(n);}).observe(document,{subtree:true,childList:true});
  });
  await page.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.request().url()==='https://veli-review-demo.duckdns.org/api/review/login'?r.fulfill({status:401,json:{error:'Sentetik inceleme reddedildi.'}}):r.abort());
- const open=async theme=>{await page.goto(origin);await page.getByRole('button',{name:theme==='dark'?'Koyu mod':'Açık mod',exact:true}).filter({visible:true}).click();await page.waitForFunction(()=>window.authBoot.resolve);};
+ const open=async theme=>{await page.goto(origin);if(await page.evaluate(()=>document.documentElement.dataset.theme||'light')!==theme)await page.getByRole('button',{name:theme==='dark'?'Koyu mod':'Açık mod',exact:true}).filter({visible:true}).click();await page.waitForFunction(()=>window.authBoot.resolve);};
  if(before){await open('light');assert(await page.locator('#login-phone').isVisible());await page.evaluate(()=>authBoot.resolve({whatsappAuthEnabled:true,unifiedLoginEnabled:true,phoneCentricAuthEnabled:true}));await page.locator('#phone-centric-phone').waitFor();assert((await page.evaluate(()=>formEvents)).includes('#login-phone'));console.log('Baseline defect REPRODUCED: capability pending renders password form, then true response replaces it with WhatsApp.');}
  else{
   for(const theme of ['light','dark'])for(const mode of ['phone','legacy','error','malformed']){

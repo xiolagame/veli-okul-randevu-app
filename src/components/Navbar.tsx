@@ -1,3 +1,5 @@
+import { ThemeSwitcher } from './ThemeSwitcher';
+import type { UserRole } from '../types';
 import { LicenseWhatsAppPreference } from './LicenseWhatsAppPreference';
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -97,9 +99,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [logoutError, setLogoutError] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const canSwitchSchool = isPlatformAdmin || currentUser?.role === 'parent';
+  const canSwitchSchool = isPlatformAdmin || currentUser?.role === 'parent' || userMemberships.filter(m => m.status === 'active').length > 1;
   const ownSchools = schools.filter((school) => userMemberships.some((membership) => membership.schoolId === school.id && membership.status === 'active'));
-  const schoolOptions = isPlatformAdmin ? platformSchools : ownSchools;
+  const schoolOptions = isPlatformAdmin ? platformSchools.map(s => ({...s, membershipRole: undefined as UserRole | undefined})) : ownSchools.flatMap(s => userMemberships.filter(m => m.schoolId === s.id && m.status === 'active').map(m => ({...s, membershipRole:m.role})));
+  const roleNames: Record<UserRole,string> = {admin:'Okul yöneticisi',teacher:'Öğretmen',parent:'Veli',security:'Güvenlik'};
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!headerRef.current) return;
@@ -125,21 +128,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   return (
     <header ref={headerRef} className="app-topbar">
       <div className="topbar-inner">
-        <Brand />
+        <div className="topbar-identity">
+        <Brand showTheme={false} />
         <div className="school-switch">
           <button type="button" className="school-trigger" disabled={!canSwitchSchool} onClick={() => setShowSchoolMenu(true)} aria-haspopup={canSwitchSchool ? 'dialog' : undefined} aria-label={canSwitchSchool ? isPlatformAdmin ? 'Platform okullarını yönet' : 'Aktif okulunuzu değiştirin' : 'Okulunuz'}>
             <Building2 size={18} className="text-slate-500" />
             <div><strong>{isPlatformAdmin ? platformContextActive ? `Platform Yönetimi · ${currentSchool?.name || ''}` : 'Platform Yönetimi' : currentSchool?.name || 'Okulunuzu seçin'}</strong><small>{currentUser?.role ? roleLabel[currentUser.role] : 'Okul üyeliği'}</small></div>{canSwitchSchool && <ChevronDown size={15} />}
           </button>
         </div>
+        </div>
         <div className="topbar-actions">
+          <ThemeSwitcher />
           {isPlatformAdmin && <Button variant="quiet" className="admin-open" onClick={onOpenAdmin} aria-label="Platform Yönetimini aç"><Shield size={18} /><span>Platform Yönetimi</span></Button>}
-          <button type="button" onClick={onOpenNotifications} className="icon-button" aria-label={`Bildirimler, ${unreadNotificationCount} okunmamış`}><Bell size={21} />{unreadNotificationCount > 0 && <span className="nav-count" style={{ top: 3, right: 3 }}>{unreadNotificationCount}</span>}</button>
+          <button type="button" onClick={onOpenNotifications} className="icon-button" aria-label={`Bildirimler, ${unreadNotificationCount} okunmamış`}><Bell size={21} />{unreadNotificationCount > 0 && <span className="nav-count" style={{ top: 3, right: 3 }}>{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}</button>
           <button type="button" className="profile-trigger" onClick={() => setShowPersonaMenu(true)} aria-haspopup="dialog" aria-label="Hesap menüsü"><span className="avatar"><RoleIcon size={20} aria-hidden="true" /></span><span className="profile-label"><strong>{currentUser?.firstName} {currentUser?.lastName}</strong><small>{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'}</small></span></button>
         </div>
       </div>
       {showSchoolMenu && canSwitchSchool && <Dialog title={isPlatformAdmin ? 'Platform Yönetimi · Okullar' : 'Okulunuz'} description={isPlatformAdmin ? 'Yöneteceğiniz aktif okulu seçin.' : 'Üyeliğiniz bulunan okulları görüntüleyin.'} onClose={() => setShowSchoolMenu(false)}>
-        <div className="space-y-2">{schoolOptions.map((school) => { const disabled = 'disabledAt' in school && !!school.disabledAt; return <button type="button" key={school.id} disabled={disabled} className="w-full text-left flex gap-3 items-center p-3 rounded-xl hover:bg-slate-50 border border-slate-200" onClick={() => { void switchSchool(school.id); setShowSchoolMenu(false); }}><Building2 size={20} className="text-blue-700" /><span className="flex-1 min-w-0"><strong className="block text-sm break-words">{school.name}</strong><span className="text-xs text-slate-500">{school.city}{disabled ? ' · Devre dışı' : isPlatformAdmin ? ' · Yönetilebilir okul' : ' · Üyeliğiniz bulunan okul'}</span></span>{currentSchool?.id === school.id && <Check size={18} className="text-blue-700" />}</button>; })}</div>
+        <div className="space-y-2">{schoolOptions.map((school) => { const disabled = 'disabledAt' in school && !!school.disabledAt; return <button type="button" key={school.id+':'+school.membershipRole} disabled={disabled} className="w-full text-left flex gap-3 items-center p-3 rounded-xl hover:bg-slate-50 border border-slate-200" onClick={() => { void switchSchool(school.id, school.membershipRole); setShowSchoolMenu(false); }}><Building2 size={20} className="text-blue-700" /><span className="flex-1 min-w-0"><strong className="block text-sm break-words">{school.name}</strong><span className="text-xs text-slate-500">{school.city}{disabled ? ' · Devre dışı' : isPlatformAdmin ? ' · Yönetilebilir okul' : ' · '+roleNames[school.membershipRole!]}</span></span>{currentSchool?.id === school.id && (!school.membershipRole || currentUser?.role === school.membershipRole) && <Check size={18} className="text-blue-700" />}</button>; })}</div>
         {isPlatformAdmin && !schoolOptions.length && <p className="text-sm text-slate-500">Henüz okul bulunmuyor. İlk okul kaydını Platform Yönetimi alanından oluşturabilirsiniz.</p>}
         {isPlatformAdmin && onManageSchools && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onManageSchools(); }}><Building2 size={18} />Platform Yönetimi</Button>}
         {!isPlatformAdmin && onOpenOnboarding && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onOpenOnboarding(); }}><KeyRound size={18} />Yeni okula katılma hakkında</Button>}

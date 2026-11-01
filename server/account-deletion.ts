@@ -348,7 +348,7 @@ accountDeletionRouter.post('/user/me/deletion', authMiddleware, async (req: Auth
         subtitle: 'Hesap silme işlemi tamamlandı',
         greeting: result.firstName,
         intro: [
-          'Veli Randevu hesabınız ve kişisel giriş bilgileriniz silindi.',
+          'Hesabınız ve kişisel giriş bilgileriniz silindi.',
           'Okula ait zorunlu randevu ve güvenlik kayıtları kimliğinizden ayrıştırılarak anonimleştirildi.',
         ],
         notice: 'Bu e-posta yalnız işlemin tamamlandığını bildirmek amacıyla gönderilmiştir.',
@@ -356,7 +356,7 @@ accountDeletionRouter.post('/user/me/deletion', authMiddleware, async (req: Auth
       try {
         await sendEmail({
           to: result.notificationEmail,
-          subject: 'Veli Randevu — Hesap silme işlemi tamamlandı',
+          subject: 'Hesap silme işlemi tamamlandı',
           idempotencyKey: `account-deletion-${requestId}`,
           ...rendered,
         });

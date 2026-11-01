@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
+import { loginLocalStaffWithWhatsApp } from './test-auth-fixtures';
 
 type ApiResult = { status: number; body: Record<string, any> };
 
@@ -88,6 +89,7 @@ async function run() {
   }
 
   async function login(phone: string) {
+    if (phone === teacherPhone) return loginLocalStaffWithWhatsApp(phone,(path,body)=>request('POST',path,undefined,body));
     return request('POST', '/auth/login', undefined, { phone, password });
   }
 

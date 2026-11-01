@@ -7,6 +7,7 @@ const clientRoot = path.join(repositoryRoot, 'dist', 'client');
 const serverRoot = path.join(repositoryRoot, 'dist', 'server');
 const publicRoot = path.join(repositoryRoot, 'public');
 const clientOnly = process.argv.includes('--client-only');
+const native = process.argv.includes('--native');
 
 function listFiles(root) {
   if (!fs.existsSync(root)) return [];
@@ -33,8 +34,11 @@ assert(clientFiles.some((file) => file.startsWith('assets/') && file.endsWith('.
 assert(clientFiles.some((file) => file.startsWith('assets/') && file.endsWith('.css')), 'Client artifact must contain CSS assets.');
 
 for (const publicFile of publicFiles) {
+  if (native && publicFile.startsWith('welcome/')) continue;
   assert(clientFiles.includes(publicFile), `Public asset is missing from client artifact: ${publicFile}`);
 }
+if (native) assert(!clientFiles.some(p=>p.startsWith('welcome/')||/\.(mp4|webm|mov)$/i.test(p)),'Web-only welcome leaked into native package');
+if (native) for (const p of clientFiles.filter(p=>/\.(js|css)$/.test(p))) assert(!fs.readFileSync(path.join(clientRoot,p),'utf8').includes('/welcome/'),'Web welcome code/CSS leaked into native output');
 
 const forbiddenPathPatterns = [
   /(^|\/)server\.cjs(?:\.map)?$/i,

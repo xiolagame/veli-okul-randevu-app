@@ -93,7 +93,7 @@ async function run() {
   equal(getPublicRequestPreset('?request=yearly'), 'YEARLY_LICENSE', 'yearly query preset supported');
   equal(getPublicRequestPreset('?request=contact'), 'CONTACT', 'contact query preset supported');
   equal(getPublicRequestPreset('?request=invalid'), 'YEARLY_LICENSE', 'unknown query preset safely falls back to yearly');
-  check(authViewSource.includes('Giriş yap') && authViewSource.includes('Veli Hesabı Oluştur') && authViewSource.includes('Personel İlk Giriş') && authViewSource.includes('Okul Yöneticisi İlk Giriş'), 'existing login and activation entry points remain');
+  check(authViewSource.includes('PhoneCentricLoginPanel') && authViewSource.includes('Veli Hesabı Oluştur') && !authViewSource.includes('Personel İlk Giriş') && authViewSource.includes('Okul Yöneticisi İlk Giriş'), 'shared phone login and parent/admin flows remain; retired staff activation stays closed');
   check(authViewSource.includes('Yıllık lisans hakkında bilgi alın veya bize ulaşın.'), 'public CTA describes annual license');
   check(!publicRequestSource.match(/!success[\s\S]*Giriş ekranına dön[\s\S]*Talebi Gönder/), 'normal public form does not render a second back button');
   const schoolRequestSourceForTypes = fs.readFileSync('src/components/SchoolRequestCenter.tsx', 'utf8');
@@ -246,7 +246,7 @@ async function run() {
     equal((await db.query('SELECT COUNT(*)::text AS count FROM school_licenses WHERE school_id=$1', [schoolA])).rows[0].count, '1', 'request does not create license');
 
     check(emails.some((email) => email.to === 'platform@example.test' && email.subject.includes('Yeni')), 'platform notification attempted');
-    check(emails.some((email) => email.subject === 'VELİ RANDEVU — Talebiniz Alındı'), 'requester acknowledgement sent when email exists');
+    check(emails.some((email) => email.subject === 'Talebiniz alındı'), 'requester acknowledgement sent when email exists');
     const phoneOnlyEmail = `phone-only-${crypto.randomBytes(3).toString('hex')}@example.test`;
     check(!emails.some((email) => email.to === phoneOnlyEmail), 'no invented acknowledgement recipient');
 

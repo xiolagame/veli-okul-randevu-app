@@ -8,7 +8,7 @@ import {ThemeSwitcher} from './ThemeSwitcher';
 export function PublicRequestPage({ onBack, backLabel = 'Giriş ekranına dön' }: { onBack: () => void; backLabel?: string }) {
   const initialRequestType = getPublicRequestPreset(window.location.search);
 
-  return <main className="public-request-page">
+  return <main className="public-request-page" data-help-theme={initialRequestType === 'CONTACT' ? 'support' : undefined}>
     <div className="public-request-page-shell">
       <header className="public-request-page-header">
         <ThemeSwitcher/>

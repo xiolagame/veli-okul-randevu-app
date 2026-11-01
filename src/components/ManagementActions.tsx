@@ -21,7 +21,7 @@ const labels: Record<string, string> = { fullName: 'Ad Soyad', name: 'Öğrenci 
 
 export function ManagementActions({ schoolId, kind, id, values, onChanged, showRemove = true, compact = false }: Props) {
   const [mode, setMode] = useState<'edit' | 'remove' | null>(null);
-  const initialDraft = Object.fromEntries(Object.entries(values).map(([key, value]) => [key,
+  const initialDraft = Object.fromEntries(Object.entries(values).filter(([key]) => kind !== 'security' || key !== 'email').map(([key, value]) => [key,
     key === 'phone' || key === 'parentPhone' ? displayStoredTurkishPhone(value) : key === 'birthDate' ? formatIsoBirthDateForInput(value) : value]));
   const [draft, setDraft] = useState(initialDraft);
   const [busy, setBusy] = useState(false);

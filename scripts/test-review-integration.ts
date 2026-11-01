@@ -70,7 +70,9 @@ try{
  const foreignQr=await fetch(base+'/api/schools/review-google/security/qr/verify',{method:'POST',headers:{Authorization:'Bearer '+sessions.get('review-google-security'),'Content-Type':'application/json'},body:JSON.stringify({qrToken:sample.qrToken})});assert.equal((await foreignQr.json()).decision,'INVALID');
  assert.equal((await call('teacher',school+'/availability','POST',{dayOfWeek:1,startTime:'17:00',endTime:'17:15'})).status,200);
  assert.equal((await call('parent',school+'/availability','POST',{dayOfWeek:1,startTime:'17:00',endTime:'17:15'})).status,403);
- const date=new Date(Date.now()+86400000).toISOString().slice(0,10);
+ // Sunday is intentionally unavailable in the existing appointment business rules.
+ const bookingDay=new Date(Date.now()+86400000);if(bookingDay.getUTCDay()===0)bookingDay.setUTCDate(bookingDay.getUTCDate()+1);
+ const date=bookingDay.toISOString().slice(0,10);
  const booking=await call('parent',school+'/appointments','POST',{teacherId:'profile-apple',studentName:'Sentetik Öğrenci',className:'5-A',date,startTime:'10:00',endTime:'10:15'});
  assert.equal(booking.status,200,JSON.stringify(booking.body));const appointment=booking.body.appointment;
  assert.equal((await call('teacher',school+'/appointments/'+appointment.id+'/approve','POST',{})).status,200);

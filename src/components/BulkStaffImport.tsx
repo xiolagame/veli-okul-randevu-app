@@ -76,7 +76,7 @@ export const BulkStaffImport: React.FC<Props> = ({
               ? { branch: row.draft.branch.trim() }
               : {}),
             phone: row.draft.phone,
-            email: row.draft.email.trim().toLowerCase(),
+            ...(row.draft.role === 'teacher' ? {email:row.draft.email.trim().toLowerCase()} : {}),
           });
 
           created++;
@@ -160,7 +160,7 @@ export const BulkStaffImport: React.FC<Props> = ({
               <table className="w-full min-w-[780px] text-left text-sm">
                 <thead className="sticky top-0 bg-slate-100">
                   <tr>
-                    {['Satır', 'Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'E-posta', 'Durum'].map(
+                    {['Satır', 'Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'Bildirim e-postası (öğretmen)', 'Durum'].map(
                       (title) => <th key={title} className="p-3">{title}</th>,
                     )}
                   </tr>
@@ -203,7 +203,7 @@ export const BulkStaffImport: React.FC<Props> = ({
             {!finished && (
               <p className="text-sm text-slate-600">
                 Henüz hiçbir kayıt eklenmedi. Aktarımı başlattığınızda geçerli kayıtlar
-                sırayla oluşturulur ve mevcut personel aktivasyon sistemi kullanılır.
+                sırayla oluşturulur. Güvenlik için e-posta gerekmez; hesaplar ilk başarılı WhatsApp girişinde etkinleşir.
               </p>
             )}
           </>

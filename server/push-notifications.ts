@@ -102,6 +102,9 @@ const validGeneration = (value: unknown): value is number => Number.isSafeIntege
 export class StalePushRegistrationError extends Error {
   constructor() { super('Stale push registration'); }
 }
+export class StalePushSessionError extends Error {
+  constructor(){super('Push session no longer valid');}
+}
 
 export function validDeviceInput(input: unknown): input is {
   installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string;
@@ -121,15 +124,19 @@ export function validDeviceInput(input: unknown): input is {
       : device.registrationGeneration === undefined);
 }
 
-export async function registerPushDevice(userId: string, input: unknown): Promise<boolean> {
+export async function registerPushDevice(userId: string, input: unknown, expectedAuthVersion?: number): Promise<boolean> {
   if (!validDeviceInput(input)) return false;
   const db = await getDb();
   const targetHash = crypto.createHash('sha256').update(input.providerTarget).digest('hex');
   const generation = input.registrationGeneration ?? 0;
   await db.transaction(async (tx) => {
-    await tx.query('LOCK TABLE mobile_push_devices IN SHARE ROW EXCLUSIVE MODE');
-    const owner = await tx.query<{ auth_version: number }>('SELECT auth_version FROM users WHERE id=$1', [userId]);
+    // Recheck the middleware's authenticated version under the identity row lock.
+    // Phone changes/logout lock the same row before deactivating devices, so an old
+    // request cannot rebind its token using a newer account version.
+    const owner = await tx.query<{ auth_version: number }>('SELECT auth_version FROM users WHERE id=$1 FOR UPDATE', [userId]);
     if (!owner.rows.length) throw new Error('Push owner unavailable');
+    if (expectedAuthVersion !== undefined && owner.rows[0].auth_version !== expectedAuthVersion) throw new StalePushSessionError();
+    await tx.query('LOCK TABLE mobile_push_devices IN SHARE ROW EXCLUSIVE MODE');
     const previous = await tx.query<{ id: string; user_id: string; target_hash: string; platform: string;
       registration_generation: string | number; revoked_through_generation: string | number }>(
       `SELECT id,user_id,target_hash,platform,registration_generation,revoked_through_generation
@@ -305,7 +312,7 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
       await db.query(`UPDATE notification_deliveries SET status='FAILED',
         next_attempt_at=NOW()+(INTERVAL '1 minute' * LEAST(60,POWER(2,attempt_count))),
         last_error_code=$2,claimed_until=NULL,updated_at=NOW()
-        WHERE id=$1 AND status='SENDING'`, [delivery.id, sendResult.errorCode]);
+        WHERE id=$1 AND status='SENDING'`, [delivery.id, sendResult.status === 'RETRYABLE_FAILURE' ? sendResult.errorCode : 'UNKNOWN_FCM_ERROR']);
     }
   }
   return result;

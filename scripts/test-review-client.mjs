@@ -6,7 +6,7 @@ const bundle=await build({stdin:{contents:"export {api} from './src/services/api
   b.onResolve({filter:/platform\/auth-session$/},()=>({path:'session',namespace:'fixture'}));
   b.onResolve({filter:/platform\/client-preferences$/},()=>({path:'prefs',namespace:'fixture'}));
   b.onResolve({filter:/platform\/runtime-platform$/},()=>({path:'runtime',namespace:'fixture'}));
-  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='session'?"export const authSession={getToken:async()=>globalThis.reviewTestToken};":a.path==='runtime'?"export const getRuntimePlatform=()=> 'ANDROID';":"export const getActiveSchoolId=()=>null;export const getPlatformTargetSchoolId=()=>null;"}));
+  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='session'?"export const authSession={getToken:async()=>globalThis.reviewTestToken};":a.path==='runtime'?"export const getRuntimePlatform=()=> 'ANDROID';":"export const getActiveSchoolId=()=>null;export const getActiveSchoolRole=()=>null;export const getPlatformTargetSchoolId=()=>null;"}));
  }}]});
 const {api}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const calls=[],original=globalThis.fetch;

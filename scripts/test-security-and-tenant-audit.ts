@@ -16,7 +16,7 @@ import http from 'http';
 import express from 'express';
 import { apiRouter } from '../server/api';
 import { initDatabase, getDb } from '../server/database/postgres';
-import { bootstrapLocalPasswordFixtures } from './test-auth-fixtures';
+import { bootstrapLocalPasswordFixtures, loginLocalStaffWithWhatsApp } from './test-auth-fixtures';
 import { calendarWeekday } from '../src/utils/appointment-slots';
 import { displayStoredTurkishPhone } from '../src/utils/phone';
 import {
@@ -113,6 +113,10 @@ async function runSecurityAudit() {
     // -------------------------------------------------------------
     console.log('--- HAZIRLIK: TEST KULLANICI TOKENLERİ ---');
     const login = async (phone: string) => {
+      const user = await userRepository.getByPhone(phone);
+      if (user && (await membershipRepository.getMembershipsByUserId(user.id)).some(m=>m.role==='teacher'||m.role==='security')) {
+        return loginLocalStaffWithWhatsApp(phone,(path,body)=>makeReq('POST',path,{body}));
+      }
       const response = await makeReq('POST', '/auth/login', { body: { phone, password: fixturePassword } });
       if (response.status !== 200 || !response.body.token || response.body.user?.phone !== phone) {
         throw new Error(`Password login failed for audit fixture: ${JSON.stringify(response.body)}`);

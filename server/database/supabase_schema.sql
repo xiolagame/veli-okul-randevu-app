@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS pending_staff (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
-    email VARCHAR(150) NOT NULL,
+    email VARCHAR(150),
     created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,

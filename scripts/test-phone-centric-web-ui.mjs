@@ -13,6 +13,8 @@ async function compile(entry) {
       builder.onResolve({ filter: /./ }, ({ path: specifier, importer }) => {
         if (!importer.endsWith(entry.replace('src/components/', ''))) return;
         const mocks = {
+ './ReviewLogin':"export const ReviewLogin=()=>null;",
+ './ThemeToggle':"export const ThemeToggle=()=>null;",
           '../context/AppContext': 'export const useApp=()=>globalThis.__test.app;',
           '../services/api': 'export const api=globalThis.__test.api;',
           '../platform/runtime-platform': 'export const getRuntimePlatform=()=>globalThis.__test.platform;',
@@ -79,7 +81,7 @@ for (const scenario of [
   { platform: 'WEB', phone: true, fallback: false },
   { platform: 'WEB', phone: false },
   { platform: 'ANDROID', phone: true, fallback: true },
-  { platform: 'IOS', phone: true, fallback: true },
+  { platform: 'IOS', phone: true, fallback: false },
 ]) {
   const harness = mount(auth, 'AuthView', {}, { platform: scenario.platform, app: {}, api: {
     getAuthCapabilities: async () => ({ whatsappAuthEnabled: true, unifiedLoginEnabled: true, phoneCentricAuthEnabled: scenario.phone }),
@@ -126,15 +128,17 @@ const settings = { app: {}, api: { requestPhoneCentricCode: async () => {
 } } };
 const scanner = mount(panel, 'PhoneCentricLoginPanel', { allowLegacyFallback: false, onLegacyFallback: () => { fallbackCalls += 1; } }, settings);
 let tree = scanner.render();
+assert(!renderToStaticMarkup(tree).includes('Girişe uygun numaralar WhatsApp koduyla doğrulanır.'));
+assert(renderToStaticMarkup(tree).includes('Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.'));
 find(tree, (node) => node.type === 'input' && node.props.type === 'tel').props.onChange({ target: { value: '05551234567' } });
 tree = scanner.render();
 await find(tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
 tree = scanner.render();
 const html = renderToStaticMarkup(tree);
-assert(html.includes('Lütfen telefonunuza gelen WhatsApp onay kodunu girin.'));
+assert(html.includes('WhatsApp doğrulama kodunuz gönderildi.'));
 assert(html.includes('data-tone="info"'));
-assert(!html.includes('Kod gönderilebildiyse'));
 assert(html.includes('phone-centric-code'));
+assert(!html.includes('WhatsApp kodum var'));
 requestFailure = true;
 await find(tree, (node) => node.type === 'button' && node.props.children === 'Kodu yeniden gönder').props.onClick();
 const failedHtml = renderToStaticMarkup(scanner.render());
@@ -169,5 +173,6 @@ tree = denied.render();
 find(tree, (node) => node.type === 'input' && node.props.type === 'tel').props.onChange({ target: { value: '05551234567' } });
 await find(denied.render(), (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
 assert.equal(fallbackCalls, 0);
-assert(renderToStaticMarkup(denied.render()).includes('WhatsApp girişi şu anda kullanılamıyor'));
+assert(renderToStaticMarkup(denied.render()).includes('Doğrulama kodu gönderilmedi.'));
+assert(!renderToStaticMarkup(denied.render()).includes('phone-centric-code'));
 console.log('Phone-centric web UI: capability loading/error/selection, passwordless mode, native fallback preservation, OTP instruction and request/resend errors PASS.');

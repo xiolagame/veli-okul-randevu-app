@@ -1,0 +1,115 @@
+/* Recovered public-route rules from the original web-scene.css. No login/admin rules. */
+/* Public information routes share one dark scene. Keep the welcome, login,
+   authenticated panels and native styles unchanged. The overlay stays behind #root. */
+html[data-web-scene="school"] body:has(.help-page,.public-request-page) .school-background{
+ background:linear-gradient(115deg,rgba(6,59,33,.70),rgba(19,32,49,.56)),url('/welcome/login-scene.png') center/cover no-repeat;
+}
+html[data-web-scene="school"] :is(.help-page,.public-request-page){padding:16px 20px 20px}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header){margin-bottom:16px;min-height:48px;gap:16px}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) :is(.brand,.ui-button){color:#fff}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .ui-button:hover{background:#ffffff1c}
+html[data-web-scene="school"] .public-request-page-shell{width:min(980px,100%)}
+html[data-web-scene="school"] .public-request-page-card{padding:24px;background:#fffffff7}
+html[data-web-scene="school"] .public-request-page-copy{margin-bottom:18px;gap:14px}
+html[data-web-scene="school"] .public-request-page-copy h1{font-size:30px;line-height:1.2}
+html[data-web-scene="school"] .public-request-page-copy p{margin-top:6px;font-size:14px;line-height:1.5;max-width:650px}
+html[data-web-scene="school"] .public-request-form{gap:12px}
+html[data-web-scene="school"] .public-request-form .field{gap:5px;font-size:14px}
+html[data-web-scene="school"] .public-request-form :is(input,select){min-height:44px;padding:9px 12px;font-size:16px}
+html[data-web-scene="school"] .public-request-form textarea{min-height:88px;height:88px;padding:10px 12px;font-size:16px;resize:vertical}
+html[data-web-scene="school"] .public-request-form .form-actions{margin-top:0}
+html[data-web-scene="school"] .help-hero{padding:20px;gap:16px}
+html[data-web-scene="school"] .help-hero h1{font-size:30px;line-height:1.2}
+html[data-web-scene="school"] .help-hero>div>p:last-child{margin-top:6px;font-size:14px;line-height:1.5}
+html[data-web-scene="school"] .help-hero-icon{width:48px;height:48px;flex-basis:48px}
+html[data-web-scene="school"] .help-category-grid{margin-top:16px;gap:14px}
+html[data-web-scene="school"] .help-category{padding:16px}
+html[data-web-scene="school"] .help-category>header{gap:10px;margin-bottom:10px}
+html[data-web-scene="school"] .help-category nav{gap:4px}
+html[data-web-scene="school"] .help-topic-link{min-height:56px;padding:8px;gap:10px}
+@media(min-width:740px){
+ html[data-web-scene="school"] .public-request-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+ html[data-web-scene="school"] .public-request-form :is(label[for="request-message"],.ui-alert,.form-actions){grid-column:1/-1}
+ html[data-web-scene="school"] .public-request-form .ui-alert{grid-row:1}
+}
+@media(min-width:1100px){
+ html[data-web-scene="school"] .help-page-shell{width:min(1360px,100%)}
+ html[data-web-scene="school"] .help-category-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:start}
+ html[data-web-scene="school"] .help-category h2{font-size:17px}
+}
+@media(max-width:680px){
+ html[data-web-scene="school"] body:has(.help-page,.public-request-page) .school-background{background-position:65% center}
+ html[data-web-scene="school"] :is(.help-page,.public-request-page){padding:12px 14px 20px}
+ html[data-web-scene="school"] .public-request-page-card{padding:20px}
+ html[data-web-scene="school"] :is(.public-request-page-copy,.help-hero){gap:10px}
+ html[data-web-scene="school"] :is(.public-request-page-copy h1,.help-hero h1){font-size:26px}
+ html[data-web-scene="school"] .help-hero{padding:18px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header){flex-direction:row;align-items:center;gap:10px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .brand{font-size:26px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .brand-logo{width:40px;height:40px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .ui-button{padding:8px;font-size:12px}
+}
+
+/* Original category/guide artwork presentation, retained verbatim. */
+/* Extra artwork is invisible in native layouts; the presentation below is WEB only. */
+.help-category-art,.help-topic-icon{display:none}
+html[data-web-scene="school"] [data-help-theme]{--help-accent:#17684f;--help-soft:#e8f4ed;--help-wash:#d4ebe0;--help-edge:#cce1d5}
+html[data-web-scene="school"] [data-help-theme="account"]{--help-accent:#185ab3;--help-soft:#edf4fe;--help-wash:#d3e5fc;--help-edge:#d7e4f5}
+html[data-web-scene="school"] [data-help-theme="legal"]{--help-accent:#95600a;--help-soft:#fff7e6;--help-wash:#fce9bc;--help-edge:#ecdfc2}
+html[data-web-scene="school"] [data-help-theme="support"]{--help-accent:#b12d29;--help-soft:#fff0ee;--help-wash:#fbdad6;--help-edge:#f0d7d3}
+html[data-web-scene="school"] .help-category-grid{align-items:stretch;gap:14px;margin-top:12px}
+html[data-web-scene="school"] .help-category[data-help-theme]{padding:18px 18px 16px;background:linear-gradient(145deg,var(--help-soft),#fff 46%);border:1px solid #ffffffc9;border-radius:22px;box-shadow:0 12px 32px #061f1921;min-width:0;position:relative}
+html[data-web-scene="school"] .help-category>header{display:block;position:relative;min-height:140px;margin-bottom:8px}
+html[data-web-scene="school"] .help-category>header>span{display:grid;width:64px;height:64px;border-radius:18px;background:var(--help-wash);color:var(--help-accent);margin-bottom:14px}
+html[data-web-scene="school"] .help-category>header>span>svg{width:34px;height:34px;stroke-width:1.8}
+html[data-web-scene="school"] .help-category-art{display:block;position:absolute;top:-8px;right:-8px;width:145px;height:86px;pointer-events:none;color:var(--help-accent)}
+html[data-web-scene="school"] .help-category>header h2{font-size:20px;line-height:1.2;letter-spacing:-.6px;font-weight:780;margin:0 0 5px}
+html[data-web-scene="school"] .help-category>header p{font-size:14px;line-height:1.45;margin:0;max-width:30ch;color:#526460}
+html[data-web-scene="school"] .help-category nav{gap:3px}
+html[data-web-scene="school"] .help-topic-link{display:grid;grid-template-columns:34px minmax(0,1fr) 16px;align-items:start;min-height:70px;padding:8px 5px;gap:10px;border-radius:14px;border:1px solid transparent;transition:background .16s,border-color .16s}
+html[data-web-scene="school"] .help-topic-link>.help-topic-icon{display:grid;place-items:center;min-height:36px;width:34px;border-radius:12px;background:var(--help-soft);color:var(--help-accent)}
+html[data-web-scene="school"] .help-topic-link>svg{width:16px;height:16px;align-self:center;color:#34534b}
+html[data-web-scene="school"] .help-topic-link strong{font-size:13px;line-height:1.4;color:#203b35}
+html[data-web-scene="school"] .help-topic-link small{font-size:12px;line-height:1.5;margin-top:4px;color:#61716c}
+html[data-web-scene="school"] .help-topic-link:hover{background:var(--help-soft);border-color:var(--help-edge)}
+html[data-web-scene="school"] .help-topic-link:focus-visible{outline:3px solid var(--help-accent);outline-offset:2px;background:var(--help-soft)}
+html[data-web-scene="school"] .help-guide[data-help-theme]{width:min(1120px,100%);border:0;box-shadow:none;overflow:visible;background:transparent}
+html[data-web-scene="school"] .help-guide-heading{position:relative;padding:30px 190px 30px 30px;background:linear-gradient(110deg,#fff,var(--help-soft));border:1px solid var(--help-edge);border-radius:22px;box-shadow:0 12px 32px #061f191c}
+html[data-web-scene="school"] .help-guide-heading .help-category-art{top:22px;right:22px;width:150px;height:100px}
+html[data-web-scene="school"] .help-guide-heading .eyebrow{color:var(--help-accent)}
+html[data-web-scene="school"] .help-guide-heading h1{font-size:clamp(28px,3vw,38px);line-height:1.2;letter-spacing:-1px;color:#173b31;margin-top:8px}
+html[data-web-scene="school"] .help-guide-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:20px 0 0;align-items:start}
+html[data-web-scene="school"] .help-guide-section,html[data-web-scene="school"] .help-guide-section+.help-guide-section{margin:0;padding:24px;background:#fffffff7;border:1px solid var(--help-edge);border-top:3px solid var(--help-wash);border-radius:18px;box-shadow:0 8px 24px #071b1614}
+html[data-web-scene="school"] .help-guide-section h2{font-size:20px;line-height:1.3;color:#203b35;margin-bottom:14px}
+html[data-web-scene="school"] .help-guide-section li::marker{color:var(--help-accent);font-weight:700}
+html[data-web-scene="school"] .help-guide-section .help-note{background:var(--help-soft);border-left-color:var(--help-accent);color:#354b41}
+html[data-web-scene="school"] .help-back{color:#fff;background:#071b1659}
+html[data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-page-card{border-color:var(--help-edge);background:linear-gradient(145deg,#fff,var(--help-soft))}
+html[data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-page-icon{color:var(--help-accent);background:var(--help-wash)}
+html[data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-form input:focus-visible,html[data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-form textarea:focus-visible{outline-color:var(--help-accent)}
+@media(max-width:1099px){html[data-web-scene="school"] .help-category>header{min-height:145px}html[data-web-scene="school"] .help-category-art{right:0}}
+@media(max-width:740px){html[data-web-scene="school"] .help-guide-sections{grid-template-columns:1fr}html[data-web-scene="school"] .help-guide-heading{padding:24px}html[data-web-scene="school"] .help-guide-heading .help-category-art{position:relative;top:auto;right:auto;width:120px;height:70px;margin:16px 0 0 auto}html[data-web-scene="school"] .help-guide-section{padding:20px}html[data-web-scene="school"] .help-topic-link{min-height:76px}html[data-web-scene="school"] .help-category>header{min-height:145px}}
+@media(prefers-reduced-motion:reduce){html[data-web-scene="school"] .help-topic-link{transition:none}}
+
+/* Compatibility with the current persistent theme: scoped to recovered public routes.
+   Light colors/artwork above are original; dark surfaces retain each category's hue. */
+html[data-web-scene="school"] body:has(.help-page,.public-request-page) .school-background{z-index:0}
+html[data-theme="dark"][data-web-scene="school"] [data-help-theme]{--help-accent:#9ed8b7;--help-soft:#163a2d;--help-wash:#244d3b;--help-edge:#4c7b63;--help-paper:#1b2c25}
+html[data-theme="dark"][data-web-scene="school"] [data-help-theme="account"]{--help-accent:#aacfff;--help-soft:#182f4c;--help-wash:#25476e;--help-edge:#50729a;--help-paper:#182738}
+html[data-theme="dark"][data-web-scene="school"] [data-help-theme="legal"]{--help-accent:#f4d78f;--help-soft:#40341c;--help-wash:#574627;--help-edge:#8e7440;--help-paper:#302b20}
+html[data-theme="dark"][data-web-scene="school"] [data-help-theme="support"]{--help-accent:#ffc0bc;--help-soft:#42282c;--help-wash:#60363b;--help-edge:#9a6064;--help-paper:#35242a}
+html[data-theme="dark"][data-web-scene="school"] .help-category[data-help-theme]{background:linear-gradient(145deg,var(--help-soft),var(--help-paper) 46%);border-color:var(--help-edge)}
+html[data-theme="dark"][data-web-scene="school"] .help-category>header>span,
+html[data-theme="dark"][data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-page-icon{background:var(--help-wash);color:var(--help-accent)}
+html[data-theme="dark"][data-web-scene="school"] .help-category>header p,
+html[data-theme="dark"][data-web-scene="school"] .help-topic-link small{color:var(--theme-muted)}
+html[data-theme="dark"][data-web-scene="school"] .help-topic-link strong,
+html[data-theme="dark"][data-web-scene="school"] .help-guide-heading h1,
+html[data-theme="dark"][data-web-scene="school"] .help-guide-section h2{color:var(--theme-text)}
+html[data-theme="dark"][data-web-scene="school"] .help-topic-link>svg{color:var(--help-accent)}
+html[data-theme="dark"][data-web-scene="school"] .help-topic-link:hover{background:var(--help-soft);border-color:var(--help-edge)}
+html[data-theme="dark"][data-web-scene="school"] .help-guide[data-help-theme]{background:transparent}
+html[data-theme="dark"][data-web-scene="school"] .help-guide-heading{background:linear-gradient(110deg,var(--help-paper),var(--help-soft));border-color:var(--help-edge)}
+html[data-theme="dark"][data-web-scene="school"] .help-guide-section{background:var(--help-paper);border-color:var(--help-edge);border-top-color:var(--help-wash)}
+html[data-theme="dark"][data-web-scene="school"] .help-guide-section .help-note{background:var(--help-soft);color:var(--theme-text)}
+html[data-theme="dark"][data-web-scene="school"] .public-request-page[data-help-theme="support"] .public-request-page-card{background:linear-gradient(145deg,var(--help-paper),var(--help-soft));border-color:var(--help-edge)}

@@ -33,6 +33,13 @@ const rows = await parse([
 assert(rows.every((row) => row.errors.length === 0));
 assert.equal(rows[0].draft.phone[0], '0');
 assert.equal(rows[0].draft.role, 'teacher'); assert.equal(rows[1].draft.role, 'security');
+assert.equal(rows[1].draft.email,'','Legacy security email cells are ignored, never synthesized');
+assert.equal((await parse([['GÜVENLİK ÖRNEK','Güvenlik','','05551234560','']]))[0].errors.length,0);
+assert((await parse([['ÖĞRETMEN ÖRNEK','Öğretmen','Matematik','05551234561','']]))[0].errors.length);
+assert((await parse([
+  ['BİRİNCİ ÖĞRETMEN','Öğretmen','Fen','05551234562','shared@example.test'],
+  ['İKİNCİ ÖĞRETMEN','Öğretmen','Türkçe','05551234563','shared@example.test'],
+])).every(r=>!r.errors.length),'A notification mailbox is not a unique login identity');
 assert((await parse([['ÖRNEK PERSONEL', 'Yönetici', '', '05551234569', 'bad@example.test']]))[0].errors.length);
 assert((await parse([['ÖRNEK PERSONEL', 'Öğretmen', '', '05551234569', 'bad@example.test']]))[0].errors.length);
 const duplicates = await parse([

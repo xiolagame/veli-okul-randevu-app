@@ -54,9 +54,9 @@ const ctes = `WITH staff_source AS (
  CASE WHEN trim(first_name)='' OR trim(last_name)='' THEN 'Ad veya soyad eksik' END,
  CASE WHEN ${canonical('phone')} IS NULL THEN 'Telefon eksik veya geçersiz' END,
  CASE WHEN role='teacher' AND trim(COALESCE(branch,''))='' THEN 'Branş eksik' END,
- CASE WHEN status='pending' AND COALESCE(email,'') !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN 'Aktivasyon e-postası eksik veya geçersiz' END],NULL))
+ CASE WHEN role='teacher' AND COALESCE(email,'') !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN 'Bildirim e-postası eksik veya geçersiz' END],NULL))
  FROM staff WHERE trim(first_name)='' OR trim(last_name)='' OR ${canonical('phone')} IS NULL OR (role='teacher' AND trim(COALESCE(branch,''))='')
- OR (status='pending' AND COALESCE(email,'') !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$')
+ OR (role='teacher' AND COALESCE(email,'') !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$')
 ), meetings AS NOT MATERIALIZED (
  SELECT a.id,a.date,a.start_time,CASE WHEN a.status='completed' THEN 'checked_out' ELSE a.status END AS status,
  jsonb_build_object('id',a.id,'kind','appointment','name',a.student_name,'appointment',jsonb_build_object('id',a.id,'studentName',a.student_name,'parentName',a.parent_name,'teacherName',a.teacher_name,'className',a.class_name,'date',a.date,'startTime',a.start_time,'endTime',a.end_time,'status',CASE WHEN a.status='completed' THEN 'checked_out' ELSE a.status END,'notes',COALESCE(a.notes,''))) AS payload
