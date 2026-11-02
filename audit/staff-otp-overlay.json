@@ -9,6 +9,12 @@
       "currentCanonicalSha256": "bc76ce24cd365766436376ca5b352add4de0308601d82d233d97eaebfe6c94bc"
     },
     {
+      "path": "codemagic.yaml",
+      "baselineCanonicalSha256": "1044aff639b4d7bf012418b5dc53b046b715bdf3874fa4d901b317340388e861",
+      "archivedProductionCanonicalSha256": "cd2d18726fc42006ed1e27e462d856e9451068b33bd45b4df1c630f17551899c",
+      "currentCanonicalSha256": "cc42923726f0333146dee0c874635d6d6406a4efa5136b06d912bf82746913fa"
+    },
+    {
       "path": "index.html",
       "baselineCanonicalSha256": "84ed9af9e12e2f8a96190bb8856f665a859d51f948fcd8167b4de01c2278ee95",
       "archivedProductionCanonicalSha256": "64d820f3efa166f022125156f4c0d03269852ad65443d800371a76f626bcdd74",
@@ -187,6 +193,12 @@
       "baselineCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
       "archivedProductionCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
       "currentCanonicalSha256": "f89aedc9aa51adfae69ea39c41e3462faa7a0ea2cc54596263ff162d63901ab8"
+    },
+    {
+      "path": "scripts/test-ios-release-safety.mjs",
+      "baselineCanonicalSha256": "11b36353858385cf2c226988630f801002aa641515b0b227623b6652ded5718b",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "81b08f7af02860519fc19712ffa072a89a479449424c7ebf52a45db7353a4d93"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",

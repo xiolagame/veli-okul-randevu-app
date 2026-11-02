@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "1fb38e9b927d2f8a4191503067de54a3efb4f837b737aa82382ea8f7bc0d095d"
+      "sha256": "6e7c52b0882c11901dcba3c6a691277ba71f962804fe61b95ab7683f07dbcb44"
     },
     {
       "path": "bun.lock",
@@ -334,7 +334,7 @@
     },
     {
       "path": "codemagic.yaml",
-      "sha256": "1044aff639b4d7bf012418b5dc53b046b715bdf3874fa4d901b317340388e861"
+      "sha256": "cc42923726f0333146dee0c874635d6d6406a4efa5136b06d912bf82746913fa"
     },
     {
       "path": "config/store-review.json",
@@ -898,7 +898,7 @@
     },
     {
       "path": "scripts/test-ios-release-safety.mjs",
-      "sha256": "11b36353858385cf2c226988630f801002aa641515b0b227623b6652ded5718b"
+      "sha256": "81b08f7af02860519fc19712ffa072a89a479449424c7ebf52a45db7353a4d93"
     },
     {
       "path": "scripts/test-ios-role-api-matrix.ts",

@@ -344,7 +344,9 @@ workflows:
           set -euo pipefail
           IPAS=("$CM_BUILD_DIR"/build/ios/ipa/*.ipa)
           [ "${#IPAS[@]}" -eq 1 ] && [ -f "${IPAS[0]}" ]
-          app-store-connect publish --path "${IPAS[0]}" --testflight
+          # Upload only. --testflight submits for external beta review; --app-store
+          # submits for production review. Neither is authorized by this workflow.
+          app-store-connect publish --path "${IPAS[0]}"
     artifacts:
       - build/ios/ipa/*.ipa
       - build/logs/*.log

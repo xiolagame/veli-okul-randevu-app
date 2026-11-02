@@ -19,12 +19,17 @@ function validate(config) {
         assert(guard.script.includes('exit 1'));
       }
       assert(!('IOS_TESTFLIGHT_APPROVAL' in (w.environment.vars||{})));
-      assert.match(w.scripts.at(-1).script,/app-store-connect publish .* --testflight/);
-      assert(!scripts.includes('--app-store'));
+      const uploadCommands=w.scripts.at(-1).script.split('\n').filter(line=>!line.trim().startsWith('#')).join('\n');
+      assert.match(uploadCommands,/app-store-connect publish --path/);
+      assert(!/--testflight\b|--app-store\b|--beta-group\b/.test(uploadCommands),'Only upload is authorized; no beta/production review or tester-group changes');
     }
   }
 }
 validate(config);
+for(const flag of ['--testflight','--app-store','--beta-group external']) {
+  const review=structuredClone(config);review.workflows['ios-testflight'].scripts.at(-1).script+='\napp-store-connect publish --path app.ipa '+flag;
+  assert.throws(()=>validate(review));
+}
 for(const id of ['ios-ci-check','ios-signed-ipa']) {
   const publishing=structuredClone(config);publishing.workflows[id].publishing={app_store_connect:{submit_to_testflight:false}};
   assert.throws(()=>validate(publishing));
