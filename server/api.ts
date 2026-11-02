@@ -1292,9 +1292,6 @@ apiRouter.get('/schools/:schoolId/users', authMiddleware, tenantGuard(['admin'])
   try {
     const schoolId = req.membership!.schoolId;
     const users = await userRepository.getSecurityUsers(schoolId);
-    const pending = await (await getDb()).query<{id:string;first_name:string;last_name:string;phone:string;email:string}>(
-      "SELECT id,first_name,last_name,phone,email FROM pending_staff WHERE school_id=$1 AND role='security' ORDER BY created_at DESC",[schoolId]);
-    users.push(...pending.rows.map((row) => ({id:row.id,firstName:normalizePersonName(row.first_name),lastName:normalizePersonName(row.last_name),phone:row.phone,email:row.email,accountStatus:'pending' as const})));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: 'Güvenlik personeli listelenemedi.' });

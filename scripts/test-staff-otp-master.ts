@@ -76,7 +76,23 @@ try{
  const teacherId=(await db.query<any>('SELECT id FROM teacher_profiles WHERE phone=$1',[teacherPhone])).rows[0].id;
  assert.equal((await db.query<any>('SELECT user_id FROM teacher_profiles WHERE id=$1',[teacherId])).rows[0].user_id,null);
  assert.equal((await db.query<any>('SELECT email FROM pending_staff WHERE phone=$1',[securityPhone])).rows[0].email,null);
- assert((await req('GET',`/schools/${school}/users?role=security`,admin.token)).body.users.some((u:any)=>u.phone===securityPhone&&u.accountStatus==='pending'));
+ const activeSecurity=await fixture('+905551110085','security');
+ const legacyPending=await userRepository.create({phone:'+905551110086',firstName:'SENTETİK',lastName:'BEKLEYEN',isPhoneVerified:false});
+ await membershipRepository.createOrActivate({schoolId:school,userId:legacyPending.id,role:'security'});
+ await fixture('+905551110087','security',other);
+ assert.equal((await req('POST',`/schools/${other}/staff`,foreignAdmin.token,{role:'security',fullName:'Başka Okul Bekleyen',phone:'+905551110088'})).status,201);
+ const securityRoster=await req('GET',`/schools/${school}/users?role=security`,admin.token);
+ assert.equal(securityRoster.status,200);
+ assert.equal(securityRoster.body.users.length,3,'Active, legacy pending and pending_staff must each appear once');
+ assert.equal(new Set(securityRoster.body.users.map((u:any)=>u.id)).size,3);
+ assert.equal(securityRoster.body.users.filter((u:any)=>u.phone===securityPhone&&u.accountStatus==='pending').length,1,'Pending staff must not be appended twice');
+ assert.equal(securityRoster.body.users.filter((u:any)=>u.id===activeSecurity.id&&u.accountStatus==='active').length,1);
+ assert.equal(securityRoster.body.users.filter((u:any)=>u.id===legacyPending.id&&u.accountStatus==='pending').length,1);
+ assert(!securityRoster.body.users.some((u:any)=>['+905551110087','+905551110088'].includes(u.phone)));
+ assert.equal((await req('GET',`/schools/${school}/users?role=security`,foreignAdmin.token)).status,403);
+ assert.equal((await req('GET',`/schools/${school}/users?role=security`,parent.token)).status,403);
+ fs.mkdirSync(path.join(root,'audit/master'),{recursive:true});
+ fs.writeFileSync(path.join(root,'audit/master/security-roster-response.json'),JSON.stringify({synthetic:true,users:securityRoster.body.users}));
  assert.equal((await db.query('SELECT 1 FROM invitations WHERE purpose=\'staff_activation\'')).rows.length,0);
  ok('teacher required contact/phone; security no email; tenant guard; pending profiles; no email/code activation');
 
@@ -106,6 +122,10 @@ try{
  assert.equal((await db.query<any>('SELECT email FROM teacher_profiles WHERE id=$1',[teacherId])).rows[0].email,teacherInput.email);
  assert.equal(emails.length,0);
  const securityStart=await start(securityPhone),security=await verify(securityPhone,securityStart);assert.equal(security.status,200);
+ const activatedRoster=await req('GET',`/schools/${school}/users?role=security`,admin.token);
+ assert.equal(activatedRoster.body.users.filter((u:any)=>u.phone===securityPhone&&u.accountStatus==='active').length,1);
+ assert.equal(activatedRoster.body.users.filter((u:any)=>u.phone===securityPhone&&u.accountStatus==='pending').length,0);
+ assert.equal(activatedRoster.body.users.length,3,'OTP activation must replace the pending row, not duplicate it');
  assert.equal((await req('POST',staffPath,admin.token,{role:'security',fullName:'Yinelenen Güvenlik',phone:securityPhone})).status,409);
  assert.equal((await req('POST',`/schools/${school}/security/qr/verify`,security.body.token,{qrToken:'invalid'})).status,200);
  assert.equal((await req('POST',`/schools/${other}/security/qr/verify`,security.body.token,{qrToken:'invalid'})).status,403);

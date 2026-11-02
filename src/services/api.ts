@@ -254,8 +254,8 @@ export const api = {
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
-  getAuthCapabilities: () =>
-    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store' }),
+  getAuthCapabilities: (signal?: AbortSignal) =>
+    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store', signal }),
 
   // Authentication
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>

@@ -963,3 +963,48 @@ html[data-runtime-platform="ios"] :is(.license-whatsapp,.license-whatsapp-prefer
 
 /* Original web artwork is hidden in native layouts, whose bundle omits its presentation. */
 .help-category-art,.help-topic-icon{display:none}
+
+/* iOS status-bar surface extension: preserve each page's own background. */
+html[data-runtime-platform="ios"] .review-banner { position: relative; }
+html[data-runtime-platform="ios"] :is(.app-topbar,.review-banner)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: env(safe-area-inset-top, 0px);
+  background: inherit;
+  backdrop-filter: inherit;
+  pointer-events: none;
+}
+@supports selector(#root:has(> .auth-layout)) {
+  html[data-runtime-platform="ios"] #root:has(> .auth-layout) {
+    padding-top: 0;
+  }
+
+  @media (min-width: 768px) {
+    html[data-runtime-platform="ios"] #root > .auth-layout {
+      padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    }
+  }
+
+  @media (max-width: 767px) {
+    html[data-runtime-platform="ios"] #root > .auth-layout .auth-form-side {
+      padding-top: max(12px, env(safe-area-inset-top, 0px));
+    }
+  }
+}
+/* iOS 15.0–15.3 lacks :has(); cancel only the root's auth inset there. */
+@supports not selector(#root:has(> .auth-layout)) {
+  html[data-runtime-platform="ios"] #root > .auth-layout { margin-top: calc(0px - env(safe-area-inset-top, 0px)); }
+  @media (min-width: 768px) {
+    html[data-runtime-platform="ios"] #root > .auth-layout { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+  }
+}
+/* Full-height sheets own their safe-area in the heading, not twice outside it. */
+html[data-runtime-platform="ios"] .dialog-backdrop:has(.record-center,.operations-drawer) { padding: 0; }
+html[data-runtime-platform="ios"] :is(.record-center,.operations-drawer) { max-height: 100dvh; }
+html[data-runtime-platform="ios"] .operations-drawer .dialog-heading { padding-top: max(20px, env(safe-area-inset-top, 0px)); }
+html[data-runtime-platform="ios"] :is(.record-center,.operations-drawer) .dialog-heading .icon-button { margin-top: 0; margin-right: 0; }
+html[data-runtime-platform="ios"] .operations-drawer :is(.dialog-heading,.dialog-body) { padding-inline: max(24px, env(safe-area-inset-left, 0px)) max(24px, env(safe-area-inset-right, 0px)); }
+html[data-runtime-platform="ios"] .operations-drawer .dialog-body { padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); }

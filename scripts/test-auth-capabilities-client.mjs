@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {build} from 'esbuild';
+const b=await build({stdin:{contents:"export {api} from './src/services/api';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,format:'esm',define:{'import.meta.env':'{"VITE_API_BASE_URL":"https://api.example.invalid"}'},plugins:[{name:'isolated-session',setup(b){
+ b.onResolve({filter:/platform\/auth-session$/},()=>({path:'session',namespace:'fixture'}));b.onResolve({filter:/platform\/client-preferences$/},()=>({path:'prefs',namespace:'fixture'}));b.onResolve({filter:/platform\/runtime-platform$/},()=>({path:'runtime',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='session'?'export const authSession={getToken:async()=>null};':a.path==='runtime'?"export const getRuntimePlatform=()=> 'IOS';":"export const getActiveSchoolId=()=>null;export const getActiveSchoolRole=()=>null;export const getPlatformTargetSchoolId=()=>null;"}));
+}}]});const {api}=await import('data:text/javascript;base64,'+Buffer.from(b.outputFiles[0].text).toString('base64'));const saved=globalThis.fetch;
+try{
+ globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.example.invalid/api/public/auth-capabilities');assert.equal(options.cache,'no-store');return new Response(JSON.stringify({whatsappAuthEnabled:true,phoneCentricAuthEnabled:true}))};assert.equal((await api.getAuthCapabilities()).phoneCentricAuthEnabled,true);
+ globalThis.fetch=async()=>new Response('Bad gateway',{status:502});await assert.rejects(api.getAuthCapabilities(),e=>e.status===502);
+ globalThis.fetch=async()=>{throw new TypeError('Synthetic offline')};await assert.rejects(api.getAuthCapabilities(),/Synthetic offline/);
+ globalThis.fetch=async(_url,options)=>new Promise((_resolve,reject)=>{if(options.signal.aborted)reject(Error('Aborted'));else options.signal.addEventListener('abort',()=>reject(Error('Aborted')),{once:true})});const controller=new AbortController(),pending=api.getAuthCapabilities(controller.signal);controller.abort();await assert.rejects(pending,/Aborted/);
+ globalThis.fetch=async()=>new Response(JSON.stringify({whatsappAuthEnabled:false,phoneCentricAuthEnabled:false}));assert.equal((await api.getAuthCapabilities()).whatsappAuthEnabled,false);
+ console.log('Capabilities API client PASS: actual client, no-store, HTTP 502/non-JSON, offline, AbortSignal, disabled response. Mock fetch only.');
+}finally{globalThis.fetch=saved;}

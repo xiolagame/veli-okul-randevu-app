@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "e4c3b0006daa233ee4df0be844d9be93cd7d38f66117daec52b60270a7497841"
+      "sha256": "1fb38e9b927d2f8a4191503067de54a3efb4f837b737aa82382ea8f7bc0d095d"
     },
     {
       "path": "bun.lock",
@@ -387,6 +387,14 @@
     {
       "path": "docs/HELP-DESIGN-RECOVERY-20261101.md",
       "sha256": "9a5789580e5a8657326c336699882d4a91da331de64dc22f382060588651fa46"
+    },
+    {
+      "path": "docs/IOS-AUTH-STARTUP-20261102.md",
+      "sha256": "eb961cf414a82eb70c6081ee62ff1b7e830118e3fe4ad2e7022ff2f598c7e1b6"
+    },
+    {
+      "path": "docs/IOS-STATUSBAR-STAFF-20261102.md",
+      "sha256": "12804fcd85deccb4be064dea25ff9968a7030aa78aa325c8f1c7f5c52d64d03d"
     },
     {
       "path": "docs/MOBILE-HEADER-EMAIL-20261101.md",
@@ -801,6 +809,10 @@
       "sha256": "cdd8fc73f5f3052e1a4c8f37e4da31ee84bad1fbf6d1e3d79dd4012af282de19"
     },
     {
+      "path": "scripts/test-auth-capabilities-client.mjs",
+      "sha256": "76cf784e6a32736bcc79f55c006ac0b07d86539f041bd4d2d6cdec79ef1ad90e"
+    },
+    {
       "path": "scripts/test-auth-fixtures.ts",
       "sha256": "2403ba1a886a0f4c80498bdf482ca8ac19bb43615062ce6ea688a968dc155007"
     },
@@ -851,6 +863,10 @@
     {
       "path": "scripts/test-ios-approval-gate.mjs",
       "sha256": "6f183d2cd1c06a9c80c086b81e7585752e52d170b13e3172b5cd58f47bf17b9b"
+    },
+    {
+      "path": "scripts/test-ios-auth-startup-performance.mjs",
+      "sha256": "4adc697e46b6a7e5c3e8dd33fdb19b0047a4a5f4abe016885e1d6dfab3bacad0"
     },
     {
       "path": "scripts/test-ios-auth-ui.mjs",
@@ -909,6 +925,10 @@
       "sha256": "36e44810ee201875fd9413b18ed4ea97c153e7948a0064e721390cce566db8b1"
     },
     {
+      "path": "scripts/test-ios-statusbar-surfaces.mjs",
+      "sha256": "333d940676fcd17b2798b345bd882f9243da4e4c515f07d4fab44e0419dbee12"
+    },
+    {
       "path": "scripts/test-loading-theme.mjs",
       "sha256": "3e7f5295dfc026fde72cea23e684369aad27d9d12976ccc730da7f3e7683c486"
     },
@@ -918,7 +938,7 @@
     },
     {
       "path": "scripts/test-mobile-auth-layout.mjs",
-      "sha256": "bcc2ddfb30e42bd450fb9ff80e46da0288c591c95eb42d8edb4a0983f47ccdc9"
+      "sha256": "69cd4b495621d195c4eea1ec9ad4259d53e14eaf445c099180e09fb3f163c3cf"
     },
     {
       "path": "scripts/test-mobile-platform-foundation.ts",
@@ -1102,7 +1122,7 @@
     },
     {
       "path": "scripts/test-staff-otp-master.ts",
-      "sha256": "19d003eae9613d122356d2f413fce79811300cc86ce07c41554b96929234132f"
+      "sha256": "400b0ba1573670b34906840b15fa12e0866f8939cf565655b42755321ad6ac28"
     },
     {
       "path": "scripts/test-staff-phone-migration.ts",
@@ -1226,7 +1246,7 @@
     },
     {
       "path": "server/api.ts",
-      "sha256": "0f25b152516b3ab49c5f78692656795c4a11ba47946ec68c760dc85dbca8a847"
+      "sha256": "ef7f7b74ad4f8412d1d95430ae84a92971f2bc0cfc7714f8dcfd207086cbe186"
     },
     {
       "path": "server/app.ts",
@@ -1522,7 +1542,7 @@
     },
     {
       "path": "src/components/AuthView.tsx",
-      "sha256": "c1bfb837a672098bc6d96a4912e418caeffe8d938ee48fd85d84c7a4d9ae5ffd"
+      "sha256": "cbccd2f519dbbe3bd5c8e2697070f407ab3d0feb05c5c65f83c2620d78f02850"
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
@@ -1594,7 +1614,7 @@
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
-      "sha256": "6cbcfef7dfdd10763176726344414c832261dfb91ec6b03fac25405494bfadb7"
+      "sha256": "916c89bea3c0dfd7f04a186bde24549e24c2939b2548e1a0b0352f5e791d2a57"
     },
     {
       "path": "src/components/PlatformPhoneBinding.tsx",
@@ -1710,7 +1730,7 @@
     },
     {
       "path": "src/index.css",
-      "sha256": "a9e03e9efc442b2f0d5ae8c55d4416322a8d104979f21681b4364a03c0a365a3"
+      "sha256": "b17495fa88b35585f0902d34f6bbe2ed87d4a3bc2f9c426ae902daaf178e25d4"
     },
     {
       "path": "src/main.tsx",
@@ -1866,11 +1886,11 @@
     },
     {
       "path": "src/platform/theme.ts",
-      "sha256": "ec3acee2aed807d45db351745a218481438d47f149400daf070d362439f8bb3a"
+      "sha256": "11ed9fd30be10664b0cf603c987bc0f5f46cf966da45061e4cfc4af6d1da0ebc"
     },
     {
       "path": "src/services/api.ts",
-      "sha256": "f5485cd14f97f9d1bb165b2f61fc53473c9aa5a63537b98e7da865da5bc1bb5b"
+      "sha256": "7414ec41c6627000562d5578e5cb17203f918e37b9a08caaa77acbe30b6f8e2f"
     },
     {
       "path": "src/theme.css",

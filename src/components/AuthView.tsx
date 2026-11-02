@@ -75,7 +75,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const passwordLoginPending = useRef(false);
   const authSideRef = useRef<HTMLElement>(null);
   const loginEntry = resolveLoginEntry(getRuntimePlatform(), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null);
-  const usePhoneCentricLogin = loginEntry === 'phone';
+  // iOS may collect the phone while capabilities load; sending remains gated.
+  const usePhoneCentricLogin = loginEntry === 'phone' || (getRuntimePlatform() === 'IOS' && (capabilitiesStatus === 'loading' || capabilitiesStatus === 'error'));
 
   useEffect(() => {
     if (getRuntimePlatform() !== 'ANDROID') return;
@@ -85,21 +86,32 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
 
   useEffect(() => {
     let active = true;
+    let completed = false;
+    const controller = getRuntimePlatform() === 'IOS' ? new AbortController() : undefined;
+    const timeout = controller ? window.setTimeout(() => {
+      if (!active || completed) return;
+      completed = true;
+      setCapabilitiesStatus('error');
+      controller.abort();
+    }, 8000) : undefined;
     setCapabilitiesStatus('loading');
-    api.getAuthCapabilities().then((result) => {
-      if (getRuntimePlatform() === 'ANDROID' && (
+    api.getAuthCapabilities(controller?.signal).then((result) => {
+      if (!active || completed) return;
+      if (getRuntimePlatform() !== 'WEB' && (
         typeof result?.whatsappAuthEnabled !== 'boolean' ||
         (result.unifiedLoginEnabled !== undefined && typeof result.unifiedLoginEnabled !== 'boolean') ||
         (result.phoneCentricAuthEnabled !== undefined && typeof result.phoneCentricAuthEnabled !== 'boolean')
       )) throw new Error('Invalid authentication capabilities');
       if (active) {
+        completed = true;
+        window.clearTimeout(timeout);
         setWhatsappAuthEnabled(result.whatsappAuthEnabled);
         setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
-        setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled);
+        setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled && (getRuntimePlatform() !== 'IOS' || result.whatsappAuthEnabled));
         setCapabilitiesStatus('ready');
       }
-    }).catch(() => { if (active) setCapabilitiesStatus('error'); });
-    return () => { active = false; };
+    }).catch(() => { if (active && !completed) { completed = true; window.clearTimeout(timeout); setCapabilitiesStatus('error'); } });
+    return () => { active = false; window.clearTimeout(timeout); controller?.abort(); };
   }, [capabilitiesRetry]);
 
   useEffect(() => {
@@ -391,10 +403,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {loginEntry === 'loading' || loginEntry === 'error' ? (loginEntry === 'loading'
+          {getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'error' && <Alert tone="danger">Giriş seçenekleri alınamadı. Bağlantınızı kontrol edip tekrar deneyin. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>}
+          {!usePhoneCentricLogin && (loginEntry === 'loading' || loginEntry === 'error') ? (loginEntry === 'loading'
             ? <p role="status">Giriş seçenekleri yükleniyor…</p>
             : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
-            : loginEntry === 'unavailable' ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={allowLegacyPhoneFallback(getRuntimePlatform())} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
+            : loginEntry === 'unavailable' ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={allowLegacyPhoneFallback(getRuntimePlatform())} requestEnabled={getRuntimePlatform() !== 'IOS' || (capabilitiesStatus === 'ready' && whatsappAuthEnabled && phoneCentricAuthEnabled)} checkingCapabilities={getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'loading'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
             ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
             : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
           {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}
