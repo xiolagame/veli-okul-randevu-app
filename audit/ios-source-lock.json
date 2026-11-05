@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "6e7c52b0882c11901dcba3c6a691277ba71f962804fe61b95ab7683f07dbcb44"
+      "sha256": "8738a1dfc5512cb1f1ad6c7561f41997248a32fc19984f8b5666daf02630963e"
     },
     {
       "path": "bun.lock",
@@ -1177,6 +1177,10 @@
       "sha256": "f5b76448cf6583be15e4bf26be6aea5715fbf8f0da7b08da05c79871c9d557b1"
     },
     {
+      "path": "scripts/test-web-background-loading.mjs",
+      "sha256": "db9ecb8f0f94f765bf9fbf822f444297caacadd66dc7ff2fd97abbfb178fd726"
+    },
+    {
       "path": "scripts/test-whatsapp-auth.ts",
       "sha256": "7b88a87f339541a390bb92620b8b610e9cd41cc4f0f7e9a3b22ff5b56a3ddf32"
     },
@@ -1730,7 +1734,7 @@
     },
     {
       "path": "src/index.css",
-      "sha256": "b17495fa88b35585f0902d34f6bbe2ed87d4a3bc2f9c426ae902daaf178e25d4"
+      "sha256": "311f22e4efca7daf1c5e52fc34d08f393995ed12e2260ead150b90cb00c29726"
     },
     {
       "path": "src/main.tsx",

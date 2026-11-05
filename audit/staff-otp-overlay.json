@@ -624,7 +624,7 @@
       "path": "src/index.css",
       "baselineCanonicalSha256": "430f3120b92cb0a73b5be187acb2533f0b7bdcd693cbc81978fe8b73e24d1945",
       "archivedProductionCanonicalSha256": "12189245224be7d104e4a463b723fe730edb486a78d46ba623efb2651e08e34a",
-      "currentCanonicalSha256": "b17495fa88b35585f0902d34f6bbe2ed87d4a3bc2f9c426ae902daaf178e25d4"
+      "currentCanonicalSha256": "311f22e4efca7daf1c5e52fc34d08f393995ed12e2260ead150b90cb00c29726"
     },
     {
       "path": "src/main.tsx",

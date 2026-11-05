@@ -59,7 +59,7 @@
   --shadow-card: 0 3px 18px #183f2605;
 }
 
-.school-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(#f6f8f755, #f6f8f755), url('/branding/school-background.png') center / cover no-repeat; }
+.school-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--canvas); }
 #root { isolation: isolate; min-height: 100dvh; padding-top: env(safe-area-inset-top, 0); padding-bottom: env(safe-area-inset-bottom, 0); }
 .brand-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
 
