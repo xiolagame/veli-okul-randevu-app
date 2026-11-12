@@ -1546,7 +1546,7 @@
     },
     {
       "path": "src/components/AuthView.tsx",
-      "sha256": "cbccd2f519dbbe3bd5c8e2697070f407ab3d0feb05c5c65f83c2620d78f02850"
+      "sha256": "5e696692823eecdc767ff58ceec36f01d9507c08189f7eaf2643ca47a2b86530"
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
@@ -1570,7 +1570,7 @@
     },
     {
       "path": "src/components/HelpCenterPage.tsx",
-      "sha256": "262e0d6f7c8d7a1e91980dd2464f980afce29f294327391e508a8dd26ce9ad9b"
+      "sha256": "0963143baf70c4878e70315602747136e2e7580643256b4f7d45fc246c2bf2d7"
     },
     {
       "path": "src/components/HelpGuidePage.tsx",

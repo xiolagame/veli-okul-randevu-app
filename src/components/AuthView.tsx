@@ -428,7 +428,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
           {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setPasswordLoginMode(null)}>WhatsApp ile girişe dön</button>}
           </>}
-          {import.meta.env?.VITE_REVIEW_API_ORIGIN&&<ReviewLogin/>}
+          {import.meta.env?.VITE_REVIEW_API_ORIGIN && (getRuntimePlatform() !== "IOS") && <ReviewLogin/>}
           <button type="button" className="auth-help-link" onClick={onOpenHelp} aria-label="Yardım, Kullanım Rehberi ve Yasal Bilgiler"><span className="auth-help-label-full">Yardım, Kullanım Rehberi ve Yasal Bilgiler</span><span className="auth-help-label-android" aria-hidden="true">Yardım ve yasal bilgiler</span><ArrowRight size={16} aria-hidden="true" /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
