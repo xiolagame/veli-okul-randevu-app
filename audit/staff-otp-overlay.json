@@ -492,7 +492,7 @@
       "path": "src/components/AuthView.tsx",
       "baselineCanonicalSha256": "a6c174602f4d6ac4e4d34a40399889588871f4eb38aaa3f4726415ffb66f9567",
       "archivedProductionCanonicalSha256": "5d1b30e4fb2cd6329cff648e67a52f2f1cd93316efa9a7a949e507b70e778c6a",
-      "currentCanonicalSha256": "cbccd2f519dbbe3bd5c8e2697070f407ab3d0feb05c5c65f83c2620d78f02850"
+      "currentCanonicalSha256": "5e696692823eecdc767ff58ceec36f01d9507c08189f7eaf2643ca47a2b86530"
     },
     {
       "path": "src/components/BulkStaffImport.tsx",
@@ -510,7 +510,7 @@
       "path": "src/components/HelpCenterPage.tsx",
       "baselineCanonicalSha256": "759c25e48f720cc1aff9e792d4577ae53c90267bd74937261608bf31fe6ad2f9",
       "archivedProductionCanonicalSha256": "b72777f9657fe3915802dd1f2668f751a07b578220d4dde85f08050115566e6d",
-      "currentCanonicalSha256": "262e0d6f7c8d7a1e91980dd2464f980afce29f294327391e508a8dd26ce9ad9b"
+      "currentCanonicalSha256": "0963143baf70c4878e70315602747136e2e7580643256b4f7d45fc246c2bf2d7"
     },
     {
       "path": "src/components/HelpGuidePage.tsx",
