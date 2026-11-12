@@ -51,7 +51,7 @@ assert.doesNotMatch(infoPlist, /NSAllowsArbitraryLoads/);
 assert.match(infoPlist, /<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/);
 assert.match(infoPlist, /<key>UIViewControllerBasedStatusBarAppearance<\/key>\s*<true\/>/);
 assert.match(xcodeProject, /PRODUCT_BUNDLE_IDENTIFIER = com\.velirandevu\.app;/g);
-assert.match(xcodeProject, /MARKETING_VERSION = 1\.0\.0;/g);
+assert.match(xcodeProject, /MARKETING_VERSION = 1\.0\.1;/g);
 assert.match(xcodeProject, /CURRENT_PROJECT_VERSION = 1;/g);
 assert.match(xcodeProject, /IPHONEOS_DEPLOYMENT_TARGET = 15\.0;/g);
 assert.match(xcodeProject, /com\.apple\.Push = \{\s*enabled = 1;/);

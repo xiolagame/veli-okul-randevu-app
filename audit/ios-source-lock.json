@@ -918,7 +918,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464"
+      "sha256": "0d66305f2921ccadd003b4a937ea43db2ed3da8143aadc1086b019709a282a42"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
