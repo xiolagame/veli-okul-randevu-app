@@ -360,7 +360,7 @@
       "path": "scripts/verify-ios-provenance.mjs",
       "baselineCanonicalSha256": "550dcc28b6c2f77dda346b3db4781ef0962ddc2426443ddfc63ec5511cda0d91",
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "85f92daf434344a12854d10155272bc2189509a73294cde79632646e601ae06f"
+      "currentCanonicalSha256": "19ac9c500fbc04b26c91fa75cdac9afb36f8f8751c63f55434d9f851e3858db5"
     },
     {
       "path": "scripts/verify-store-review-package.mjs",
