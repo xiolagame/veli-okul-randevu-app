@@ -30,7 +30,7 @@
       "path": "ios/App/App/Info.plist",
       "baselineCanonicalSha256": "f41926edc0404400709ee18cc711d1f6e6f266218c91804643c5d13f8e77acc8",
       "archivedProductionCanonicalSha256": "25bbbea361c037892f56b03df7e69d88c7f67637578b2fdf7fdebbe8c30d7df8",
-      "currentCanonicalSha256": "5a1f3e295675252b51c8c09cd6bb28a5617c9329a8b89f73ad9f31cbd914aa38"
+      "currentCanonicalSha256": "1a36c3ac730a6bb917c8785c977eb3ca7e109eeaf9de9521e9e8f3c21aea9bc1"
     },
     {
       "path": "ops/staff-otp/preflight.sql",
@@ -351,6 +351,12 @@
       "currentCanonicalSha256": "909ca1b12082d3ed5960cead2a53a762cd86c43e4d4b8cf950d72d3b07d32e36"
     },
     {
+      "path": "scripts/test-web-store-downloads.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "6d5b842e83a9e4badcb8bf9edbd80948d6d319fc656f9b71bc648adb2f8717c5"
+    },
+    {
       "path": "scripts/test-whatsapp-login-ui.ts",
       "baselineCanonicalSha256": "30ed10e859749a4a3b2b4f0dc3e34b4a92d37da6f588f29a4201061757b84a7b",
       "archivedProductionCanonicalSha256": "a4cd26af339af58a1758f1df1ac4e2c82ef86db9607e6d43e7f43ebf60a15915",
@@ -585,16 +591,46 @@
       "currentCanonicalSha256": "50e2c43f058b4c7c6f39b43b3f16283889568ba19218f6eb6aa3a39ba2deae87"
     },
     {
+      "path": "src/components/WebStoreDownloads.tsx",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "51e31989ca87c637c060e0daf844e5b38160e7a4d632b21e2e2828aac36688eb"
+    },
+    {
       "path": "src/components/WebWelcome.tsx",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "feb5f1f0f6e0875c64a1562a9af8102f2cd0e5fbddf6993ba259629226d5d3ea"
+      "currentCanonicalSha256": "fadfa15461de30e0dc139f817a83efd12aa0788e199c379d19501d06fe200af7"
     },
     {
       "path": "src/components/help-presentation.css",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "e1efbea8ffb4b2f21a77eb2fe690e9b6916c35545ffd763f73605105d9a7a4b0"
+    },
+    {
+      "path": "src/components/store-downloads/apple-qr.svg",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "82305697af0a8e5d6dfbd6a2ba28303c387e4191162e869572cbf6e83ec0e23c"
+    },
+    {
+      "path": "src/components/store-downloads/apple.svg",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a26fc5b38380272c92e9019a2eb8b45542a66814b3e2b203772db8904b9fb99f"
+    },
+    {
+      "path": "src/components/store-downloads/google-qr.svg",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "2a10c25ff9f17b1520a5e9d020a4c70c81a4bffe4565740df8d341b3f435666c"
+    },
+    {
+      "path": "src/components/store-downloads/google.png",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "78156c4b77c5e4b0c5ccb35cb8e542a6184aa7e7770a31ef06ba70415b410550"
     },
     {
       "path": "src/components/ui.tsx",
@@ -606,7 +642,7 @@
       "path": "src/components/web-welcome.css",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "34285a3cf7800ee750a89e8398c8688ecc4b698924efae917d2d8682b6f3e5d8"
+      "currentCanonicalSha256": "53434f3543efbed01dd9219302a61ad5f27a3bf95323305f8c246f4dc26e34fe"
     },
     {
       "path": "src/content/help-content.ts",

@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "86fc7cfd3e01ffc475bcde81ac8a00d192967b9a57cbdd93fd6a0cc5b6f21ec1"
+      "sha256": "eb73187d265a1c7f1a8b505726f106b664d5a8eeb330e5f553f6045cdfbe435d"
     },
     {
       "path": "bun.lock",
@@ -442,7 +442,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "943c6eac810c77d7741b69771cf5e1ce6de85e154384d0025a860b92805dad0b"
+      "sha256": "05810b871bae2752f5d1050f499c0d6d6ebbe1f32af22a137823f808887d88f6"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -498,7 +498,7 @@
     },
     {
       "path": "ios/App/App/Info.plist",
-      "sha256": "5a1f3e295675252b51c8c09cd6bb28a5617c9329a8b89f73ad9f31cbd914aa38"
+      "sha256": "1a36c3ac730a6bb917c8785c977eb3ca7e109eeaf9de9521e9e8f3c21aea9bc1"
     },
     {
       "path": "ios/App/App/PrivacyInfo.xcprivacy",
@@ -1181,6 +1181,10 @@
       "sha256": "db9ecb8f0f94f765bf9fbf822f444297caacadd66dc7ff2fd97abbfb178fd726"
     },
     {
+      "path": "scripts/test-web-store-downloads.mjs",
+      "sha256": "6d5b842e83a9e4badcb8bf9edbd80948d6d319fc656f9b71bc648adb2f8717c5"
+    },
+    {
       "path": "scripts/test-whatsapp-auth.ts",
       "sha256": "7b88a87f339541a390bb92620b8b610e9cd41cc4f0f7e9a3b22ff5b56a3ddf32"
     },
@@ -1693,8 +1697,12 @@
       "sha256": "5941e2f350e4b1f6e947297d85159282b7e5b7dbb4790c2c2645410c772cf46c"
     },
     {
+      "path": "src/components/WebStoreDownloads.tsx",
+      "sha256": "51e31989ca87c637c060e0daf844e5b38160e7a4d632b21e2e2828aac36688eb"
+    },
+    {
       "path": "src/components/WebWelcome.tsx",
-      "sha256": "feb5f1f0f6e0875c64a1562a9af8102f2cd0e5fbddf6993ba259629226d5d3ea"
+      "sha256": "fadfa15461de30e0dc139f817a83efd12aa0788e199c379d19501d06fe200af7"
     },
     {
       "path": "src/components/WhatsAppAuthPanel.tsx",
@@ -1709,6 +1717,22 @@
       "sha256": "066b7a8a64117f7be2bbe9a67ab3b88aa6ee3adbf99bf8ccbc7c5e897c6b489a"
     },
     {
+      "path": "src/components/store-downloads/apple-qr.svg",
+      "sha256": "82305697af0a8e5d6dfbd6a2ba28303c387e4191162e869572cbf6e83ec0e23c"
+    },
+    {
+      "path": "src/components/store-downloads/apple.svg",
+      "sha256": "a26fc5b38380272c92e9019a2eb8b45542a66814b3e2b203772db8904b9fb99f"
+    },
+    {
+      "path": "src/components/store-downloads/google-qr.svg",
+      "sha256": "2a10c25ff9f17b1520a5e9d020a4c70c81a4bffe4565740df8d341b3f435666c"
+    },
+    {
+      "path": "src/components/store-downloads/google.png",
+      "sha256": "78156c4b77c5e4b0c5ccb35cb8e542a6184aa7e7770a31ef06ba70415b410550"
+    },
+    {
       "path": "src/components/ui.tsx",
       "sha256": "0233f2363bb628eb93aa872b4ed41c9e49d22e0137b5f36afa0fec6508a3c9bb"
     },
@@ -1718,7 +1742,7 @@
     },
     {
       "path": "src/components/web-welcome.css",
-      "sha256": "34285a3cf7800ee750a89e8398c8688ecc4b698924efae917d2d8682b6f3e5d8"
+      "sha256": "53434f3543efbed01dd9219302a61ad5f27a3bf95323305f8c246f4dc26e34fe"
     },
     {
       "path": "src/content/help-content.ts",

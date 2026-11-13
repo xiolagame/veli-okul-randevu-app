@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { isNativeRuntime } from '../platform/runtime-platform';
+import { WebStoreDownloads } from './WebStoreDownloads';
 import './web-welcome.css';
 // Public-route artwork stays web-only through the existing native module alias.
 import './help-presentation.css';
@@ -84,6 +85,7 @@ function BrowserWelcome({ children, onHelp, onRequest }: Props) {
         <button className="welcome-hit welcome-hit-login-top" onClick={enter}><span className="welcome-accessible">Giriş Yap</span></button>
         <button className="welcome-hit welcome-hit-explore" onClick={onHelp}><span className="welcome-accessible">Platformu İncele</span></button>
         <button className="welcome-hit welcome-hit-login" onClick={enter}><span className="welcome-accessible">Giriş Yap</span></button>
+        <WebStoreDownloads />
       </section>
       <div className="welcome-scene" aria-hidden="true" />
       <header className="welcome-header">
@@ -100,6 +102,7 @@ function BrowserWelcome({ children, onHelp, onRequest }: Props) {
           <h1 id="welcome-mobile-title" tabIndex={-1}>Eğitim, okul ve aileyle güçlenir.</h1>
           <p>Velilerin öğretmenlerden kolayca randevu alabildiği, okulların görüşmeleri yönettiği ve QR kodla güvenli giriş sağladığı dijital randevu sistemi.</p>
           <div className="welcome-actions"><button className="welcome-button welcome-outline" onClick={onHelp}>Platformu İncele <ArrowRight size={20} aria-hidden="true" /></button><button className="welcome-button" onClick={enter}>Giriş Yap</button></div>
+          <WebStoreDownloads />
           <span className="welcome-signature">Okulunuzla güvenli ve düzenli iletişim.</span>
         </div>
       </section>
