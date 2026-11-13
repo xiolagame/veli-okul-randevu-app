@@ -36,7 +36,7 @@ class LocalizationTests(unittest.TestCase):
 
     def test_bundle_accepts_turkish_and_rejects_regressions(self):
         info = plistlib.loads((APP / "Info.plist").read_bytes())
-        info.update(CFBundleShortVersionString="1.0.1", CFBundleVersion="22")
+        info.update(CFBundleShortVersionString="1.0.2", CFBundleVersion="22")
         localized = {key: info[key] for key in KEYS}
         for failure in (None, "missing-folder", "english-folder", "english-region",
                         "english-declaration", "missing-resource", "incorrect-camera"):
@@ -64,7 +64,7 @@ class LocalizationTests(unittest.TestCase):
                 if failure:
                     self.assertIn("TURKISH_LOCALIZATION_STATUS=FAIL", result.stderr)
                 else:
-                    for expected in ("APP_VERSION=1.0.1", "BUILD_NUMBER=22",
+                    for expected in ("APP_VERSION=1.0.2", "BUILD_NUMBER=22",
                                      "CFBundleDevelopmentRegion=tr", "CFBundleLocalizations=['tr']",
                                      "LPROJ_FOLDERS=['Base.lproj', 'tr.lproj']", "TURKISH_LOCALIZATION_STATUS=PASS"):
                         self.assertIn(expected, result.stdout)

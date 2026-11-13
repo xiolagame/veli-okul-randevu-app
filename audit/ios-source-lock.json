@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "04299ae1bca00dd4cda4d3ec9135e4aebfadf84bc7b7d0d0074e20f0d9de6857"
+      "sha256": "09a3bdf6541d2a858eb8665947903acf37db894dc1791264dde472bca12db0fb"
     },
     {
       "path": "bun.lock",
@@ -442,7 +442,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "26bf1de55b722b76258f21a8f140a25d02bc8156886d61eeff64c34cceb1cf30"
+      "sha256": "7e1afd3f0bc6b4e4f2bd7a1069aa7c9f17c3011da1b654745d6ebd9c163539a6"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -890,7 +890,7 @@
     },
     {
       "path": "scripts/test-ios-localization.py",
-      "sha256": "8031e13c601fdde1acb76c4550f5d33a6c14a2190fb5e0205a358cf615e6add5"
+      "sha256": "856f55c5fa6ab0af0b302649181b4f7c051f63a8e7a29872e65063ded0d4f7ff"
     },
     {
       "path": "scripts/test-ios-login-policy.ts",
@@ -926,7 +926,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "0d66305f2921ccadd003b4a937ea43db2ed3da8143aadc1086b019709a282a42"
+      "sha256": "27a5b75ce18c443d24d35459ef44a62f43aee1eec494a5fae52f0f426017e8f9"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",

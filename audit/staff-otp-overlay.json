@@ -24,7 +24,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "26bf1de55b722b76258f21a8f140a25d02bc8156886d61eeff64c34cceb1cf30"
+      "currentCanonicalSha256": "7e1afd3f0bc6b4e4f2bd7a1069aa7c9f17c3011da1b654745d6ebd9c163539a6"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -210,7 +210,7 @@
       "path": "scripts/test-ios-localization.py",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "8031e13c601fdde1acb76c4550f5d33a6c14a2190fb5e0205a358cf615e6add5"
+      "currentCanonicalSha256": "856f55c5fa6ab0af0b302649181b4f7c051f63a8e7a29872e65063ded0d4f7ff"
     },
     {
       "path": "scripts/test-ios-push.ts",
@@ -223,6 +223,12 @@
       "baselineCanonicalSha256": "11b36353858385cf2c226988630f801002aa641515b0b227623b6652ded5718b",
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "81b08f7af02860519fc19712ffa072a89a479449424c7ebf52a45db7353a4d93"
+    },
+    {
+      "path": "scripts/test-ios-shell.ts",
+      "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
+      "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
+      "currentCanonicalSha256": "27a5b75ce18c443d24d35459ef44a62f43aee1eec494a5fae52f0f426017e8f9"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -373,6 +379,12 @@
       "baselineCanonicalSha256": "335787add50072f7c8e4ef4d0984a3e9f861c2b307028f1f22ba9e54d6b5a470",
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "909ca1b12082d3ed5960cead2a53a762cd86c43e4d4b8cf950d72d3b07d32e36"
+    },
+    {
+      "path": "scripts/test-web-background-loading.mjs",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "db9ecb8f0f94f765bf9fbf822f444297caacadd66dc7ff2fd97abbfb178fd726"
     },
     {
       "path": "scripts/test-web-store-downloads.mjs",
