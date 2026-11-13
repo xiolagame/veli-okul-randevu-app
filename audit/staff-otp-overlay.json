@@ -12,13 +12,19 @@
       "path": "codemagic.yaml",
       "baselineCanonicalSha256": "1044aff639b4d7bf012418b5dc53b046b715bdf3874fa4d901b317340388e861",
       "archivedProductionCanonicalSha256": "cd2d18726fc42006ed1e27e462d856e9451068b33bd45b4df1c630f17551899c",
-      "currentCanonicalSha256": "cc42923726f0333146dee0c874635d6d6406a4efa5136b06d912bf82746913fa"
+      "currentCanonicalSha256": "60d9785516aea506361854ea6aa92f2c4b93d2342e94465ef36c225bb30a9f76"
     },
     {
       "path": "index.html",
       "baselineCanonicalSha256": "84ed9af9e12e2f8a96190bb8856f665a859d51f948fcd8167b4de01c2278ee95",
       "archivedProductionCanonicalSha256": "64d820f3efa166f022125156f4c0d03269852ad65443d800371a76f626bcdd74",
       "currentCanonicalSha256": "6d68688d9c6e72e287abc15bc49a063fb6ff0d14b21f1b62d56f33495fab9ef1"
+    },
+    {
+      "path": "ios/App/App.xcodeproj/project.pbxproj",
+      "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
+      "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
+      "currentCanonicalSha256": "26bf1de55b722b76258f21a8f140a25d02bc8156886d61eeff64c34cceb1cf30"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -31,6 +37,12 @@
       "baselineCanonicalSha256": "f41926edc0404400709ee18cc711d1f6e6f266218c91804643c5d13f8e77acc8",
       "archivedProductionCanonicalSha256": "25bbbea361c037892f56b03df7e69d88c7f67637578b2fdf7fdebbe8c30d7df8",
       "currentCanonicalSha256": "1a36c3ac730a6bb917c8785c977eb3ca7e109eeaf9de9521e9e8f3c21aea9bc1"
+    },
+    {
+      "path": "ios/App/App/tr.lproj/InfoPlist.strings",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "004fa8ede3d296ad0f997bb17616c98d14086c431e2d2e2f1c3ed7df72253ccf"
     },
     {
       "path": "ops/staff-otp/preflight.sql",
@@ -85,6 +97,12 @@
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "384356247369acc13ce3f999dea88f802b9e921676929625ab3fb0cf4b3c4c2c"
+    },
+    {
+      "path": "scripts/ios-artifact-policy.mjs",
+      "baselineCanonicalSha256": "e7116f1f3ab986740d9a56e021173beead51f8c3f3d0b0a25dcb8360310df56a",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "f06be6748b10516e1a9a03919e9f2f9a6643d8d3487f1c4d5a5e3cdfd80d75c9"
     },
     {
       "path": "scripts/prune-native-web-only-assets.mjs",
@@ -187,6 +205,12 @@
       "baselineCanonicalSha256": "25dd9bff6cf193a6bf8d94e028535fe3179133f05369ab0a43e2b283320174c0",
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "8c979fbd1614679723cf3814cf4538ccad7e709a47ff4937d387b9bb35b9fb36"
+    },
+    {
+      "path": "scripts/test-ios-localization.py",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "8031e13c601fdde1acb76c4550f5d33a6c14a2190fb5e0205a358cf615e6add5"
     },
     {
       "path": "scripts/test-ios-push.ts",
@@ -361,6 +385,18 @@
       "baselineCanonicalSha256": "30ed10e859749a4a3b2b4f0dc3e34b4a92d37da6f588f29a4201061757b84a7b",
       "archivedProductionCanonicalSha256": "a4cd26af339af58a1758f1df1ac4e2c82ef86db9607e6d43e7f43ebf60a15915",
       "currentCanonicalSha256": "7bd4869d64c625c64c6fdc8598c735945c2880a346e64ee92fad6217d35ef87d"
+    },
+    {
+      "path": "scripts/verify-ios-ipa.sh",
+      "baselineCanonicalSha256": "9b2527c274c6d5856ce0785385a0873800ed33334523bf44b1339d7c889ba478",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "fa0ff7e46bc1bace240f9ecf2c2dcfa76bb16e979eb091f16d542d31f2035152"
+    },
+    {
+      "path": "scripts/verify-ios-localization.py",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "a8164a52448958f0e31fd7d0b5a3913e64889ce676ff74f1f98e7b6e0f20a874"
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",

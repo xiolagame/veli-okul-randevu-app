@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "eb73187d265a1c7f1a8b505726f106b664d5a8eeb330e5f553f6045cdfbe435d"
+      "sha256": "04299ae1bca00dd4cda4d3ec9135e4aebfadf84bc7b7d0d0074e20f0d9de6857"
     },
     {
       "path": "bun.lock",
@@ -334,7 +334,7 @@
     },
     {
       "path": "codemagic.yaml",
-      "sha256": "cc42923726f0333146dee0c874635d6d6406a4efa5136b06d912bf82746913fa"
+      "sha256": "60d9785516aea506361854ea6aa92f2c4b93d2342e94465ef36c225bb30a9f76"
     },
     {
       "path": "config/store-review.json",
@@ -442,7 +442,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "05810b871bae2752f5d1050f499c0d6d6ebbe1f32af22a137823f808887d88f6"
+      "sha256": "26bf1de55b722b76258f21a8f140a25d02bc8156886d61eeff64c34cceb1cf30"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -507,6 +507,10 @@
     {
       "path": "ios/App/App/SceneDelegate.swift",
       "sha256": "738b9b96bb71d34d80cd8c1183cf7f8f6f2e789c64e46fb5fe6777a35ae12dfd"
+    },
+    {
+      "path": "ios/App/App/tr.lproj/InfoPlist.strings",
+      "sha256": "004fa8ede3d296ad0f997bb17616c98d14086c431e2d2e2f1c3ed7df72253ccf"
     },
     {
       "path": "ios/App/CapApp-SPM/.gitignore",
@@ -698,7 +702,7 @@
     },
     {
       "path": "scripts/ios-artifact-policy.mjs",
-      "sha256": "e7116f1f3ab986740d9a56e021173beead51f8c3f3d0b0a25dcb8360310df56a"
+      "sha256": "f06be6748b10516e1a9a03919e9f2f9a6643d8d3487f1c4d5a5e3cdfd80d75c9"
     },
     {
       "path": "scripts/ios-source-fingerprint.mjs",
@@ -883,6 +887,10 @@
     {
       "path": "scripts/test-ios-license-ui.mjs",
       "sha256": "04e0a10d68bb37d1365cd5ad1bf3c175929b42d873ef2b3efd97473622a832ad"
+    },
+    {
+      "path": "scripts/test-ios-localization.py",
+      "sha256": "8031e13c601fdde1acb76c4550f5d33a6c14a2190fb5e0205a358cf615e6add5"
     },
     {
       "path": "scripts/test-ios-login-policy.ts",
@@ -1210,11 +1218,15 @@
     },
     {
       "path": "scripts/verify-ios-ipa.sh",
-      "sha256": "9b2527c274c6d5856ce0785385a0873800ed33334523bf44b1339d7c889ba478"
+      "sha256": "fa0ff7e46bc1bace240f9ecf2c2dcfa76bb16e979eb091f16d542d31f2035152"
     },
     {
       "path": "scripts/verify-ios-license-sync.mjs",
       "sha256": "5a0fcc701621aa5f19b1acc9ce5113028dddabdf0481e01f9198ed9faa5ae617"
+    },
+    {
+      "path": "scripts/verify-ios-localization.py",
+      "sha256": "a8164a52448958f0e31fd7d0b5a3913e64889ce676ff74f1f98e7b6e0f20a874"
     },
     {
       "path": "scripts/verify-ios-provenance.mjs",

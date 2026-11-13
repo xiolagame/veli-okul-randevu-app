@@ -17,5 +17,6 @@ plutil -lint "$APP_PATH/Info.plist" "$APP_PATH/GoogleService-Info.plist" "$CHECK
 [ "$(plutil -extract BUNDLE_ID raw -o - "$APP_PATH/GoogleService-Info.plist")" = 'com.velirandevu.app' ]
 [ "$(plutil -extract aps-environment raw -o - "$CHECK_DIR/entitlements.plist")" = 'production' ]
 node scripts/verify-ios-web-package.mjs --app-root "$APP_PATH"
+python3 scripts/verify-ios-localization.py "$APP_PATH"
 shasum -a 256 "$IPA" > "$IPA.sha256"
 echo 'Signed IPA signature, bundle identity, production APNs, package parity and secret scan PASS. No upload performed.'

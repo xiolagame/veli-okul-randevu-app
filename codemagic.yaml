@@ -87,6 +87,7 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             build \
             2>&1 | tee "$CM_BUILD_DIR/$XCODE_LOG_PATH/xcodebuild-unsigned.log"
+          python3 scripts/verify-ios-localization.py "$CM_BUILD_DIR/$DERIVED_DATA_PATH/Build/Products/Release-iphonesimulator/App.app"
     artifacts:
       - build/logs/*.log
       - build/DerivedData/Build/Products/Release-iphonesimulator/App.app

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 const textExtensions=new Set(['.entitlements','.toml','.lock','.ts','.tsx','.js','.mjs','.json','.yaml','.yml','.css','.html','.sql','.swift','.plist','.xcprivacy','.storyboard','.xcscheme','.pbxproj','.xml','.sh','.md','.xcconfig']);
-const additionalTextExtensions=new Set(['.gradle','.properties','.java','.pro','.bat','.hash']);
+const additionalTextExtensions=new Set(['.gradle','.properties','.java','.pro','.bat','.hash','.strings','.py']);
 const textNames=new Set(['.gitignore','.gitattributes','.gitconfig','.node-version','gradlew','webhook-crons','.bootstrap-complete','.restore-complete','.gitkeep']);
 export const isTextSource=p=>textExtensions.has(path.extname(p).toLowerCase())||additionalTextExtensions.has(path.extname(p).toLowerCase())||textNames.has(path.basename(p));
 export function contentHash(file,bytes){
