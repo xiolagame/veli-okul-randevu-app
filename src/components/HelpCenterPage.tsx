@@ -2,10 +2,8 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { getHelpGuide, helpCategories } from '../content/help-content';
 import { getHelpSlug, HELP_PATH } from '../utils/public-request-route';
-import { Button } from './ui';
+import { Brand, Button } from './ui';
 import { HelpGuidePage } from './HelpGuidePage';
-import {HelpCategoryArt, HelpTopicIcon} from './HelpCategoryArt';
-import {ThemeSwitcher} from './ThemeSwitcher';
 
 interface HelpCenterPageProps {
   pathname: string;
@@ -34,16 +32,15 @@ function HelpLink({ path, onNavigate, children, className = '' }: { path: string
 export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = false, onBack, onGuideBack, onNavigate }: HelpCenterPageProps) {
   const slug = getHelpSlug(pathname);
   const guide = getHelpGuide(slug);
-  const category = helpCategories.find(entry => entry.items.some(item => item.slug === slug));
 
   return <main className="help-page">
     <div className="help-page-shell">
       <header className="help-page-header">
-        <ThemeSwitcher/>
-        <Button variant="quiet" className="public-page-back" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
+        <Brand />
+        <Button variant="quiet" onClick={onBack}><ArrowLeft size={18} />{isAuthenticated ? 'Uygulamaya dön' : 'Giriş ekranına dön'}</Button>
       </header>
       {slug && guide
-        ? <HelpGuidePage guide={guide} theme={category?.id} onBack={onGuideBack} />
+        ? <HelpGuidePage guide={guide} onBack={onGuideBack} />
         : <>
           {slug && !guide && <section className="help-not-found" role="status"><h1>Yardım sayfası bulunamadı</h1><p>Aradığınız başlık taşınmış veya henüz yayınlanmamış olabilir.</p><Button onClick={() => onNavigate(HELP_PATH)}>Yardım merkezine dön</Button></section>}
           {!slug && <>
@@ -54,13 +51,13 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
             <div className="help-category-grid">
               {helpCategories.map((category) => {
                 const Icon = categoryIcons[category.icon];
-                return <section key={category.id} className="help-category" data-help-theme={category.id} aria-labelledby={`help-category-${category.id}`}>
-                  <header><span><Icon size={22} aria-hidden="true" /></span><div><h2 id={`help-category-${category.id}`}>{category.title}</h2><p>{category.description}</p></div><HelpCategoryArt theme={category.id}/></header>
+                return <section key={category.id} className="help-category" aria-labelledby={`help-category-${category.id}`}>
+                  <header><span><Icon size={22} aria-hidden="true" /></span><div><h2 id={`help-category-${category.id}`}>{category.title}</h2><p>{category.description}</p></div></header>
                   <nav aria-label={category.title}>
                     {category.items.map((item) => {
                       const path = item.path ?? `${HELP_PATH}/${item.slug}`;
                       return <HelpLink key={path} path={path} onNavigate={onNavigate} className="help-topic-link">
-                      <HelpTopicIcon slug={item.slug}/><span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={18} aria-hidden="true" />
+                      <span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={18} aria-hidden="true" />
                       </HelpLink>;
                     })}
                   </nav>
