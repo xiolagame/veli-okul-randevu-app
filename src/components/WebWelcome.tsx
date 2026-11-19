@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { isNativeRuntime } from '../platform/runtime-platform';
 import './web-welcome.css';
-// Public-route artwork stays web-only through the existing native module alias.
-import './help-presentation.css';
 
 type Props = { children: React.ReactNode; onHelp: () => void; onRequest: () => void };
 const hasLoginLink = () => window.location.pathname === '/login' || /^#appointment-review=/.test(window.location.hash);
