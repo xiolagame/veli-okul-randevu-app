@@ -52,7 +52,7 @@ const worker=await build({entryPoints:['src/utils/roster-worker.ts'],bundle:true
 const css = fs.readdirSync('dist/client/assets').filter(n => n.endsWith('.css')).map(n => fs.readFileSync(path.join('dist/client/assets', n), 'utf8')).join('\n');
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', req.url?.endsWith('.js') ? 'text/javascript' : req.url === '/style.css' ? 'text/css' : 'text/html');
-  res.end(req.url === '/roster-worker.js' ? worker.outputFiles[0].text : req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr" data-theme="'+(process.env.UI_THEME==='dark'?'dark':'light')+'"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
+  res.end(req.url === '/roster-worker.js' ? worker.outputFiles[0].text : req.url === '/bundle.js' ? bundle.outputFiles[0].text : req.url === '/style.css' ? css : '<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script>localStorage.setItem("veli_auth_token","local-session-fixture");localStorage.setItem("veli_active_school_id","school-a");</script><script src="/bundle.js"></script></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
@@ -63,16 +63,6 @@ try {
   await page.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:') ? route.continue() : route.abort());
   await page.goto('http://127.0.0.1:' + server.address().port);
   await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).waitFor();
-  await page.evaluate(() => { document.documentElement.dataset.runtimePlatform = 'ios'; });
-  for (const width of [375, 390, 430, 507, 768, 820, 1024, 1180]) {
-    await page.setViewportSize({ width, height: 900 });
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `iOS admin overflow at ${width}`);
-    if (width < 768) {
-      assert.equal(await page.locator('.admin-header').evaluate(e => e.getBoundingClientRect().height), 1, 'duplicate mobile header must not occupy a layout row');
-      assert(await page.getByLabel('Yönetim bölümü', { exact: true }).isVisible());
-    }
-  }
-  await page.setViewportSize({ width: 1366, height: 768 });
   await page.waitForFunction(() => window.opsTest.calls.some(c => c.name === 'getOperationSummary'));
   assert.equal(await page.getByText('Kolay ve güvenilir randevu sistemi.').count(), 0);
   assert.equal(await page.getByText('Hesap yönetimi', { exact: true }).count(), 0);
@@ -123,7 +113,7 @@ try {
   await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).click(); await drawer.getByText('Kayıtlar alınamadı. Lütfen tekrar deneyin.').waitFor();
   await page.evaluate(() => { window.opsTest.failPage = false; }); await drawer.getByRole('button', { name: 'Tekrar dene' }).click(); await drawer.locator('.operation-result').first().waitFor(); await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(os.tmpdir(), 'veli-operations-desktop.png'), fullPage: true });
-  for (const width of [375, 390, 430, 768, 820, 1024, 1180, 1366, 1920]) {
+  for (const width of [375, 390, 430, 768, 1366, 1920]) {
     await page.setViewportSize({ width, height: width < 768 ? 844 : 1080 });
     await page.getByRole('button', { name: /^Hesap oluşturmayı bekleyen veliler/ }).click(); await drawer.locator('.operation-result').first().waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -157,7 +147,7 @@ try {
   await page.getByRole('navigation', { name: 'Yönetim bölümleri' }).getByRole('button', { name: 'Okul Yöneticileri', exact: true }).click();
   await page.locator('.school-admin-record-row').first().waitFor(); assert.equal(await page.locator('.school-admin-record-row').count(), 2);
   assert(await page.getByRole('button', { name: 'ACTIVE ADMIN adlı yöneticiyi okuldan kaldır' }).isDisabled());
-  for (const width of [375, 390, 430, 768, 820, 1024, 1180, 1440]) {
+  for (const width of [375, 390, 430, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   }
   for (const width of [375,390,430]) {

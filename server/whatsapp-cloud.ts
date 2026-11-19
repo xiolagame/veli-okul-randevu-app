@@ -25,7 +25,7 @@ export function isWhatsAppPhoneEnabled(phone: unknown): boolean {
   return isWhatsAppAuthEnabled() && normalizeTurkishPhone(phone) !== null;
 }
 
-function getConfiguration(): { phoneNumberId: string; accessToken: string; graphVersion: string } {
+export function getConfiguration(): { phoneNumberId: string; accessToken: string; graphVersion: string } {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() || '';
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
   const graphVersion = process.env.WHATSAPP_GRAPH_API_VERSION?.trim() || DEFAULT_GRAPH_VERSION;
