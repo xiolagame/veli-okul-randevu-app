@@ -184,6 +184,8 @@ export const api = {
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
+  getAuthCapabilities: () =>
+    request<{ whatsappAuthEnabled: boolean }>('/api/public/auth-capabilities'),
 
   // Authentication
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
@@ -230,6 +232,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phone, password, role }),
     }),
+  requestWhatsappCode: (data: { purpose: 'login' | 'parent_registration' | 'staff_activation'; phone: string; schoolCode?: string }) =>
+    request<{ success: boolean; message: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
+      '/api/auth/whatsapp/request-code', { method: 'POST', body: JSON.stringify(data) }),
+  verifyWhatsappCode: (data: { challengeId: string; phone: string; code: string }) =>
+    request<{ success: boolean; token: string; user: User; memberships: SchoolMembership[] }>(
+      '/api/auth/whatsapp/verify-code', { method: 'POST', body: JSON.stringify(data) }),
 
   quickSwitch: (userId: string) =>
     request<{
@@ -253,7 +261,16 @@ export const api = {
       })[];
     }>('/api/user/me'),
 
-  deleteOwnAccount: (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) =>
+  requestAccountDeletionWhatsappCode: () =>
+    request<{ success: boolean; message: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
+      '/api/user/me/deletion/whatsapp-code', { method: 'POST' }),
+  deleteOwnAccount: (data: {
+    password?: string;
+    whatsappChallengeId?: string;
+    whatsappCode?: string;
+    confirmation: 'HESABIMI SİL';
+    requestId: string;
+  }) =>
     request<{
       success: true;
       completed: true;

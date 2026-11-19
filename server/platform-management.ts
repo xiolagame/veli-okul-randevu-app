@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID, randomBytes } from 'node:crypto';
-import { authMiddleware, AuthenticatedRequest, isPlatformAdmin } from './auth';
+import { authMiddleware, AuthenticatedRequest, canUsePlatformAuthority, isPlatformAdmin } from './auth';
 import { checkDatabaseHealth, getDb } from './database/postgres';
 import { auditLogRepository, invitationRepository, membershipRepository, schoolRepository, userRepository } from './repositories';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
@@ -28,7 +28,7 @@ function platformTargetAllows(method: string, path: string): boolean {
 }
 
 export const platformTargetContextGuard = [authMiddleware, async (req: AuthenticatedRequest, res: import('express').Response, next: import('express').NextFunction) => {
-  if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   const targetSchoolId = req.params.targetSchoolId;
   const routeSchoolId = /^\/schools\/([^/?]+)(?:\/|$)/.exec(req.url)?.[1];
   if (!targetSchoolId || !routeSchoolId || decodeURIComponent(routeSchoolId) !== targetSchoolId) return res.status(403).json({ error: 'Okul bağlamı doğrulanamadı.' });
@@ -43,10 +43,10 @@ export const platformTargetContextGuard = [authMiddleware, async (req: Authentic
 export const platformManagementRouter = Router();
 platformManagementRouter.use(authMiddleware);
 platformManagementRouter.get('/capabilities', (req: AuthenticatedRequest, res) => {
-  res.json({ manageSchools: isPlatformAdmin(req.user?.id) });
+  res.json({ manageSchools: canUsePlatformAuthority(req.user) });
 });
 platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
-  if (!isPlatformAdmin(req.user?.id)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   next();
 });
 platformManagementRouter.use('/requests', platformRequestRouter);

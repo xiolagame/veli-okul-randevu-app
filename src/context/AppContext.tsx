@@ -58,8 +58,9 @@ interface AppContextType {
   switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
+  whatsappLogin: (data: { challengeId: string; phone: string; code: string }) => Promise<LoginResult>;
   logout: () => Promise<void>;
-  deleteAccount: (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
+  deleteAccount: (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
   bookAppointment: (data: {
     teacherId: string;
@@ -416,6 +417,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   };
 
+  const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }): Promise<LoginResult> => {
+    const result = await performLogin({
+      authenticate: () => api.verifyWhatsappCode(data),
+      session: authSession,
+      clearRuntimeSession,
+      bootstrap: async (response) => {
+        const access = await fetchSchoolAccess(response.memberships, null, null);
+        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
+        applyAuthenticatedSession(response.user, response.memberships, access);
+      },
+    });
+    if (result.ok) setAuthStorageError(false);
+    if (result.ok) setAccountDeletionNotice(null);
+    return result;
+  };
+
   // Logout
   const logout = async () => {
     await mobilePush.beforeLogout();
@@ -424,7 +441,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearRuntimeSession();
   };
 
-  const deleteAccount = async (data: { password: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
+  const deleteAccount = async (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
     const result = await api.deleteOwnAccount(data);
     let localCleanupFailed = false;
     try {
@@ -698,6 +715,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchSchool,
         returnToPlatform,
         login,
+        whatsappLogin,
         logout,
         deleteAccount,
         switchUser,

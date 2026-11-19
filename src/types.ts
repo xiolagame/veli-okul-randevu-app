@@ -82,6 +82,7 @@ export interface User {
   disabled?: boolean;
   createdAt?: string;
   accountStatus?: 'pending' | 'active' | 'inactive';
+  deletionVerification?: 'credential' | 'whatsapp';
 }
 
 export interface TeacherProfile {

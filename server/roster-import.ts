@@ -20,7 +20,7 @@ async function inspect(tx: TransactionClient, schoolId: string, records: unknown
     const match = seen.find((entry) => sameRosterIdentity(entry, result.record));
     if (match) {
       if (match.studentName.toLocaleLowerCase('tr-TR') !== result.record.studentName.toLocaleLowerCase('tr-TR')) return { ...result, status: 'invalid', errors: ['Öğrenci numarası mevcut öğrenci adıyla uyuşmuyor.'] };
-      if (match.birthDate && match.birthDate !== result.record.birthDate) return { ...result, status: 'invalid', errors: ['Mevcut öğrenci kaydıyla doğum tarihi uyuşmuyor.'] };
+      if (match.birthDate && result.record.birthDate && match.birthDate !== result.record.birthDate) return { ...result, status: 'invalid', errors: ['Mevcut öğrenci kaydıyla doğum tarihi uyuşmuyor.'] };
       return { ...result, status: 'duplicate', errors: ['Aynı kayıt zaten mevcut.'] };
     }
     seen.push(result.record);
@@ -41,7 +41,7 @@ export async function processRosterImport(schoolId: string, records: unknown, pr
       for (const { record, status } of rows) {
         if (status !== 'valid') continue;
         await tx.query(`INSERT INTO school_roster(id,school_id,student_name,student_number,parent_name,parent_phone,birth_date,class_name)
-          VALUES($1,$2,$3,$4,$5,$6,$7::date,$8)`, ['rost-' + randomUUID(),schoolId,record.studentName,record.studentNumber || null,record.parentName,record.parentPhone,record.birthDate,record.className]);
+          VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,'')::date,$8)`, ['rost-' + randomUUID(),schoolId,record.studentName,record.studentNumber || null,record.parentName,record.parentPhone,record.birthDate,record.className]);
         addedCount++;
       }
       const classNames = [...new Set(rows.filter((row) => row.status === 'valid').map((row) => row.record.className))];
