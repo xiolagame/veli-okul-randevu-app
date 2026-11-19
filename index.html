@@ -2,13 +2,12 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      (()=>{let theme;try{theme=localStorage.getItem('veli.theme');}catch{}if(theme!=='light'&&theme!=='dark'){const ios=location.protocol==='capacitor:'||window.Capacitor?.getPlatform?.()==='ios';theme=ios?'light':matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;})();
-    </script>
+    <script src="/theme-init.js"></script>
     <link rel="icon" type="image/png" href="/branding/veli-randevu-logo.png" />
     <link rel="apple-touch-icon" href="/branding/veli-randevu-logo.png" />
     <meta property="og:image" content="/branding/veli-randevu-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="preload" as="image" href="/branding/04-Mobil.png" media="(max-width: 767px)" />
     <title>Veli Randevu</title>
     <meta name="application-name" content="Veli Randevu" />
     <meta name="description" content="Öğretmen, veli ve okul güvenliği için randevu ve ziyaretçi giriş yönetim sistemi" />

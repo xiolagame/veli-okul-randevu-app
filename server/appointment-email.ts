@@ -49,11 +49,10 @@ export async function sendAppointmentRequestEmail(data: {
   const appointment = data.appointment;
   const date = appointment.date.split('-').reverse().join('/');
   const rendered = renderBrandedEmail({
-    subtitle: 'Yeni randevu talebiniz var',
-    preheader: 'Yeni randevu talebiniz var. Görüşme bilgilerini inceleyin.',
+    subtitle: 'Yeni Randevu Talebi',
     greeting: data.teacherName,
     intro: [
-      `Yeni bir randevu talebiniz var. Okul: ${data.schoolName}.`,
+      `${data.schoolName} okulunda yeni bir veli görüşme talebi oluşturuldu.`,
       'Müsaitseniz velinin okula giriş izninin oluşturulabilmesi için randevuyu inceleyip onaylayın.',
       ...(appointment.notes?.trim() ? [`Veli Notu: ${appointment.notes.trim()}`] : []),
     ],
@@ -65,5 +64,5 @@ export async function sendAppointmentRequestEmail(data: {
     action: { label: 'Randevu Talebini İncele', url: link },
     notice: 'Bağlantı 24 saat geçerlidir. Onaylamak için öğretmen hesabınızla giriş yapmanız gerekir.',
   });
-  await sendEmail({ to: data.teacherEmail, subject: 'Yeni randevu talebiniz var', ...rendered });
+  await sendEmail({ to: data.teacherEmail, subject: 'Veli Randevu — Yeni Randevu Talebi', ...rendered });
 }

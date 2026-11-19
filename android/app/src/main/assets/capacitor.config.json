@@ -1,0 +1,34 @@
+{
+	"appId": "com.velirandevu.app",
+	"appName": "Veli Randevu",
+	"webDir": "dist/client",
+	"loggingBehavior": "debug",
+	"android": {
+		"loggingBehavior": "none"
+	},
+	"backgroundColor": "#f6f8f7",
+	"plugins": {
+		"PushNotifications": {
+			"presentationOptions": [
+				"banner",
+				"list",
+				"sound"
+			]
+		},
+		"StatusBar": {
+			"overlaysWebView": false,
+			"style": "LIGHT",
+			"backgroundColor": "#f6f8f7"
+		},
+		"Keyboard": {
+			"resizeOnFullScreen": true
+		},
+		"SplashScreen": {
+			"launchAutoHide": true,
+			"launchShowDuration": 500,
+			"launchFadeOutDuration": 200,
+			"backgroundColor": "#f6f8f7",
+			"showSpinner": false
+		}
+	}
+}

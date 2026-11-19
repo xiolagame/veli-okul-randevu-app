@@ -9,25 +9,33 @@ interface NativeNetworkSource {
 
 export function createNativeNetworkAdapter(source: NativeNetworkSource = Network): NetworkHintAdapter {
   let currentHint: NetworkConnectivityHint = 'CONNECTED';
+  let receivedEvent = false;
+  const listeners = new Set<NetworkHintListener>();
   void source.getStatus().then((status) => {
+    if (receivedEvent) return;
     currentHint = status.connected ? 'CONNECTED' : 'DISCONNECTED';
-  });
+    for (const listener of listeners) listener(currentHint);
+  }).catch(() => {});
 
   return {
     getCurrentHint: () => currentHint,
     subscribe(listener: NetworkHintListener) {
       let disposed = false;
       let handle: PluginListenerHandle | null = null;
+      listeners.add(listener);
       void source.addListener('networkStatusChange', (status) => {
+        if (disposed) return;
+        receivedEvent = true;
         currentHint = status.connected ? 'CONNECTED' : 'DISCONNECTED';
         listener(currentHint);
       }).then((listenerHandle) => {
-        if (disposed) void listenerHandle.remove();
+        if (disposed) void listenerHandle.remove().catch(() => {});
         else handle = listenerHandle;
-      });
+      }).catch(() => {});
       return () => {
         disposed = true;
-        if (handle) void handle.remove();
+        listeners.delete(listener);
+        if (handle) void handle.remove().catch(() => {});
       };
     },
   };

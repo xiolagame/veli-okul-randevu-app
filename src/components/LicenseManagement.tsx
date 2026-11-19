@@ -50,7 +50,7 @@ export function LicenseManagement() {
   const patch = (value: Partial<typeof filters>) => setFilters(previous=>({...previous,...value,page:0}));
   const badge = (license: PlatformLicense) => <span className={`license-badge license-${license.viewStatus}`}>{licenseStatusLabels[license.viewStatus]}</span>;
   const remaining = (license: PlatformLicense) => !license.licenseId?'—':license.expired?'Süre doldu':license.remainingDays===null?'Süresiz':`${license.remainingDays} gün`;
-  const actions = (license: PlatformLicense) => license.licenseId ? <div className="license-actions"><Button variant="quiet" onClick={()=>{setSelected(null);setWhatsappSchool(license.schoolId);}}>WhatsApp Hatırlatmaları</Button><Button variant="secondary" onClick={()=>open(license,'expiry')}>Lisansı Düzenle</Button>
+  const actions = (license: PlatformLicense) => license.licenseId ? <div className="license-actions"><Button variant="secondary" onClick={()=>{setSelected(null);setWhatsappSchool(license.schoolId);}}>WhatsApp Hatırlatmaları</Button><Button variant="secondary" onClick={()=>open(license,'expiry')}>Lisansı Düzenle</Button>
     {license.status==='active' && <Button variant="quiet" onClick={()=>open(license,'suspend')}>Durdur</Button>}
     {license.status==='suspended' && <Button variant="quiet" onClick={()=>open(license,'resume')}>Yeniden Etkinleştir</Button>}</div> : <span className="text-sm">Legacy erişim korunuyor</span>;
   return <section className="license-management" aria-label="Lisans Yönetimi">

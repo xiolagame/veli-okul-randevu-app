@@ -1,4 +1,3 @@
-import { scalarRouteParam } from './route-param';
 import { createHash, randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { AuthenticatedRequest, authMiddleware, tenantGuard } from './auth';
@@ -287,8 +286,8 @@ async function deliverSupportMessageEmail(
     await sendEmail({
       to: recipient,
       subject: senderKind === 'PLATFORM_ADMIN'
-        ? 'Destek talebinize yanıt geldi'
-        : 'Destek talebine yeni mesaj',
+        ? 'VELİ RANDEVU — Destek Talebinize Yanıt Geldi'
+        : '[VELİ RANDEVU] Destek Talebine Yeni Mesaj',
       idempotencyKey: `${message.id}-support-notification`,
       ...renderBrandedEmail({
         subtitle: 'Destek konuşması güncellendi',
@@ -358,7 +357,7 @@ async function deliverRequestEmails(request: PlatformRequestItem): Promise<{ pla
     try {
       await sendEmail({
         to: platformRecipient,
-        subject: `Yeni ${requestTypeLabel(request.requestType).toLocaleLowerCase('tr-TR')} talebi`,
+        subject: `[VELİ RANDEVU] Yeni ${requestTypeLabel(request.requestType)} Talebi`,
         idempotencyKey: `${request.id}-platform`,
         ...renderBrandedEmail({
           subtitle: 'Yeni talep bildirimi',
@@ -386,7 +385,7 @@ async function deliverRequestEmails(request: PlatformRequestItem): Promise<{ pla
     try {
       await sendEmail({
         to: request.email,
-        subject: 'Talebiniz alındı',
+        subject: 'VELİ RANDEVU — Talebiniz Alındı',
         idempotencyKey: `${request.id}-requester`,
         ...renderBrandedEmail({
           subtitle: 'Talebiniz alındı',
@@ -573,7 +572,7 @@ schoolRequestRouter.get('/', async (req: AuthenticatedRequest, res) => {
 
 schoolRequestRouter.get('/:id/messages', async (req: AuthenticatedRequest, res) => {
   try {
-    const thread = await loadSupportThread(scalarRouteParam(req.params.id), { schoolId: req.membership!.schoolId, hiddenFor: 'school' });
+    const thread = await loadSupportThread(req.params.id, { schoolId: req.membership!.schoolId, hiddenFor: 'school' });
     if (!thread) return res.status(404).json({ error: 'Destek talebi bulunamadı.' });
     return res.json(thread);
   } catch (error) {
@@ -586,7 +585,7 @@ schoolRequestRouter.post('/:id/messages', async (req: AuthenticatedRequest, res)
   try {
     const senderName = `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Okul Yönetimi';
     const result = await createSupportMessage({
-      requestId: scalarRouteParam(req.params.id),
+      requestId: req.params.id,
       requestToken: req.body?.requestToken,
       message: req.body?.message,
       senderUserId: req.user!.id,
@@ -607,7 +606,7 @@ schoolRequestRouter.post('/:id/messages', async (req: AuthenticatedRequest, res)
 schoolRequestRouter.delete('/:id', async (req: AuthenticatedRequest, res) => {
   try {
     const request = await hideSupportRequest({
-      requestId: scalarRouteParam(req.params.id),
+      requestId: req.params.id,
       userId: req.user!.id,
       actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Okul Yönetimi',
       access: { schoolId: req.membership!.schoolId, hiddenFor: 'school' },
@@ -695,7 +694,7 @@ platformRequestRouter.get('/', async (req: AuthenticatedRequest, res) => {
 
 platformRequestRouter.get('/:id', async (req, res) => {
   try {
-    const result = await (await getDb()).query('SELECT * FROM platform_requests WHERE id=$1 AND platform_hidden_at IS NULL', [scalarRouteParam(req.params.id)]);
+    const result = await (await getDb()).query('SELECT * FROM platform_requests WHERE id=$1 AND platform_hidden_at IS NULL', [req.params.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Talep bulunamadı.' });
     return res.json({ request: mapRequest(result.rows[0]) });
   } catch {
@@ -705,7 +704,7 @@ platformRequestRouter.get('/:id', async (req, res) => {
 
 platformRequestRouter.get('/:id/messages', async (req, res) => {
   try {
-    const thread = await loadSupportThread(scalarRouteParam(req.params.id), { hiddenFor: 'platform' });
+    const thread = await loadSupportThread(req.params.id, { hiddenFor: 'platform' });
     if (!thread) return res.status(404).json({ error: 'Destek talebi bulunamadı.' });
     return res.json(thread);
   } catch (error) {
@@ -717,7 +716,7 @@ platformRequestRouter.get('/:id/messages', async (req, res) => {
 platformRequestRouter.post('/:id/messages', async (req: AuthenticatedRequest, res) => {
   try {
     const result = await createSupportMessage({
-      requestId: scalarRouteParam(req.params.id),
+      requestId: req.params.id,
       requestToken: req.body?.requestToken,
       message: req.body?.message,
       senderUserId: req.user!.id,
@@ -738,7 +737,7 @@ platformRequestRouter.post('/:id/messages', async (req: AuthenticatedRequest, re
 platformRequestRouter.delete('/:id', async (req: AuthenticatedRequest, res) => {
   try {
     const request = await hideSupportRequest({
-      requestId: scalarRouteParam(req.params.id),
+      requestId: req.params.id,
       userId: req.user!.id,
       actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(),
       access: { hiddenFor: 'platform' },
@@ -756,7 +755,7 @@ platformRequestRouter.patch('/:id/status', async (req: AuthenticatedRequest, res
   try {
     const db = await getDb();
     const updated = await db.transaction(async (tx) => {
-      const currentResult = await tx.query('SELECT * FROM platform_requests WHERE id=$1 AND platform_hidden_at IS NULL FOR UPDATE', [scalarRouteParam(req.params.id)]);
+      const currentResult = await tx.query('SELECT * FROM platform_requests WHERE id=$1 AND platform_hidden_at IS NULL FOR UPDATE', [req.params.id]);
       if (!currentResult.rows[0]) return null;
       const current = mapRequest(currentResult.rows[0]);
       if (!isAllowedTransition(current.requestType, current.status, nextStatus)) throw new RequestValidationError(409, 'Bu durum geçişine izin verilmiyor.');
