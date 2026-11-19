@@ -29,16 +29,12 @@ export interface School {
 }
 
 export interface SchoolMembership {
-  schoolName?: string;
-  schoolCode?: string;
-  city?: string;
-  district?: string;
   id: string;
   schoolId: string;
   userId: string;
   role: UserRole;
   branch?: string; // For teachers
-  status: 'active' | 'suspended' | 'pending' | 'inactive';
+  status: 'active' | 'suspended' | 'pending';
   joinedAt: string;
 }
 
