@@ -1,4 +1,3 @@
-import { ApiError } from '../platform/api-error';
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Alert, Button, Dialog } from './ui';
@@ -6,7 +5,7 @@ import { Copy } from 'lucide-react';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 
 export function SchoolInfo({ schoolId, allowCodeChange = false, onCodeChanged, compact = false }: { schoolId: string; allowCodeChange?: boolean; onCodeChanged?: () => Promise<void>; compact?: boolean }) {
-  const [school, setSchool] = useState<{ name: string; code: string } | null>(()=>api.peekCached?.<{school:{name:string;code:string}}>(`/api/schools/${schoolId}/info`)?.school || null);
+  const [school, setSchool] = useState<{ name: string; code: string } | null>(null);
   const [message, setMessage] = useState('');
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [codeDraft, setCodeDraft] = useState('');
@@ -14,9 +13,9 @@ export function SchoolInfo({ schoolId, allowCodeChange = false, onCodeChanged, c
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     let disposed = false;
-    setSchool(api.peekCached?.<{school:{name:string;code:string}}>(`/api/schools/${schoolId}/info`)?.school || null);
+    setSchool(null);
     setMessage('');
-    api.getSchoolInfo(schoolId).then((result) => { if (!disposed) setSchool(result.school); }).catch((cause) => { if (!disposed) {if(cause instanceof ApiError && [401,403].includes(cause.status))setSchool(null);setMessage('Okul bilgileri alınamadı.');} });
+    api.getSchoolInfo(schoolId).then((result) => { if (!disposed) setSchool(result.school); }).catch(() => { if (!disposed) setMessage('Okul bilgileri alınamadı.'); });
     return () => { disposed = true; };
   }, [schoolId]);
   useEffect(() => {

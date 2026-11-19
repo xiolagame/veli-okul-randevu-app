@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
-import { loginLocalStaffWithWhatsApp } from './test-auth-fixtures';
 
 type ApiResult = { status: number; body: Record<string, any> };
 
@@ -89,7 +88,6 @@ async function run() {
   }
 
   async function login(phone: string) {
-    if (phone === teacherPhone) return loginLocalStaffWithWhatsApp(phone,(path,body)=>request('POST',path,undefined,body));
     return request('POST', '/auth/login', undefined, { phone, password });
   }
 
@@ -343,8 +341,8 @@ async function run() {
   }
 }
 
-run().then(() => process.exit(0)).catch((cause: unknown) => {
+run().catch((cause: unknown) => {
   console.error('Account deletion test FAILED. No credentials, tokens or personal fixture data are logged.');
   if (cause instanceof Error) console.error(cause.message);
-  process.exit(1);
+  process.exitCode = 1;
 });

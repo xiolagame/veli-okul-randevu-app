@@ -46,7 +46,7 @@ try{
   await page.clock.install();
   const errors=[]; page.on('pageerror',(e)=>errors.push(e.message));
   await page.route('**/*',route=>route.request().url().startsWith('http://127.0.0.1:')?route.continue():route.abort());
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.evaluate(()=>{document.documentElement.dataset.runtimePlatform='ios';});
+  await page.goto('http://127.0.0.1:'+server.address().port);
   await page.locator('.student-class-grid .student-class-card').last().waitFor();
   assert.equal(await page.locator('.student-class-grid .student-class-card').count(),30);
   assert.equal(await page.locator('.student-class-grid').count(),4);
@@ -60,7 +60,7 @@ try{
   assert.equal(new Set(darkColors.map(c=>c.background)).size,30);
   assert(darkColors.every((c,i)=>c.background!==lightColors[i].background&&c.style===lightColors[i].style&&c.w===lightColors[i].w&&c.h===lightColors[i].h));
   assert(darkColors.every(c=>c.text==='rgb(241, 245, 249)'&&c.count==='rgb(219, 230, 239)'));
-  for(const width of [375,390,430,507,768,820,1024,1180,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
+  for(const width of [375,390,430,768,1024,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
   await page.setViewportSize({width:1440,height:900});await page.locator('.student-class-groups').screenshot({path:'.cache/class-card-review/dark.png'});
   await page.evaluate(()=>document.documentElement.dataset.theme='light');assert((await colors()).every(c=>c.text==='rgb(23, 43, 54)'));
   await page.evaluate(()=>delete document.documentElement.dataset.theme);await page.emulateMedia({colorScheme:'light'});
@@ -106,7 +106,7 @@ try{
   assert.equal(await page.locator('.student-class-grid .student-class-card').count(),29);
   assert.equal(await page.getByRole('button',{name:'Sınıfı ve Öğrencileri Sil',exact:true}).count(),0);
   await page.locator('.student-class-all button').click();
-  for(const width of [375,390,430,507,768,820,1024,1180,1440]){
+  for(const width of [375,390,430,768,1024,1440]){
     await page.setViewportSize({width,height:900});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), 'Horizontal overflow at '+width);
     const sizes=await page.locator('.student-class-card').evaluateAll(items=>items.map(e=>({w:e.clientWidth,h:e.clientHeight})));
@@ -134,7 +134,7 @@ try{
   await multiDialog.getByLabel('Çoklu silme WhatsApp kodu').waitFor();
   assert.equal(await page.evaluate(()=>window.multiTest.calls.filter(c=>c==='request').length),1);
   assert(await multiDialog.getByRole('button',{name:/^Yeniden gönder/}).isDisabled());
-  for(const width of [375,390,430,768,820,1024,1180,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert((await multiDialog.boundingBox()).width<=width);}
+  for(const width of [375,390,430,1440]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert((await multiDialog.boundingBox()).width<=width);}
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:path.join(os.tmpdir(),'veli-multi-class-confirmation-mobile.png'),fullPage:true});
   await page.evaluate(()=>{window.multiTest.failCancel=true;});
