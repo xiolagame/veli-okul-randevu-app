@@ -31,9 +31,8 @@ async function run() {
   const draft = { fullName: 'Test Person', role: 'security' as const, phone: '0555 123 45 67', email: 'test@example.test', branch: '' };
   assert.deepEqual(validateStaffForm(draft), {});
   assert(validateStaffForm({ ...draft, role: '' }).role);
-  assert.equal(validateStaffForm({ ...draft, email: '' }).email, undefined);
-  assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'' }).email);
-  assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'bad' }).email);
+  assert(validateStaffForm({ ...draft, email: '' }).email);
+  assert(validateStaffForm({ ...draft, email: 'bad' }).email);
   assert(validateStaffForm({ ...draft, role: 'teacher' }).branch);
   assert.deepEqual(auditDisplay('parent.removed', '{"id":"private-user"}'), { label: 'Veli okuldan kaldırıldı.', tone: 'rose', summary: '' });
   assert.deepEqual(auditDisplay('school.code_changed', JSON.stringify({ oldCode: 'OLD123', newCode: 'NEW123' })), { label: 'Okul kodu değiştirildi.', tone: 'info', summary: '' });
@@ -108,7 +107,7 @@ async function run() {
     stage = 'platform school code ownership';
     process.env.PLATFORM_ADMIN_USER_IDS = admin.id;
     const preflight = await fetch(base + '/platform/schools/' + schoolA + '/code', { method: 'OPTIONS', headers: { origin: 'https://local.test', 'access-control-request-method': 'PATCH', 'access-control-request-headers': 'authorization,content-type' } });
-    assert.equal(preflight.status, 200);
+    assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get('access-control-allow-methods') || '', /PATCH/);
     assert.equal((await request('GET', '/platform/security', admin.token)).status, 200);
     assert.equal((await request('GET', '/platform-target/' + schoolA + '/schools/' + schoolA + '/info', admin.token)).status, 200);
@@ -212,4 +211,4 @@ async function run() {
     for (const id of userIds) await db.query('DELETE FROM users WHERE id=$1',[id]);
   }
 }
-run().then(() => process.exit(0)).catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exit(1); });
+run().catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exitCode = 1; });

@@ -16,8 +16,6 @@
     "build:ios": "node scripts/build-ios-client.mjs",
     "android:sync": "npm run build:android && cap sync android",
     "ios:sync": "node scripts/sanitize-fcm-ios-logs.mjs && npm run build:ios && cap sync ios",
-    "android:sync:review": "node scripts/prepare-store-review.mjs android",
-    "ios:sync:review": "node scripts/prepare-store-review.mjs ios",
     "android:open": "cap open android",
     "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "start": "node dist/server/server.cjs",
@@ -59,7 +57,10 @@
     "test:account-deletion": "tsx scripts/test-account-deletion.ts",
     "test:auth:production": "tsx scripts/test-production-auth-guards.ts",
     "normalize-person-names": "tsx scripts/normalize-person-names.ts --apply",
-    "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts"
+    "migrate:supabase": "tsx scripts/migrate-store-to-supabase.ts",
+    "build:functions": "node scripts/build-function-package.mjs",
+    "test:function-package": "node scripts/test-function-package.mjs",
+    "build:production-package": "npm run build && npm run build:functions && npm run test:function-package"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.1",
@@ -109,7 +110,6 @@
     "tailwindcss": "^4.0.0",
     "tsx": "^4.23.15",
     "typescript": "^5.6.3",
-    "vite": "^6.0.0",
-    "yaml": "2.9.1"
+    "vite": "^6.0.0"
   }
 }

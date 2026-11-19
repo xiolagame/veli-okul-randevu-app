@@ -1,0 +1,104 @@
+/* WEB management surfaces only. Public/login scenes and native layouts retain
+   their existing styles; the source photo and application behavior are shared. */
+html[data-web-scene="school"]{
+ --dashboard-overlay-start:rgba(5,35,29,.78);--dashboard-overlay-end:rgba(19,32,49,.68);
+ --dashboard-card-radius:18px;--dashboard-card-border:#dfe8e2;--dashboard-card-shadow:0 10px 28px #041e1712,0 1px 3px #041e1708;
+ --dashboard-ink:#183c30;--dashboard-muted:#52685d;--dashboard-gap:18px;
+}
+html[data-web-scene="school"] body:has(.platform-management-page,.admin-backdrop) .school-background,
+html[data-web-scene="school"] .admin-backdrop{background:linear-gradient(120deg,var(--dashboard-overlay-start),var(--dashboard-overlay-end)),url('/welcome/login-scene.png') center/cover no-repeat}
+html[data-web-scene="school"] :is(.platform-management-page,.admin-backdrop) :is(.surface,.metric-card){background:#fff;border:1px solid var(--dashboard-card-border);border-radius:var(--dashboard-card-radius);box-shadow:var(--dashboard-card-shadow)}
+html[data-web-scene="school"] .platform-management-page{width:min(1400px,100%);padding:28px clamp(16px,2.5vw,36px) 40px}
+html[data-web-scene="school"] .platform-management-page>.space-y-5{display:grid;gap:20px}
+html[data-web-scene="school"] .platform-management-page>.space-y-5>*{margin-block:0}
+html[data-web-scene="school"] .platform-management-header{padding:28px 30px;gap:24px;border:1px solid #ffffff24;border-radius:var(--dashboard-card-radius);background:linear-gradient(115deg,#083d30ed,#162b34e0);box-shadow:0 14px 38px #041c1a24;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);margin-bottom:24px}
+html[data-web-scene="school"] .platform-management-header h1{font-size:clamp(27px,2.3vw,36px);letter-spacing:-1px;line-height:1.2;margin-top:8px}
+html[data-web-scene="school"] .platform-management-header p:last-child{font-size:14px;line-height:1.65;max-width:65ch;margin-top:10px;color:#e0ebe5}
+html[data-web-scene="school"] .platform-management-header>.ui-button{min-height:44px;flex:none;border:1px solid #ffffff52;background:#ffffff12;color:#fff;border-radius:11px;font-size:13px;padding:11px 18px}
+html[data-web-scene="school"] .platform-management-header>.ui-button:hover{background:#ffffff24}
+html[data-web-scene="school"] .platform-management-page .platform-nav{gap:6px;padding:7px;border:1px solid #e1e9e3;border-radius:15px;background:#f8fbf9;box-shadow:var(--dashboard-card-shadow);margin:0}
+html[data-web-scene="school"] .platform-management-page .platform-nav button{gap:8px;min-height:46px;padding:10px 12px;border-radius:10px;color:#3d5e4e;font-size:12px;line-height:1.35;transition:background .15s,color .15s}
+html[data-web-scene="school"] .platform-management-page .platform-nav button svg{flex:none}
+html[data-web-scene="school"] .platform-management-page .platform-nav button:hover{background:#e9f1ec}
+html[data-web-scene="school"] .platform-management-page .platform-nav button[aria-current="page"]{background:#174f3b;color:#fff;box-shadow:0 3px 8px #174f3b20}
+html[data-web-scene="school"] .platform-management-page .platform-nav button[aria-current="page"] .platform-unseen-badge{background:#fff;color:#174f3b}
+html[data-web-scene="school"] .platform-summary-grid{gap:var(--dashboard-gap)}
+html[data-web-scene="school"] .platform-summary-grid .metric-card{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 1fr;column-gap:12px;row-gap:12px;min-height:138px;padding:22px 24px;align-items:start}
+html[data-web-scene="school"] .platform-summary-grid .metric-card>p{grid-row:1;grid-column:1;margin:0;color:var(--dashboard-muted);font-size:13px;font-weight:600;line-height:1.5}
+html[data-web-scene="school"] .platform-summary-grid .metric-card>strong{grid-row:2;grid-column:1;margin:0;font-size:36px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--dashboard-ink);align-self:end}
+html[data-web-scene="school"] .platform-summary-icon{grid-row:1/3;grid-column:2;width:44px;height:44px;padding:11px;border-radius:13px;background:#edf5f0;color:#2c6550}
+html[data-web-scene="school"] .platform-summary-grid .metric-card:last-child .platform-summary-icon{background:#f4f1eb;color:#78644a}
+html[data-web-scene="school"] .platform-overview-action{padding:26px 28px;gap:24px;margin-top:20px}
+html[data-web-scene="school"] .platform-overview-action h2{color:var(--dashboard-ink);font-size:19px;line-height:1.35;letter-spacing:-.3px}
+html[data-web-scene="school"] .platform-overview-action p{font-size:14px;line-height:1.65;color:var(--dashboard-muted);max-width:72ch}
+html[data-web-scene="school"] .platform-overview-action>.ui-button{flex:none;border-radius:11px;min-height:44px;background:#edf5f0;color:#1c5540;border-color:#c8ddd0}
+html[data-web-scene="school"] .admin-compact .admin-content{padding:24px;scrollbar-gutter:stable}
+html[data-web-scene="school"] .admin-header{background:#fffffff5;padding:18px 26px;border-bottom-color:#dce7df}
+html[data-web-scene="school"] .admin-header h2{font-size:22px;letter-spacing:-.5px;color:var(--dashboard-ink)}
+html[data-web-scene="school"] .admin-header p{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+html[data-web-scene="school"] .admin-nav{background:#fffffff7;border-right-color:#dce7df}
+html[data-web-scene="school"] .admin-nav button{min-height:46px;border-radius:10px}
+html[data-web-scene="school"] .admin-nav button[aria-current="page"]{background:#e8f1eb;color:#174f3b}
+html[data-web-scene="school"] .school-info-compact{padding:16px 20px;gap:12px 22px;margin-bottom:16px}
+html[data-web-scene="school"] .school-info-compact>h3{color:var(--dashboard-muted);font-size:13px;font-weight:650}
+html[data-web-scene="school"] .school-info-compact .school-info-list{gap:12px 24px;min-width:0}
+html[data-web-scene="school"] .school-info-compact .school-info-list>div{gap:8px 12px;min-width:0}
+html[data-web-scene="school"] .school-info-compact .school-info-list dd{min-width:0;overflow-wrap:anywhere;color:var(--dashboard-ink)}
+html[data-web-scene="school"] .school-info-compact .school-code-actions{gap:8px;display:inline-flex;flex-wrap:wrap}
+html[data-web-scene="school"] .school-info-compact .school-code-actions .ui-button{min-height:40px;padding:8px 12px;border-radius:9px}
+html[data-web-scene="school"] .admin-content>.dashboard-quick-actions{gap:8px;padding:6px;border:1px solid #e0e9e3;border-radius:14px;background:#f8fbf9;box-shadow:var(--dashboard-card-shadow);margin-bottom:18px;width:fit-content;max-width:100%}
+html[data-web-scene="school"] .admin-content>.dashboard-quick-actions .ui-button-quiet{color:#24553f;background:transparent;border-radius:9px;min-height:44px;padding:10px 14px;font-size:13px}
+html[data-web-scene="school"] .admin-content>.dashboard-quick-actions .ui-button-quiet:hover{background:#e6f0e9}
+html[data-web-scene="school"] .school-dashboard .metric-grid{gap:var(--dashboard-gap);align-items:stretch}
+html[data-web-scene="school"] .school-dashboard .metric-card{padding:18px 20px;min-height:106px;border-radius:var(--dashboard-card-radius)}
+html[data-web-scene="school"] .school-dashboard .metric-top{font-size:13px;line-height:1.45;color:var(--dashboard-muted);gap:10px}
+html[data-web-scene="school"] .school-dashboard .metric-top svg{flex:none;color:#326c53}
+html[data-web-scene="school"] .school-dashboard .metric-card strong{font-size:32px;margin-top:12px;font-variant-numeric:tabular-nums;color:var(--dashboard-ink)}
+html[data-web-scene="school"] .school-dashboard .metric-card-button:hover{border-color:#8ab79c;box-shadow:0 10px 30px #041e171a}
+html[data-web-scene="school"] .operation-overview-grid{gap:var(--dashboard-gap);margin-top:16px}
+html[data-web-scene="school"] .operation-overview-grid>.surface{padding:18px}
+html[data-web-scene="school"] .operation-overview-grid .section-heading{margin-bottom:12px;gap:12px}
+html[data-web-scene="school"] .operation-overview-grid .section-heading h3{color:var(--dashboard-ink);font-size:18px;line-height:1.35;letter-spacing:-.3px}
+html[data-web-scene="school"] .operation-overview-grid .section-heading p{color:var(--dashboard-muted);font-size:12px;line-height:1.5;margin-top:4px}
+html[data-web-scene="school"] :is(.operation-category,.operation-status-row){min-height:46px;gap:12px;padding:9px 8px;border-bottom-color:#e8eeea}
+html[data-web-scene="school"] :is(.operation-category,.operation-status-row):last-child{border-bottom:0}
+html[data-web-scene="school"] .operation-category>svg:first-child{width:19px;height:19px;color:#44745d}
+html[data-web-scene="school"] .operation-category>svg:last-child{width:16px;height:16px;color:#6c897a}
+html[data-web-scene="school"] :is(.operation-category,.operation-status-row)>strong{min-width:32px;font-size:14px;font-variant-numeric:tabular-nums;text-align:right;color:#244b38}
+html[data-web-scene="school"] .operation-status-row .status-badge{border-radius:7px;padding:4px 9px;font-size:12px}
+@media(max-width:1000px){
+ html[data-web-scene="school"] .platform-management-page .platform-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+ html[data-web-scene="school"] .platform-management-page .platform-nav button{white-space:normal}
+ html[data-web-scene="school"] .admin-compact .admin-content{padding:18px}
+ html[data-web-scene="school"] .school-dashboard .metric-card{padding:16px}
+}
+@media(max-width:600px){
+ html[data-web-scene="school"]{--dashboard-gap:12px}
+ html[data-web-scene="school"] .platform-management-page{padding:16px 14px 28px}
+ html[data-web-scene="school"] .platform-management-header{padding:22px 20px;gap:20px;align-items:stretch;margin-bottom:18px}
+ html[data-web-scene="school"] .platform-management-header h1{font-size:28px}
+ html[data-web-scene="school"] .platform-management-header p:last-child{font-size:13px}
+ html[data-web-scene="school"] .platform-management-page .platform-nav{grid-template-columns:repeat(2,minmax(0,1fr));padding:6px}
+ html[data-web-scene="school"] .platform-management-page .platform-nav button{padding:10px 8px;font-size:12px}
+ html[data-web-scene="school"] .platform-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+ html[data-web-scene="school"] .platform-summary-grid .metric-card{padding:14px;min-height:112px;gap:10px 4px}
+ html[data-web-scene="school"] .platform-summary-grid .metric-card>p{font-size:11px;grid-column:1/-1}
+ html[data-web-scene="school"] .platform-summary-grid .metric-card>strong{font-size:28px}
+ html[data-web-scene="school"] .platform-summary-icon{grid-row:2;align-self:end;width:22px;height:22px;padding:0;border-radius:0;background:transparent!important}
+ html[data-web-scene="school"] .platform-overview-action{padding:20px;gap:18px}
+ html[data-web-scene="school"] .admin-compact .admin-content{padding:14px 12px 24px;scrollbar-gutter:auto}
+ html[data-web-scene="school"] .school-info-compact{padding:16px;align-items:flex-start}
+ html[data-web-scene="school"] .school-info-compact .school-info-list{flex-basis:100%;gap:14px}
+ html[data-web-scene="school"] .school-info-compact .school-info-list>div{width:100%}
+ html[data-web-scene="school"] .admin-content>.dashboard-quick-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:4px;padding:6px}
+ html[data-web-scene="school"] .admin-content>.dashboard-quick-actions .ui-button-quiet{flex-direction:column;gap:6px;font-size:11px;line-height:1.4;padding:10px 5px;white-space:normal}
+ html[data-web-scene="school"] .school-dashboard .metric-grid{gap:8px}
+ html[data-web-scene="school"] .school-dashboard .metric-card{padding:14px 12px;min-height:118px}
+ html[data-web-scene="school"] .school-dashboard .metric-top{align-items:flex-start;font-size:11px;gap:5px}
+ html[data-web-scene="school"] .school-dashboard .metric-top svg{width:16px;height:16px}
+ html[data-web-scene="school"] .school-dashboard .metric-card strong{font-size:28px;margin-top:12px}
+ html[data-web-scene="school"] .operation-overview-grid>.surface{padding:18px 16px}
+ html[data-web-scene="school"] :is(.operation-category,.operation-status-row){min-height:50px;padding:10px 4px}
+}
+@media(prefers-reduced-motion:reduce){html[data-web-scene="school"] .platform-management-page .platform-nav button{transition:none}}
+@media print{html[data-web-scene="school"] .admin-backdrop{background:white}}
