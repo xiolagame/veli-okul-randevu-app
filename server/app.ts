@@ -3,6 +3,7 @@ import cors from 'cors';
 import { apiRouter } from './api';
 import { initDatabase } from './database/postgres';
 import { platformTargetContextGuard } from './platform-management';
+import { reviewGateway } from './review-auth';
 
 let initPromise: Promise<void> | null = null;
 
@@ -16,7 +17,7 @@ export async function ensureDatabase(): Promise<void> {
   return initPromise;
 }
 
-export function createExpressApp() {
+export function createExpressApp(review: express.RequestHandler = reviewGateway) {
   const app = express();
 
   // Production CORS Configuration: Configurable via CORS_ORIGIN or origin whitelist
@@ -34,8 +35,8 @@ export function createExpressApp() {
         return callback(new Error(`CORS İhlali: ${origin} adresine izin verilmiyor.`));
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id', 'X-School-Role'],
-      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id'],
+      credentials: true,
       optionsSuccessStatus: 200,
     })
   );
@@ -61,6 +62,9 @@ export function createExpressApp() {
       : 'Aktarım partisi okunamadı.' });
   });
   app.use(express.json());
+
+  // Terminate review traffic before production database initialization/routing.
+  app.use(['/api', '/.netlify/functions/api'], review);
 
   // Ensure database is initialized before handling API requests
   app.use(async (req, res, next) => {

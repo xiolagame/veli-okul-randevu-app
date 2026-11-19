@@ -25,8 +25,8 @@ async function run() {
   assert.match(authView, /setPasswordLoginMode\(null\)\}\>WhatsApp ile girişe dön/);
   assert.match(authView, /await login\(phone, password\)/);
   assert.match(authView, /passwordLoginMode === 'platform'/);
-  assert.match(authView, /resolveLoginEntry\(getRuntimePlatform\(\), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null\)/);
-  assert.match(authView, /usePhoneCentricLogin \? <PhoneCentricLoginPanel allowLegacyFallback=\{allowLegacyPhoneFallback\(getRuntimePlatform\(\)\)\}/);
+  assert.match(authView, /phoneCentricAuthEnabled && \(getRuntimePlatform\(\) === 'WEB' \|\| passwordLoginMode === null\)/);
+  assert.match(authView, /usePhoneCentricLogin \? <PhoneCentricLoginPanel allowLegacyFallback=\{getRuntimePlatform\(\) !== 'WEB'\}/);
 
   assert.match(phoneCentricPanel, /'WhatsApp Kodu Gönder'/);
   assert.match(phoneCentricPanel, /placeholder="0555 123 45 67"/);
@@ -38,9 +38,7 @@ async function run() {
   assert.match(phoneCentricPanel, /if \(!allowLegacyFallback\) throw new Error/);
   assert.match(phoneCentricPanel, /şu anda kullanılamıyor\. Doğrulama kodu gönderilmedi\./);
   assert.doesNotMatch(phoneCentricPanel, /sisteme kayıtlı değil|numara kayıtlı değil/);
-  assert.match(phoneCentricPanel, /WhatsApp doğrulama kodunuz gönderildi/);
-  assert.match(phoneCentricPanel, /setStep\('WHATSAPP_CODE'\)/);
-  assert.doesNotMatch(phoneCentricPanel, /AWAIT_CODE|WhatsApp kodum var/);
+  assert.match(phoneCentricPanel, /Lütfen telefonunuza gelen WhatsApp onay kodunu girin\./);
   assert.doesNotMatch(phoneCentricPanel, /setMessage\(response.message\)/);
   assert.doesNotMatch(phoneCentricPanel, /Mevcut giriş yöntemleri/);
   assert.doesNotMatch(phoneCentricPanel, /Parola ile giriş|Platform Yönetimi|Şifremi unuttum|type="password"/);

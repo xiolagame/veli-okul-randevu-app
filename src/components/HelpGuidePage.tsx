@@ -1,13 +1,13 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import type { HelpGuide } from '../content/help-content';
-import {HelpCategoryArt, type HelpTheme} from './HelpCategoryArt';
 import { Button } from './ui';
+import { HelpCategoryArt, type HelpTheme } from './HelpCategoryArt';
 
 interface HelpGuidePageProps {
   guide: HelpGuide;
-  theme?: HelpTheme;
   onBack: () => void;
+  theme?: HelpTheme;
 }
 
 export function HelpGuidePage({ guide, onBack, theme = 'usage' }: HelpGuidePageProps) {
@@ -18,7 +18,7 @@ export function HelpGuidePage({ guide, onBack, theme = 'usage' }: HelpGuidePageP
         <p className="eyebrow">{guide.eyebrow}</p>
         <h1 id="help-guide-title">{guide.title}</h1>
         <p>{guide.description}</p>
-        <HelpCategoryArt theme={theme}/>
+        <HelpCategoryArt theme={theme} />
       </header>
       <div className="help-guide-sections">
         {guide.sections.map((section) => <section key={section.title} className="help-guide-section">

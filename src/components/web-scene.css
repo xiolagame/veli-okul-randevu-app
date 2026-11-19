@@ -1,0 +1,65 @@
+/* Single web-only background for public pages and authenticated panels.
+   Native startup never sets this data attribute. Cards/menus retain opaque surfaces. */
+html[data-web-scene="school"]{background:#071b16;min-height:100%;overscroll-behavior-y:none}
+html[data-web-scene="school"] body{background:#071b16;min-height:100vh;min-height:100dvh;overscroll-behavior-y:none}
+html[data-web-scene="school"] #root{min-height:100vh;min-height:100dvh}
+html[data-web-scene="school"] .school-background{z-index:0;background:linear-gradient(115deg,rgba(6,59,33,.64),rgba(19,32,49,.52)),url('/welcome/login-scene.png') center/cover no-repeat}
+html[data-web-scene="school"] .admin-backdrop{background:linear-gradient(115deg,rgba(6,59,33,.64),rgba(19,32,49,.52)),url('/welcome/login-scene.png') center/cover no-repeat}
+html[data-web-scene="school"] .platform-management-page{background:transparent}
+html[data-web-scene="school"] .platform-management-header{background:#071b16b3;color:#fff;border-radius:12px;padding:20px;margin-bottom:20px}
+html[data-web-scene="school"] .platform-management-header :is(.eyebrow,p:last-child){color:#e1e9e4}
+html[data-web-scene="school"] .admin-content>.dashboard-quick-actions .ui-button-quiet{color:#fff;background:#071b16a6}
+html[data-web-scene="school"] .page-heading{background:#f6f8f7ed;border-radius:12px}
+@media(max-width:680px){html[data-web-scene="school"] .school-background,html[data-web-scene="school"] .admin-backdrop{background-position:65% center}}
+@media print{html[data-web-scene="school"] .school-background{display:none}html[data-web-scene="school"] .admin-backdrop{background:white}}
+
+/* Public information routes share one dark scene. Keep the welcome, login,
+   authenticated panels and native styles unchanged. The overlay stays behind #root. */
+html[data-web-scene="school"] body:has(.help-page,.public-request-page) .school-background{
+ background:linear-gradient(115deg,rgba(6,59,33,.70),rgba(19,32,49,.56)),url('/welcome/login-scene.png') center/cover no-repeat;
+}
+html[data-web-scene="school"] :is(.help-page,.public-request-page){padding:16px 20px 20px}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header){margin-bottom:16px;min-height:48px;gap:16px}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) :is(.brand,.ui-button){color:#fff}
+html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .ui-button:hover{background:#ffffff1c}
+html[data-web-scene="school"] .public-request-page-shell{width:min(980px,100%)}
+html[data-web-scene="school"] .public-request-page-card{padding:24px;background:#fffffff7}
+html[data-web-scene="school"] .public-request-page-copy{margin-bottom:18px;gap:14px}
+html[data-web-scene="school"] .public-request-page-copy h1{font-size:30px;line-height:1.2}
+html[data-web-scene="school"] .public-request-page-copy p{margin-top:6px;font-size:14px;line-height:1.5;max-width:650px}
+html[data-web-scene="school"] .public-request-form{gap:12px}
+html[data-web-scene="school"] .public-request-form .field{gap:5px;font-size:14px}
+html[data-web-scene="school"] .public-request-form :is(input,select){min-height:44px;padding:9px 12px;font-size:16px}
+html[data-web-scene="school"] .public-request-form textarea{min-height:88px;height:88px;padding:10px 12px;font-size:16px;resize:vertical}
+html[data-web-scene="school"] .public-request-form .form-actions{margin-top:0}
+html[data-web-scene="school"] .help-hero{padding:20px;gap:16px}
+html[data-web-scene="school"] .help-hero h1{font-size:30px;line-height:1.2}
+html[data-web-scene="school"] .help-hero>div>p:last-child{margin-top:6px;font-size:14px;line-height:1.5}
+html[data-web-scene="school"] .help-hero-icon{width:48px;height:48px;flex-basis:48px}
+html[data-web-scene="school"] .help-category-grid{margin-top:16px;gap:14px}
+html[data-web-scene="school"] .help-category{padding:16px}
+html[data-web-scene="school"] .help-category>header{gap:10px;margin-bottom:10px}
+html[data-web-scene="school"] .help-category nav{gap:4px}
+html[data-web-scene="school"] .help-topic-link{min-height:56px;padding:8px;gap:10px}
+@media(min-width:740px){
+ html[data-web-scene="school"] .public-request-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+ html[data-web-scene="school"] .public-request-form :is(label[for="request-message"],.ui-alert,.form-actions){grid-column:1/-1}
+ html[data-web-scene="school"] .public-request-form .ui-alert{grid-row:1}
+}
+@media(min-width:1100px){
+ html[data-web-scene="school"] .help-page-shell{width:min(1360px,100%)}
+ html[data-web-scene="school"] .help-category-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:start}
+ html[data-web-scene="school"] .help-category h2{font-size:17px}
+}
+@media(max-width:680px){
+ html[data-web-scene="school"] body:has(.help-page,.public-request-page) .school-background{background-position:65% center}
+ html[data-web-scene="school"] :is(.help-page,.public-request-page){padding:12px 14px 20px}
+ html[data-web-scene="school"] .public-request-page-card{padding:20px}
+ html[data-web-scene="school"] :is(.public-request-page-copy,.help-hero){gap:10px}
+ html[data-web-scene="school"] :is(.public-request-page-copy h1,.help-hero h1){font-size:26px}
+ html[data-web-scene="school"] .help-hero{padding:18px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header){flex-direction:row;align-items:center;gap:10px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .brand{font-size:26px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .brand-logo{width:40px;height:40px}
+ html[data-web-scene="school"] :is(.help-page-header,.public-request-page-header) .ui-button{padding:8px;font-size:12px}
+}

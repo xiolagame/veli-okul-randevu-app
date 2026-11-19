@@ -3,7 +3,8 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { Alert, Button, Dialog, Skeleton } from './ui';
 import { formatDateTime } from '../utils/dates';
-import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Trash2 } from 'lucide-react';
+import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Trash2, CheckCircle2, Ban } from 'lucide-react';
+import {getRuntimePlatform} from '../platform/runtime-platform';
 import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
@@ -95,7 +96,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       {section === 'licenses' && <LicenseManagement/>}
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
       {changed && <Alert tone="success">{changeMessage}</Alert>}
-      {section === 'overview' && <><div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}
+      {section === 'overview' && <><div className="metric-grid platform-summary-grid"><article className="metric-card">{getRuntimePlatform()==='WEB'&&<SchoolIcon className="platform-summary-icon" aria-hidden="true"/>}<strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card">{getRuntimePlatform()==='WEB'&&<CheckCircle2 className="platform-summary-icon" aria-hidden="true"/>}<strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card">{getRuntimePlatform()==='WEB'&&<Ban className="platform-summary-icon" aria-hidden="true"/>}<strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}
       {section === 'schools' && <form className="form-stack platform-school-form surface" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', licenseCode: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); }); }}>
         <h3>Yeni okul ekle</h3>
         <div className="platform-school-fields">{(['name', 'code', 'licenseCode', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', licenseCode: 'Lisans Kodu', city: 'İl', district: 'İlçe' })[key]}
