@@ -1,3 +1,4 @@
+import { platformLicenseReminderRouter } from './license-reminder-api';
 import { Router } from 'express';
 import { AuthenticatedRequest, canUsePlatformAuthority } from './auth';
 import { getDb, TransactionClient } from './database/postgres';
@@ -30,6 +31,7 @@ platformLicenseRouter.use((req: AuthenticatedRequest, res, next) => {
   if (!canUsePlatformAuthority(req.user)) return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
   next();
 });
+platformLicenseRouter.use('/:schoolId/whatsapp', platformLicenseReminderRouter);
 platformLicenseRouter.get('/', async (req, res) => {
   try {
     const threshold = Number(req.query.threshold ?? 30), page = Number(req.query.page ?? 0);

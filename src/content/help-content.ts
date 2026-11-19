@@ -36,8 +36,8 @@ export const helpGuides = {
         title: 'Personel yönetimi',
         bullets: [
           'Yönetim panelindeki Personel alanından Öğretmen veya Güvenlik rolüyle yeni personel ekleyebilirsiniz.',
-          'Öğretmen kaydında ad soyad, branş, telefon ve bildirim e-postası; güvenlik kaydında ad soyad ve telefon gerekir.',
-          'WhatsApp doğrulaması etkin olduğunda personel, birleşik giriş ekranında kayıtlı telefonuyla tek kullanımlık kod alarak hesabını etkinleştirir. Personel için okul kodu, aktivasyon e-postası ve parola gerekmez.',
+          'Öğretmen kaydında ad soyad, branş, telefon ve e-posta; güvenlik kaydında ad soyad, telefon ve e-posta gerekir.',
+          'WhatsApp doğrulaması etkin olduğunda personel, birleşik giriş ekranında kayıtlı telefonuyla tek kullanımlık kod alarak hesabını etkinleştirir. Eski mobil sürümlerin parola ve aktivasyon akışları geçiş süresince çalışmaya devam eder.',
           'Personel bilgilerini düzenleyebilir ve yalnız kendi okulunuzdaki personel kayıtlarını yönetebilirsiniz.',
         ],
       },
@@ -99,7 +99,7 @@ export const helpGuides = {
       {
         title: 'Parola sıfırlama ve güvenlik',
         paragraphs: [
-          'WhatsApp girişi etkin personel için parola gerekmez; her girişte kısa süreli ve tek kullanımlık kod doğrulanır. Öğretmen e-postası yalnız randevu bildirimleri için kullanılır.',
+          'WhatsApp girişi etkin personel için parola gerekmez; her girişte kısa süreli ve tek kullanımlık kod doğrulanır. Eski parola hesabınız varsa mevcut parola sıfırlama akışı kullanılabilir.',
         ],
       },
     ],
@@ -152,9 +152,9 @@ export const helpGuides = {
       {
         title: 'Aktivasyon ve giriş',
         steps: [
-          'Okul yönetimi sizi Güvenlik rolüyle telefon numaranız üzerinden tanımlar; e-posta gerekmez.',
-          'Ortak giriş ekranında kayıtlı telefonunuzu girip WhatsApp doğrulaması isteyin. Kod ulaştığında “WhatsApp kodum var” ile devam edin.',
-          'Kodu başarıyla doğruladığınızda hesabınız etkinleşir ve yetkili paneliniz açılır.',
+          'Okul yönetimi sizi Güvenlik rolüyle telefon ve e-posta bilgileriniz üzerinden tanımlar.',
+          '“Personel ilk giriş” alanında okul kodunu ve kayıtlı telefonunuzu girip WhatsApp doğrulama kodunu isteyin.',
+          'Kodu doğruladıktan sonra kayıtlı telefonunuza gönderilen tek kullanımlık kodla giriş yapın.',
         ],
       },
       {
@@ -197,7 +197,7 @@ export const helpGuides = {
       },
       {
         title: 'Öğretmen ve güvenlik personeli',
-        paragraphs: ['Okul yönetiminizin kaydettiği telefonla ortak giriş ekranından WhatsApp kodunu doğrulayın. İlk başarılı doğrulamada hesabınız otomatik etkinleşir.'],
+        paragraphs: ['Okul yönetiminizin oluşturduğu personel kaydındaki okul kodu ve telefonla “Personel ilk giriş” akışını açın; WhatsApp kodunu doğrulayın.'],
       },
       {
         title: 'Okul yöneticisi',
@@ -215,8 +215,8 @@ export const helpGuides = {
         paragraphs: ['WhatsApp girişi etkin veli hesabında parola gerekmez. Kayıtlı telefonunuza yeni bir tek kullanımlık kod isteyerek giriş yapın.'],
       },
       {
-        title: 'Öğretmen ve güvenlik personeli girişi',
-        paragraphs: ['WhatsApp girişi etkin personel hesabında parola gerekmez. Personel için parola sıfırlama, okul kodu veya aktivasyon e-postası yoktur. Kayıtlı telefonunuzla WhatsApp kodu isteyin.'],
+        title: 'Öğretmen ve güvenlik personeli parolası',
+        paragraphs: ['WhatsApp girişi etkin personel hesabında parola gerekmez. Eski parola hesabı kullanılıyorsa mevcut personel parola sıfırlama alanı kayıtlı e-posta üzerinden çalışmaya devam eder.'],
       },
       {
         title: 'Okul yöneticisi parolası',

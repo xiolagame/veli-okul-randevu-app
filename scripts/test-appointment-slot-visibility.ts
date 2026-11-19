@@ -48,7 +48,7 @@ async function run() {
     users.push(user.id);
     await userRepository.updatePasswordHash(user.id, passwordHash);
     await membershipRepository.createOrActivate({ schoolId, userId: user.id, role });
-    return { ...user, token: createToken({ userId: user.id, phone, auth_version: 0, auth_method: role==='teacher'||role==='security'?'phone_centric':'password' }) };
+    return { ...user, token: createToken({ userId: user.id, phone, auth_version: 0 }) };
   };
   const addStudent = async (schoolId: string, parentId: string, name: string, className: string) => {
     const id = `slots-student-${crypto.randomUUID()}`;
@@ -164,8 +164,8 @@ async function run() {
   }
 }
 
-run().then(() => process.exit(0)).catch((cause: unknown) => {
+run().catch((cause: unknown) => {
   const location = cause instanceof Error ? cause.stack?.split('\n').find((line) => line.includes('test-appointment-slot-visibility.ts:'))?.trim() : undefined;
   console.error(`Appointment slot visibility tests FAILED. ${location || ''} No credentials or response bodies are logged.`);
-  process.exit(1);
+  process.exitCode = 1;
 });

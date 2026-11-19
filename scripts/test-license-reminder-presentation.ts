@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {reminderDeliveryState} from '../src/components/LicenseReminderContent';
+import type {LicenseReminderOverview} from '../src/types/license-reminders';
+const row={status:'ACCEPTED',deliveryStatus:'UNCONFIRMED'} as LicenseReminderOverview['history'][number];
+assert.equal(reminderDeliveryState(row).label,'API kabul etti');
+assert.equal(reminderDeliveryState({...row,status:'DISPATCHING'}).label,'İşleniyor');
+assert.equal(reminderDeliveryState({...row,status:'UNKNOWN'}).label,'Sonuç belirsiz');
+assert.equal(reminderDeliveryState({...row,status:'REJECTED'}).label,'Başarısız / atlandı');
+assert.equal(reminderDeliveryState({...row,deliveryStatus:'FAILED'}).label,'Başarısız');
+assert.equal(reminderDeliveryState({...row,deliveryStatus:'DELIVERED'}).label,'Teslim edildi');
+for(const status of ['ACCEPTED','DISPATCHING','UNKNOWN','REJECTED','SKIPPED','INVALIDATED'])assert.notEqual(reminderDeliveryState({...row,status}).label,'Teslim edildi');
+console.log('License delivery presentation PASS: API acceptance never implies delivery; pending, uncertain, failed and explicit delivery remain distinct.');

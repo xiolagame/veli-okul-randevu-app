@@ -161,7 +161,7 @@ async function run() {
     assert.equal(setup.target_user_id, manager.id); assert.equal(setup.school_id, school.id);
     assert.equal(setup.code_hash, hashSetupToken('unified-admin-email:manager@example.test:' + emailCodes.at(-1)));
     assert.match(emailMessages.at(-1)!.subject, /E-posta Doğrulama Kodu/);
-    assert.match(emailMessages.at(-1)!.html, /Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın./);
+    assert.match(emailMessages.at(-1)!.html, /Okul yöneticisi hesabınızı etkinleştirmek için yukarıdaki e-posta doğrulama kodunu kullanın./);
     const old = { attemptId: valid.body.attemptId, phone: formatted, emailCode: emailCodes.at(-1), schoolCode: school.code };
     await db.query("UPDATE identity_auth_attempts SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [valid.body.attemptId]);
     assert.equal((await request('POST', '/auth/phone/verify-email', old)).status, 401);
