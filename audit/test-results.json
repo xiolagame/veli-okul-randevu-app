@@ -1,0 +1,260 @@
+[
+  {
+    "test": "test-ios-roster-edge-cases.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 499
+  },
+  {
+    "test": "test-security-camera-lifecycle.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 866
+  },
+  {
+    "test": "test-production-auth-guards.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 963
+  },
+  {
+    "test": "test-ios-qr-boundaries.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 251
+  },
+  {
+    "test": "test-ios-login-policy.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 225
+  },
+  {
+    "test": "test-ios-session-expiry.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 468
+  },
+  {
+    "test": "test-whatsapp-login-ui.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 234
+  },
+  {
+    "test": "test-mobile-platform-foundation.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 319
+  },
+  {
+    "test": "test-native-secure-storage.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 347
+  },
+  {
+    "test": "test-ios-push.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 1293
+  },
+  {
+    "test": "test-ios-shell.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 265
+  },
+  {
+    "test": "test-class-card-colors.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 1090
+  },
+  {
+    "test": "test-roster-qr-availability-security.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 257
+  },
+  {
+    "test": "test-roster-excel-template.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 1220
+  },
+  {
+    "test": "test-ios-role-api-matrix.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 5374
+  },
+  {
+    "test": "test-push-notifications.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 4885
+  },
+  {
+    "test": "test-appointment-slot-visibility.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 4587
+  },
+  {
+    "test": "test-school-roster-ui.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 5162
+  },
+  {
+    "test": "test-security-and-tenant-audit.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 4583
+  },
+  {
+    "test": "test-identity-auth-attempts.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 16658
+  },
+  {
+    "test": "test-account-deletion.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 4481
+  },
+  {
+    "test": "test-roster-import-jobs.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 63837
+  },
+  {
+    "test": "test-teacher-appointment-ownership.ts",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [
+      "--no-wasm-code-gc"
+    ],
+    "durationMs": 4007
+  },
+  {
+    "test": "test-ios-release-safety.mjs",
+    "status": "PASS",
+    "exitCode": 0,
+    "signal": null,
+    "node": "v24.17.0",
+    "v8": "13.6.233.17-node.49",
+    "runtimeArgs": [],
+    "durationMs": 172
+  }
+]

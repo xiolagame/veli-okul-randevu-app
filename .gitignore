@@ -84,7 +84,6 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
-/supabase/.temp/
 
 memory/test_credentials.md
 
@@ -112,6 +111,5 @@ ios/App/App/GoogleService-Info.plist
 *.pfx
 
 !/audit/license-reminder-overlay.json
-!/audit/staff-otp-overlay.json
 /previews/
 /*-final.log

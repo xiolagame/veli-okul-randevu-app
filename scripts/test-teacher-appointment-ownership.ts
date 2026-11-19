@@ -55,7 +55,6 @@ async function run() {
         userId: user.id,
         phone: user.phone,
         auth_version: authenticatedUser.authVersion,
-        auth_method: role==='teacher'||role==='security'?'phone_centric':'password',
       }),
     };
   }

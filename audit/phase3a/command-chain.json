@@ -1,0 +1,74 @@
+{
+  "status": "PASS",
+  "npmScripts": {
+    "build": "npm run clean:build && npm run build:client && npm run build:server && npm run test:release-artifacts",
+    "clean:build": "node scripts/clean-build-artifacts.mjs",
+    "build:client": "vite build",
+    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server/server.cjs",
+    "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
+    "ios:sync": "node scripts/sanitize-fcm-ios-logs.mjs && npm run build:ios && cap sync ios",
+    "build:ios": "node scripts/build-ios-client.mjs",
+    "lint": "tsc --noEmit"
+  },
+  "reviewedHelpers": [
+    "scripts/clean-build-artifacts.mjs",
+    "scripts/build-ios-client.mjs",
+    "scripts/sanitize-fcm-ios-logs.mjs",
+    "scripts/test-release-artifacts.mjs",
+    "scripts/run-ios-regressions.mjs",
+    "scripts/verify-ios-provenance.mjs",
+    "scripts/verify-ios-web-package.mjs",
+    "scripts/verify-ios-ipa.sh",
+    "scripts/ios-source-fingerprint.mjs",
+    "scripts/ios-artifact-policy.mjs",
+    "scripts/verify-ios-source-lock.mjs",
+    "scripts/verify-apple-toolchain.sh"
+  ],
+  "commands": {
+    "ios-ci-check": [
+      "Show pinned tool versions",
+      "Install locked JavaScript dependencies",
+      "Verify frozen iOS source",
+      "Build production artifacts locally (no deploy)",
+      "Build and sync the Capacitor iOS shell",
+      "Run TypeScript and focused regression checks",
+      "Verify Capacitor sync preserved native project settings",
+      "Resolve Swift packages",
+      "Build unsigned iOS Simulator app"
+    ],
+    "ios-signed-ipa": [
+      "Show pinned tool versions",
+      "Install locked JavaScript dependencies",
+      "Verify frozen iOS source",
+      "Build production artifacts locally (no deploy)",
+      "Build and sync the Capacitor iOS shell",
+      "Require Firebase iOS config for signed IPA",
+      "Run TypeScript and focused regression checks",
+      "Verify Capacitor sync preserved native project settings",
+      "Resolve Swift packages",
+      "Set unique App Store build number",
+      "Apply App Store signing profile",
+      "Build signed IPA",
+      "Verify signed IPA without uploading"
+    ],
+    "ios-testflight": [
+      "Require explicit TestFlight approval for this commit",
+      "Show pinned tool versions",
+      "Install locked JavaScript dependencies",
+      "Verify frozen iOS source",
+      "Build production artifacts locally (no deploy)",
+      "Build and sync the Capacitor iOS shell",
+      "Require Firebase iOS config for signed IPA",
+      "Run TypeScript and focused regression checks",
+      "Verify Capacitor sync preserved native project settings",
+      "Resolve Swift packages",
+      "Set unique App Store build number",
+      "Apply App Store signing profile",
+      "Build signed IPA",
+      "Verify signed IPA without uploading",
+      "Recheck approval immediately before upload",
+      "Upload approved build to TestFlight only"
+    ]
+  },
+  "notes": "TestFlight has one explicit guarded publish step. First two workflows and reachable local helpers contain no publishing command. Third-party installed tool implementation and cloud UI hooks are outside this static audit."
+}
