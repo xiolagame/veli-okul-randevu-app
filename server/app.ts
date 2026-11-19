@@ -34,8 +34,8 @@ export function createExpressApp() {
         return callback(new Error(`CORS İhlali: ${origin} adresine izin verilmiyor.`));
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id', 'X-School-Role'],
-      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id'],
+      credentials: true,
       optionsSuccessStatus: 200,
     })
   );

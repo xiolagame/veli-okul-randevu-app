@@ -55,7 +55,6 @@ async function run() {
         userId: user.id,
         phone: user.phone,
         auth_version: authenticatedUser.authVersion,
-        auth_method: role==='teacher'||role==='security'?'phone_centric':'password',
       }),
     };
   }
@@ -160,7 +159,7 @@ async function run() {
   }
 }
 
-run().then(() => process.exit(0)).catch(() => {
+run().catch(() => {
   console.error('Teacher appointment ownership test FAILED. No credentials or response bodies are logged.');
-  process.exit(1);
+  process.exitCode = 1;
 });

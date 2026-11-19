@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
+import { chromium } from 'file:///C:/Users/XIO/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
 const content = await readFile('src/content/help-content.ts', 'utf8');
 const slugs = [...content.matchAll(/slug: '([^']+)'/g)].map(m => m[1]);
 const routes = ['/yardim', ...new Set(slugs.map(s => '/yardim/' + s)), '/yardim/olmayan-sayfa', '/lisans-iletisim'];
@@ -12,7 +11,7 @@ for (const [width,height] of [[320,568],[360,640],[375,667],[390,844],[393,852],
   const page = await browser.newPage({viewport:{width,height}});
   await page.route('**/api/**', r => r.fulfill({json:{whatsappAuthEnabled:true,unifiedLoginEnabled:true,phoneCentricAuthEnabled:true}}));
   for (const path of routes) {
-    await page.goto('http://127.0.0.1:3002'+path);
+    await page.goto('http://127.0.0.1:3001'+path);
     const back = page.locator('.public-page-back');
     await back.waitFor();
     assert.equal(await page.locator('main .brand').count(),0,path);

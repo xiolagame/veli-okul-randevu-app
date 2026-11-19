@@ -59,7 +59,7 @@
   --shadow-card: 0 3px 18px #183f2605;
 }
 
-.school-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--canvas); }
+.school-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(#f6f8f755, #f6f8f755), url('/branding/school-background.png') center / cover no-repeat; }
 #root { isolation: isolate; min-height: 100dvh; padding-top: env(safe-area-inset-top, 0); padding-bottom: env(safe-area-inset-bottom, 0); }
 .brand-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
 
@@ -232,10 +232,10 @@
 .slot-grid button:disabled { background: #edf2ef; cursor: not-allowed; }
 .slot-grid button[data-booked="true"] { text-decoration: line-through; }
 .skeleton-list { display: grid; gap: 14px; }
-.skeleton-card { display: flex; gap: 16px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.skeleton-card { display: flex; gap: 16px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: white; }
 .skeleton-card > span { width: 44px; height: 44px; border-radius: 12px; }
 .skeleton-card > div { flex: 1; display: grid; gap: 12px; }
-.skeleton-card span { display: block; background: var(--theme-soft, #edf2ef); animation: pulse 1.8s ease-in-out infinite; }
+.skeleton-card span { display: block; background: #edf2ef; animation: pulse 1.8s ease-in-out infinite; }
 .skeleton-card > div span { height: 12px; border-radius: 4px; width: 65%; }
 .skeleton-card > div span:last-child { width: 40%; }
 @keyframes pulse { 50% { opacity: .45; } }
@@ -873,38 +873,6 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 .record-bulk-content code { overflow-wrap: anywhere; }
 
 /* Keep the shared section heading accessible without a mobile layout row. */
-/* iOS landscape cutouts and fixed overlays need their own safe-area gutters. */
-html[data-runtime-platform="ios"] #root {
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  overflow-wrap: anywhere;
-}
-html[data-runtime-platform="ios"] :is(.topbar-inner, .hero-card, .teacher-card, .appointment-card, .page-heading, .pass-details > div) > * { min-width: 0; }
-html[data-runtime-platform="ios"] :is(.profile-trigger, .admin-open, .icon-button, .calendar-heading button) { min-width: 44px; min-height: 44px; }
-html[data-runtime-platform="ios"] .availability-calendar { padding: 0; border: 0; }
-html[data-runtime-platform="ios"] .calendar-days { gap: 0; }
-html[data-runtime-platform="ios"] .calendar-days button { min-height: 44px; }
-html[data-runtime-platform="ios"] .profile-label { min-width: 0; max-width: 10rem; }
-html[data-runtime-platform="ios"] .profile-trigger strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html[data-runtime-platform="ios"] .admin-open { white-space: nowrap; flex-shrink: 0; }
-html[data-runtime-platform="ios"] .pass-details > div { display: grid; grid-template-columns: minmax(5.5rem, .8fr) minmax(0, 2fr); gap: 12px; }
-html[data-runtime-platform="ios"] .dialog-backdrop {
-  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-}
-html[data-runtime-platform="ios"] .dialog-panel {
-  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-  overflow-wrap: anywhere;
-}
-html[data-runtime-platform="ios"] .auth-form-side-ios {
-  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px) + var(--auth-keyboard-inset, 0px));
-}
-html[data-runtime-platform="ios"] .auth-form-side :is(input, select, textarea, button) { scroll-margin-block: 24px; }
-html[data-runtime-platform="ios"] :is(.school-trigger, .profile-trigger, .admin-mobile-nav select) { min-height: 44px; }
-html[data-runtime-platform="ios"] .auth-form-wrap { min-width: 0; overflow-wrap: anywhere; }
-html[data-runtime-platform="ios"] .admin-backdrop {
-  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
 @media (max-width: 767px) {
   .admin-no-duplicate-header .admin-header {
     position: absolute;
@@ -919,92 +887,3 @@ html[data-runtime-platform="ios"] .admin-backdrop {
     border: 0;
   }
 }
-
-/* License reminder additions only; preserve native auth and existing layouts. */
-.license-whatsapp, .license-whatsapp-preference { min-width: 0; overflow-wrap: anywhere; }
-html[data-runtime-platform="ios"] :is(.license-whatsapp,.license-whatsapp-preference) label { min-height: 44px; }
-
-/* Local loading feedback keeps the navigation and filters available. */
-.panel-loading { min-block-size: 96px; padding: 24px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
-.panel-refresh { color: var(--muted); font-size: .875rem; }
-
-/* Compact navigation: one mobile row; school selection shares the identity hit area. */
-.app-topbar { top: env(safe-area-inset-top, 0px); }
-.admin-backdrop { top: calc(var(--topbar-height, 80px) + env(safe-area-inset-top, 0px)); }
-.topbar-identity { display:flex; align-items:center; gap:28px; flex:1; min-width:0; }
-.topbar-actions { flex-shrink:0; }
-@media (min-width:768px) and (max-width:1023px) { .topbar-identity {gap:16px;} }
-@media (max-width:767px) {
- .topbar-inner {min-height:56px;padding:6px 12px;gap:8px;flex-wrap:nowrap;}
- .topbar-identity {position:relative;display:block;height:44px;min-width:0;}
- .topbar-identity .brand {height:44px;width:100%;gap:6px;flex-wrap:nowrap;font-size:22px;}
- .topbar-identity .brand-logo {width:28px;height:28px;align-self:center;}
- .topbar-identity .brand-name {align-self:flex-start;font-size:16px;line-height:21px;letter-spacing:-.035em;}
- .topbar-identity .school-switch {position:absolute;inset:0;order:initial;flex-basis:auto;border:0;padding:0;}
- .topbar-identity .school-trigger {width:100%;min-height:44px;height:44px;padding:21px 0 0 34px;border:0;background:transparent;gap:2px;}
- .topbar-identity .school-trigger > svg:first-child {display:none;}
- .topbar-identity .school-trigger > div {min-width:0;flex:1;}
- .topbar-identity .school-trigger strong {display:block;max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:15px;}
- .topbar-identity .school-trigger small {display:none;}
- .topbar-identity .school-trigger > svg:last-child {width:12px;flex-shrink:0;}
- .topbar-actions {gap:2px;margin-left:0;}
- .topbar-actions :is(.icon-button,.profile-trigger,.admin-open) {width:44px;min-width:44px;min-height:44px;padding:0;justify-content:center;}
- .topbar-actions .profile-label,.topbar-actions .admin-open span {display:none;}
- .topbar-actions .avatar {width:34px;height:34px;}
- html[data-runtime-platform="android"] .topbar-actions button {min-width:48px;min-height:48px;}
-}
-@media (max-width:359px) {
- .topbar-inner {padding-inline:10px;gap:4px;}
- .topbar-identity .brand {gap:4px;}
- .topbar-identity .brand-logo {width:20px;height:20px;}
- .topbar-identity .brand-name {font-size:12px;line-height:21px;}
- .topbar-identity .school-trigger {padding-left:24px;}
-}
-
-/* Original web artwork is hidden in native layouts, whose bundle omits its presentation. */
-.help-category-art,.help-topic-icon{display:none}
-
-/* iOS status-bar surface extension: preserve each page's own background. */
-html[data-runtime-platform="ios"] .review-banner { position: relative; }
-html[data-runtime-platform="ios"] :is(.app-topbar,.review-banner)::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: env(safe-area-inset-top, 0px);
-  background: inherit;
-  backdrop-filter: inherit;
-  pointer-events: none;
-}
-@supports selector(#root:has(> .auth-layout)) {
-  html[data-runtime-platform="ios"] #root:has(> .auth-layout) {
-    padding-top: 0;
-  }
-
-  @media (min-width: 768px) {
-    html[data-runtime-platform="ios"] #root > .auth-layout {
-      padding-top: calc(20px + env(safe-area-inset-top, 0px));
-    }
-  }
-
-  @media (max-width: 767px) {
-    html[data-runtime-platform="ios"] #root > .auth-layout .auth-form-side {
-      padding-top: max(12px, env(safe-area-inset-top, 0px));
-    }
-  }
-}
-/* iOS 15.0–15.3 lacks :has(); cancel only the root's auth inset there. */
-@supports not selector(#root:has(> .auth-layout)) {
-  html[data-runtime-platform="ios"] #root > .auth-layout { margin-top: calc(0px - env(safe-area-inset-top, 0px)); }
-  @media (min-width: 768px) {
-    html[data-runtime-platform="ios"] #root > .auth-layout { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
-  }
-}
-/* Full-height sheets own their safe-area in the heading, not twice outside it. */
-html[data-runtime-platform="ios"] .dialog-backdrop:has(.record-center,.operations-drawer) { padding: 0; }
-html[data-runtime-platform="ios"] :is(.record-center,.operations-drawer) { max-height: 100dvh; }
-html[data-runtime-platform="ios"] .operations-drawer .dialog-heading { padding-top: max(20px, env(safe-area-inset-top, 0px)); }
-html[data-runtime-platform="ios"] :is(.record-center,.operations-drawer) .dialog-heading .icon-button { margin-top: 0; margin-right: 0; }
-html[data-runtime-platform="ios"] .operations-drawer :is(.dialog-heading,.dialog-body) { padding-inline: max(24px, env(safe-area-inset-left, 0px)) max(24px, env(safe-area-inset-right, 0px)); }
-html[data-runtime-platform="ios"] .operations-drawer .dialog-body { padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); }
