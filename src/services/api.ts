@@ -81,11 +81,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getLicenseWhatsApp: (schoolId:string,page=0) => request<import('../types/license-reminders').LicenseReminderOverview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp?page=${page}`),
+  previewLicenseWhatsApp: (schoolId:string) => request<import('../types/license-reminders').LicenseReminderPreview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/preview`,{method:'POST',body:'{}'}),
+  confirmLicenseWhatsApp: (schoolId:string,operationId:string) => request<{operationId:string;status:string;workerAccepted:boolean}>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/confirm`,{method:'POST',body:JSON.stringify({operationId,confirmed:true})}),
+  getLicenseWhatsAppPreference: (schoolId:string) => request<{enabled:boolean;canEnable:boolean;needsReconfirmation?:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`),
+  setLicenseWhatsAppPreference: (schoolId:string,enabled:boolean) => request<{enabled:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`,{method:'PUT',body:JSON.stringify({enabled})}),
+
   registerPushDevice: (data: { installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string; registrationGeneration?: number }) =>
     request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
   deactivatePushDevice: (installationId: string, registrationGeneration?: number) =>
     request<{ success: boolean }>(`/api/mobile/push/devices/${encodeURIComponent(installationId)}${registrationGeneration === undefined ? '' : `?registrationGeneration=${registrationGeneration}`}`, { method: 'DELETE' }),
   getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
+  startRosterImport: (schoolId:string,id:string,manifestHash:string,totalRows:number)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports`,{method:'POST',body:JSON.stringify({id,manifestHash,totalRows})}),
+  getRosterImport: (schoolId:string,id:string)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}`),
+  sendRosterBatch: (schoolId:string,id:string,index:number,records:import('../utils/roster-import').RosterDraft[])=>request<{job:import('../utils/roster-transfer').RosterImportJob;batch:import('../utils/roster-transfer').RosterBatchReport}>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}/batches`,{method:'POST',body:JSON.stringify({index,records})}),
+  getRosterImportReports: (schoolId:string,id:string,page=0)=>request<{reports:import('../utils/roster-transfer').RosterBatchReport[];pages:number}>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}/reports?page=${page}`),
   importRoster: (schoolId: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
     request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ records, preview }) }),
   getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),

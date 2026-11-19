@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import { readSheet } from 'read-excel-file/universal';
 import writeXlsxFile from 'write-excel-file/universal';
-import { readRosterFile, rosterTemplate, ROSTER_TEMPLATE_FILENAME, ROSTER_TEMPLATE_URL } from '../src/utils/roster-files';
-import { MAX_ROSTER_ROWS, ROSTER_HEADERS, validateRosterRow } from '../src/utils/roster-import';
+import { readRosterFile, readRosterBlob, XLSX_MEMORY_BUDGET, rosterTemplate, ROSTER_TEMPLATE_FILENAME, ROSTER_TEMPLATE_URL } from '../src/utils/roster-files';
+import { ROSTER_HEADERS, validateRosterRow } from '../src/utils/roster-import';
 
 const bytes = fs.readFileSync('public/' + ROSTER_TEMPLATE_FILENAME);
 assert.equal(ROSTER_TEMPLATE_FILENAME, 'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx');
@@ -17,7 +17,7 @@ const rows = await readSheet(loaded, 'Kayıtlar');
 assert.deepEqual(rows.filter((row) => row.some((cell) => cell != null && cell !== '')), [ROSTER_HEADERS]);
 const notes = await readSheet(loaded, 'Açıklamalar');
 assert(!notes.flat().some((cell) => /doğum tarihi/i.test(String(cell))));
-assert(notes.flat().some((cell) => String(cell).includes('500')));
+assert(!notes.flat().some((cell) => /500|2\s*MB/.test(String(cell))));
 const xml = new Map<string, string>();
 for (let offset = 0; offset + 46 < bytes.length; offset++) {
   if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
@@ -45,7 +45,14 @@ assert.equal(imported[0].studentNumber, '0000');
 assert.equal(imported[0].parentPhone, '05551234567');
 assert.equal(imported[0].studentName, 'ÖRNEK ÖĞRENCİ');
 assert.equal(validateRosterRow(imported[0]).status, 'valid');
-assert.equal(MAX_ROSTER_ROWS, 500);
+
 assert.equal((await readRosterFile(await fixture(500), ROSTER_TEMPLATE_FILENAME)).length, 500);
-await assert.rejects(() => fixture(501).then((buffer) => readRosterFile(buffer, ROSTER_TEMPLATE_FILENAME)));
-console.log('Student/parent XLSX: reviewed asset download, five original headers, sheets, green/text styles, no birth-date note, Turkish text, leading zeros and 500-row boundary PASS.');
+assert.equal((await readRosterFile(await fixture(1001), ROSTER_TEMPLATE_FILENAME)).length, 1001);
+await assert.rejects(() => readRosterBlob(new Blob([new Uint8Array([0xff,0xfe])]), 'bad.csv'), /UTF-8/);
+const excessiveArchive = new ArrayBuffer(46);
+const archiveView = new DataView(excessiveArchive);
+archiveView.setUint32(0, 0x02014b50, true);
+archiveView.setUint32(24, XLSX_MEMORY_BUDGET + 1, true);
+await assert.rejects(() => readRosterFile(excessiveArchive, 'excessive.xlsx'), /büyük veya karmaşık/);
+await assert.rejects(() => readRosterBlob({size:XLSX_MEMORY_BUDGET+1,arrayBuffer(){throw Error('Must reject before loading');}} as Blob, 'excessive.xlsx'), /bellek güvenliği/);
+console.log('Student/parent XLSX: reviewed asset download, five original headers, sheets, green/text styles, no birth-date note, Turkish text, leading zeros and 1,001 rows without a quota PASS.');

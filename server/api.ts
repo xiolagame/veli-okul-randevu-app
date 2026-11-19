@@ -1,3 +1,5 @@
+import { licenseReminderPreferenceRouter } from './license-reminder-api';
+import { rosterImportJobsRouter } from './roster-import-jobs';
 import { Router, Response } from 'express';
 import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
@@ -74,6 +76,7 @@ const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> 
 };
 
 export const apiRouter = Router();
+apiRouter.use('/auth/me/license-reminder-preferences', licenseReminderPreferenceRouter);
 apiRouter.post('/mobile/push/devices', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     if (!await withinAuthRateLimit(`push-device:${req.user!.id}`, 30, 15)) {
@@ -2460,6 +2463,8 @@ apiRouter.post(
     }
   }
 );
+
+apiRouter.use('/schools/:schoolId/roster/imports', authMiddleware, tenantGuard(['admin']), rosterImportJobsRouter);
 
 // Admin: Bulk Upload Roster (CSV / Excel insertion)
 apiRouter.post(

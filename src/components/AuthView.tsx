@@ -372,8 +372,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
-          <h2>{usePhoneCentricLogin ? 'Telefon Numaranızla Giriş Yapın' : 'Tekrar merhaba.'}</h2>
-          <p>{usePhoneCentricLogin ? 'Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.' : 'Okulunuzla buluşmak için hesabınıza giriş yapın.'}</p>
+          <h2 style={usePhoneCentricLogin ? { marginTop: '20px' } : undefined}>{usePhoneCentricLogin ? 'Okulunuza Hoş Geldiniz' : 'Tekrar merhaba.'}</h2>
+          {!usePhoneCentricLogin && <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>}
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
