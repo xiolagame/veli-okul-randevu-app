@@ -3,6 +3,7 @@ import cors from 'cors';
 import { apiRouter } from './api';
 import { initDatabase } from './database/postgres';
 import { platformTargetContextGuard } from './platform-management';
+import { createDatabaseRoleDiagnostic } from './platform-database-diagnostic';
 
 let initPromise: Promise<void> | null = null;
 
@@ -18,6 +19,9 @@ export async function ensureDatabase(): Promise<void> {
 
 export function createExpressApp() {
   const app = express();
+
+  // Temporary private diagnostic; remove this registration and import afterwards.
+  app.all(['/api/platform/diagnostics/database-role', '/.netlify/functions/api/platform/diagnostics/database-role'], createDatabaseRoleDiagnostic());
 
   // Production CORS Configuration: Configurable via CORS_ORIGIN or origin whitelist
   const allowedOrigins = process.env.CORS_ORIGIN
