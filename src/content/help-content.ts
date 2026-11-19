@@ -26,18 +26,18 @@ export const helpGuides = {
       {
         title: 'İlk giriş ve aktivasyon',
         steps: [
-          'Birleşik giriş etkinse kayıtlı telefon numaranızla WhatsApp kodunu doğrulayın.',
-          'İlk okul yöneticisi aktivasyonunda kayıtlı e-posta adresinize gönderilen 6 haneli ikinci doğrulama kodunu da girin.',
-          'Sonraki girişlerde kayıtlı telefonunuza gönderilen tek kullanımlık WhatsApp kodunu kullanın. Platform Yönetimi hesabı ayrı parola girişiyle çalışır.',
-          'Geçiş süresince eski mobil sürümlerdeki “Okul Yöneticisi İlk Giriş” ve parola kurtarma akışları kullanılabilir.',
+          'Giriş ekranından “Okul Yöneticisi İlk Giriş” seçeneğini açın.',
+          'Okul kodu, telefon numarası ve e-postanıza gönderilen 6 haneli aktivasyon kodunu girin.',
+          'İlk okul yöneticisiyseniz e-postanızdaki lisans kodunu da girin. Sonradan eklenen okul yöneticilerinde lisans kodu istenmez.',
+          'Kod doğrulandıktan sonra kişisel parolanızı belirleyin ve normal girişte telefon ile parolanızı kullanın.',
         ],
       },
       {
         title: 'Personel yönetimi',
         bullets: [
           'Yönetim panelindeki Personel alanından Öğretmen veya Güvenlik rolüyle yeni personel ekleyebilirsiniz.',
-          'Öğretmen kaydında ad soyad, branş, telefon ve bildirim e-postası; güvenlik kaydında ad soyad ve telefon gerekir.',
-          'WhatsApp doğrulaması etkin olduğunda personel, birleşik giriş ekranında kayıtlı telefonuyla tek kullanımlık kod alarak hesabını etkinleştirir. Personel için okul kodu, aktivasyon e-postası ve parola gerekmez.',
+          'Öğretmen kaydında ad soyad, branş, telefon ve e-posta; güvenlik kaydında ad soyad, telefon ve e-posta gerekir.',
+          'WhatsApp doğrulaması etkin olduğunda personel, kayıtlı telefonu ve okul koduyla tek kullanımlık kod alarak hesabını etkinleştirir. Eski parola akışı açıkken aktivasyon e-postası kullanılmaya devam eder.',
           'Personel bilgilerini düzenleyebilir ve yalnız kendi okulunuzdaki personel kayıtlarını yönetebilirsiniz.',
         ],
       },
@@ -76,8 +76,8 @@ export const helpGuides = {
         title: 'Hesabı etkinleştirme ve giriş',
         steps: [
           'Okul yönetimi sizi Öğretmen rolüyle ad, branş, telefon ve e-posta bilgilerinizle tanımlar.',
-          'WhatsApp doğrulaması etkinse birleşik giriş ekranına kayıtlı telefonunuzu girip WhatsApp kodunu isteyin.',
-          'Kodu doğruladıktan sonra aynı kayıtlı telefonla WhatsApp üzerinden giriş yapın. Okul yöneticisinin ilk aktivasyonunda ek e-posta doğrulaması istenir.',
+          'WhatsApp doğrulaması etkinse “Personel ilk giriş” alanına okul kodu ve kayıtlı telefonunuzu girip WhatsApp kodunu isteyin.',
+          'Kodu doğruladıktan sonra aynı kayıtlı telefonla WhatsApp üzerinden giriş yapın. Okul yöneticilerinin e-posta ve parola akışı ayrıdır.',
         ],
       },
       {
@@ -99,7 +99,7 @@ export const helpGuides = {
       {
         title: 'Parola sıfırlama ve güvenlik',
         paragraphs: [
-          'WhatsApp girişi etkin personel için parola gerekmez; her girişte kısa süreli ve tek kullanımlık kod doğrulanır. Öğretmen e-postası yalnız randevu bildirimleri için kullanılır.',
+          'WhatsApp girişi etkin personel için parola gerekmez; her girişte kısa süreli ve tek kullanımlık kod doğrulanır. Eski parola hesabınız varsa mevcut parola sıfırlama akışı kullanılabilir.',
         ],
       },
     ],
@@ -152,9 +152,9 @@ export const helpGuides = {
       {
         title: 'Aktivasyon ve giriş',
         steps: [
-          'Okul yönetimi sizi Güvenlik rolüyle telefon numaranız üzerinden tanımlar; e-posta gerekmez.',
-          'Ortak giriş ekranında kayıtlı telefonunuzu girip WhatsApp doğrulaması isteyin. Kod ulaştığında “WhatsApp kodum var” ile devam edin.',
-          'Kodu başarıyla doğruladığınızda hesabınız etkinleşir ve yetkili paneliniz açılır.',
+          'Okul yönetimi sizi Güvenlik rolüyle telefon ve e-posta bilgileriniz üzerinden tanımlar.',
+          '“Personel ilk giriş” alanında okul kodunu ve kayıtlı telefonunuzu girip WhatsApp doğrulama kodunu isteyin.',
+          'Kodu doğruladıktan sonra kayıtlı telefonunuza gönderilen tek kullanımlık kodla giriş yapın.',
         ],
       },
       {
@@ -197,11 +197,11 @@ export const helpGuides = {
       },
       {
         title: 'Öğretmen ve güvenlik personeli',
-        paragraphs: ['Okul yönetiminizin kaydettiği telefonla ortak giriş ekranından WhatsApp kodunu doğrulayın. İlk başarılı doğrulamada hesabınız otomatik etkinleşir.'],
+        paragraphs: ['Okul yönetiminizin oluşturduğu personel kaydındaki okul kodu ve telefonla “Personel ilk giriş” akışını açın; WhatsApp kodunu doğrulayın.'],
       },
       {
         title: 'Okul yöneticisi',
-        paragraphs: ['Birleşik girişte kayıtlı telefonunuza gelen WhatsApp kodunu doğrulayın; ilk okul yöneticisi aktivasyonunda kayıtlı e-posta adresine gönderilen ikinci kodu da girin. Eski mobil sürümlerde mevcut okul yöneticisi aktivasyon ekranı geçiş süresince kullanılabilir.'],
+        paragraphs: ['Platform yönetiminin gönderdiği aktivasyon koduyla “Okul Yöneticisi İlk Giriş” akışını kullanın. İlk okul yöneticisinde lisans kodu da istenir; ek yöneticilerde istenmez.'],
       },
     ],
   },
@@ -215,12 +215,12 @@ export const helpGuides = {
         paragraphs: ['WhatsApp girişi etkin veli hesabında parola gerekmez. Kayıtlı telefonunuza yeni bir tek kullanımlık kod isteyerek giriş yapın.'],
       },
       {
-        title: 'Öğretmen ve güvenlik personeli girişi',
-        paragraphs: ['WhatsApp girişi etkin personel hesabında parola gerekmez. Personel için parola sıfırlama, okul kodu veya aktivasyon e-postası yoktur. Kayıtlı telefonunuzla WhatsApp kodu isteyin.'],
+        title: 'Öğretmen ve güvenlik personeli parolası',
+        paragraphs: ['WhatsApp girişi etkin personel hesabında parola gerekmez. Eski parola hesabı kullanılıyorsa mevcut personel parola sıfırlama alanı kayıtlı e-posta üzerinden çalışmaya devam eder.'],
       },
       {
         title: 'Okul yöneticisi parolası',
-        paragraphs: ['Okul Yöneticisi parola sıfırlama alanında okul kodu ve telefonu girin. Kayıt uygunsa kod, okul yöneticisinin kayıtlı e-posta adresine gönderilir. Bu kurtarma yolu WhatsApp ile aktive edilmiş parolasız okul yöneticisi hesabında da güvenli geri dönüş için kullanılabilir.'],
+        paragraphs: ['Okul Yöneticisi parola sıfırlama alanında okul kodu ve telefonu girin. Kayıt uygunsa kod, okul yöneticisinin kayıtlı e-posta adresine gönderilir.'],
       },
     ],
   },

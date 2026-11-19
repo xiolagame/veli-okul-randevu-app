@@ -16,8 +16,6 @@
     "build:ios": "node scripts/build-ios-client.mjs",
     "android:sync": "npm run build:android && cap sync android",
     "ios:sync": "node scripts/sanitize-fcm-ios-logs.mjs && npm run build:ios && cap sync ios",
-    "android:sync:review": "node scripts/prepare-store-review.mjs android",
-    "ios:sync:review": "node scripts/prepare-store-review.mjs ios",
     "android:open": "cap open android",
     "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "start": "node dist/server/server.cjs",
@@ -27,13 +25,6 @@
     "test:activation": "tsx scripts/test-activation-auth.ts",
     "test:parent-auth": "tsx scripts/test-parent-self-service-auth.ts",
     "test:whatsapp-auth": "tsx scripts/test-whatsapp-auth.ts",
-    "test:whatsapp-unified": "tsx scripts/test-unified-whatsapp-login.ts",
-    "test:whatsapp-login-ui": "tsx scripts/test-whatsapp-login-ui.ts",
-    "test:whatsapp-migrations": "tsx scripts/test-whatsapp-migrations.ts",
-    "test:whatsapp-pilot": "tsx scripts/test-whatsapp-pilot.ts",
-    "test:identity-auth-attempts": "tsx scripts/test-identity-auth-attempts.ts",
-    "test:phone-centric-auth": "tsx scripts/test-identity-auth-attempts.ts",
-    "audit:canonical-phones": "tsx scripts/audit-canonical-phone-collisions.ts",
     "test:parent-ux": "tsx scripts/test-parent-ux.ts",
     "test:school-roster-ui": "tsx scripts/test-school-roster-ui.ts",
     "test:first-student": "tsx scripts/test-first-student-empty-school.ts",
@@ -47,7 +38,6 @@
     "test:support-conversations": "tsx scripts/test-support-conversations.ts",
     "test:platform-unseen": "tsx scripts/test-platform-unseen.ts",
     "test:platform-audit-clear": "tsx scripts/test-platform-audit-clear.ts",
-    "test:platform-phone-binding": "tsx scripts/test-platform-phone-binding.ts",
     "test:help-center": "node scripts/test-help-center.mjs",
     "test:release-artifacts": "node scripts/test-release-artifacts.mjs",
     "test:mobile-platform": "tsx scripts/test-mobile-platform-foundation.ts",
@@ -75,7 +65,6 @@
     "@capacitor/splash-screen": "8.0.2",
     "@capacitor/status-bar": "8.0.4",
     "@electric-sql/pglite": "^0.5.8",
-    "@netlify/aws-lambda-compat": "^2.0.3",
     "@netlify/functions": "^6.0.0",
     "@supabase/supabase-js": "^2.116.0",
     "@types/qrcode": "^1.5.6",
@@ -109,7 +98,6 @@
     "tailwindcss": "^4.0.0",
     "tsx": "^4.23.15",
     "typescript": "^5.6.3",
-    "vite": "^6.0.0",
-    "yaml": "2.9.1"
+    "vite": "^6.0.0"
   }
 }

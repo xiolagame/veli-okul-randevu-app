@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, Download, Upload } from 'lucide-react';
-import { Alert, Button, Dialog } from './ui';
+import React, { useState } from 'react';
+import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, KeyRound } from 'lucide-react';
+import { Alert, Button, Dialog, Skeleton } from './ui';
 import { TeacherProfile, User } from '../types';
 import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { ManagementActions } from './ManagementActions';
-import { BulkStaffImport } from './BulkStaffImport';
 import { useApp } from '../context/AppContext';
+import { api } from '../services/api';
 import { StaffDraft, validateStaffForm } from '../utils/staff-form';
 
 interface StaffManagementProps {
@@ -14,15 +14,13 @@ interface StaffManagementProps {
   securityUsers: User[];
   loading: boolean;
   error: string;
-  onCreateTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => Promise<unknown>;
+  onCreateTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
 }
 
 export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, securityUsers, loading, error, onCreateTeacher }) => {
   const { currentSchool, refreshSchoolData } = useApp();
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState({ teacher: 0, security: 0 });
   const [showCreateTeacher, setShowCreateTeacher] = useState(false);
-  const [showBulkStaffImport, setShowBulkStaffImport] = useState(false);
   const [creatingTeacher, setCreatingTeacher] = useState(false);
   const [createTeacherError, setCreateTeacherError] = useState('');
   const [fullName, setFullName] = useState('');
@@ -44,8 +42,8 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
     setCreatingTeacher(true);
     setCreateTeacherError('');
     try {
-      await onCreateTeacher({ fullName: fullName.trim(), role: staffRole, ...(staffRole === 'teacher' ? { branch: branch.trim() } : {}), phone, ...(staffRole === 'teacher' ? { email: email.trim().toLowerCase() } : {}) });
-      setResendMessage('Personel kaydı oluşturuldu. İlk başarılı WhatsApp girişinde otomatik etkinleşir.');
+      await onCreateTeacher({ fullName: fullName.trim(), role: staffRole, ...(staffRole === 'teacher' ? { branch: branch.trim() } : {}), phone, email: email.trim().toLowerCase() });
+      setResendMessage('Personel kaydı oluşturuldu. Aktivasyon e-postası gönderildi.');
       setShowCreateTeacher(false);
       setFullName('');
       setBranch('');
@@ -58,7 +56,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
       setCreatingTeacher(false);
     }
   };
-  const sections = useMemo(() => [
+  const sections = [
     {
       type: 'teacher' as const, title: 'Öğretmenler', Icon: GraduationCap,
       empty: 'Henüz öğretmen tanımlanmamış.',
@@ -71,68 +69,69 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
       description: 'Güvenlik QR kontrolü yapacak personel burada görüntülenecek.',
       records: securityUsers,
     },
-  ], [teachers, securityUsers]);
-  const filteredSections=useMemo(()=>sections.map(section=>({...section,filtered:section.records.filter(record=>[record.firstName,record.lastName,record.branch || '',record.phone,record.email || ''].join(' ').toLocaleLowerCase('tr-TR').includes(query))})),[sections,query]);
+  ];
 
   return (
-    <div className="management-section">
-      <div className="section-heading"><div><h3>Öğretmenler ve güvenlik</h3><p>Personel kayıtlarını yönetin. Hesaplar ilk başarılı WhatsApp girişinde etkinleşir.</p></div></div>
+    <div className="space-y-6">
+      <div className="section-heading"><div><h3>Öğretmenler ve güvenlik</h3><p>Okulunuzun personel hesaplarını ve aktivasyon e-postalarını yönetin.</p></div></div>
       <label className="relative block">
         <span className="sr-only">Öğretmen veya güvenlik personeli ara</span>
         <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-        <input value={search} onChange={(event) => { setSearch(event.target.value); setPage({ teacher: 0, security: 0 }); }} placeholder="Öğretmen veya güvenlik personeli ara..."
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Öğretmen veya güvenlik personeli ara..."
           className="min-h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm" />
       </label>
-      {loading && <p role="status" className="panel-loading">Personel kayıtları yükleniyor…</p>}
+      {loading && <Skeleton />}
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
       {resendMessage && <p role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{resendMessage}</p>}
-      {!loading && (!error || teachers.length > 0 || securityUsers.length > 0) && filteredSections.map(({ type, title, Icon, empty, description, records, filtered }) => {
-        const pages = Math.max(1, Math.ceil(filtered.length / 25));
-        const currentPage = Math.min(page[type], pages - 1);
+      {!loading && !error && sections.map(({ type, title, Icon, empty, description, records }) => {
+        const filtered = records.filter((record) =>
+          [record.firstName, record.lastName, record.branch || '', record.phone, record.email || ''].join(' ').toLocaleLowerCase('tr-TR').includes(query)
+        );
         return (
           <section key={type} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="staff-import-actions"><a href="/PERSONEL_BİLGİ_FORMU.xlsx" download="PERSONEL_BİLGİ_FORMU.xlsx" className="ui-button staff-template-download"><Download size={18} aria-hidden="true" />Excel Şablonu İndir</a><Button className="staff-bulk-upload" variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}><Upload size={18} aria-hidden="true" />Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />
                 <p className="font-medium text-slate-700">{records.length ? 'Aramanızla eşleşen personel bulunamadı.' : empty}</p>
                 {!records.length && <p className="mt-1 text-sm text-slate-500">{description}</p>}
               </div>
-            ) : <div className="management-list"><table className="management-table"><thead><tr><th>Ad Soyad</th><th>Görev / Branş</th><th>Telefon</th>{type === 'teacher' && <th>Bildirim e-postası</th>}<th>Durum</th><th>İşlemler</th></tr></thead><tbody>
-              {filtered.slice(currentPage * 25, currentPage * 25 + 25).map((record) => {
+            ) : <div className="grid gap-3 lg:grid-cols-2">
+              {filtered.map((record) => {
                 const phone = normalizeTurkishPhone(record.phone);
                 const status = record.accountStatus;
                 const actionable = !!phone && (status === 'pending' || status === 'active');
                 const label = `${record.firstName} ${record.lastName}`.trim();
                 return (
-                  <tr key={record.id} className="staff-record-row"><td data-label="Ad Soyad"><strong>{label}</strong></td><td data-label="Görev / Branş">{type === 'teacher' ? `Öğretmen · ${record.branch || 'Branş eksik'}` : 'Güvenlik'}</td><td data-label="Telefon">{record.phone || 'Telefon tanımlı değil'}</td>{type === 'teacher' && <td data-label="Bildirim e-postası">{record.email || '—'}</td>}<td data-label="Durum"><span className={`status-badge tone-${!phone ? 'danger' : status === 'active' ? 'success' : 'warning'}`}>
+                  <article key={record.id} className="surface min-w-0">
+                    <div className="flex gap-3 items-center mb-4"><h5 className="text-base font-bold text-slate-900">{label}</h5></div>
+                    <p className="text-sm text-slate-500">{type === 'teacher' ? record.branch : 'Güvenlik'}</p>
+                    <p className="mt-2 break-words text-sm text-slate-700">{record.phone || 'Telefon tanımlı değil'}</p>
+                    <p className="mt-1 break-all text-sm text-slate-600">{record.email || 'E-posta tanımlı değil'}</p>
+                    <span className={`mt-3 inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold ${!phone ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                       {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
-                    </span></td><td data-label="İşlemler"><div className="record-actions">
-                    {currentSchool && <ManagementActions compact schoolId={currentSchool.id} kind={type} id={record.id}
-                      values={{ fullName: label, phone: record.phone || '', ...(type === 'teacher' ? { email: record.email || '', branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
-                  </div></td></tr>
+                    </span>
+                    {!phone && <p className="mt-2 text-xs text-slate-500">Aktivasyon kodu oluşturmak için geçerli telefon numarası gereklidir.</p>}
+                    {currentSchool && <ManagementActions schoolId={currentSchool.id} kind={type} id={record.id}
+                      values={{ fullName: label, phone: record.phone || '', email: record.email || '', ...(type === 'teacher' ? { branch: record.branch || '' } : {}) }} onChanged={refreshSchoolData} />}
+                    {status === 'pending' && currentSchool && <Button className="mt-5 w-full" disabled={!actionable} onClick={async () => {
+                      try { const result = await api.resendStaffActivation(currentSchool.id, type, record.id); setResendMessage(result.message); }
+                      catch (cause) { setResendMessage(cause instanceof Error ? cause.message : 'E-posta yeniden gönderilemedi.'); }
+                    }}><KeyRound size={17} />Aktivasyon E-postasını Yeniden Gönder</Button>}
+                  </article>
                 );
               })}
-            </tbody></table></div>}
-            {pages > 1 && <nav className="management-pagination" aria-label={`${title} sayfaları`}><Button variant="secondary" disabled={currentPage === 0} onClick={() => setPage({ ...page, [type]: currentPage - 1 })}>Önceki</Button><span>{currentPage + 1} / {pages} · {filtered.length} kayıt</span><Button variant="secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage({ ...page, [type]: currentPage + 1 })}>Sonraki</Button></nav>}
+            </div>}
           </section>
         );
       })}
-      {showBulkStaffImport && currentSchool && (
-        <BulkStaffImport
-          schoolId={currentSchool.id}
-          existing={[...teachers, ...securityUsers]}
-          onClose={() => setShowBulkStaffImport(false)}
-          onChanged={refreshSchoolData}
-        />
-      )}
       {showCreateTeacher && <Dialog title="Yeni Personel Ekle" description="Aktivasyon kodu yalnızca kayıtlı e-posta adresine gönderilir." onClose={() => { if (!creatingTeacher) setShowCreateTeacher(false); }} dismissible={!creatingTeacher}>
         <form className="form-stack" noValidate onSubmit={submitTeacher}>
           <label className="field">Görevi<select aria-label="Görevi" value={staffRole} required aria-invalid={!!fieldErrors.role} aria-describedby="staff-error-role" onChange={(event) => { setStaffRole(event.target.value as StaffDraft['role']); setFieldErrors({}); }}><option value="">Görev seçin</option><option value="teacher">Öğretmen</option><option value="security">Güvenlik</option></select>{fieldError('role')}</label>
           <label className="field" htmlFor="staff-teacher-name">Ad Soyad<input aria-label="Ad Soyad" id="staff-teacher-name" autoComplete="name" maxLength={150} required aria-invalid={!!fieldErrors.fullName} aria-describedby="staff-error-fullName" value={fullName} onChange={(event) => { setFullName(uppercasePersonNameInput(event.target.value)); setFieldErrors((previous) => ({ ...previous, fullName: undefined })); }} />{fieldError('fullName')}</label>
           {staffRole === 'teacher' && <label className="field" htmlFor="staff-teacher-branch">Branş<input aria-label="Branş" id="staff-teacher-branch" maxLength={100} required aria-invalid={!!fieldErrors.branch} aria-describedby="staff-error-branch" value={branch} onChange={(event) => { setBranch(event.target.value); setFieldErrors((previous) => ({ ...previous, branch: undefined })); }} />{fieldError('branch')}</label>}
           <label className="field" htmlFor="staff-teacher-phone">Telefon<input aria-label="Telefon" id="staff-teacher-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" required aria-invalid={!!fieldErrors.phone} aria-describedby="staff-error-phone" value={phone} onChange={(event) => { setPhone(formatTurkishPhoneInput(event.target.value)); setFieldErrors((previous) => ({ ...previous, phone: undefined })); }} />{fieldError('phone')}</label>
-          {staffRole === 'teacher' && <label className="field" htmlFor="staff-email">Bildirim e-postası<input aria-label="E-posta" id="staff-email" type="email" autoComplete="email" maxLength={150} required aria-invalid={!!fieldErrors.email} aria-describedby="staff-error-email" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })); }} />{fieldError('email')}</label>}
+          <label className="field" htmlFor="staff-email">E-posta<input aria-label="E-posta" id="staff-email" type="email" autoComplete="email" maxLength={150} required aria-invalid={!!fieldErrors.email} aria-describedby="staff-error-email" value={email} onChange={(event) => { setEmail(event.target.value); setFieldErrors((previous) => ({ ...previous, email: undefined })); }} />{fieldError('email')}</label>
           {createTeacherError && <Alert tone="danger">{createTeacherError}</Alert>}
           <div className="form-actions"><Button type="button" variant="secondary" disabled={creatingTeacher} onClick={() => setShowCreateTeacher(false)}>İptal</Button><Button type="submit" disabled={creatingTeacher}>{creatingTeacher ? 'Ekleniyor…' : 'Personel Ekle'}</Button></div>
         </form>

@@ -48,7 +48,6 @@ export async function deleteOwnAccount(input: {
   whatsappChallengeId?: string;
   whatsappCode?: string;
   requestId: string;
-  verificationMethod?: 'password' | 'whatsapp';
 }): Promise<DeletedAccountResult> {
   const subjectHash = createAccountDeletionSubjectHash(input.userId);
   const db = await getDb();
@@ -82,8 +81,7 @@ export async function deleteOwnAccount(input: {
       throw new AccountDeletionError(409, 'Hesap silme işlemi tamamlanamadı. Oturumunuzu yenileyip tekrar deneyin.');
     }
 
-    const verificationMethod = input.verificationMethod || (user.password_hash ? 'password' : 'whatsapp');
-    if (verificationMethod === 'password') {
+    if (user.password_hash) {
       if (!input.password || !verifyPassword(input.password, user.password_hash)) {
         throw new AccountDeletionError(403, 'Parolanız doğrulanamadı. Hesabınızda hiçbir değişiklik yapılmadı.');
       }
@@ -296,10 +294,7 @@ export const accountDeletionRouter = Router();
 accountDeletionRouter.post('/user/me/deletion/whatsapp-code', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const user = await (await getDb()).query<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id=$1', [req.user!.id]);
-    const phoneCentricSession = req.user!.authMethod === 'phone_centric';
-    if (!user.rows[0] || (!phoneCentricSession && user.rows[0].password_hash)) {
-      return res.status(400).json({ error: 'Bu hesap için mevcut parola doğrulaması kullanılmalıdır.' });
-    }
+    if (!user.rows[0] || user.rows[0].password_hash) return res.status(400).json({ error: 'Bu hesap için mevcut parola doğrulaması kullanılmalıdır.' });
     const challenge = await requestWhatsAppAuthChallenge({
       purpose: 'account_deletion',
       phone: req.user!.phone,
@@ -334,21 +329,14 @@ accountDeletionRouter.post('/user/me/deletion', authMiddleware, async (req: Auth
   }
 
   try {
-    const result = await deleteOwnAccount({
-      userId: req.user!.id,
-      password,
-      whatsappChallengeId,
-      whatsappCode,
-      requestId,
-      verificationMethod: req.user!.authMethod === 'phone_centric' ? 'whatsapp' : undefined,
-    });
+    const result = await deleteOwnAccount({ userId: req.user!.id, password, whatsappChallengeId, whatsappCode, requestId });
     let notificationSent = false;
     if (!result.alreadyCompleted && result.notificationEmail) {
       const rendered = renderBrandedEmail({
         subtitle: 'Hesap silme işlemi tamamlandı',
         greeting: result.firstName,
         intro: [
-          'Hesabınız ve kişisel giriş bilgileriniz silindi.',
+          'Veli Randevu hesabınız ve kişisel giriş bilgileriniz silindi.',
           'Okula ait zorunlu randevu ve güvenlik kayıtları kimliğinizden ayrıştırılarak anonimleştirildi.',
         ],
         notice: 'Bu e-posta yalnız işlemin tamamlandığını bildirmek amacıyla gönderilmiştir.',
@@ -356,7 +344,7 @@ accountDeletionRouter.post('/user/me/deletion', authMiddleware, async (req: Auth
       try {
         await sendEmail({
           to: result.notificationEmail,
-          subject: 'Hesap silme işlemi tamamlandı',
+          subject: 'Veli Randevu — Hesap silme işlemi tamamlandı',
           idempotencyKey: `account-deletion-${requestId}`,
           ...rendered,
         });

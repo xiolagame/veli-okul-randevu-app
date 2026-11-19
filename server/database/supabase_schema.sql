@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS pending_staff (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
-    email VARCHAR(150),
+    email VARCHAR(150) NOT NULL,
     created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -310,9 +310,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_auth_challenges (
     school_id TEXT REFERENCES schools(id) ON DELETE CASCADE,
     target_phone VARCHAR(20) NOT NULL,
     target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-    target_role VARCHAR(20) CHECK (target_role IS NULL OR target_role IN ('parent', 'teacher', 'security', 'admin')),
+    target_role VARCHAR(20) CHECK (target_role IS NULL OR target_role IN ('parent', 'teacher', 'security')),
     target_profile_id TEXT,
-    purpose VARCHAR(32) NOT NULL CHECK (purpose IN ('login', 'parent_registration', 'staff_activation', 'account_deletion', 'school_admin_login', 'school_admin_activation')),
+    purpose VARCHAR(32) NOT NULL CHECK (purpose IN ('login', 'parent_registration', 'staff_activation', 'account_deletion')),
     code_hash CHAR(64) NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts BETWEEN 1 AND 10),
@@ -328,119 +328,6 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_auth_challenges_lookup
 ON whatsapp_auth_challenges (target_phone, purpose, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_auth_challenges_active
 ON whatsapp_auth_challenges (expires_at)
-WHERE consumed_at IS NULL AND revoked_at IS NULL;
-
-CREATE TABLE IF NOT EXISTS identity_auth_attempts (
-    id UUID PRIMARY KEY,
-    canonical_phone VARCHAR(20) NOT NULL,
-    target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-    flow_type VARCHAR(40) NOT NULL CHECK (flow_type IN (
-        'USER_LOGIN', 'PARENT_REGISTRATION', 'STAFF_ACTIVATION', 'SCHOOL_ADMIN_LOGIN',
-        'SCHOOL_ADMIN_ACTIVATION', 'PLATFORM_LOGIN', 'ACCOUNT_RECOVERY'
-    )),
-    status VARCHAR(40) NOT NULL DEFAULT 'CREATED' CHECK (status IN (
-        'CREATED', 'PHONE_CHALLENGE_ISSUED', 'PHONE_VERIFIED', 'EMAIL_CHALLENGE_ISSUED',
-        'EMAIL_VERIFIED', 'AUTHENTICATED', 'EXPIRED', 'REVOKED'
-    )),
-    whatsapp_challenge_id TEXT UNIQUE REFERENCES whatsapp_auth_challenges(id) ON DELETE SET NULL,
-    phone_verified_at TIMESTAMPTZ,
-    email_challenge_id UUID UNIQUE,
-    email_recipient_fingerprint CHAR(64),
-    email_code_hash CHAR(64),
-    email_attempts INTEGER NOT NULL DEFAULT 0 CHECK (email_attempts >= 0),
-    email_max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (email_max_attempts BETWEEN 1 AND 10),
-    email_verified_at TIMESTAMPTZ,
-    auth_version_at_start INTEGER CHECK (auth_version_at_start IS NULL OR auth_version_at_start >= 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    consumed_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT identity_auth_attempts_phone_canonical CHECK (canonical_phone ~ '^\+905[0-9]{9}$'),
-    CONSTRAINT identity_auth_attempts_email_hash_pair CHECK (
-        (email_code_hash IS NULL AND email_recipient_fingerprint IS NULL AND email_challenge_id IS NULL)
-        OR
-        (email_code_hash ~ '^[0-9a-f]{64}$' AND email_recipient_fingerprint ~ '^[0-9a-f]{64}$' AND email_challenge_id IS NOT NULL)
-    ),
-    CONSTRAINT identity_auth_attempts_terminal_timestamps CHECK (
-        (status <> 'AUTHENTICATED' OR consumed_at IS NOT NULL)
-        AND (status <> 'REVOKED' OR revoked_at IS NOT NULL)
-    )
-);
-
-CREATE INDEX IF NOT EXISTS idx_identity_auth_attempts_phone_created
-ON identity_auth_attempts (canonical_phone, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_identity_auth_attempts_user_created
-ON identity_auth_attempts (target_user_id, created_at DESC)
-WHERE target_user_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_identity_auth_attempts_active_expiry
-ON identity_auth_attempts (expires_at)
-WHERE consumed_at IS NULL AND revoked_at IS NULL
-  AND status NOT IN ('AUTHENTICATED', 'EXPIRED', 'REVOKED');
-
-CREATE TABLE IF NOT EXISTS platform_phone_bindings (
-    id UUID PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    candidate_phone VARCHAR(20) NOT NULL,
-    auth_version_at_start INTEGER NOT NULL CHECK (auth_version_at_start >= 0),
-    email_recipient_fingerprint CHAR(64) NOT NULL CHECK (email_recipient_fingerprint ~ '^[0-9a-f]{64}$'),
-    email_code_hash CHAR(64) NOT NULL CHECK (email_code_hash ~ '^[0-9a-f]{64}$'),
-    email_attempts INTEGER NOT NULL DEFAULT 0 CHECK (email_attempts >= 0),
-    email_max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (email_max_attempts BETWEEN 1 AND 10),
-    email_verified_at TIMESTAMPTZ,
-    whatsapp_code_hash CHAR(64) CHECK (whatsapp_code_hash IS NULL OR whatsapp_code_hash ~ '^[0-9a-f]{64}$'),
-    whatsapp_attempts INTEGER NOT NULL DEFAULT 0 CHECK (whatsapp_attempts >= 0),
-    whatsapp_max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (whatsapp_max_attempts BETWEEN 1 AND 10),
-    whatsapp_expires_at TIMESTAMPTZ,
-    status VARCHAR(40) NOT NULL DEFAULT 'EMAIL_CHALLENGE_ISSUED' CHECK (status IN (
-        'EMAIL_CHALLENGE_ISSUED', 'EMAIL_VERIFIED', 'WHATSAPP_CHALLENGE_ISSUED', 'COMPLETED', 'REVOKED'
-    )),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    consumed_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT platform_phone_bindings_phone_canonical CHECK (candidate_phone ~ '^\+905[0-9]{9}$'),
-    CONSTRAINT platform_phone_bindings_terminal_timestamps CHECK (
-        (status <> 'COMPLETED' OR consumed_at IS NOT NULL)
-        AND (status <> 'REVOKED' OR revoked_at IS NOT NULL)
-    )
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_platform_phone_bindings_active_user
-ON platform_phone_bindings (user_id)
-WHERE consumed_at IS NULL AND revoked_at IS NULL AND status NOT IN ('COMPLETED', 'REVOKED');
-CREATE INDEX IF NOT EXISTS idx_platform_phone_bindings_expiry
-ON platform_phone_bindings (expires_at)
-WHERE consumed_at IS NULL AND revoked_at IS NULL;
-
-CREATE TABLE IF NOT EXISTS platform_email_bindings (
-    id UUID PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    candidate_email VARCHAR(150) NOT NULL,
-    auth_version_at_start INTEGER NOT NULL CHECK (auth_version_at_start >= 0),
-    code_hash CHAR(64) NOT NULL CHECK (code_hash ~ '^[0-9a-f]{64}$'),
-    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
-    max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts BETWEEN 1 AND 10),
-    status VARCHAR(32) NOT NULL DEFAULT 'EMAIL_CHALLENGE_ISSUED' CHECK (status IN (
-        'EMAIL_CHALLENGE_ISSUED', 'COMPLETED', 'REVOKED'
-    )),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    consumed_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT platform_email_bindings_terminal_timestamps CHECK (
-        (status <> 'COMPLETED' OR consumed_at IS NOT NULL)
-        AND (status <> 'REVOKED' OR revoked_at IS NOT NULL)
-    )
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_platform_email_bindings_active_user
-ON platform_email_bindings (user_id)
-WHERE consumed_at IS NULL AND revoked_at IS NULL AND status NOT IN ('COMPLETED', 'REVOKED');
-CREATE INDEX IF NOT EXISTS idx_platform_email_bindings_expiry
-ON platform_email_bindings (expires_at)
 WHERE consumed_at IS NULL AND revoked_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS platform_requests (
@@ -597,9 +484,6 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_auth_challenges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE identity_auth_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform_phone_bindings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform_email_bindings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_staff ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE account_deletion_receipts ENABLE ROW LEVEL SECURITY;
@@ -659,18 +543,6 @@ ON otp_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "Express backend service full access whatsapp_auth_challenges" ON whatsapp_auth_challenges;
 CREATE POLICY "Express backend service full access whatsapp_auth_challenges"
 ON whatsapp_auth_challenges FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Express backend service full access identity_auth_attempts" ON identity_auth_attempts;
-CREATE POLICY "Express backend service full access identity_auth_attempts"
-ON identity_auth_attempts FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Express backend service full access platform_phone_bindings" ON platform_phone_bindings;
-CREATE POLICY "Express backend service full access platform_phone_bindings"
-ON platform_phone_bindings FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Express backend service full access platform_email_bindings" ON platform_email_bindings;
-CREATE POLICY "Express backend service full access platform_email_bindings"
-ON platform_email_bindings FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Express backend service full access pending_staff"
 ON pending_staff FOR ALL TO service_role USING (true) WITH CHECK (true);

@@ -12,12 +12,12 @@ async function run() {
   process.env.EMAIL_FROM = 'local@example.test';
   const originalFetch = globalThis.fetch;
   const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
-  const messages: Array<{ to: string[]; subject: string; html: string }> = [];
+  const messages: Array<{ to: string[]; html: string }> = [];
   let failEmail = false;
   globalThis.fetch = async (input, init) => {
     if (String(input).startsWith('https://api.resend.com/emails')) {
       if (failEmail) return new Response('{}', { status: 503 });
-      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; subject: string; html: string };
+      const payload = JSON.parse(String(init?.body || '{}')) as { to: string[]; html: string };
       messages.push(payload);
       return new Response('{}', { status: 200 });
     }
@@ -58,7 +58,7 @@ async function run() {
     users.push(user.id);
     await userRepository.updatePasswordHash(user.id, hashPassword(password));
     if (role) await membershipRepository.createOrActivate({ schoolId: school, userId: user.id, role });
-    return { ...user, token: createToken({ userId: user.id, phone: user.phone, auth_version: 0, auth_method: role==='teacher'||role==='security'?'phone_centric':'password' }) };
+    return { ...user, token: createToken({ userId: user.id, phone: user.phone, auth_version: 0 }) };
   }
   async function student(parent: { id: string; phone: string }, name: string, number: string, school = schoolA) {
     const id = `student-${crypto.randomUUID()}`;
@@ -112,8 +112,6 @@ async function run() {
     assert.equal(booked.status, 200);
     const appointmentId = (booked.body.appointment as { id: string }).id;
     assert.equal(messages.length, 1);
-    assert.equal(messages[0].subject,'Yeni randevu talebiniz var');
-    assert(messages[0].html.includes('data-email-preheader'));
     assert.deepEqual(messages[0].to, ['teacher-a@example.test']);
     for (const text of ['ONLY STUDENT', '5-A', (booked.body.appointment as { parentName: string }).parentName,
       '02/01/2090', '10:00', '10:15', 'Randevu Talebini İncele', 'Veli Notu', '&lt;b&gt;deneme sınavını&lt;/b&gt;']) {
@@ -195,22 +193,22 @@ async function run() {
     assert.equal(messages.length, successfulEmails);
 
     const impact = await request('GET', removal(onlyStudent), admin.token);
-    stage = 'student removal preserves parent';
+    stage = 'orphan removal';
     assert.equal(impact.status, 200);
-    assert.equal(impact.body.deletedAccounts, 0);
+    assert.equal(impact.body.deletedAccounts, 1);
     assert.equal((await request('DELETE', removal(onlyStudent), admin.token)).status, 200);
     assert.equal((await db.query('SELECT id FROM students WHERE id=$1', [onlyStudent])).rows.length, 0);
     assert.equal((await db.query('SELECT id FROM student_parent_relations WHERE student_id=$1', [onlyStudent])).rows.length, 0);
     assert.equal((await db.query('SELECT id FROM school_roster WHERE student_name=$1 AND school_id=$2', ['ONLY STUDENT', schoolA])).rows.length, 0);
-    assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentOnly.id])).rows.length, 1);
-    assert.equal((await db.query('SELECT id FROM school_memberships WHERE user_id=$1', [parentOnly.id])).rows.length, 1);
+    assert.equal((await db.query('SELECT id FROM users WHERE id=$1', [parentOnly.id])).rows.length, 0);
+    assert.equal((await db.query('SELECT id FROM school_memberships WHERE user_id=$1', [parentOnly.id])).rows.length, 0);
     const history = await db.query<{ status: string; parent_id: string | null; student_id: string | null }>(
       'SELECT status,parent_id,student_id FROM appointments WHERE id=$1', [appointmentId]);
     assert.equal(history.rows[0].status, 'cancelled');
-    assert.equal(history.rows[0].parent_id, parentOnly.id);
+    assert.equal(history.rows[0].parent_id, null);
     assert.equal(history.rows[0].student_id, null);
-    assert((await db.query('SELECT id FROM notifications WHERE school_id=$1 AND appointment_id=$2', [schoolA, appointmentId])).rows.length > 0);
-    assert.equal((await db.query("SELECT id FROM audit_logs WHERE school_id=$1 AND action='student.records_removed'", [schoolA])).rows.length, 1);
+    assert.equal((await db.query('SELECT id FROM notifications WHERE school_id=$1 AND appointment_id=$2', [schoolA, appointmentId])).rows.length, 0);
+    assert.equal((await db.query("SELECT id FROM audit_logs WHERE school_id=$1 AND action='Öğrenci Okuldan Kaldırıldı'", [schoolA])).rows.length, 1);
     assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [undeliveredId])).rows[0].status, 'cancelled');
 
     const siblingImpact = await request('GET', removal(siblingOne), admin.token);

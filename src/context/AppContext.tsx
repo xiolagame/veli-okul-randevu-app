@@ -1,4 +1,3 @@
-import { ApiError } from '../platform/api-error';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
@@ -19,9 +18,7 @@ import {
 import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { authSession } from '../platform/auth-session';
-import { clearAuthSensitivePreferences, setActiveSchoolRole, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
-import { isReviewToken } from '../platform/review-origin';
-import { revokeSessionWithinBudget } from '../platform/remote-logout';
+import { clearAuthSensitivePreferences, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
 import { LoginResult, performLogin } from '../platform/login-flow';
 import { mobilePush } from '../platform/mobile-push';
 import { pendingNavigationIntent } from '../platform/navigation-intent';
@@ -32,7 +29,7 @@ import { appLifecycle } from '../platform/lifecycle';
 import { isCurrentMobileRefresh } from '../platform/mobile-refresh-guard';
 
 interface AppContextType {
-  refreshSchoolData: (section?: 'staff' | 'appointments' | 'audit') => Promise<void>;
+  refreshSchoolData: () => Promise<void>;
   refreshMobileData: () => Promise<void>;
   refreshPlatformSchools: () => Promise<void>;
   currentUser: User | null;
@@ -58,11 +55,10 @@ interface AppContextType {
   isLoading: boolean;
   authStorageError: boolean;
   accountDeletionNotice: string | null;
-  switchSchool: (schoolId: string, role?: SchoolMembership['role']) => Promise<void>;
+  switchSchool: (schoolId: string) => Promise<void>;
   returnToPlatform: () => Promise<void>;
   login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
-  whatsappLogin: (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }) => Promise<LoginResult>;
-  completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) => Promise<LoginResult>;
+  whatsappLogin: (data: { challengeId: string; phone: string; code: string }) => Promise<LoginResult>;
   logout: () => Promise<void>;
   deleteAccount: (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
@@ -80,7 +76,7 @@ interface AppContextType {
   cancelAppointment: (appointmentId: string) => Promise<void>;
   verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
-  createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => Promise<unknown>;
+  createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
@@ -207,7 +203,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Load School-scoped data whenever active school or membership changes
   const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
-    setActiveSchoolRole(platformContext ? null : membership?.role || null);
     if (!schoolId) return;
     const dataStarted = performance.now();
     const sequence = ++schoolLoadSequence.current;
@@ -219,14 +214,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAdmin = role === 'admin';
     setUsersLoading(isAdmin);
     const [teachersRes, usersRes, studentsRes, availRes, aptsRes, notifsRes, settingsRes, auditRes, rosterRes] = await Promise.all([
-      (isAdmin ? Promise.resolve({ teachers: [] }) : api.getTeachers(schoolId).catch(() => ({ teachers: [] }))),
-      Promise.resolve({ users: [] }),
-      (isAdmin ? Promise.resolve({ students: [] }) : api.getStudents(schoolId).catch(() => ({ students: [] }))).then((result) => {
+      api.getTeachers(schoolId).catch(() => { if (isAdmin) setUsersError('Öğretmen listesi yüklenemedi. Lütfen tekrar deneyin.'); return { teachers: [] }; }),
+      isAdmin ? api.getSecurityUsers(schoolId).catch(() => { setUsersError('Güvenlik personeli yüklenemedi. Lütfen tekrar deneyin.'); return { users: [] }; }) : Promise.resolve({ users: [] }),
+      api.getStudents(schoolId).catch(() => ({ students: [] })).then((result) => {
         if (sequence === schoolLoadSequence.current && user) setCurrentUser((current) => current?.id === user.id ? { ...current, students: result.students } : current);
         return result;
       }),
-      isAdmin ? Promise.resolve({ availability: [] }) : api.getAvailability(schoolId).catch(() => ({ availability: [] })),
-      (isAdmin || role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
+      api.getAvailability(schoolId).catch(() => ({ availability: [] })),
+      (role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
         if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setAppointments(result.appointments);
         return result;
       }),
@@ -235,8 +230,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return result;
       }),
       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
-      role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
-      Promise.resolve({ roster: [] }),
+      role === 'admin' || role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
+      isAdmin ? api.getRoster(schoolId).catch(() => ({ roster: [] })) : Promise.resolve({ roster: [] }),
     ]);
     if (sequence !== schoolLoadSequence.current) return;
     if (!firstSchoolLoadMeasured.current) {
@@ -345,11 +340,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser?.id, restoreSession]);
 
   // Switch Active School
-  const switchSchool = async (schoolId: string, role?: SchoolMembership['role']) => {
+  const switchSchool = async (schoolId: string) => {
     const platformSchool = isPlatformAdmin && platformSchools.find((school) => school.id === schoolId && !school.disabledAt);
-    const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active' && (!role || item.role === role)) || null;
+    const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active') || null;
     if (isPlatformAdmin && !platformSchool) return;
     if (!platformSchool && (!membership || !schools.some((school) => school.id === schoolId))) return;
+    if (!isPlatformAdmin && currentUser?.role === 'security') return;
     schoolLoadSequence.current += 1;
     setUsers([]);
     setUsersError('');
@@ -421,14 +417,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   };
 
-  const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }): Promise<LoginResult> => {
+  const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }): Promise<LoginResult> => {
     const result = await performLogin({
-      authenticate: async () => {
-        if (verified) return { success: true, ...verified };
-        const response = await api.verifyWhatsappCode(data);
-        if (!response.token || !response.user || !response.memberships) throw new Error('Login incomplete');
-        return { success: true, token: response.token, user: response.user, memberships: response.memberships };
-      },
+      authenticate: () => api.verifyWhatsappCode(data),
       session: authSession,
       clearRuntimeSession,
       bootstrap: async (response) => {
@@ -442,27 +433,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   };
 
-  const completeUnifiedAdminEmail = async (data: { handle: string; phone: string; emailCode: string }): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: () => api.completeUnifiedAdminEmail(data),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
-    return result;
-  };
-
   // Logout
   const logout = async () => {
     await mobilePush.beforeLogout();
-    if (!isReviewToken(await authSession.getToken())) {
-      await revokeSessionWithinBudget(signal => api.logout(signal));
-    }
     await authSession.clearToken();
     pendingNavigationIntent.clear();
     clearRuntimeSession();
@@ -558,39 +531,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAvailability((prev) => [...prev, res.slot]);
   };
 
-  const refreshSchoolSection = useCallback(async (section: 'staff' | 'appointments' | 'audit' = 'staff') => {
-    const schoolId = currentSchool?.id;
-    if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
-    const sequence = schoolLoadSequence.current;
-    const stillCurrent = () => getActiveSchoolId() === schoolId && schoolLoadSequence.current === sequence;
-    if (section === 'appointments') {
-      const result = await api.getAppointments(schoolId);
-      if (stillCurrent()) setAppointments(result.appointments);
-    } else if (section === 'audit') {
-      const result = await api.getAuditLogs(schoolId);
-      if (stillCurrent()) setAuditLogs(result.auditLogs);
-    } else {
-      const cachedStaff=api.peekCached?.(`/api/schools/${schoolId}/teachers`) && api.peekCached?.(`/api/schools/${schoolId}/users?role=security`);
-      setUsersLoading(!cachedStaff); setUsersError('');
-      try {
-        const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
-        if (!stillCurrent()) return;
-        setTeachers(teacherData.teachers); setUsers(userData.users);
-      } catch (cause) {
-        if (stillCurrent()) {if(cause instanceof ApiError && [401,403].includes(cause.status)){setTeachers([]);setUsers([]);}setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');}
-        throw cause;
-      } finally { if (stillCurrent()) setUsersLoading(false); }
-    }
-  }, [currentSchool?.id, currentMembership?.role, platformContextActive]);
-
-  const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => {
+  const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => {
     if (!currentSchool) throw new Error('Aktif okul bulunamadı.');
     try {
       const result = await api.createStaff(currentSchool.id, data);
-      await refreshSchoolSection('staff');
+      await loadSchoolData(currentSchool.id, currentUser, currentMembership, platformContextActive);
       return result;
     } catch (error) {
-      await refreshSchoolSection('staff');
+      await loadSchoolData(currentSchool.id, currentUser, currentMembership, platformContextActive);
       throw error;
     }
   };
@@ -677,7 +625,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsolationTestResults(res.results);
       return res.results;
     } catch (err: any) {
-      console.error('Isolation check could not be completed.');
+      console.error('Test isolation error:', err);
       return [];
     }
   };
@@ -716,7 +664,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;
           }
         },
-        refreshSchoolData: refreshSchoolSection,
+        refreshSchoolData: async () => {
+          const schoolId = currentSchool?.id;
+          if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
+          const [teacherData, userData, rosterData, logData] = await Promise.all([
+            api.getTeachers(schoolId), api.getSecurityUsers(schoolId), api.getRoster(schoolId), api.getAuditLogs(schoolId),
+          ]);
+          if (getActiveSchoolId() !== schoolId) return;
+          setTeachers(teacherData.teachers);
+          setUsers(userData.users);
+          setRoster(rosterData.roster);
+          setAuditLogs(logData.auditLogs);
+        },
         refreshPlatformSchools: async () => {
           if (!isPlatformAdmin) return;
           const result = await api.getManagedSchools();
@@ -757,7 +716,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnToPlatform,
         login,
         whatsappLogin,
-        completeUnifiedAdminEmail,
         logout,
         deleteAccount,
         switchUser,

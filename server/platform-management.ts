@@ -11,24 +11,8 @@ import { deliverSchoolAdminCode } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
-import { platformLicenseRouter } from './platform-licenses';
-import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
-import {
-  completePlatformEmailBinding,
-  completePlatformPhoneBinding,
-  getPlatformPhoneBindingStatus,
-  PlatformPhoneBindingError,
-  startPlatformEmailBinding,
-  startPlatformPhoneBinding,
-  verifyPlatformPhoneBindingEmail,
-} from './platform-phone-binding';
 
 function platformTargetAllows(method: string, path: string): boolean {
-  if (/^\/schools\/[^/]+\/management\/operations(?:\/[^/]+)?$/.test(path) && method === 'GET') return true;
-  if (/^\/schools\/[^/]+\/management\/student-records$/.test(path) && method === 'GET') return true;
-  if (/^\/schools\/[^/]+\/management\/student-records\/roster\/[^/]+$/.test(path) && method === 'DELETE') return true;
-  if (/^\/schools\/[^/]+\/management\/student-records\/class-removal\/(preview|request-code|complete)$/.test(path) && method === 'POST') return true;
-  if (/^\/schools\/[^/]+\/management\/student-records\/multi-class-removal\/(preview|request-code|complete|cancel)$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/management\/(parents)$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/management\/admins(?:\/[^/]+(?:\/resend)?)?$/.test(path) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/management\/students\/[^/]+\/removal$/.test(path) && ['GET', 'DELETE'].includes(method)) return true;
@@ -37,7 +21,6 @@ function platformTargetAllows(method: string, path: string): boolean {
   if (/^\/schools\/[^/]+\/(info|teachers|users|students|availability|appointments|audit-logs|settings|roster)$/.test(path) && method === 'GET') return true;
   if (/^\/schools\/[^/]+\/(teachers|staff|auth-codes)$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/staff\/(teacher|security)\/[^/]+\/resend-activation$/.test(path) && method === 'POST') return true;
-  if (/^\/schools\/[^/]+\/roster\/imports(?:\/[^/]+(?:\/(?:batches|reports))?)?$/.test(path) && ['GET','POST'].includes(method)) return true;
   if (/^\/schools\/[^/]+\/roster\/bulk-upload$/.test(path) && method === 'POST') return true;
   if (/^\/schools\/[^/]+\/settings$/.test(path) && method === 'PUT') return true;
   if (/^\/schools\/[^/]+\/security\/test-isolation$/.test(path) && method === 'GET') return true;
@@ -67,7 +50,6 @@ platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
   next();
 });
 platformManagementRouter.use('/requests', platformRequestRouter);
-platformManagementRouter.use('/licenses', platformLicenseRouter);
 
 platformManagementRouter.get('/schools', async (_req, res) => {
   try {
@@ -106,127 +88,6 @@ platformManagementRouter.get('/security', async (_req, res) => {
     authConfiguration: (process.env.JWT_SECRET?.trim().length || 0) >= 32 ? 'ready' : 'incomplete',
     codeSigning: (process.env.AUTH_CODE_SECRET?.trim().length || 0) >= 32 ? 'ready' : 'incomplete',
   });
-});
-
-platformManagementRouter.get('/phone-binding', async (req: AuthenticatedRequest, res) => {
-  try {
-    return res.json(await getPlatformPhoneBindingStatus(req.user!.id));
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'Platform telefon durumu alınamadı.' });
-  }
-});
-
-platformManagementRouter.post('/email-binding/start', async (req: AuthenticatedRequest, res) => {
-  try {
-    const result = await startPlatformEmailBinding({
-      userId: req.user!.id,
-      email: req.body?.email,
-      password: req.body?.password,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    return res.status(201).json({
-      success: true,
-      ...result,
-      message: 'Yeni e-posta adresinize doğrulama kodu gönderildi.',
-    });
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'E-posta tanımlama işlemi başlatılamadı.' });
-  }
-});
-
-platformManagementRouter.post('/email-binding/verify', async (req: AuthenticatedRequest, res) => {
-  try {
-    await completePlatformEmailBinding({
-      userId: req.user!.id,
-      bindingId: req.body?.bindingId,
-      code: req.body?.code,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    return res.json({
-      success: true,
-      sessionInvalidated: true,
-      message: 'E-posta doğrulandı ve Platform hesabınıza güvenle bağlandı.',
-    });
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'E-posta tanımlama işlemi tamamlanamadı.' });
-  }
-});
-
-platformManagementRouter.post('/phone-binding/start', async (req: AuthenticatedRequest, res) => {
-  try {
-    const result = await startPlatformPhoneBinding({
-      userId: req.user!.id,
-      phone: req.body?.phone,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    return res.status(201).json({
-      success: true,
-      ...result,
-      message: 'Kayıtlı e-posta adresinize doğrulama kodu gönderildi.',
-    });
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'Telefon bağlama işlemi başlatılamadı.' });
-  }
-});
-
-platformManagementRouter.post('/phone-binding/verify-email', async (req: AuthenticatedRequest, res) => {
-  try {
-    const result = await verifyPlatformPhoneBindingEmail({
-      userId: req.user!.id,
-      bindingId: req.body?.bindingId,
-      code: req.body?.code,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    return res.json({
-      success: true,
-      ...result,
-      message: 'E-posta doğrulandı. Yeni telefonunuza WhatsApp kodu gönderildi.',
-    });
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'E-posta doğrulaması tamamlanamadı.' });
-  }
-});
-
-platformManagementRouter.post('/phone-binding/verify-whatsapp', async (req: AuthenticatedRequest, res) => {
-  try {
-    await completePlatformPhoneBinding({
-      userId: req.user!.id,
-      bindingId: req.body?.bindingId,
-      code: req.body?.code,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    return res.json({
-      success: true,
-      sessionInvalidated: true,
-      message: 'Telefon doğrulandı ve Platform hesabınıza güvenle bağlandı.',
-    });
-  } catch (error) {
-    if (error instanceof PlatformPhoneBindingError) return res.status(error.status).json({
-      error: error.message,
-      code: error.status === 401 ? 'PLATFORM_BINDING_VERIFICATION_FAILED' : undefined,
-    });
-    return res.status(500).json({ error: 'Telefon bağlama işlemi tamamlanamadı.' });
-  }
 });
 
 platformManagementRouter.get('/audit-logs', async (_req, res) => {
@@ -332,14 +193,6 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
       if (!school.rows[0]) throw new Error('SCHOOL_NOT_AVAILABLE');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
       await tx.query('LOCK TABLE invitations IN SHARE ROW EXCLUSIVE MODE');
-      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
-      const activeAdmins = await tx.query(
-        `SELECT user_id FROM school_memberships
-         WHERE school_id=$1 AND role='admin' AND status='active'
-           AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
-        [schoolId, platformAdminIds],
-      );
-      if (activeAdmins.rows.length) throw new Error('SCHOOL_ADMIN_ALREADY_ACTIVE');
       const existingUser = await userRepository.getByPhone(phone, tx);
       if (existingUser) {
         const userState = await tx.query<{ email: string | null; password_hash: string | null; first_name: string | null; last_name: string | null; is_phone_verified: boolean }>(
@@ -372,9 +225,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
         licenseCode: school.rows[0].license_code || undefined, email, fullName };
     });
   } catch (cause) {
-    if (cause instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı.' });
     if (cause instanceof Error && cause.message === 'SCHOOL_NOT_AVAILABLE') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ACTIVE') return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_INVITATION_PENDING') return res.status(409).json({ error: 'Bu okul yöneticisi için zaten bir aktivasyon daveti bekliyor.' });
     if (cause instanceof Error && cause.message === 'ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş. Farklı bir yönetici bilgisi kullanın.' });
     return res.status(500).json({ error: 'Okul yöneticisi daveti oluşturulamadı.' });
