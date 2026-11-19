@@ -71,7 +71,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const loginButtonRef = useRef<HTMLButtonElement>(null);
   const passwordLoginPending = useRef(false);
   const authSideRef = useRef<HTMLElement>(null);
-  const usePhoneCentricLogin = phoneCentricAuthEnabled && (getRuntimePlatform() === 'WEB' || passwordLoginMode === null);
+  // Android follows the production web policy, including capability failures.
+  const productionPhoneLogin = getRuntimePlatform() !== 'IOS';
+  const usePhoneCentricLogin = phoneCentricAuthEnabled && (productionPhoneLogin || passwordLoginMode === null);
 
   useEffect(() => {
     let active = true;
@@ -378,10 +380,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {getRuntimePlatform() === 'WEB' && capabilitiesStatus !== 'ready' ? (capabilitiesStatus === 'loading'
+          {productionPhoneLogin && capabilitiesStatus !== 'ready' ? (capabilitiesStatus === 'loading'
             ? <p role="status">Giriş seçenekleri yükleniyor…</p>
             : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
-            : getRuntimePlatform() === 'WEB' && !phoneCentricAuthEnabled ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={getRuntimePlatform() !== 'WEB'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
+            : productionPhoneLogin && !phoneCentricAuthEnabled ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={!productionPhoneLogin} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
             ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
             : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
           {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}

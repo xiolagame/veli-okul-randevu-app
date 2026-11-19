@@ -70,6 +70,7 @@ function assertSafeClientTree(root: string, label: string): void {
 assert.equal(capacitorConfig.appId, 'com.velirandevu.app');
 assert.equal(capacitorConfig.appName, 'Veli Randevu');
 assert.equal(capacitorConfig.webDir, 'dist/client');
+assert.equal(capacitorConfig.android?.loggingBehavior, 'none', 'Android bridge logging must be disabled even for debug sessions.');
 assert(!Object.prototype.hasOwnProperty.call(capacitorConfig, 'server'), 'Production Capacitor config must not use server.url.');
 
 const packageJson = JSON.parse(read('package.json')) as {
@@ -191,6 +192,7 @@ const generatedConfig = JSON.parse(read('android/app/src/main/assets/capacitor.c
 assert.equal(generatedConfig.appId, 'com.velirandevu.app');
 assert.equal(generatedConfig.appName, 'Veli Randevu');
 assert.equal(generatedConfig.webDir, 'dist/client');
+assert.equal(generatedConfig.android?.loggingBehavior, 'none', 'Generated Android config must disable bridge logging.');
 assert.equal(generatedConfig.server, undefined, 'Generated Capacitor config must not use server.url.');
 const generatedPlugins = JSON.parse(read('android/app/src/main/assets/capacitor.plugins.json')) as Array<{ pkg: string; classpath: string }>;
 assert(generatedPlugins.some((plugin) => plugin.pkg === '@aparajita/capacitor-secure-storage' && plugin.classpath === 'com.aparajita.capacitor.securestorage.SecureStorage'));

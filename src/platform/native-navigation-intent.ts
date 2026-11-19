@@ -16,22 +16,28 @@ export function subscribeToNativeNavigationIntents(
 ): () => void {
   if (!isNativeRuntime()) return () => {};
   let disposed = false;
+  let receivedEvent = false;
   let handle: PluginListenerHandle | null = null;
   const accept = (url: string) => {
+    if (disposed) return;
     const intent = parseNavigationIntent(url, CANONICAL_APP_LINK_ORIGIN);
     if (!intent) return;
     pendingNavigationIntent.set(intent);
-    onIntent?.(intent);
+    if (onIntent) onIntent(intent);
+    else window.dispatchEvent(new Event('veli:navigation-intent'));
   };
   void source.getLaunchUrl().then((launch) => {
-    if (!disposed && launch) accept(launch.url);
-  });
-  void source.addListener('appUrlOpen', (event) => accept(event.url)).then((listenerHandle) => {
-    if (disposed) void listenerHandle.remove();
+    if (!receivedEvent && launch) accept(launch.url);
+  }).catch(() => {});
+  void source.addListener('appUrlOpen', (event) => {
+    if (parseNavigationIntent(event.url, CANONICAL_APP_LINK_ORIGIN)) receivedEvent = true;
+    accept(event.url);
+  }).then((listenerHandle) => {
+    if (disposed) void listenerHandle.remove().catch(() => {});
     else handle = listenerHandle;
-  });
+  }).catch(() => {});
   return () => {
     disposed = true;
-    if (handle) void handle.remove();
+    if (handle) void handle.remove().catch(() => {});
   };
 }

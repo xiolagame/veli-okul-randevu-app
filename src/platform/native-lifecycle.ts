@@ -9,25 +9,33 @@ interface NativeAppLifecycleSource {
 
 export function createNativeLifecycleAdapter(source: NativeAppLifecycleSource = App): LifecycleAdapter {
   let currentState: AppLifecycleState = 'ACTIVE';
+  let receivedEvent = false;
+  const listeners = new Set<LifecycleListener>();
   void source.getState().then((state) => {
+    if (receivedEvent) return;
     currentState = state.isActive ? 'ACTIVE' : 'INACTIVE';
-  });
+    for (const listener of listeners) listener(currentState);
+  }).catch(() => {});
 
   return {
     getCurrentState: () => currentState,
     subscribe(listener: LifecycleListener) {
       let disposed = false;
       let handle: PluginListenerHandle | null = null;
+      listeners.add(listener);
       void source.addListener('appStateChange', (state) => {
+        if (disposed) return;
+        receivedEvent = true;
         currentState = state.isActive ? 'ACTIVE' : 'INACTIVE';
         listener(currentState);
       }).then((listenerHandle) => {
-        if (disposed) void listenerHandle.remove();
+        if (disposed) void listenerHandle.remove().catch(() => {});
         else handle = listenerHandle;
-      });
+      }).catch(() => {});
       return () => {
         disposed = true;
-        if (handle) void handle.remove();
+        listeners.delete(listener);
+        if (handle) void handle.remove().catch(() => {});
       };
     },
   };

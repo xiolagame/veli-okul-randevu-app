@@ -143,7 +143,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
   ];
 
   return (
-    <div className="admin-backdrop admin-compact">
+    <div className="admin-backdrop admin-compact admin-no-duplicate-header">
       <section className="admin-panel" aria-label="Okul yönetim paneli">
         <header className="admin-header"><div><h2>{navigation.find((item) => item.id === activeTab)?.label}</h2><p>{platformContextActive ? `Platform Yönetimi · ${currentSchool?.name}` : currentSchool?.name}</p></div></header>
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">{platformContextActive ? 'SEÇİLİ OKUL YÖNETİMİ' : 'OKUL YÖNETİMİ'}</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>

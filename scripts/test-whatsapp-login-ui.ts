@@ -25,8 +25,9 @@ async function run() {
   assert.match(authView, /setPasswordLoginMode\(null\)\}\>WhatsApp ile girişe dön/);
   assert.match(authView, /await login\(phone, password\)/);
   assert.match(authView, /passwordLoginMode === 'platform'/);
-  assert.match(authView, /phoneCentricAuthEnabled && \(getRuntimePlatform\(\) === 'WEB' \|\| passwordLoginMode === null\)/);
-  assert.match(authView, /usePhoneCentricLogin \? <PhoneCentricLoginPanel allowLegacyFallback=\{getRuntimePlatform\(\) !== 'WEB'\}/);
+  assert.match(authView, /const productionPhoneLogin = getRuntimePlatform\(\) !== 'IOS'/);
+  assert.match(authView, /phoneCentricAuthEnabled && \(productionPhoneLogin \|\| passwordLoginMode === null\)/);
+  assert.match(authView, /usePhoneCentricLogin \? <PhoneCentricLoginPanel allowLegacyFallback=\{!productionPhoneLogin\}/);
 
   assert.match(phoneCentricPanel, /'WhatsApp Kodu Gönder'/);
   assert.match(phoneCentricPanel, /placeholder="0555 123 45 67"/);
