@@ -1,4 +1,3 @@
-import { schoolReadCache, isSchoolReadCacheable, StaleSchoolReadError } from '../platform/school-read-cache';
 import {
   School,
   SchoolMembership,
@@ -17,21 +16,15 @@ import {
 import { applyUnauthorizedSessionPolicy, isAuthenticatedApiEndpoint } from '../platform/api-session-policy';
 import { ApiError } from '../platform/api-error';
 import { authSession } from '../platform/auth-session';
-import {isReviewToken,reviewOrigin} from '../platform/review-origin';
-import {getRuntimePlatform} from '../platform/runtime-platform';
-import { getActiveSchoolId, getActiveSchoolRole, getPlatformTargetSchoolId } from '../platform/client-preferences';
+import { getActiveSchoolId, getPlatformTargetSchoolId } from '../platform/client-preferences';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 20_000;
 
-async function networkRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  // Android must discover production login capabilities even when a review token
-  // survived an interrupted/offline restore. Never route this public request to Oracle.
-  const publicAndroidCapabilities = endpoint === '/api/public/auth-capabilities' && getRuntimePlatform() === 'ANDROID';
-  const requestToken = publicAndroidCapabilities ? null : await authSession.getToken();
-  const authenticatedRequestToken = isReviewToken(requestToken)||isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const requestToken = await authSession.getToken();
+  const authenticatedRequestToken = isAuthenticatedApiEndpoint(endpoint) ? requestToken : null;
   const currentSchoolId = getActiveSchoolId();
-  const currentSchoolRole = getActiveSchoolRole();
   const platformTargetSchoolId = getPlatformTargetSchoolId();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -40,7 +33,6 @@ async function networkRequest<T>(endpoint: string, options: RequestInit = {}): P
 
   if (authenticatedRequestToken) {
     headers['Authorization'] = `Bearer ${authenticatedRequestToken}`;
-    if (currentSchoolRole && !isReviewToken(authenticatedRequestToken)) headers['X-School-Role'] = currentSchoolRole;
   }
 
   if (currentSchoolId) {
@@ -50,7 +42,7 @@ async function networkRequest<T>(endpoint: string, options: RequestInit = {}): P
   const targetScopedEndpoint = platformTargetSchoolId && endpoint.startsWith('/api/schools/')
     ? `/api/platform-target/${encodeURIComponent(platformTargetSchoolId)}${endpoint.slice(4)}`
     : endpoint;
-  const url = `${isReviewToken(requestToken)?reviewOrigin():API_BASE_URL}${targetScopedEndpoint}`;
+  const url = `${API_BASE_URL}${targetScopedEndpoint}`;
   const abortController = new AbortController();
   let timedOut = false;
   const handleExternalAbort = () => abortController.abort(options.signal?.reason);
@@ -79,7 +71,6 @@ async function networkRequest<T>(endpoint: string, options: RequestInit = {}): P
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    if (res.status===401 || res.status===403) schoolReadCache.clear();
     if (await applyUnauthorizedSessionPolicy(res.status, endpoint, authenticatedRequestToken, authSession, data.code)) {
       throw new Error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
     }
@@ -89,42 +80,7 @@ async function networkRequest<T>(endpoint: string, options: RequestInit = {}): P
   return data as T;
 }
 
-// Scope includes the session revision (bound to the authenticated identity), school,
-// selected membership role and explicit platform target. No persistent cache or token copies.
-function readScope() {
-  return JSON.stringify([authSession.getCacheRevision?.() ?? 0,getActiveSchoolId(),getActiveSchoolRole(),getPlatformTargetSchoolId()]);
-}
-function adminReadsEnabled() { return getActiveSchoolRole()==='admin' || !!getPlatformTargetSchoolId(); }
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const method=(options.method || 'GET').toUpperCase();
-  if(method==='GET' && !options.signal && adminReadsEnabled() && isSchoolReadCacheable(endpoint)) {
-    const scope=readScope();
-    try { return await schoolReadCache.get(scope,endpoint,()=>networkRequest<T>(endpoint,options)); }
-    catch(error) {
-      // A write invalidates older reads. Retry once only within the same authority context.
-      if(error instanceof StaleSchoolReadError && scope===readScope())
-        return schoolReadCache.get(scope,endpoint,()=>networkRequest<T>(endpoint,options));
-      throw error;
-    }
-  }
-  if(!['GET','HEAD','OPTIONS'].includes(method)) {
-    // Invalidate both sides of a write, including uncertain/error outcomes.
-    schoolReadCache.clear();
-    try { return await networkRequest<T>(endpoint,options); }
-    finally { schoolReadCache.clear(); }
-  }
-  return networkRequest<T>(endpoint,options);
-}
-
 export const api = {
-  invalidateSchoolReads: () => schoolReadCache.clear(),
-  peekCached: <T,>(endpoint: string): T | undefined => adminReadsEnabled() ? schoolReadCache.peek<T>(readScope(),endpoint) : undefined,
-  logout: (signal?:AbortSignal) => request<{success:boolean}>('/api/auth/logout', { method:'POST',signal }),
-  getLicenseWhatsApp: (schoolId:string,page=0) => request<import('../types/license-reminders').LicenseReminderOverview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp?page=${page}`),
-  previewLicenseWhatsApp: (schoolId:string) => request<import('../types/license-reminders').LicenseReminderPreview>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/preview`,{method:'POST',body:'{}'}),
-  confirmLicenseWhatsApp: (schoolId:string,operationId:string) => request<{operationId:string;status:string;workerAccepted:boolean}>(`/api/platform/licenses/${encodeURIComponent(schoolId)}/whatsapp/confirm`,{method:'POST',body:JSON.stringify({operationId,confirmed:true})}),
-  getLicenseWhatsAppPreference: (schoolId:string) => request<{enabled:boolean;canEnable:boolean;needsReconfirmation?:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`),
-  setLicenseWhatsAppPreference: (schoolId:string,enabled:boolean) => request<{enabled:boolean}>(`/api/auth/me/license-reminder-preferences/${encodeURIComponent(schoolId)}`,{method:'PUT',body:JSON.stringify({enabled})}),
   registerPushDevice: (data: { installationId: string; platform: 'ANDROID' | 'IOS'; provider: 'FCM'; targetKind: 'REGISTRATION_TOKEN'; providerTarget: string; appId: string; registrationGeneration?: number }) =>
     request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
   deactivatePushDevice: (installationId: string, registrationGeneration?: number) =>
@@ -254,8 +210,8 @@ export const api = {
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
-  getAuthCapabilities: (signal?: AbortSignal) =>
-    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store', signal }),
+  getAuthCapabilities: () =>
+    request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store' }),
 
   // Authentication
   resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
@@ -351,7 +307,6 @@ export const api = {
       })[];
     }>('/api/user/me'),
 
-  refreshReviewScenarios: () => request<{success:true;simulation:true;message:string}>('/api/review/scenarios/refresh',{method:'POST'}),
   requestAccountDeletionWhatsappCode: () =>
     request<{ success: boolean; message: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
       '/api/user/me/deletion/whatsapp-code', { method: 'POST' }),
@@ -412,7 +367,7 @@ export const api = {
     request<{ teacher: TeacherProfile }>(`/api/schools/${schoolId}/teachers`, {
       method: 'POST', body: JSON.stringify(data),
     }),
-  createStaff: (schoolId: string, data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) =>
+  createStaff: (schoolId: string, data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) =>
     request<{ success: boolean; message: string }>(`/api/schools/${schoolId}/staff`, { method: 'POST', body: JSON.stringify(data) }),
   resendStaffActivation: (schoolId: string, role: 'teacher' | 'security', id: string) =>
     request<{ success: boolean; message: string }>(`/api/schools/${schoolId}/staff/${role}/${encodeURIComponent(id)}/resend-activation`, { method: 'POST' }),

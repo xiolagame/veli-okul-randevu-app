@@ -73,7 +73,9 @@ export async function readStaffImportFile(
   }
 
   const seenPhones = new Set<string>();
+  const seenEmails = new Set<string>();
   const existingPhones = new Set(existing.map((item) => phoneKey(item.phone || '')).filter(Boolean));
+  const existingEmails = new Set(existing.map((item) => (item.email || '').trim().toLowerCase()).filter(Boolean));
 
   return records.map((row) => {
     const line = sheet.indexOf(row) + 1;
@@ -96,7 +98,7 @@ export async function readStaffImportFile(
       role,
       branch: cells[2],
       phone: cells[3],
-      email: role === 'teacher' ? cells[4].toLowerCase() : '',
+      email: cells[4].toLowerCase(),
     };
 
     const errors = Object.values(validateStaffForm(draft)).filter(
@@ -112,8 +114,11 @@ export async function readStaffImportFile(
       seenPhones.add(phone);
     }
 
-    // Notification contacts are not unique authentication identities. Phone deduplication
-    // remains mandatory; a shared, explicitly supplied teacher mailbox is allowed.
+    if (draft.email) {
+      if (seenEmails.has(draft.email)) errors.push('E-posta Excel içinde tekrar ediyor.');
+      if (existingEmails.has(draft.email)) errors.push('E-posta okulda zaten kayıtlı.');
+      seenEmails.add(draft.email);
+    }
 
     return { line, draft, errors };
   });
