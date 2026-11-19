@@ -36,6 +36,7 @@ export function createExpressApp() {
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id'],
       credentials: true,
+      optionsSuccessStatus: 200,
     })
   );
 
