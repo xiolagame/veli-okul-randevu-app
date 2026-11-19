@@ -113,7 +113,7 @@ async function run() {
     assert.match(sentEmails[0].html, new RegExp(schoolCode));
     assert.match(sentEmails[0].html, new RegExp(licenseCode));
     assert.match(sentEmails[0].html, /font-size:26px/);
-    assert.match(sentEmails[0].html, /font-size:28px/);
+    assert.match(sentEmails[0].html, /data-email-otp="true"[^>]*font-size:32px/);
     assert(!sentEmails[0].html.includes(`${schoolCode}.`));
     const pending = (await db.query<{ id: string; password_hash: string | null }>('SELECT id,password_hash FROM users WHERE phone=$1', [managerPhone])).rows[0];
     assert(pending);
@@ -303,6 +303,6 @@ async function run() {
 }
 
 run().catch((cause) => {
-  console.error('School admin provisioning test FAILED. No codes, tokens, credentials or response bodies are logged.', cause instanceof Error ? cause.stack : '');
+  console.error('School admin provisioning test FAILED. No codes, tokens, credentials or response bodies are logged.', cause instanceof Error ? cause.name : 'UNKNOWN_ERROR');
   process.exitCode = 1;
 });

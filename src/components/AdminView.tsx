@@ -1,7 +1,9 @@
 import { formatDate, getIstanbulDate } from '../utils/dates';
 import { appointmentsOnDate, sortAppointmentsForAdmin } from '../utils/admin-filters';
+import {DashboardIntro} from './DashboardIntro';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import {getRuntimePlatform} from '../platform/runtime-platform';
 import {
   Shield,
   Users,
@@ -39,9 +41,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
     teachers,
     createTeacher,
     appointments,
-    auditLogs,
     settings,
     updateSettings,
+    auditLogs,
     runIsolationTests,
     isolationTestResults,
     isPlatformAdmin,
@@ -54,15 +56,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
   const refreshSection = useRef(refreshSchoolData);
   refreshSection.current = refreshSchoolData;
   const [sectionError, setSectionError] = useState('');
-  const [sectionLoading,setSectionLoading]=useState(false);
   useEffect(() => {
     let current = true;
     setSectionError('');
-    setSectionLoading(false);
-    const section = activeTab === 'users' ? 'staff' : activeTab === 'appointments' ? 'appointments' : activeTab === 'audit' && isPlatformAdmin ? 'audit' : null;
-    if (section && currentSchool) {setSectionLoading(true);void refreshSection.current(section).catch(() => { if (current) setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'); }).finally(()=>{if(current)setSectionLoading(false);});}
+    const section = activeTab === 'users' ? 'staff' : activeTab === 'appointments' ? 'appointments' : activeTab === 'audit' ? 'audit' : null;
+    if (section && currentSchool) void refreshSection.current(section).catch(() => { if (current) setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'); });
     return () => { current = false; };
-  }, [activeTab, currentSchool?.id, isPlatformAdmin]);
+  }, [activeTab, currentSchool?.id]);
 
   const [selectedDate, setSelectedDate] = useState(() => getIstanbulDate());
   const [appointmentMode, setAppointmentMode] = useState<'today' | 'all'>('today');
@@ -140,8 +140,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
     { id: 'appointments' as const, label: 'Randevular', icon: Calendar },
     { id: 'settings' as const, label: 'Okul ayarları', icon: SettingsIcon },
     ...(!platformContextActive ? [{ id: 'requests' as const, label: 'Destek / Lisans', icon: LifeBuoy }] : []),
+    { id: 'audit' as const, label: 'İşlem günlüğü', icon: FileText },
     ...(isPlatformAdmin ? [{ id: 'isolation' as const, label: 'Sistem Güvenliği', icon: CheckCircle2 }] : []),
-    ...(isPlatformAdmin ? [{id:'audit' as const,label:'İşlem günlüğü',icon:FileText}] : []),
   ];
 
   return (
@@ -151,23 +151,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">{platformContextActive ? 'SEÇİLİ OKUL YÖNETİMİ' : 'OKUL YÖNETİMİ'}</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <label className="admin-mobile-nav" htmlFor="admin-section"><span className="sr-only">Yönetim bölümü</span><select id="admin-section" aria-label="Yönetim bölümü" value={activeTab} onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}>{navigation.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <main id="main-content" className="admin-content">
+          {activeTab === 'dashboard' && currentSchool && <DashboardIntro school/>}
           {activeTab === 'dashboard' && currentSchool && <SchoolInfo compact key={currentSchool.id} schoolId={currentSchool.id} allowCodeChange={isPlatformAdmin} onCodeChanged={refreshPlatformSchools} />}
           {onManageSchools && <Button variant="secondary" className="mb-5" onClick={onManageSchools}>Okul Yönetimi (Platform)</Button>}
-          {activeTab === 'dashboard' && currentSchool && <><div className="dashboard-quick-actions"><Button variant="quiet" onClick={() => setActiveTab('roster')}>Öğrenci kayıtları</Button><Button variant="quiet" onClick={() => setActiveTab('users')}>Personeli yönet</Button><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Randevuları aç</Button></div><OperationsCenter key={currentSchool.id} schoolId={currentSchool.id} onOpenRecords={(kind) => setActiveTab(kind === 'staff' ? 'users' : 'roster')} /></>}
-          {sectionError && <Alert tone="danger">{sectionError}<Button variant="quiet" onClick={() => void refreshSchoolData(activeTab === 'appointments' ? 'appointments' : activeTab === 'audit' && isPlatformAdmin ? 'audit' : 'staff').then(() => setSectionError('')).catch(() => setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'))}>Tekrar dene</Button></Alert>}
+          {activeTab === 'dashboard' && currentSchool && <><div className="dashboard-quick-actions"><Button variant="quiet" onClick={() => setActiveTab('roster')}>{getRuntimePlatform()==='WEB'&&<GraduationCap size={17} aria-hidden="true"/>}Öğrenci kayıtları</Button><Button variant="quiet" onClick={() => setActiveTab('users')}>{getRuntimePlatform()==='WEB'&&<Users size={17} aria-hidden="true"/>}Personeli yönet</Button><Button variant="quiet" onClick={() => setActiveTab('appointments')}>{getRuntimePlatform()==='WEB'&&<Calendar size={17} aria-hidden="true"/>}Randevuları aç</Button></div><OperationsCenter key={currentSchool.id} schoolId={currentSchool.id} onOpenRecords={(kind) => setActiveTab(kind === 'staff' ? 'users' : 'roster')} /></>}
+          {sectionError && <Alert tone="danger">{sectionError}<Button variant="quiet" onClick={() => void refreshSchoolData(activeTab === 'audit' ? 'audit' : activeTab === 'appointments' ? 'appointments' : 'staff').then(() => setSectionError('')).catch(() => setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'))}>Tekrar dene</Button></Alert>}
 
           {activeTab === 'roster' && currentSchool && <StudentManagement key={currentSchool.id} schoolId={currentSchool.id} schoolName={currentSchool.name} revision={studentRevision} onImport={() => { setFormError(''); setShowUploadModal(true); }} />}
 
           {activeTab === 'users' && <StaffManagement key={currentSchool?.id} teachers={teachers} securityUsers={users} loading={usersLoading} error={usersError} onCreateTeacher={createTeacher} />}
-          {activeTab === 'audit' && isPlatformAdmin && currentSchool && <AuditManagement key={currentSchool.id} schoolId={currentSchool.id} logs={auditLogs} onChanged={() => refreshSchoolData('audit')} />}
 
           {activeTab === 'admins' && currentSchool && <SchoolAdminManagement key={currentSchool.id} schoolId={currentSchool.id} schoolName={currentSchool.name} onChanged={async () => { await Promise.all([refreshSchoolData(), refreshPlatformSchools()]); }} />}
 
-          {activeTab === 'appointments' && <section className="space-y-5" aria-busy={sectionLoading}>
-            {sectionLoading && !appointments.length && <p role="status" className="panel-loading">Randevular yükleniyor…</p>}
+          {activeTab === 'appointments' && <section className="space-y-5">
             <div className="section-heading"><div><h3>Okulunuzun görüşmeleri</h3><p>{appointmentMode === 'today' ? formatDate(selectedDate) : 'Tüm tarihler'} · {datedAppointments.length} randevu</p></div></div>
             <div className="flex flex-wrap items-end gap-3"><label className="field" htmlFor="admin-appointment-date">Görüşme tarihi<input id="admin-appointment-date" type="date" required value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value || getIstanbulDate()); setAppointmentMode('today'); }} /></label><Button variant={appointmentMode === 'today' ? 'primary' : 'secondary'} aria-pressed={appointmentMode === 'today'} onClick={() => { setSelectedDate(getIstanbulDate()); setAppointmentMode('today'); }}>Bugün</Button><Button variant={appointmentMode === 'all' ? 'primary' : 'secondary'} aria-pressed={appointmentMode === 'all'} onClick={() => setAppointmentMode('all')}>Tüm Randevular</Button></div>
-            {datedAppointments.length ? datedAppointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{formatDate(appointment.date)}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : !sectionLoading && <div className="surface"><EmptyState icon={Calendar} title={appointmentMode === 'today' ? 'Seçili günde randevu bulunmuyor' : 'Kayıtlı randevu bulunmuyor'} description={appointmentMode === 'today' ? 'Başka bir tarih seçerek o günün görüşmelerini görebilirsiniz.' : 'Okulunuz için henüz randevu kaydı oluşturulmamış.'} /></div>}
+            {datedAppointments.length ? datedAppointments.map((appointment) => <article key={appointment.id} className="appointment-card"><div className="appointment-time"><strong>{appointment.startTime}</strong><span>{formatDate(appointment.date)}</span></div><div className="appointment-detail"><div className="appointment-top"><div><h3>{appointment.teacherName}</h3><p>{appointment.teacherBranch} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div><p className="mt-3">{appointment.studentName} · {appointment.className}</p></div></article>) : <div className="surface"><EmptyState icon={Calendar} title={appointmentMode === 'today' ? 'Seçili günde randevu bulunmuyor' : 'Kayıtlı randevu bulunmuyor'} description={appointmentMode === 'today' ? 'Başka bir tarih seçerek o günün görüşmelerini görebilirsiniz.' : 'Okulunuz için henüz randevu kaydı oluşturulmamış.'} /></div>}
           </section>}
 
           {activeTab === 'settings' && <section className="surface max-w-2xl"><div className="section-heading"><div><h3>Okul ve görüşme ayarları</h3><p>Okulunuzun randevu tercihlerini düzenleyin.</p></div></div><form onSubmit={handleSaveSettings} className="form-stack">
@@ -178,6 +177,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
             <Button type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}</Button>
           </form></section>}
 
+          {activeTab === 'audit' && currentSchool && <AuditManagement key={currentSchool.id} schoolId={currentSchool.id} logs={auditLogs} onChanged={refreshSchoolData} />}
 
           {activeTab === 'requests' && !platformContextActive && <SchoolRequestCenter />}
 

@@ -1,0 +1,57 @@
+/* Semantic palette; native roots never receive data-theme. */
+html[data-theme]{--app-bg:#f5f7f5;--surface:#fff;--surface-elevated:#fff;--surface-muted:#edf3ee;--text-primary:#142d26;--text-secondary:#586d63;--border-color:#dfe8e2;--accent:#136b56;--accent-hover:#0d5543;--button-primary:#136b56;--button-primary-text:#fff;--status-success:#236646;--status-success-bg:#eaf4ed;--status-warning:#815915;--status-warning-bg:#fcf3df;--status-danger:#a33338;--status-danger-bg:#fff0ef;--status-info:#315f87;--status-info-bg:#edf4fa;--input-bg:#fff;--modal-bg:#fff;--sidebar-bg:#fff;--focus-ring:#247cb0;--shadow-card:0 2px 4px #1438220a;--scene-overlay-start:rgba(6,59,33,.60);--scene-overlay-end:rgba(19,32,49,.50);--intro-bg:#eaf0ea;--canvas:var(--app-bg);--ink:var(--text-primary);--muted:var(--text-secondary);--line:var(--border-color);--primary:var(--button-primary);--primary-hover:var(--accent-hover);--success:var(--status-success);--warning:var(--status-warning);--danger:var(--status-danger);--info:var(--status-info);--radius-card:14px;--radius-control:9px;color-scheme:light}
+html[data-theme="dark"]{--app-bg:#101816;--surface:#1d2a25;--surface-elevated:#263630;--surface-muted:#22312c;--text-primary:#eff5f1;--text-secondary:#b7cac0;--border-color:#35483e;--accent:#79d4b8;--accent-hover:#99e0c9;--button-primary:#48b99a;--button-primary-text:#09291f;--status-success:#a1dfb8;--status-success-bg:#203e2e;--status-warning:#f4d08e;--status-warning-bg:#3d3320;--status-danger:#ffb7b8;--status-danger-bg:#462b2d;--status-info:#b1d7f5;--status-info-bg:#233b4c;--input-bg:#17231e;--modal-bg:#1d2a25;--sidebar-bg:#19251f;--focus-ring:#8fd3f3;--shadow-card:0 3px 12px #0003;--scene-overlay-start:rgba(5,24,18,.76);--scene-overlay-end:rgba(17,27,36,.68);--intro-bg:#22352b;color-scheme:dark}
+html[data-theme],html[data-theme] body{background:var(--app-bg);color:var(--text-primary)}
+html[data-theme] :is(.ui-button-secondary,.role-navigation,.metric-card,.appointment-card,.teacher-card,.auth-form-side,.app-topbar,.admin-nav,.surface,.dialog-panel){background:var(--surface);color:var(--text-primary);border-color:var(--border-color)}
+html[data-theme] input:not([type="checkbox"]):not([type="radio"]),html[data-theme] :is(select,textarea){background:var(--input-bg);color:var(--text-primary);border-color:var(--border-color)}
+html[data-theme] :is(input,textarea)::placeholder{color:var(--text-secondary);opacity:.8}
+html[data-theme] .ui-button-primary{background:var(--button-primary);color:var(--button-primary-text)}
+html[data-theme] .ui-button-quiet{color:var(--accent)}
+html[data-theme] .ui-button-primary:hover:not(:disabled){background:var(--accent-hover)}
+html[data-theme] :is(.ui-button-secondary,.ui-button-quiet,.icon-button):hover:not(:disabled){background:var(--surface-muted)}
+html[data-theme] .ui-button-danger{background:var(--status-danger-bg);color:var(--status-danger);border-color:var(--status-danger)}
+html[data-theme] .tone-success{background:var(--status-success-bg);color:var(--status-success);border-color:var(--border-color)}
+html[data-theme] :is(.tone-warning,.tone-rose){background:var(--status-warning-bg);color:var(--status-warning);border-color:var(--border-color)}
+html[data-theme] .tone-danger{background:var(--status-danger-bg);color:var(--status-danger);border-color:var(--border-color)}
+html[data-theme] :is(.tone-info,.tone-teal){background:var(--status-info-bg);color:var(--status-info);border-color:var(--border-color)}
+html[data-theme] .tone-neutral{background:var(--surface-muted);color:var(--text-secondary);border-color:var(--border-color)}
+html[data-theme] :focus-visible{outline-color:var(--focus-ring)}
+html[data-theme] .dialog-heading{background:var(--modal-bg);color:var(--text-primary);border-color:var(--border-color)}
+html[data-theme] .dialog-heading>div{flex:1;min-width:0}
+html[data-theme] .dialog-heading>.web-theme-toggle{flex:none}
+html[data-theme] :is(.dialog-backdrop,.admin-backdrop){scrollbar-color:var(--border-color) var(--surface)}
+.web-theme-toggle{background:var(--surface,#fff);color:var(--text-primary,#142d26);border:1px solid var(--border-color,#dfe8e2);width:44px;height:44px;min-width:44px;flex:none;border-radius:50%;z-index:1}
+.web-theme-floating{position:fixed;right:max(18px,env(safe-area-inset-right));top:calc(14px + env(safe-area-inset-top));z-index:55;box-shadow:var(--shadow-card)}
+body:has(.app-topbar,.dialog-panel) .web-theme-floating{display:none}
+html[data-theme] .topbar-actions{gap:8px}
+html[data-theme] .brand{color:var(--accent)}
+html[data-theme] .school-background{background:var(--app-bg)}
+html[data-theme] body:has(.help-page,.public-request-page) .school-background{background:linear-gradient(115deg,var(--scene-overlay-start),var(--scene-overlay-end)),url('/welcome/login-scene.png') center/cover no-repeat}
+html[data-theme] :is(.auth-form-wrap,.public-request-panel,.help-content-card,.help-category-card){color:var(--text-primary)}
+html[data-theme="dark"]{--color-white:var(--surface);--color-slate-50:var(--app-bg);--color-slate-100:var(--surface-muted);--color-slate-200:var(--border-color);--color-slate-300:#61776a;--color-slate-400:#a2baac;--color-slate-500:var(--text-secondary);--color-slate-600:#c2d3c9;--color-slate-700:#d7e5dc;--color-slate-800:var(--text-primary);--color-slate-900:var(--text-primary);--color-slate-950:var(--text-primary);--color-blue-50:var(--surface-muted);--color-blue-100:var(--surface-muted);--color-blue-200:var(--border-color);--color-blue-600:var(--accent);--color-blue-700:var(--accent);--color-blue-800:var(--accent);--color-indigo-50:var(--surface-muted);--color-indigo-100:var(--surface-muted);--color-indigo-600:var(--accent);--color-indigo-700:var(--accent);--color-purple-50:var(--surface-muted);--color-purple-100:var(--surface-muted);--color-purple-600:var(--accent);--color-purple-700:var(--accent)}
+html[data-theme="dark"] :is(.text-white,.ui-button-primary .text-white){color:var(--button-primary-text)}
+html[data-theme] :is(.help-page-header,.public-request-page-header){padding-right:60px}
+html[data-theme] :is(.auth-form-side,.help-content-card,.public-request-card){background:var(--surface)}
+html[data-theme] .welcome-auth .auth-form-side{background:var(--surface)}
+html[data-theme] .welcome-header{padding-right:72px}
+html[data-theme] .welcome-return{color:var(--accent);background:var(--surface)}
+html[data-theme] :is(.surface,.dialog-panel,.ui-button,input,select,textarea,.app-topbar,.role-navigation){transition:background-color .18s,color .18s,border-color .18s}
+@media(max-width:680px){html[data-theme] .topbar-inner{gap:8px;padding-inline:14px}html[data-theme] .topbar-actions .admin-open span{display:none}html[data-theme] .topbar-actions .admin-open{padding-inline:8px}html[data-theme] .welcome-header{padding-right:70px}html[data-theme] .auth-form-side{padding-top:70px}html[data-theme] .dialog-heading{gap:8px}html[data-theme] .dialog-heading .web-theme-toggle{width:44px;min-width:44px}}
+@media(prefers-reduced-motion:reduce){html[data-theme] *{transition:none!important;scroll-behavior:auto!important}}
+body:has(.dialog-panel) .app-topbar .topbar-actions>.web-theme-toggle{display:none}
+html[data-theme] :is(.auth-form-wrap,.welcome-auth .auth-form-wrap,.help-hero,.help-guide-heading,.help-guide-section,.public-request-page-card){background:var(--surface);color:var(--ink);border-color:var(--line)}
+html[data-theme] .help-category[data-help-theme]{background:var(--surface);color:var(--ink);border-color:var(--line)}
+html[data-theme="dark"] [data-help-theme]{--help-accent:var(--accent);--help-soft:var(--surface-muted);--help-wash:var(--surface-elevated);--help-edge:var(--line)}
+html[data-theme="dark"] .dashboard-intro-photo{background-image:linear-gradient(90deg,var(--intro-bg),#14251c40 50%),url('/welcome/login-scene.png')}
+html[data-theme] body{font-family:'Segoe UI Variable','Segoe UI',sans-serif}
+html[data-theme] .page-heading{background:transparent}
+html[data-theme] .school-trigger:disabled{opacity:1}
+html[data-theme] .web-welcome{--welcome-ink:var(--app-bg);--welcome-white:var(--text-primary);--welcome-green:var(--button-primary)}
+html[data-theme] :is(.welcome-header,.welcome-footer){background:var(--surface);color:var(--ink)}
+html[data-theme] .welcome-brand{color:var(--accent)}
+html[data-theme] :is(.welcome-copy p,.welcome-signature){color:var(--muted)}
+html[data-theme] .welcome-button:not(.welcome-outline){background:var(--button-primary);color:var(--button-primary-text)}
+html[data-theme] .welcome-outline{background:var(--surface);color:var(--ink);border-color:var(--line)}
+@media(min-width:761px){body:has(.welcome-artboard) .web-theme-floating{right:max(8px,env(safe-area-inset-right))}}
+html[data-theme="dark"]{--color-green-50:var(--status-success-bg);--color-green-200:var(--border-color);--color-green-700:var(--status-success);--color-green-800:var(--status-success);--color-emerald-200:var(--border-color);--color-red-50:var(--status-danger-bg);--color-red-200:var(--border-color);--color-red-700:var(--status-danger)}
+@media(max-width:680px){html[data-theme] .role-navigation button>span:last-child{font-size:11px;line-height:1.35}}

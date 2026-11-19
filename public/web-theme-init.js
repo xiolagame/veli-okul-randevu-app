@@ -1,0 +1,2 @@
+/* Runs before CSS/React. No auth data is read or changed. Native builds remove this script. */
+(function(){if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())return;var theme='light';try{if(localStorage.getItem('veli-randevu.web-theme')==='dark')theme='dark';}catch(_){}document.documentElement.dataset.theme=theme;document.documentElement.dataset.webScene='school';document.documentElement.style.colorScheme=theme;})();

@@ -1,12 +1,12 @@
+import {ThemeToggle} from '../context/WebTheme';
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Check, CheckCircle2, Clock, LogIn, LogOut, X, XCircle, type LucideIcon } from 'lucide-react';
 import type { AppointmentStatus } from '../types';
 import { registerBackHandler } from '../platform/back-navigation';
-import {ThemeSwitcher} from './ThemeSwitcher';
 
-export function Brand({ light = false, showTheme = true }: { light?: boolean; showTheme?: boolean }) {
-  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span>{showTheme && <ThemeSwitcher/>}</div>;
+export function Brand({ light = false }: { light?: boolean }) {
+  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span></div>;
 }
 
 export function Button({ variant = 'primary', className = '', type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'quiet' | 'danger' }) {
@@ -108,7 +108,7 @@ export function Dialog({ title, description, onClose, children, wide = false, di
     };
   }, [dismissible]);
 
-  return createPortal(<div className="dialog-backdrop" onMouseDown={(event) => { if (dismissible && event.target === event.currentTarget) onClose(); }}><div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} className={`dialog-panel ${wide ? 'dialog-wide' : ''} ${className}`}><header className="dialog-heading"><div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div><button type="button" className="icon-button" disabled={!dismissible} onClick={onClose} aria-label="Pencereyi kapat"><X size={21} /></button></header><div className="dialog-body">{children}</div></div></div>, document.body);
+  return createPortal(<div className="dialog-backdrop" onMouseDown={(event) => { if (dismissible && event.target === event.currentTarget) onClose(); }}><div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} className={`dialog-panel ${wide ? 'dialog-wide' : ''} ${className}`}><header className="dialog-heading"><div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div><ThemeToggle/><button type="button" className="icon-button" disabled={!dismissible} onClick={onClose} aria-label="Pencereyi kapat"><X size={21} /></button></header><div className="dialog-body">{children}</div></div></div>, document.body);
 }
 
 export function StepIndicator({ active, labels }: { active: number; labels: string[] }) {

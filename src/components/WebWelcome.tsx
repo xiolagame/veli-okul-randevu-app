@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {useFixedPublicAppearance} from '../context/WebTheme';
 import { ArrowRight } from 'lucide-react';
 import { isNativeRuntime } from '../platform/runtime-platform';
 import './web-welcome.css';
-// Public-route artwork stays web-only through the existing native module alias.
-import './help-presentation.css';
 
 type Props = { children: React.ReactNode; onHelp: () => void; onRequest: () => void };
 const hasLoginLink = () => window.location.pathname === '/login' || /^#appointment-review=/.test(window.location.hash);
@@ -15,6 +14,7 @@ export function WebWelcome({ children, onHelp, onRequest }: Props) {
 }
 
 function BrowserWelcome({ children, onHelp, onRequest }: Props) {
+  useFixedPublicAppearance();
   const [phase, setPhase] = useState<'welcome' | 'video' | 'login'>(() =>
     hasLoginLink() ? 'login' : 'welcome');
   const [fading, setFading] = useState(false);

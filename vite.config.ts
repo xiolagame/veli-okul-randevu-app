@@ -1,7 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import path from 'node:path';
 
 const MOBILE_PRODUCTION_API_ORIGIN = 'https://velirandevu.com';
 
@@ -14,8 +13,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), tailwindcss()],
-    resolve: { alias: ['android','ios'].includes(mode) ? [{ find:/^\.\/components\/WebWelcome$/,replacement:path.resolve('src/platform/NativeWebWelcome.tsx') }] : [] },
+    plugins: [react(), tailwindcss(), {name:'web-theme-build-boundary', transformIndexHtml(html) { return ['android','ios'].includes(mode) ? html.replace(/\s*<script src="\/web-theme-init\.js"><\/script>/, '') : html; }}],
     worker: { format: 'es' },
     build: {
       outDir: 'dist/client',

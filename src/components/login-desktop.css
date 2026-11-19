@@ -1,0 +1,42 @@
+/* Desktop-only composition. Shared auth/OTP, tablet, mobile and native rules stay intact. */
+@media(min-width:1100px){
+ html[data-theme][data-web-scene="school"] .welcome-auth{display:flow-root;min-height:100svh;background:var(--app-bg)}
+ html[data-theme][data-web-scene="school"] .welcome-auth:before{background:url('/welcome/login-reference.png') right center/cover no-repeat}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-layout{width:min(1320px,calc(100% - 60px));margin:clamp(40px,9.3vh,100px) 30px 40px;min-height:740px;grid-template-columns:42% minmax(0,58%);padding:0;gap:0;background:var(--surface-muted);border:1px solid var(--line);border-radius:24px;overflow:hidden;box-shadow:0 18px 60px #102d2010}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story{min-height:0;height:100%;border-radius:0;padding:38px 36px;gap:24px;justify-content:space-between;background:linear-gradient(145deg,rgba(13,53,40,.90),rgba(9,38,32,.78)),url('/welcome/login-scene.png') 61% center/cover no-repeat;box-shadow:none}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story .brand{color:#fff}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story h1{font-size:clamp(34px,2.7vw,44px);line-height:1.16;letter-spacing:-1.3px;max-width:16ch;margin-bottom:18px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story p{font-size:15px;line-height:1.7;max-width:34ch;color:#dbe8e1}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-illustration{margin:25px 0 0;padding:18px;max-width:100%;background:#ffffff0c;border:1px solid #ffffff24;border-radius:14px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-illustration .flow-node{min-height:36px;font-size:13px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-footnote{font-size:12px;padding:0;color:#dbe8e1}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-form-side{min-height:0;padding:36px;align-items:center;background:linear-gradient(145deg,var(--surface-muted),var(--app-bg))}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-form-wrap{width:min(100%,552px);min-height:660px;max-height:none;padding:32px 36px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:0 8px 28px #102d200c}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-form-wrap h2{font-size:32px;line-height:1.2;letter-spacing:-.9px;margin:18px 0 22px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-help-link{margin-top:22px;font-size:13px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .public-request-cta{padding-top:20px;margin-top:22px}
+ html[data-theme][data-web-scene="school"] .welcome-return{position:absolute;left:30px;bottom:24px;top:auto;max-width:calc(100% - 80px);background:transparent;color:var(--muted)}
+}
+@media(min-width:1100px) and (max-height:820px){
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-layout{margin-top:40px;margin-bottom:76px;min-height:640px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story{padding:30px;gap:20px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-story h1{font-size:34px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-form-side{padding:24px}
+ html[data-theme][data-web-scene="school"] .welcome-auth .auth-form-wrap{padding:26px 32px;min-height:0}
+}
+
+/* Fixed public presentation never changes the saved preference on the root. */
+html[data-web-scene="school"] .welcome-auth,html[data-web-scene="school"] body:has(.welcome-auth) .dialog-panel{--app-bg:#f5f7f5;--surface:#fff;--surface-elevated:#fff;--surface-muted:#edf3ee;--text-primary:#142d26;--text-secondary:#586d63;--border-color:#dfe8e2;--accent:#136b56;--accent-hover:#0d5543;--button-primary:#136b56;--button-primary-text:#fff;--status-success:#236646;--status-success-bg:#eaf4ed;--status-warning:#815915;--status-warning-bg:#fcf3df;--status-danger:#a33338;--status-danger-bg:#fff0ef;--status-info:#315f87;--status-info-bg:#edf4fa;--input-bg:#fff;--modal-bg:#fff;--sidebar-bg:#fff;--focus-ring:#247cb0;--shadow-card:0 2px 4px #1438220a;--scene-overlay-start:rgba(6,59,33,.60);--scene-overlay-end:rgba(19,32,49,.50);--intro-bg:#eaf0ea;--canvas:var(--app-bg);--ink:var(--text-primary);--muted:var(--text-secondary);--line:var(--border-color);--primary:var(--button-primary);--primary-hover:var(--accent-hover);--success:var(--status-success);--warning:var(--status-warning);--danger:var(--status-danger);--info:var(--status-info);--radius-card:14px;--radius-control:9px;color-scheme:light}
+html[data-web-scene="school"] .web-welcome{--app-bg:#101816;--surface:#1d2a25;--surface-elevated:#263630;--surface-muted:#22312c;--text-primary:#eff5f1;--text-secondary:#b7cac0;--border-color:#35483e;--accent:#79d4b8;--accent-hover:#99e0c9;--button-primary:#48b99a;--button-primary-text:#09291f;--status-success:#a1dfb8;--status-success-bg:#203e2e;--status-warning:#f4d08e;--status-warning-bg:#3d3320;--status-danger:#ffb7b8;--status-danger-bg:#462b2d;--status-info:#b1d7f5;--status-info-bg:#233b4c;--input-bg:#17231e;--modal-bg:#1d2a25;--sidebar-bg:#19251f;--focus-ring:#8fd3f3;--shadow-card:0 3px 12px #0003;--scene-overlay-start:rgba(5,24,18,.76);--scene-overlay-end:rgba(17,27,36,.68);--intro-bg:#22352b;color-scheme:dark;--canvas:var(--app-bg);--ink:var(--text-primary);--muted:var(--text-secondary);--line:var(--border-color);--primary:var(--button-primary);--primary-hover:var(--accent-hover);}
+html[data-web-scene="school"] .welcome-auth,html[data-web-scene="school"] body:has(.welcome-auth) .dialog-panel{--color-slate-50: #f6f8f7;--color-slate-100: #edf2ef;--color-slate-200: #dfe7e2;--color-slate-300: #c4d1ca;--color-slate-400: #7c8e84;--color-slate-500: #62766c;--color-slate-600: #4c6257;--color-slate-700: #354b41;--color-slate-800: #213c30;--color-slate-900: #182f26;--color-slate-950: #10271f;--color-blue-50: #edf7f3;--color-blue-100: #d8ede3;--color-blue-200: #b2d9c6;--color-blue-300: #88c3a7;--color-blue-400: #56a88a;--color-blue-500: #25866d;--color-blue-600: #14745d;--color-blue-700: #11634f;--color-blue-800: #104d3f;--color-blue-900: #123f34;--color-blue-950: #0b3027;--color-indigo-50: #edf7f3;--color-indigo-100: #d8ede3;--color-indigo-200: #b2d9c6;--color-indigo-600: #14745d;--color-indigo-700: #11634f;--color-indigo-800: #104d3f;--color-purple-50: #edf7f3;--color-purple-100: #d8ede3;--color-purple-200: #b2d9c6;--color-purple-300: #88c3a7;--color-purple-400: #56a88a;--color-purple-500: #25866d;--color-purple-600: #14745d;--color-purple-700: #11634f;--color-purple-800: #104d3f;--color-purple-900: #123f34;--color-white:#fff;--color-green-50:var(--status-success-bg);--color-green-200:var(--border-color);--color-green-700:var(--status-success);--color-green-800:var(--status-success);--color-red-50:var(--status-danger-bg);--color-red-200:var(--border-color);--color-red-700:var(--status-danger);--color-emerald-200:var(--border-color)}
+html[data-web-scene="school"] body:has(.web-welcome,.welcome-auth){background:#071b16}
+html[data-web-scene="school"] body:has(.web-welcome,.welcome-auth) .web-theme-toggle{display:none}
+html[data-web-scene="school"] .welcome-auth:before{background:url('/welcome/login-reference.png') right center/cover no-repeat}
+html[data-web-scene="school"] .welcome-auth .auth-form-side{background:linear-gradient(145deg,var(--surface-muted),var(--app-bg))}
+html[data-web-scene="school"] .welcome-auth .auth-form-wrap{background:var(--surface);color:var(--ink)}
+html[data-web-scene="school"] .web-welcome{--welcome-ink:#101816;--welcome-white:#eff5f1}
+@media(max-width:1099px){html[data-web-scene="school"] .welcome-auth .auth-layout{margin:0 auto;max-width:100%}}
+
+html[data-web-scene="school"] .welcome-auth .welcome-return{background:#071b16cc;color:#eff5f1;border:1px solid #ffffff3d}
+@media(max-width:680px){html[data-web-scene="school"] .welcome-auth .auth-form-side{padding:16px 0 24px;min-height:0;background:transparent}}
+html[data-web-scene="school"]:has(.web-welcome,.welcome-auth){background:#071b16}

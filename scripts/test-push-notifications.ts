@@ -132,7 +132,7 @@ async function testAndroidClient() {
   };
   let notificationSettingsChecks = 0;
   let notificationSettingsOpens = 0;
-  const enabledNotificationSettings = { getPushAvailability: async () => ({ configured: true }), areNotificationsEnabled: async () => {
+  const enabledNotificationSettings = { areNotificationsEnabled: async () => {
     notificationSettingsChecks += 1;
     return { enabled: true };
   }, openNotificationSettings: async () => { notificationSettingsOpens += 1; } };
@@ -237,7 +237,6 @@ async function testAndroidClient() {
     },
     deactivatePushDevice: async () => { reconnectDeactivations += 1; },
   }, () => 'ANDROID', () => crypto.randomUUID(), {
-    getPushAvailability: async () => ({ configured: true }),
     areNotificationsEnabled: async () => ({ enabled: reconnectSystemEnabled }),
     openNotificationSettings: async () => {},
   });
@@ -275,7 +274,6 @@ async function testAndroidClient() {
     registerPushDevice: async () => { throw new Error('must not register'); },
     deactivatePushDevice: async () => { unavailableDeactivations += 1; },
   }, () => 'ANDROID', () => crypto.randomUUID(), {
-    getPushAvailability: async () => ({ configured: true }),
     areNotificationsEnabled: async () => { throw new Error('native plugin unavailable'); },
     openNotificationSettings: async () => { throw new Error('settings unavailable'); },
   });
@@ -707,7 +705,7 @@ async function run() {
   }
 }
 
-run().then(() => process.exit(0)).catch((error) => {
+run().catch((error) => {
   console.error(error instanceof assert.AssertionError ? `Push assertion failed: ${error.message}` : 'Push notification tests failed.');
-  process.exit(1);
+  process.exitCode = 1;
 });
