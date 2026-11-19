@@ -52,6 +52,12 @@ function harness(file: string, context: object, api: object = {}) {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true, target: ts.ScriptTarget.ES2022,
   } }).outputText, {
     exports: output,
+    // Keep the component's appointment ordering independent of the run hour.
+    Date: class extends Date {
+      constructor(value?: string | number) {
+        super(value === undefined ? `${dates.getIstanbulDate()}T12:00:00+03:00` : value);
+      }
+    },
     require(name: string) {
       if (name === 'react') return react;
       if (name === '../context/AppContext') return { useApp: () => context };
@@ -87,6 +93,9 @@ function change(elements: ElementNode[], id: string, value: string) {
 
 async function run() {
   const today = dates.getIstanbulDate();
+  const orderingFixtures = [{ id:'today', date:today, startTime:'09:00' },{ id:'other', date:'2099-12-31', startTime:'10:00' }];
+  assert.deepEqual(filters.sortAppointmentsForAdmin(orderingFixtures,{date:today,time:'08:00'}).map(x=>x.id),['today','other']);
+  assert.deepEqual(filters.sortAppointmentsForAdmin(orderingFixtures,{date:today,time:'12:00'}).map(x=>x.id),['other','today']);
   const roster = [{ id: 'roster-a', className: '5-A', studentName: 'Student A', parentName: 'Parent A', parentPhone: '', isClaimed: false },
     { id: 'roster-b', className: '6-B', studentName: 'Student B', parentName: 'Parent B', parentPhone: '', isClaimed: false }];
   const admin = harness('src/components/AdminView.tsx', {
