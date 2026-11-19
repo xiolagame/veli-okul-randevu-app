@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
-import fs from 'node:fs';
 import { auditDisplay } from '../src/utils/audit-display';
 import { formatRosterDraftInput, LEGACY_ROSTER_HEADERS, normalizeBirthDate, parseDelimited, rowsToDrafts, validateRosterRow, ROSTER_HEADERS } from '../src/utils/roster-import';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
@@ -31,9 +30,8 @@ async function run() {
   const draft = { fullName: 'Test Person', role: 'security' as const, phone: '0555 123 45 67', email: 'test@example.test', branch: '' };
   assert.deepEqual(validateStaffForm(draft), {});
   assert(validateStaffForm({ ...draft, role: '' }).role);
-  assert.equal(validateStaffForm({ ...draft, email: '' }).email, undefined);
-  assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'' }).email);
-  assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'bad' }).email);
+  assert(validateStaffForm({ ...draft, email: '' }).email);
+  assert(validateStaffForm({ ...draft, email: 'bad' }).email);
   assert(validateStaffForm({ ...draft, role: 'teacher' }).branch);
   assert.deepEqual(auditDisplay('parent.removed', '{"id":"private-user"}'), { label: 'Veli okuldan kaldırıldı.', tone: 'rose', summary: '' });
   assert.deepEqual(auditDisplay('school.code_changed', JSON.stringify({ oldCode: 'OLD123', newCode: 'NEW123' })), { label: 'Okul kodu değiştirildi.', tone: 'info', summary: '' });
@@ -43,8 +41,7 @@ async function run() {
   stage = 'xlsx template and parsing';
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const { readSheet } = await import('read-excel-file/universal');
-  const template = await rosterTemplate(async () => new Response(new Uint8Array(fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'))));
-  assert.deepEqual((await readSheet(template, 'Kayıtlar')).filter((row) => row.some((cell) => cell != null && cell !== '')), [ROSTER_HEADERS]);
+  assert.deepEqual(await readSheet(await rosterTemplate(), 'Kayıtlar'), [ROSTER_HEADERS]);
   const data: import('write-excel-file/universal').SheetData = [LEGACY_ROSTER_HEADERS, ['Test Student', '001', '5-A', 'Test Parent', 5334138206, { value: new Date('2014-03-14T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' }]];
   const arrayBuffer = await (await writeXlsxFile(data, { sheet: 'Kayıtlar' }).toBlob()).arrayBuffer();
   const parsed = await readRosterFile(arrayBuffer, 'test.xlsx');
@@ -58,8 +55,7 @@ async function run() {
   const { getDb } = await import('../server/database/postgres');
   const { createExpressApp } = await import('../server/app');
   const { createToken } = await import('../server/auth');
-  const { userRepository, membershipRepository, auditLogRepository, invitationRepository } = await import('../server/repositories');
-  const { hashActivationCode } = await import('../server/activation-codes');
+  const { userRepository, membershipRepository, auditLogRepository } = await import('../server/repositories');
   const db = await getDb();
   assert.equal(db.engineType, 'PostgreSQL (Embedded Persistent Engine)');
   const schoolA = 'bulk-a-' + crypto.randomUUID(), schoolB = 'bulk-b-' + crypto.randomUUID();
@@ -108,7 +104,7 @@ async function run() {
     stage = 'platform school code ownership';
     process.env.PLATFORM_ADMIN_USER_IDS = admin.id;
     const preflight = await fetch(base + '/platform/schools/' + schoolA + '/code', { method: 'OPTIONS', headers: { origin: 'https://local.test', 'access-control-request-method': 'PATCH', 'access-control-request-headers': 'authorization,content-type' } });
-    assert.equal(preflight.status, 200);
+    assert.equal(preflight.status, 204);
     assert.match(preflight.headers.get('access-control-allow-methods') || '', /PATCH/);
     assert.equal((await request('GET', '/platform/security', admin.token)).status, 200);
     assert.equal((await request('GET', '/platform-target/' + schoolA + '/schools/' + schoolA + '/info', admin.token)).status, 200);
@@ -150,7 +146,7 @@ async function run() {
     const largeBatch = Array.from({ length: 500 }, (_, index) => ({ ...baseRow, studentName: 'Student ' + index + ' ' + 'A'.repeat(120), parentName: 'Parent ' + 'B'.repeat(120), studentNumber: String(index + 100), parentPhone: displayStoredTurkishPhone(rosterPhone) }));
     assert(Buffer.byteLength(JSON.stringify(largeBatch)) > 100 * 1024);
     assert.equal((await request('POST',path,admin.token,{records:largeBatch,preview:true})).status,200);
-    assert.equal((await request('POST',path,admin.token,{records:[...largeBatch,largeBatch[0]],preview:true})).status,200);
+    assert.equal((await request('POST',path,admin.token,{records:[...largeBatch,largeBatch[0]],preview:true})).status,400);
     assert.equal((await request('POST',path,admin.token,{records:[{ ...baseRow, studentName:'A'.repeat(1024 * 1024) }],preview:true})).status,413);
     for (const user of [parent,teacher,security]) assert.equal((await request('POST',path,user.token,payload)).status,403);
     for (const records of [[{...rows[0],birthDate:'31.02.2014'}],[{...rows[0],className:''}],[{...rows[0],parentName:''}],[{...rows[0],studentName:''}],[{...rows[0],parentPhone:'123'}]]) assert.equal((await request('POST',path,admin.token,{records})).status,400);
@@ -179,10 +175,7 @@ async function run() {
     const logs = await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='roster.bulk_imported'",[schoolA]);
     for (const log of logs.rows) assert.deepEqual(Object.keys(JSON.parse(log.details)).sort(),['addedCount','classNames']);
     stage = 'self registration from imported roster';
-    const activationCode = String(crypto.randomInt(100000, 1000000));
-    await invitationRepository.createAuthCode({ schoolId: schoolA, targetPhone: rosterPhone, targetRole: 'parent', purpose: 'ACCOUNT_ACTIVATION',
-      codeHash: hashActivationCode(activationCode), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), token: crypto.randomUUID() });
-    const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,code:activationCode});
+    const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,birthDate:'2014-03-14'});
     if (challenge.status !== 200) {
       const lookupDigits = getTurkishPhoneLookupDigits(normalizeTurkishPhone(rosterPhone)) || [];
       const schoolExists = (await db.query('SELECT id FROM schools WHERE id=$1 AND code=$2', [schoolA, activeSchoolCode])).rows.length === 1;
@@ -193,7 +186,7 @@ async function run() {
       console.error(`Registration challenge diagnostic: HTTP ${challenge.status}; school match=${schoolExists}; eligible roster rows=${matchingRosterCount}; existing phone account=${existingUser}; response keys=${Object.keys(challenge.body).join(',')}`);
     }
     assert.equal(challenge.status,200,`Registration challenge expected HTTP 200, got ${challenge.status}; response keys: ${Object.keys(challenge.body).join(',')}`);
-    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
+    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,birthDate:'2014-03-14',challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
     const newParent = await userRepository.getByPhone(rosterPhone);
     assert(newParent); userIds.push(newParent.id);
     assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE',[schoolA])).rows.length,6);
@@ -212,4 +205,4 @@ async function run() {
     for (const id of userIds) await db.query('DELETE FROM users WHERE id=$1',[id]);
   }
 }
-run().then(() => process.exit(0)).catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exit(1); });
+run().catch((cause: unknown) => { console.error('School/roster/UI test FAILED at stage: ' + stage + '. No credentials or payloads logged.'); if (cause instanceof Error) console.error(cause.stack?.split('\n').find((line) => line.includes('test-school-roster-ui.ts:'))?.trim()); process.exitCode = 1; });

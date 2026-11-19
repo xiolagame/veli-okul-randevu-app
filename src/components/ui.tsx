@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, Check, CheckCircle2, Clock, LogIn, LogOut, X, XCircle, type LucideIcon } from 'lucide-react';
 import type { AppointmentStatus } from '../types';
 import { registerBackHandler } from '../platform/back-navigation';
-import {ThemeSwitcher} from './ThemeSwitcher';
 
-export function Brand({ light = false, showTheme = true }: { light?: boolean; showTheme?: boolean }) {
-  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span>{showTheme && <ThemeSwitcher/>}</div>;
+export function Brand({ light = false }: { light?: boolean }) {
+  return <div className={`brand ${light ? 'brand-light' : ''}`}><img className="brand-logo" src="/branding/veli-randevu-logo.png" alt="" /><span className="brand-name">Veli Randevu</span></div>;
 }
 
 export function Button({ variant = 'primary', className = '', type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'quiet' | 'danger' }) {
@@ -16,10 +15,6 @@ export function Button({ variant = 'primary', className = '', type = 'button', .
 export function Alert({ children, tone = 'info' }: { children: React.ReactNode; tone?: 'info' | 'success' | 'danger' | 'warning' }) {
   const Icon = tone === 'success' ? CheckCircle2 : AlertCircle;
   return <div role={tone === 'danger' ? 'alert' : 'status'} className={`ui-alert tone-${tone}`}><Icon aria-hidden="true" size={19} /><div>{children}</div></div>;
-}
-
-export function RecordAction({ label, icon: Icon, danger = false, ...props }: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & { label: string; icon: LucideIcon; danger?: boolean }) {
-  return <button type="button" {...props} aria-label={label} title={props.title || label} className={`record-action ${danger ? 'record-action-danger' : ''}`}><Icon size={17} aria-hidden="true" /></button>;
 }
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: React.ReactNode; description?: React.ReactNode; action?: React.ReactNode }) {
@@ -44,9 +39,9 @@ export function StatusBadge({ status }: { status: AppointmentStatus }) {
   return <span className={`status-badge tone-${tone}`}><Icon size={14} aria-hidden="true" />{label}</span>;
 }
 
-export function Metric({ label, value, icon: Icon, detail, onClick, actionLabel = 'randevuları göster' }: { label: string; value: React.ReactNode; icon: LucideIcon; detail?: string; onClick?: () => void; actionLabel?: string }) {
+export function Metric({ label, value, icon: Icon, detail, onClick }: { label: string; value: React.ReactNode; icon: LucideIcon; detail?: string; onClick?: () => void }) {
   const content = <><div className="metric-top"><span>{label}</span><Icon size={19} aria-hidden="true" /></div><strong>{value}</strong>{detail && <p>{detail}</p>}</>;
-  return onClick ? <button type="button" className="metric-card metric-card-button" onClick={onClick} aria-label={`${label}: ${value} — ${actionLabel}`}>{content}</button> : <div className="metric-card">{content}</div>;
+  return onClick ? <button type="button" className="metric-card metric-card-button" onClick={onClick} aria-label={`${label}: ${value} — randevuları göster`}>{content}</button> : <div className="metric-card">{content}</div>;
 }
 
 export function RoleNavigation<Tab extends string>({ items, active, onChange }: { items: { id: Tab; label: string; icon: LucideIcon; count?: number }[]; active: Tab; onChange: (tab: Tab) => void }) {

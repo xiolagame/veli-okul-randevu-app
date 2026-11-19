@@ -1,11 +1,11 @@
 import serverless from 'serverless-http';
-import { withLambda } from '@netlify/aws-lambda-compat';
-import { createExpressApp } from '../../server/app';
+import type { Handler } from '@netlify/functions';
+import { createExpressApp, ensureDatabase } from '../../server/app';
 
 const app = createExpressApp();
 const serverlessHandler = serverless(app);
 
-export default withLambda(async (event, context) => {
-  // Express owns initialization and returns a sanitized 503 on connection failure.
+export const handler: Handler = async (event, context) => {
+  await ensureDatabase();
   return serverlessHandler(event, context) as any;
-});
+};

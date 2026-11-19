@@ -1,18 +1,14 @@
-import type { Config } from '@netlify/functions';
+import { schedule } from '@netlify/functions';
 import { ensureDatabase } from '../../server/app';
 import { runAppointmentReminderJob } from '../../server/appointment-reminders';
 import { dispatchPushDeliveries } from '../../server/push-notifications';
 import { runScheduledAppointmentJobs } from '../../server/scheduled-appointment-jobs';
 
-export default async function handler() {
+export const handler = schedule('*/5 * * * *', async () => {
   await ensureDatabase();
   const result = await runScheduledAppointmentJobs({
     runReminders: runAppointmentReminderJob,
     dispatchPush: () => dispatchPushDeliveries(),
   });
-  void result;
-}
-
-export const config: Config = {
-  schedule: '*/5 * * * *',
-};
+  return { statusCode: 200, body: JSON.stringify(result) };
+});

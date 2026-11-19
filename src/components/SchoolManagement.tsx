@@ -10,10 +10,8 @@ import { uppercasePersonNameInput } from '../utils/person-name';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { PlatformRequestCenter } from './PlatformRequestCenter';
-import { PlatformPhoneBinding } from './PlatformPhoneBinding';
-import { LicenseManagement } from './LicenseManagement';
 
-type PlatformManagementSection = 'overview' | 'schools' | 'licenses' | 'requests' | 'security' | 'audit';
+type PlatformManagementSection = 'overview' | 'schools' | 'requests' | 'security' | 'audit';
 
 export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSection = 'overview' }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void>; initialSection?: PlatformManagementSection }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
@@ -90,9 +88,8 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
     </header>
     <div className="space-y-5">
       <nav className="platform-nav" aria-label="Platform yönetimi">
-        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'licenses', label: 'Lisans Yönetimi', Icon: FileText }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}{id === 'requests' && unseenRequests > 0 && <span className="platform-unseen-badge" aria-label={`${unseenRequests} yeni talep`}>{unseenRequests > 99 ? '99+' : unseenRequests}</span>}</button>)}
+        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}{id === 'requests' && unseenRequests > 0 && <span className="platform-unseen-badge" aria-label={`${unseenRequests} yeni talep`}>{unseenRequests > 99 ? '99+' : unseenRequests}</span>}</button>)}
       </nav>
-      {section === 'licenses' && <LicenseManagement/>}
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
       {changed && <Alert tone="success">{changeMessage}</Alert>}
       {section === 'overview' && <><div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}
@@ -116,7 +113,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
         <Button variant={school.disabledAt ? 'secondary' : 'danger'} disabled={busy} onClick={() => { setError(''); setTarget(school); }}>{school.disabledAt ? 'Yeniden etkinleştir' : 'Devre dışı bırak'}</Button>
         {school.disabledAt && <Button variant="danger" disabled={busy} onClick={() => { setError(''); setDeleteConfirmation(''); setDeleteTarget(school); }}><Trash2 size={17} />Okulu Kalıcı Olarak Sil</Button>}
       </article>)}</section>)}
-      {section === 'security' && <><section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section><PlatformPhoneBinding /></>}
+      {section === 'security' && <section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section>}
       {section === 'audit' && <section className="surface"><div className="section-heading"><h3>Platform İşlem Günlüğü</h3><Button variant="danger" disabled={busy} onClick={() => { setClearAuditConfirmation(''); setClearAuditOpen(true); }}>Platform Günlüğünü Temizle</Button></div>{logs.length ? logs.map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName || 'Platform'}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}</section>}
       {section === 'requests' && <PlatformRequestCenter />}
     </div>

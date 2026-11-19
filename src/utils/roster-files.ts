@@ -1,9 +1,5 @@
-import { DelimitedRosterParser, ROSTER_HEADERS, LEGACY_ROSTER_HEADERS, RosterDraft, parseDelimited, rowsToDrafts } from './roster-import';
+import { MAX_ROSTER_FILE_BYTES, MAX_ROSTER_ROWS, ROSTER_HEADERS, parseDelimited, rowsToDrafts } from './roster-import';
 
-export const ROSTER_TEMPLATE_FILENAME = 'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx';
-export const ROSTER_TEMPLATE_URL = '/ogrenci-veli-bilgi-formu.xlsx';
-
-export const XLSX_MEMORY_BUDGET = 128 * 1024 * 1024;
 function checkArchive(buffer: ArrayBuffer) {
   const view = new DataView(buffer);
   let total = 0, entries = 0;
@@ -11,13 +7,13 @@ function checkArchive(buffer: ArrayBuffer) {
     if (view.getUint32(offset, true) !== 0x02014b50) continue;
     total += view.getUint32(offset + 24, true);
     entries++;
-    if (total > XLSX_MEMORY_BUDGET || entries > 1000) throw new Error('Excel dosyası çok büyük veya karmaşık.');
+    if (total > 20 * 1024 * 1024 || entries > 100) throw new Error('Excel dosyası çok büyük veya karmaşık.');
   }
   if (!entries) throw new Error('Geçerli bir XLSX dosyası seçin.');
 }
 
 export async function readRosterFile(buffer: ArrayBuffer, name: string) {
-  if (/\.xlsx$/i.test(name) && buffer.byteLength > XLSX_MEMORY_BUDGET) throw new Error('Excel bellek güvenliği bütçesi aşıldı (128 MiB). CSV kullanın veya dosyayı bölün.');
+  if (buffer.byteLength > MAX_ROSTER_FILE_BYTES) throw new Error('Dosya en fazla 2 MB olabilir.');
   if (/\.csv$/i.test(name)) {
     let text: string;
     try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
@@ -32,7 +28,7 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
   try { sheet = await readSheet(buffer, 'Kayıtlar'); }
   catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
   const columnCount = sheet[0]?.length || 0;
-  if (![5, 6].includes(columnCount) || sheet.some(row => row.length > columnCount)) throw new Error('Kayıtlar sayfasında 5 sütun (eski dosyalarda 6) bulunmalı.');
+  if (sheet.length > MAX_ROSTER_ROWS + 1 || ![5, 6].includes(columnCount) || sheet.some(row => row.length > columnCount)) throw new Error('Kayıtlar sayfasında 5 sütun (eski dosyalarda 6) ve en fazla 500 kayıt olmalı.');
   const rows: string[][] = [];
   sheet.forEach((row) => {
     const cells: string[] = [];
@@ -49,26 +45,16 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
   return rowsToDrafts(rows);
 }
 
-export async function rosterTemplate(load: typeof fetch = fetch) {
-  // The reviewed workbook is the single source of truth, including its formatting.
-  const response = await load(ROSTER_TEMPLATE_URL);
-  if (!response.ok) throw new Error('Şablon indirilemedi. Lütfen tekrar deneyin.');
-  const buffer = await response.arrayBuffer();
-  checkArchive(buffer);
-  return buffer;
-}
-
-export async function readRosterBlob(file:Blob,name:string,progress:(read:number)=>void=()=>{}) {
-  if(!/\.csv$/i.test(name)) {
-    if(file.size>XLSX_MEMORY_BUDGET)throw new Error('Excel bellek güvenliği bütçesi aşıldı (128 MiB). CSV kullanın veya dosyayı bölün.');
-    return readRosterFile(await file.arrayBuffer(),name);
-  }
-  const reader=file.stream().getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
-  let parser:DelimitedRosterParser|undefined,head:string[]|undefined,prefix='',read=0;
-  const drafts:RosterDraft[]=[];
-  const consume=(rows:string[][])=>{for(const row of rows){if(!head){head=row;const expected=head.length===6?LEGACY_ROSTER_HEADERS:ROSTER_HEADERS;if(head.length!==expected.length||!expected.every((h,i)=>head![i].trim()===h))throw new Error('Sütunlar şablonla aynı olmalı.');}else drafts.push(...rowsToDrafts([row],false));}};
-  try {while(true){const part=await reader.read();if(part.done)break;read+=part.value.byteLength;let text=decoder.decode(part.value,{stream:true});if(!parser){prefix+=text;if(!prefix.includes('\n')&&!prefix.includes('\r')){if(prefix.length>4096)throw new Error('CSV başlığı çok uzun.');continue;}const first=prefix.split(/[\r\n]/)[0];parser=new DelimitedRosterParser(first.includes(';')?';':',');text=prefix;prefix='';}consume(parser.feed(text));progress(read);}
-    if(!parser)parser=new DelimitedRosterParser(prefix.includes(';')?';':',');consume(parser.feed(prefix+decoder.decode(),true));
-    if(!drafts.length)throw new Error('En az bir kayıt yükleyin.');return drafts;
-  } catch(error) {if(error instanceof TypeError)throw new Error('CSV dosyasını UTF-8 olarak kaydedin.');throw error;} finally {await reader.cancel();reader.releaseLock();}
+export async function rosterTemplate() {
+  const { default: writeXlsxFile } = await import('write-excel-file/universal');
+  const blob = await writeXlsxFile([
+    { sheet: 'Kayıtlar', data: [ROSTER_HEADERS.map(value => ({ value, type: String, fontWeight: 'bold' as const }))], columns: ROSTER_HEADERS.map((_, index) => ({ width: index === 1 || index === 2 ? 16 : 26 })) },
+    { sheet: 'Açıklamalar', columns: [{ width: 100 }], data: [
+      ['Her öğrenci için kendi satırındaki Sınıf/Şube bilgisini girin. Satırlar karışık sınıflarda olabilir. En fazla 500 kayıt ekleyin.'],
+      ['Sınıf/Şube örneği: 5-A. Telefon metin veya sayı olabilir. Doğum tarihi yeni şablonda istenmez.'],
+      ['Telefon örnekleri: 05334138206, 5334138206, 905334138206 veya +905334138206.'],
+      ['Yalnız Kayıtlar sayfası içe aktarılır. Başlıkları değiştirmeyin.'],
+    ] },
+  ]).toBlob();
+  return blob.arrayBuffer();
 }

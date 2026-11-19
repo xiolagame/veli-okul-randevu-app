@@ -7,7 +7,7 @@ import { closeDatabase } from './server/database/postgres';
 
 async function startServer() {
   const app = createExpressApp();
-  const PORT = 3000;
+  const PORT = 3001;
 
   // Initialize PostgreSQL Database Layer immediately on server startup (fail-fast)
   try {
@@ -37,7 +37,7 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '127.0.0.1', () => {
     console.log(`VELİ Multi-Tenant Server running on http://0.0.0.0:${PORT}`);
   });
 

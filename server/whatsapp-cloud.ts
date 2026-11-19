@@ -1,28 +1,18 @@
 import { normalizeTurkishPhone } from '../src/utils/phone';
 
 const DEFAULT_GRAPH_VERSION = 'v25.0';
-const PROVIDER_TIMEOUT_MS = 8_000;
 const TEMPLATE_NAME = 'kolayokul_onay';
 const TEMPLATE_LANGUAGE = 'tr';
 
 export class WhatsAppConfigurationError extends Error {}
 export class WhatsAppDeliveryError extends Error {}
 
-function isEnabled(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === 'true';
+export function isUnifiedWhatsAppLoginEnabled(): boolean {
+  return isWhatsAppAuthEnabled() && process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED?.trim().toLowerCase() === 'true';
 }
 
 export function isWhatsAppAuthEnabled(): boolean {
-  return isEnabled(process.env.WHATSAPP_AUTH_ENABLED);
-}
-
-export function isUnifiedWhatsAppLoginEnabled(): boolean {
-  return isWhatsAppAuthEnabled() && isEnabled(process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED);
-}
-
-// Feature/format check only. Callers must independently authorize the account or verified operation.
-export function isWhatsAppPhoneEnabled(phone: unknown): boolean {
-  return isWhatsAppAuthEnabled() && normalizeTurkishPhone(phone) !== null;
+  return process.env.WHATSAPP_AUTH_ENABLED?.trim().toLowerCase() === 'true';
 }
 
 function getConfiguration(): { phoneNumberId: string; accessToken: string; graphVersion: string } {
@@ -48,7 +38,6 @@ export async function sendWhatsAppAuthenticationCode(phone: string, code: string
   const { phoneNumberId, accessToken, graphVersion } = getConfiguration();
   const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
     method: 'POST',
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',

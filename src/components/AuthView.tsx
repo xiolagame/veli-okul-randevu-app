@@ -4,15 +4,12 @@ import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Alert, Brand, Button, Dialog } from './ui';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
+import { formatBirthDateInput, parseBirthDateInputToIso } from '../utils/birth-date';
 import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { formatLicenseCodeInput } from '../utils/license-code';
 import { getRuntimePlatform } from '../platform/runtime-platform';
-import { setAndroidLoginSurface } from '../platform/android-system-bars';
 import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
 import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
-import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
-import {ReviewLogin} from './ReviewLogin';
-import { allowLegacyPhoneFallback, resolveLoginEntry } from '../platform/login-capability-policy';
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -26,17 +23,13 @@ type ParentFlow = 'registration' | 'reset' | null;
 type StaffResetStep = 'request' | 'verify' | 'password' | null;
 type SchoolAdminStep = 'verify' | 'password' | null;
 type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
-type PasswordLoginMode = 'standard' | 'platform' | null;
 
 export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
   const { login, authStorageError, accountDeletionNotice } = useApp();
   const [showPassword, setShowPassword] = useState(false);
   const [whatsappAuthEnabled, setWhatsappAuthEnabled] = useState(false);
   const [unifiedLoginEnabled, setUnifiedLoginEnabled] = useState(false);
-  const [phoneCentricAuthEnabled, setPhoneCentricAuthEnabled] = useState(false);
-  const [capabilitiesStatus, setCapabilitiesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
-  const [passwordLoginMode, setPasswordLoginMode] = useState<PasswordLoginMode>(null);
+  const [usePasswordLogin, setUsePasswordLogin] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [codeFlow, setCodeFlow] = useState<CodeFlow>(null);
@@ -51,7 +44,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [parentFlow, setParentFlow] = useState<ParentFlow>(null);
   const [parentChallenge, setParentChallenge] = useState('');
   const [parentSchoolCode, setParentSchoolCode] = useState('');
-  const [parentCode, setParentCode] = useState('');
+  const [parentBirthDate, setParentBirthDate] = useState('');
   const [parentSchoolId, setParentSchoolId] = useState('');
   const [staffSetupToken, setStaffSetupToken] = useState('');
   const [resolvedStaffSchoolId, setResolvedStaffSchoolId] = useState('');
@@ -72,47 +65,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const phoneRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const loginButtonRef = useRef<HTMLButtonElement>(null);
-  const passwordLoginPending = useRef(false);
   const authSideRef = useRef<HTMLElement>(null);
-  const loginEntry = resolveLoginEntry(getRuntimePlatform(), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null);
-  // iOS may collect the phone while capabilities load; sending remains gated.
-  const usePhoneCentricLogin = loginEntry === 'phone' || (getRuntimePlatform() === 'IOS' && (capabilitiesStatus === 'loading' || capabilitiesStatus === 'error'));
-
-  useEffect(() => {
-    if (getRuntimePlatform() !== 'ANDROID') return;
-    setAndroidLoginSurface(true);
-    return () => setAndroidLoginSurface(false);
-  }, []);
 
   useEffect(() => {
     let active = true;
-    let completed = false;
-    const controller = getRuntimePlatform() === 'IOS' ? new AbortController() : undefined;
-    const timeout = controller ? window.setTimeout(() => {
-      if (!active || completed) return;
-      completed = true;
-      setCapabilitiesStatus('error');
-      controller.abort();
-    }, 8000) : undefined;
-    setCapabilitiesStatus('loading');
-    api.getAuthCapabilities(controller?.signal).then((result) => {
-      if (!active || completed) return;
-      if (getRuntimePlatform() !== 'WEB' && (
-        typeof result?.whatsappAuthEnabled !== 'boolean' ||
-        (result.unifiedLoginEnabled !== undefined && typeof result.unifiedLoginEnabled !== 'boolean') ||
-        (result.phoneCentricAuthEnabled !== undefined && typeof result.phoneCentricAuthEnabled !== 'boolean')
-      )) throw new Error('Invalid authentication capabilities');
-      if (active) {
-        completed = true;
-        window.clearTimeout(timeout);
-        setWhatsappAuthEnabled(result.whatsappAuthEnabled);
-        setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
-        setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled && (getRuntimePlatform() !== 'IOS' || result.whatsappAuthEnabled));
-        setCapabilitiesStatus('ready');
-      }
-    }).catch(() => { if (active && !completed) { completed = true; window.clearTimeout(timeout); setCapabilitiesStatus('error'); } });
-    return () => { active = false; window.clearTimeout(timeout); controller?.abort(); };
-  }, [capabilitiesRetry]);
+    api.getAuthCapabilities().then((result) => {
+      if (active) {setWhatsappAuthEnabled(result.whatsappAuthEnabled);setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);}
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (getRuntimePlatform() !== 'IOS') return;
@@ -123,8 +84,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       const inset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
       authSideRef.current?.style.setProperty('--auth-keyboard-inset', `${inset}px`);
       const focused = document.activeElement;
-      if (!(focused instanceof HTMLElement) || !authSideRef.current?.contains(focused) || !focused.matches('input, select, textarea, button')) return;
-      const bottom = focused.getBoundingClientRect().bottom;
+      if (focused !== phoneRef.current && focused !== passwordRef.current) return;
+      const target = focused === phoneRef.current ? passwordRef.current : loginButtonRef.current;
+      const bottom = target?.getBoundingClientRect().bottom ?? 0;
       const visibleBottom = viewport.offsetTop + viewport.height;
       if (bottom > visibleBottom - 20) window.scrollBy(0, bottom - visibleBottom + 20);
     };
@@ -134,14 +96,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     };
     viewport.addEventListener('resize', updateViewport);
     viewport.addEventListener('scroll', updateViewport);
-    const authSide = authSideRef.current;
-    authSide?.addEventListener('focusin', onFocus);
+    phoneRef.current?.addEventListener('focus', onFocus);
+    passwordRef.current?.addEventListener('focus', onFocus);
     updateViewport();
     return () => {
       window.clearTimeout(focusTimer);
       viewport.removeEventListener('resize', updateViewport);
       viewport.removeEventListener('scroll', updateViewport);
-      authSide?.removeEventListener('focusin', onFocus);
+      phoneRef.current?.removeEventListener('focus', onFocus);
+      passwordRef.current?.removeEventListener('focus', onFocus);
     };
   }, []);
 
@@ -167,7 +130,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     setParentFlow(null);
     setParentChallenge('');
     setParentSchoolCode('');
-    setParentCode('');
+    setParentBirthDate('');
     setParentSchoolId('');
     setNewPassword('');
     setPasswordConfirmation('');
@@ -181,21 +144,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     setError('');
     const normalizedPhone = normalizeUserPhoneInput(codePhone);
     if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    if (!/^\d{6}$/.test(parentCode)) { setError('Okul yönetiminizden aldığınız 6 haneli kodu girin.'); return; }
+    const birthDate = parseBirthDateInputToIso(parentBirthDate);
+    if (!birthDate) { setError('Doğum tarihini GG/AA/YYYY biçiminde kontrol edin.'); return; }
     setIsSubmitting(true);
     try {
       if (!parentChallenge) {
         const result = parentFlow === 'registration'
-          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, parentCode)
-          : await api.parentResetChallenge(parentSchoolCode, codePhone, parentCode);
+          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, birthDate)
+          : await api.parentResetChallenge(parentSchoolCode, codePhone, birthDate);
         setParentChallenge(result.challenge);
         setParentSchoolId(result.schoolId);
         return;
       }
       if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
       const result = parentFlow === 'registration'
-        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, parentChallenge, newPassword)
-        : await api.parentResetComplete(parentSchoolId, codePhone, parentChallenge, newPassword);
+        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword)
+        : await api.parentResetComplete(parentSchoolId, codePhone, birthDate, parentChallenge, newPassword);
       setPhone(displayStoredTurkishPhone(normalizedPhone));
       closeParentFlow();
       setSuccessMessage(result.message);
@@ -303,7 +267,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (passwordLoginPending.current) return;
     setError('');
     setSuccessMessage('');
     const normalizedPhone = normalizeUserPhoneInput(phone);
@@ -311,7 +274,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
       setError('Geçerli bir Türkiye GSM numarası girin.');
       return;
     }
-    passwordLoginPending.current = true;
     setIsSubmitting(true);
     try {
       const result = await login(phone, password);
@@ -323,7 +285,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
     } catch {
       setError('Güvenli oturum başlatılamadı. Lütfen tekrar deneyin.');
     } finally {
-      passwordLoginPending.current = false;
       setIsSubmitting(false);
     }
   };
@@ -393,24 +354,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         </div>
         <div className="auth-footnote"><ShieldCheck size={18} />Okulunuzla güvenli ve düzenli iletişim.</div>
       </aside>
-      <main className={`auth-form-side${getRuntimePlatform() === 'IOS' ? ' auth-form-side-ios' : ''}${usePhoneCentricLogin ? ' auth-form-side-phone' : ''}`} ref={authSideRef}>
-        <div className={`auth-form-wrap${usePhoneCentricLogin ? ' auth-form-wrap-phone' : ''}`}>
+      <main className={`auth-form-side${getRuntimePlatform() === 'IOS' ? ' auth-form-side-ios' : ''}`} ref={authSideRef}>
+        <div className="auth-form-wrap">
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
-          <h2 id="auth-heading">{passwordLoginMode ? 'Tekrar merhaba.' : 'Okulunuza Hoş Geldiniz'}</h2>
-          {capabilitiesStatus === 'ready' && !usePhoneCentricLogin && <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>}
+          <h2>Tekrar merhaba.</h2>
+          <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>
           {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
           {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
           {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
           {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'error' && <Alert tone="danger">Giriş seçenekleri alınamadı. Bağlantınızı kontrol edip tekrar deneyin. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>}
-          {!usePhoneCentricLogin && (loginEntry === 'loading' || loginEntry === 'error') ? (loginEntry === 'loading'
-            ? <p role="status">Giriş seçenekleri yükleniyor…</p>
-            : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
-            : loginEntry === 'unavailable' ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={allowLegacyPhoneFallback(getRuntimePlatform())} requestEnabled={getRuntimePlatform() !== 'IOS' || (capabilitiesStatus === 'ready' && whatsappAuthEnabled && phoneCentricAuthEnabled)} checkingCapabilities={getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'loading'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
-            ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
-            : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
-          {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}
+          {whatsappAuthEnabled && !usePasswordLogin ? (unifiedLoginEnabled
+            ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setUsePasswordLogin(true)} />
+            : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setUsePasswordLogin(true)} />) : <>
           <form onSubmit={handleLogin} className="form-stack">
             <label className="field" htmlFor="login-phone">Telefon numaranız
               <div className="field-icon"><Phone size={18} aria-hidden="true" /><input ref={phoneRef} id="login-phone" type="tel" inputMode="numeric" enterKeyHint="next" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); passwordRef.current?.focus(); } }} placeholder="0555 123 45 67" required /></div>
@@ -419,17 +375,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
               <label htmlFor="login-password">Parolanız</label>
               <div className="field-icon"><Lock size={18} aria-hidden="true" /><input ref={passwordRef} id="login-password" type={showPassword ? 'text' : 'password'} enterKeyHint="go" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Parolanızı girin" required /><button type="button" className="icon-button" aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
               <button type="button" onClick={() => setShowResetChoices((shown) => !shown)} className="text-sm text-blue-700 font-semibold self-end">Şifremi unuttum</button>
-              {showResetChoices && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Şifre sıfırlama hesap türü"><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setParentFlow('reset'); setCodePhone(phone); }}>Veli</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setSchoolAdminResetStep('request'); setCodePhone(phone); }}>Okul Yöneticisi</button></div>}
+              {showResetChoices && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Şifre sıfırlama hesap türü"><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setParentFlow('reset'); setCodePhone(phone); }}>Veli</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setStaffResetStep('request'); setCodePhone(phone); }}>Personel</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setSchoolAdminResetStep('request'); setCodePhone(phone); }}>Okul Yöneticisi</button></div>}
             </div>
             <button ref={loginButtonRef} className="ui-button ui-button-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}<ArrowRight size={18} /></button>
           </form>
           <div className="auth-divider">İlk kez mi buradasınız?</div>
           <Button variant="secondary" className="w-full" onClick={() => { setParentFlow('registration'); setCodePhone(phone); }}><Users size={18} />Veli Hesabı Oluştur</Button>
+          <button type="button" onClick={() => openCodeFlow('activation')} className="mt-4 w-full text-sm font-semibold text-blue-700">Personel İlk Giriş</button>
           <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
-          {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setPasswordLoginMode(null)}>WhatsApp ile girişe dön</button>}
+          {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setUsePasswordLogin(false)}>WhatsApp ile girişe dön</button>}
           </>}
-          {import.meta.env?.VITE_REVIEW_API_ORIGIN&&<ReviewLogin/>}
-          <button type="button" className="auth-help-link" onClick={onOpenHelp} aria-label="Yardım, Kullanım Rehberi ve Yasal Bilgiler"><span className="auth-help-label-full">Yardım, Kullanım Rehberi ve Yasal Bilgiler</span><span className="auth-help-label-android" aria-hidden="true">Yardım ve yasal bilgiler</span><ArrowRight size={16} aria-hidden="true" /></button>
+          <button type="button" className="auth-help-link" onClick={onOpenHelp}>Yardım, Kullanım Rehberi ve Yasal Bilgiler<ArrowRight size={16} /></button>
           <div className="public-request-cta">
             <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
             <Button variant="secondary" className="w-full" onClick={onOpenPublicRequest}>Lisans / İletişim<ArrowRight size={17} /></Button>
@@ -448,13 +404,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <div className="form-actions"><Button variant="secondary" disabled={isSubmitting} onClick={closeCodeFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffSetupToken ? 'Hesabı Aktifleştir' : 'Kodu Doğrula'}</Button></div>
         </form>
       </Dialog>}
-      {parentFlow && <Dialog title={parentFlow === 'registration' ? 'Hesabınızı oluşturun' : 'Şifrenizi sıfırlayın'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeParentFlow} dismissible={!isSubmitting}>
+      {parentFlow && <Dialog title={parentFlow === 'registration' ? 'Hesabınızı oluşturun' : 'Şifrenizi sıfırlayın'} description="Okul kaydını telefon numarası ve öğrencinizin doğum tarihiyle doğrulayın." onClose={closeParentFlow} dismissible={!isSubmitting}>
         <form onSubmit={submitParentFlow} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}
           {!parentChallenge ? <>
             <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(normalizeSchoolCodeInput(event.target.value))} required /></label>
             <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
-            <label className="field">6 Haneli Güvenlik Kodu<input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={parentCode} onChange={(event) => setParentCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>
+            <label className="field">Öğrencinizin Doğum Tarihi<input type="text" inputMode="numeric" maxLength={10} placeholder="GG/AA/YYYY" value={parentBirthDate} onChange={(event) => setParentBirthDate(formatBirthDateInput(event.target.value))} required /></label>
           </> : <>
             <label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label>
             <label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>
@@ -462,7 +418,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
           <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeParentFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : parentChallenge ? parentFlow === 'registration' ? 'Hesabı Oluştur' : 'Şifremi Güncelle' : 'Devam Et'}</Button></div>
         </form>
       </Dialog>}
-
+      {staffResetStep && <Dialog title="Personel şifre sıfırlama" description="Sıfırlama kodu kayıtlı personel e-posta adresine gönderilir." onClose={closeStaffReset} dismissible={!isSubmitting}>
+        <form onSubmit={submitStaffReset} className="form-stack">
+          {error && <Alert tone="danger">{error}</Alert>}
+          <label className="field">Okul Kodu<input value={staffResetSchoolCode} onChange={(event) => setStaffResetSchoolCode(normalizeSchoolCodeInput(event.target.value))} required readOnly={staffResetStep !== 'request'} /></label>
+          <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required readOnly={staffResetStep !== 'request'} /></label>
+          {staffResetStep === 'verify' && <label className="field">6 haneli sıfırlama kodu<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g,'').slice(0,6))} required /></label>}
+          {staffResetStep === 'password' && <><label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label><label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}
+          <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeStaffReset}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffResetStep === 'request' ? 'Sıfırlama Kodu Gönder' : staffResetStep === 'verify' ? 'Kodu Doğrula' : 'Şifremi Güncelle'}</Button></div>
+        </form>
+      </Dialog>}
       {schoolAdminActivationStep && <Dialog title="Okul Yöneticisi İlk Giriş" description="Platform yönetiminin okulunuz için gönderdiği tek kullanımlık kodla hesabınızı etkinleştirin." onClose={closeSchoolAdminActivation} dismissible={!isSubmitting}>
         <form onSubmit={submitSchoolAdminActivation} className="form-stack">
           {error && <Alert tone="danger">{error}</Alert>}

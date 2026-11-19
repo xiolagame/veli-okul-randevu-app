@@ -175,8 +175,19 @@ async function run() {
     const oldToken = String(login.body.token);
     const secondInvite = await request('POST', `/schools/${createdSchoolId}/management/admins`, oldToken,
       { fullName: 'İkinci Yönetici', phone: otherPhone, email: 'second@example.test' });
-    assert.equal(secondInvite.status, 409, 'a school with a real active manager must reject another manager invitation');
-    assert.equal(await userRepository.getByPhone(otherPhone), null, 'rejected manager invitation must not create an orphan user');
+    assert.equal(secondInvite.status, 201, 'active school manager must be able to invite another manager');
+    const secondActivationCode = emailCode(2);
+    const secondVerify = await request('POST', '/auth/school-admin/activation-verify', undefined,
+      { schoolCode, phone: otherPhone, code: secondActivationCode });
+    assert.equal(secondVerify.status, 200);
+    assert.equal((await request('POST', '/auth/school-admin/activation-complete', undefined,
+      { schoolId: createdSchoolId, phone: otherPhone, setupToken: secondVerify.body.setupToken, password: 'Ab123' })).status, 200,
+      'second school manager activation must succeed');
+    const secondManager = await userRepository.getByPhone(otherPhone);
+    assert(secondManager);
+    assert.equal((await db.query("SELECT user_id FROM school_memberships WHERE school_id=$1 AND role='admin' AND status='active'", [createdSchoolId])).rows.filter((row) => row.user_id !== platformUser.id).length, 2);
+    assert((await db.query('SELECT password_hash FROM users WHERE id=$1', [secondManager.id])).rows[0].password_hash,
+      'second activation must set a password');
     assert.equal((await request('POST', `/platform/schools/${createdSchoolId}/admin-invitation`, platformToken,
       { fullName: 'İkinci Yönetici', phone: otherPhone, email: 'second@example.test' })).status, 409, 'active manager identity cannot receive a duplicate invitation');
     assert.equal((await request('POST', `/platform/schools/${otherSchoolId}/admin-invitation`, platformToken,
@@ -185,20 +196,26 @@ async function run() {
     assert.equal((await request('GET', `/schools/${otherSchoolId}/info`, oldToken)).status, 403);
     const managedAdmins = await request('GET', `/schools/${createdSchoolId}/management/admins`, oldToken);
     assert.equal(managedAdmins.status, 200);
-    assert.equal((managedAdmins.body.admins as unknown[]).length, 1);
+    assert.equal((managedAdmins.body.admins as unknown[]).length, 2);
+    assert.equal((await request('PATCH', `/schools/${createdSchoolId}/management/admins/${secondManager.id}`, oldToken,
+      { fullName: 'İkinci Yönetici Güncel', phone: otherPhone, email: 'second-updated@example.test' })).status, 200);
+    assert.equal((await db.query('SELECT email FROM users WHERE id=$1', [secondManager.id])).rows[0].email, 'second-updated@example.test');
     assert.equal((await request('GET', `/schools/${otherSchoolId}/management/admins`, oldToken)).status, 403);
     assert.equal((await request('GET', `/platform-target/${createdSchoolId}/schools/${createdSchoolId}/management/admins`, platformToken)).status, 200);
     assert.equal((await request('GET', `/platform-target/${createdSchoolId}/schools/${createdSchoolId}/management/admins`, oldToken)).status, 403);
+    assert.equal((await request('DELETE', `/schools/${createdSchoolId}/management/admins/${secondManager.id}`, oldToken)).status, 200);
     const pendingRemovalPhone = `+905${crypto.randomInt(100000000, 999999999)}`;
     usersToClean.push(pendingRemovalPhone);
     assert.equal((await request('POST', `/schools/${createdSchoolId}/management/admins`, oldToken,
-      { fullName: 'Silinecek Yönetici', phone: pendingRemovalPhone, email: `pending-remove-${suffix}@example.test` })).status, 409);
+      { fullName: 'Silinecek Yönetici', phone: pendingRemovalPhone, email: `pending-remove-${suffix}@example.test` })).status, 201);
     const pendingRemovalUser = await userRepository.getByPhone(pendingRemovalPhone);
-    assert.equal(pendingRemovalUser, null);
-    const lastManagerRemoval = await request('DELETE', `/schools/${createdSchoolId}/management/admins/${managerId}`, oldToken);
-    assert.equal(lastManagerRemoval.status, 409, 'last active school manager must not be removable');
-    assert.equal(lastManagerRemoval.body.error,
-      'Okulun tek etkin yöneticisi kaldırılamaz. Yönetici değişikliği için platform desteğine başvurun.');
+    assert(pendingRemovalUser);
+    assert.equal((await request('DELETE', `/schools/${createdSchoolId}/management/admins/${pendingRemovalUser.id}`, oldToken)).status, 200);
+    assert.equal(await userRepository.getById(pendingRemovalUser.id), null, 'removed pending-only admin user must not remain orphaned');
+    const afterPendingRemoval = await request('GET', `/schools/${createdSchoolId}/management/admins`, oldToken);
+    assert.equal((afterPendingRemoval.body.admins as Array<{ id: string }>).some((entry) => entry.id === pendingRemovalUser.id), false);
+    assert.equal((await request('DELETE', `/schools/${createdSchoolId}/management/admins/${managerId}`, oldToken)).status, 409,
+      'last active school manager must not be removable');
 
     await db.query('UPDATE users SET email=$2 WHERE id=$1', [platformUser.id, 'platform@example.test']);
     const emailCount = sentEmails.length;
@@ -292,7 +309,7 @@ async function run() {
 
     const nonPlatform = await request('GET', '/platform/schools', undefined);
     assert.equal(nonPlatform.status, 401);
-    console.log('School admin provisioning: platform separation, single-admin invariant, purpose-scoped activation, tenant isolation, reset invalidation and email-failure safety PASS.');
+    console.log('School admin provisioning: platform separation, multi-admin lifecycle, purpose-scoped activation, tenant isolation, reset invalidation and email-failure safety PASS.');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     globalThis.fetch = originalFetch;

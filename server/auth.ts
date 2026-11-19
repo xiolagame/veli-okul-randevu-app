@@ -19,10 +19,9 @@ export interface AuthUser {
   lastName: string;
   isPhoneVerified: boolean;
   authMethod: AuthMethod;
-  authVersion: number;
 }
 
-export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'phone_centric' | 'phone_centric_platform' | 'quick_switch' | 'legacy_password';
+export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'quick_switch' | 'legacy_password';
 
 export interface AuthTokenPayload {
   userId: string;
@@ -82,7 +81,7 @@ export function verifyToken(token: string): AuthTokenPayload | null {
       typeof payload?.userId !== 'string' ||
       typeof payload.phone !== 'string' ||
       !Number.isInteger(payload.auth_version) ||
-      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'phone_centric', 'phone_centric_platform', 'quick_switch'].includes(payload.auth_method))
+      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'quick_switch'].includes(payload.auth_method))
     ) {
       return null;
     }
@@ -124,7 +123,6 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       lastName: user.lastName,
       isPhoneVerified: !!user.isPhoneVerified,
       authMethod: payload.auth_method,
-      authVersion: user.authVersion,
     };
 
     next();
@@ -144,8 +142,7 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
       }
 
       // Determine target schoolId: route param takes precedence when present
-      if (Array.isArray(req.params.schoolId)) return res.status(400).json({error:'Geçersiz okul bağlamı.'});
-      const routeSchoolId = typeof req.params.schoolId === 'string' ? req.params.schoolId : undefined;
+      const routeSchoolId = req.params.schoolId;
       const headerSchoolId = req.headers['x-school-id'] as string;
 
       if (routeSchoolId && headerSchoolId && routeSchoolId !== headerSchoolId) {
@@ -161,15 +158,13 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
       }
 
       const platformContext = req.platformTargetSchoolId === schoolId && canUsePlatformAuthority(req.user);
-      const requestedRole = req.header('X-School-Role');
       let membership: SchoolMembership | null = null;
       if (!platformContext) {
-        if (req.user.authMethod === 'whatsapp_otp' || req.user.authMethod === 'whatsapp_admin' || req.user.authMethod === 'phone_centric' || requestedRole) {
-          const eligibleRoles: UserRole[] = req.user.authMethod === 'whatsapp_admin' ? ['admin'] : req.user.authMethod === 'whatsapp_otp' ? ['parent', 'teacher', 'security'] : ['parent','teacher','security','admin'];
+        if (req.user.authMethod === 'whatsapp_otp' || req.user.authMethod === 'whatsapp_admin') {
+          const eligibleRoles: UserRole[] = req.user.authMethod === 'whatsapp_admin' ? ['admin'] : ['parent', 'teacher', 'security'];
           const memberships = await membershipRepository.getMembershipsByUserId(req.user.id);
           membership = memberships.find((entry) =>
-            entry.schoolId === schoolId && entry.status === 'active' && eligibleRoles.includes(entry.role)
-            && (!requestedRole || entry.role === requestedRole) && (!allowedRoles?.length || allowedRoles.includes(entry.role))) || null;
+            entry.schoolId === schoolId && eligibleRoles.includes(entry.role) && (!allowedRoles?.length || allowedRoles.includes(entry.role))) || null;
           if (membership && (!await schoolRepository.getById(schoolId) || !await schoolLicenseRepository.isAccessAllowed(schoolId))) membership = null;
         } else {
           membership = await requireSchoolMembership(req.user.id, schoolId);
@@ -183,10 +178,6 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
       }
 
       const role = platformContext ? 'admin' : membership!.role;
-      if (!platformContext && ['teacher','security'].includes(role)
-        && ['password','legacy_password'].includes(req.user.authMethod)) {
-        return res.status(403).json({ error: 'Personel erişimi için WhatsApp doğrulaması gerekir.' });
-      }
       if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
         return res.status(403).json({
           error: `Erişim Reddedildi: Bu işlem için yetkiniz (${role}) yetersizdir. Gerekli rol: ${allowedRoles.join(', ')}`,
@@ -205,9 +196,8 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
   };
 }
 
-export function canUsePlatformAuthority(user: Pick<AuthUser,'id'|'authMethod'> | undefined): boolean {
-  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' &&
-    user.authMethod !== 'phone_centric' && isPlatformAdmin(user.id);
+export function canUsePlatformAuthority(user: AuthUser | undefined): boolean {
+  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' && isPlatformAdmin(user.id);
 }
 
 // ==============================================================================
