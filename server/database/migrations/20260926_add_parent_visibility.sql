@@ -1,2 +1,0 @@
-ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hidden_for_parent_at TIMESTAMPTZ;
-ALTER TABLE notifications ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ;

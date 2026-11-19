@@ -45,11 +45,6 @@ dump.rdb
 # System files
 .DS_Store
 *.pem
-*.p8
-*.p12
-*.cer
-*.csr
-*.mobileprovision
 
 # Python
 __pycache__/
@@ -68,10 +63,6 @@ chainlit.md
 
 # Data and databases
 agenthub/agents/youtube/db
-/server/data/postgres_db/
-/.npm-cache/
-
-# Keep the npm and Bun lockfiles in sync with package.json.
 
 # Archive files and large assets
 **/*.zip
@@ -84,7 +75,6 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
-/supabase/.temp/
 
 memory/test_credentials.md
 
@@ -94,24 +84,5 @@ android-sdk/
 .env.*
 *.env
 credentials.json
-**/*service-account*.json
-**/*firebase-admin*.json
-ios/App/App/GoogleService-Info.plist
 *.key
 .credentials
-
-# Local Netlify folder
-.netlify
-
-# Local databases, test outputs and generated audit evidence must not be staged.
-/server/data/
-/audit/**
-!/audit/production-source-manifest.json
-!/audit/ios-source-lock.json
-*.ipa
-*.pfx
-
-!/audit/license-reminder-overlay.json
-!/audit/staff-otp-overlay.json
-/previews/
-/*-final.log

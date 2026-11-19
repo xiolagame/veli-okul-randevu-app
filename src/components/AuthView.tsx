@@ -1,491 +1,520 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { KeyRound, Lock, Phone, ShieldCheck, Eye, EyeOff, ArrowRight, BadgeHelp, Calendar, Users, Check } from 'lucide-react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../services/api';
-import { Alert, Brand, Button, Dialog } from './ui';
-import { displayStoredTurkishPhone, formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
-import { normalizeSchoolCodeInput } from '../utils/school-code';
-import { formatLicenseCodeInput } from '../utils/license-code';
-import { getRuntimePlatform } from '../platform/runtime-platform';
-import { setAndroidLoginSurface } from '../platform/android-system-bars';
-import { WhatsAppAuthPanel } from './WhatsAppAuthPanel';
-import { UnifiedWhatsAppLoginPanel } from './UnifiedWhatsAppLoginPanel';
-import { PhoneCentricLoginPanel } from './PhoneCentricLoginPanel';
-import {ReviewLogin} from './ReviewLogin';
-import { allowLegacyPhoneFallback, resolveLoginEntry } from '../platform/login-capability-policy';
+import { UserRole } from '../types';
+import { SECURITY_QUESTIONS_LIST } from '../data/mockData';
+import { Phone, Lock, User as UserIcon, Shield, ArrowRight, HelpCircle, CheckCircle2, AlertCircle, QrCode } from 'lucide-react';
 
 interface AuthViewProps {
   onSuccess?: () => void;
   onOpenOnboarding?: () => void;
-  onOpenPublicRequest: () => void;
-  onOpenHelp: () => void;
 }
 
-type CodeFlow = 'activation' | 'reset' | null;
-type ParentFlow = 'registration' | 'reset' | null;
-type StaffResetStep = 'request' | 'verify' | 'password' | null;
-type SchoolAdminStep = 'verify' | 'password' | null;
-type SchoolAdminResetStep = 'request' | 'verify' | 'password' | null;
-type PasswordLoginMode = 'standard' | 'platform' | null;
+export const AuthView: React.FC<AuthViewProps> = ({ onOpenOnboarding }) => {
+  const { login, registerUser, users, resetUserPassword, settings } = useApp();
+  const [isRegister, setIsRegister] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
-export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenHelp }) => {
-  const { login, authStorageError, accountDeletionNotice } = useApp();
-  const [showPassword, setShowPassword] = useState(false);
-  const [whatsappAuthEnabled, setWhatsappAuthEnabled] = useState(false);
-  const [unifiedLoginEnabled, setUnifiedLoginEnabled] = useState(false);
-  const [phoneCentricAuthEnabled, setPhoneCentricAuthEnabled] = useState(false);
-  const [capabilitiesStatus, setCapabilitiesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
-  const [passwordLoginMode, setPasswordLoginMode] = useState<PasswordLoginMode>(null);
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [codeFlow, setCodeFlow] = useState<CodeFlow>(null);
-  const [schoolId, setSchoolId] = useState('');
-  const [codePhone, setCodePhone] = useState('');
-  const [code, setCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  // Login form state
+  const [phone, setPhone] = useState('+905551234567');
+  const [password, setPassword] = useState('12345678');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('parent');
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [parentFlow, setParentFlow] = useState<ParentFlow>(null);
-  const [parentChallenge, setParentChallenge] = useState('');
-  const [parentSchoolCode, setParentSchoolCode] = useState('');
-  const [parentCode, setParentCode] = useState('');
-  const [parentSchoolId, setParentSchoolId] = useState('');
-  const [staffSetupToken, setStaffSetupToken] = useState('');
-  const [resolvedStaffSchoolId, setResolvedStaffSchoolId] = useState('');
-  const [showResetChoices, setShowResetChoices] = useState(false);
-  const [staffResetStep, setStaffResetStep] = useState<StaffResetStep>(null);
-  const [staffResetSchoolCode, setStaffResetSchoolCode] = useState('');
-  const [staffResetChallenge, setStaffResetChallenge] = useState('');
-  const [staffResetSchoolId, setStaffResetSchoolId] = useState('');
-  const [schoolAdminActivationStep, setSchoolAdminActivationStep] = useState<SchoolAdminStep>(null);
-  const [schoolAdminSchoolCode, setSchoolAdminSchoolCode] = useState('');
-  const [schoolAdminLicenseCode, setSchoolAdminLicenseCode] = useState('');
-  const [schoolAdminSetupToken, setSchoolAdminSetupToken] = useState('');
-  const [schoolAdminSchoolId, setSchoolAdminSchoolId] = useState('');
-  const [schoolAdminResetStep, setSchoolAdminResetStep] = useState<SchoolAdminResetStep>(null);
-  const [schoolAdminResetSchoolCode, setSchoolAdminResetSchoolCode] = useState('');
-  const [schoolAdminResetSetupToken, setSchoolAdminResetSetupToken] = useState('');
-  const [schoolAdminResetSchoolId, setSchoolAdminResetSchoolId] = useState('');
-  const phoneRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
-  const loginButtonRef = useRef<HTMLButtonElement>(null);
-  const passwordLoginPending = useRef(false);
-  const authSideRef = useRef<HTMLElement>(null);
-  const loginEntry = resolveLoginEntry(getRuntimePlatform(), capabilitiesStatus, phoneCentricAuthEnabled, passwordLoginMode !== null);
-  // iOS may collect the phone while capabilities load; sending remains gated.
-  const usePhoneCentricLogin = loginEntry === 'phone' || (getRuntimePlatform() === 'IOS' && (capabilitiesStatus === 'loading' || capabilitiesStatus === 'error'));
+  const [successMsg, setSuccessMsg] = useState('');
 
-  useEffect(() => {
-    if (getRuntimePlatform() !== 'ANDROID') return;
-    setAndroidLoginSurface(true);
-    return () => setAndroidLoginSurface(false);
-  }, []);
+  // Register form state
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [regPhone, setRegPhone] = useState('+905');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<UserRole>('parent');
+  const [branch, setBranch] = useState('Matematik');
+  const [studentName, setStudentName] = useState('');
+  const [className, setClassName] = useState('7-A');
+  const [securityQuestion, setSecurityQuestion] = useState(SECURITY_QUESTIONS_LIST[0]);
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
-  useEffect(() => {
-    let active = true;
-    let completed = false;
-    const controller = getRuntimePlatform() === 'IOS' ? new AbortController() : undefined;
-    const timeout = controller ? window.setTimeout(() => {
-      if (!active || completed) return;
-      completed = true;
-      setCapabilitiesStatus('error');
-      controller.abort();
-    }, 8000) : undefined;
-    setCapabilitiesStatus('loading');
-    api.getAuthCapabilities(controller?.signal).then((result) => {
-      if (!active || completed) return;
-      if (getRuntimePlatform() !== 'WEB' && (
-        typeof result?.whatsappAuthEnabled !== 'boolean' ||
-        (result.unifiedLoginEnabled !== undefined && typeof result.unifiedLoginEnabled !== 'boolean') ||
-        (result.phoneCentricAuthEnabled !== undefined && typeof result.phoneCentricAuthEnabled !== 'boolean')
-      )) throw new Error('Invalid authentication capabilities');
-      if (active) {
-        completed = true;
-        window.clearTimeout(timeout);
-        setWhatsappAuthEnabled(result.whatsappAuthEnabled);
-        setUnifiedLoginEnabled(!!result.unifiedLoginEnabled);
-        setPhoneCentricAuthEnabled(!!result.phoneCentricAuthEnabled && (getRuntimePlatform() !== 'IOS' || result.whatsappAuthEnabled));
-        setCapabilitiesStatus('ready');
-      }
-    }).catch(() => { if (active && !completed) { completed = true; window.clearTimeout(timeout); setCapabilitiesStatus('error'); } });
-    return () => { active = false; window.clearTimeout(timeout); controller?.abort(); };
-  }, [capabilitiesRetry]);
+  // Forgot Password state
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
+  const [forgotPhone, setForgotPhone] = useState('+905551234567');
+  const [foundUserQuestion, setFoundUserQuestion] = useState('');
+  const [forgotAnswer, setForgotAnswer] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
 
-  useEffect(() => {
-    if (getRuntimePlatform() !== 'IOS') return;
-    const viewport = window.visualViewport;
-    if (!viewport) return;
-    let focusTimer: number | undefined;
-    const updateViewport = () => {
-      const inset = Math.max(0, window.innerHeight - viewport.offsetTop - viewport.height);
-      authSideRef.current?.style.setProperty('--auth-keyboard-inset', `${inset}px`);
-      const focused = document.activeElement;
-      if (!(focused instanceof HTMLElement) || !authSideRef.current?.contains(focused) || !focused.matches('input, select, textarea, button')) return;
-      const bottom = focused.getBoundingClientRect().bottom;
-      const visibleBottom = viewport.offsetTop + viewport.height;
-      if (bottom > visibleBottom - 20) window.scrollBy(0, bottom - visibleBottom + 20);
-    };
-    const onFocus = () => {
-      window.clearTimeout(focusTimer);
-      focusTimer = window.setTimeout(updateViewport, 280);
-    };
-    viewport.addEventListener('resize', updateViewport);
-    viewport.addEventListener('scroll', updateViewport);
-    const authSide = authSideRef.current;
-    authSide?.addEventListener('focusin', onFocus);
-    updateViewport();
-    return () => {
-      window.clearTimeout(focusTimer);
-      viewport.removeEventListener('resize', updateViewport);
-      viewport.removeEventListener('scroll', updateViewport);
-      authSide?.removeEventListener('focusin', onFocus);
-    };
-  }, []);
-
-  const closeCodeFlow = () => {
-    setCodeFlow(null);
-    setSchoolId('');
-    setCodePhone('');
-    setCode('');
-    setStaffSetupToken('');
-    setNewPassword('');
-    setPasswordConfirmation('');
-  };
-
-  const openCodeFlow = (flow: Exclude<CodeFlow, null>) => {
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    setSuccessMessage('');
-    setStaffSetupToken('');
-    setCodePhone(phone);
-    setCodeFlow(flow);
-  };
-
-  const closeParentFlow = () => {
-    setParentFlow(null);
-    setParentChallenge('');
-    setParentSchoolCode('');
-    setParentCode('');
-    setParentSchoolId('');
-    setNewPassword('');
-    setPasswordConfirmation('');
-    setStaffSetupToken('');
-    setError('');
-  };
-
-  const submitParentFlow = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!parentFlow) return;
-    setError('');
-    const normalizedPhone = normalizeUserPhoneInput(codePhone);
-    if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    if (!/^\d{6}$/.test(parentCode)) { setError('Okul yönetiminizden aldığınız 6 haneli kodu girin.'); return; }
-    setIsSubmitting(true);
-    try {
-      if (!parentChallenge) {
-        const result = parentFlow === 'registration'
-          ? await api.parentRegistrationChallenge(parentSchoolCode, codePhone, parentCode)
-          : await api.parentResetChallenge(parentSchoolCode, codePhone, parentCode);
-        setParentChallenge(result.challenge);
-        setParentSchoolId(result.schoolId);
-        return;
-      }
-      if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-      const result = parentFlow === 'registration'
-        ? await api.parentRegistrationComplete(parentSchoolId, codePhone, parentChallenge, newPassword)
-        : await api.parentResetComplete(parentSchoolId, codePhone, parentChallenge, newPassword);
-      setPhone(displayStoredTurkishPhone(normalizedPhone));
-      closeParentFlow();
-      setSuccessMessage(result.message);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Bilgiler doğrulanamadı.');
-    } finally { setIsSubmitting(false); }
-  };
-
-  const closeStaffReset = () => { setStaffResetStep(null); setStaffResetSchoolCode(''); setStaffResetChallenge(''); setStaffResetSchoolId(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setError(''); };
-  const submitStaffReset = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const normalizedPhone = normalizeUserPhoneInput(codePhone);
-    if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    setError('');
-    setIsSubmitting(true);
-    try {
-      if (staffResetStep === 'request') {
-        const result = await api.requestStaffReset(staffResetSchoolCode, codePhone);
-        setSuccessMessage(result.message);
-        setStaffResetStep('verify');
-      } else if (staffResetStep === 'verify') {
-        const result = await api.verifyStaffReset(staffResetSchoolCode, codePhone, code);
-        setStaffResetChallenge(result.setupToken);
-        setStaffResetSchoolId(result.schoolId);
-        setStaffResetStep('password');
-      } else {
-        if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeStaffReset(staffResetSchoolId, codePhone, staffResetChallenge, newPassword);
-        closeStaffReset();
-        setSuccessMessage(result.message);
-      }
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'İşlem tamamlanamadı.'); }
-    finally { setIsSubmitting(false); }
-  };
-
-  const closeSchoolAdminActivation = () => {
-    setSchoolAdminActivationStep(null);
-    setSchoolAdminSchoolCode('');
-    setSchoolAdminLicenseCode('');
-    setSchoolAdminSetupToken('');
-    setSchoolAdminSchoolId('');
-    setCode('');
-    setNewPassword('');
-    setPasswordConfirmation('');
-    setError('');
-  };
-  const submitSchoolAdminActivation = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const normalizedPhone = normalizeUserPhoneInput(codePhone);
-    if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    setError('');
-    setIsSubmitting(true);
-    try {
-      if (schoolAdminActivationStep === 'verify') {
-        const result = await api.verifySchoolAdminActivation(schoolAdminSchoolCode, codePhone, schoolAdminLicenseCode, code);
-        setSchoolAdminSetupToken(result.setupToken);
-        setSchoolAdminSchoolId(result.schoolId);
-        setSchoolAdminActivationStep('password');
-        setSuccessMessage('Kod doğrulandı. Okul Yönetimi parolanızı belirleyin.');
-      } else {
-        if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeSchoolAdminActivation(schoolAdminSchoolId, codePhone, schoolAdminSetupToken, newPassword);
-        closeSchoolAdminActivation();
-        setPhone(displayStoredTurkishPhone(normalizedPhone));
-        setSuccessMessage(result.message);
-      }
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Bilgiler doğrulanamadı.'); }
-    finally { setIsSubmitting(false); }
-  };
-  const closeSchoolAdminReset = () => {
-    setSchoolAdminResetStep(null);
-    setSchoolAdminResetSchoolCode('');
-    setSchoolAdminResetSetupToken('');
-    setSchoolAdminResetSchoolId('');
-    setCode('');
-    setNewPassword('');
-    setPasswordConfirmation('');
-    setError('');
-  };
-  const submitSchoolAdminReset = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const normalizedPhone = normalizeUserPhoneInput(codePhone);
-    if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-    setError('');
-    setIsSubmitting(true);
-    try {
-      if (schoolAdminResetStep === 'request') {
-        const result = await api.requestSchoolAdminReset(schoolAdminResetSchoolCode, codePhone);
-        setSuccessMessage(result.message);
-        setSchoolAdminResetStep('verify');
-      } else if (schoolAdminResetStep === 'verify') {
-        const result = await api.verifySchoolAdminReset(schoolAdminResetSchoolCode, codePhone, code);
-        setSchoolAdminResetSetupToken(result.setupToken);
-        setSchoolAdminResetSchoolId(result.schoolId);
-        setSchoolAdminResetStep('password');
-      } else {
-        if (newPassword !== passwordConfirmation) { setError('Şifreler eşleşmiyor.'); return; }
-        const result = await api.completeSchoolAdminReset(schoolAdminResetSchoolId, codePhone, schoolAdminResetSetupToken, newPassword);
-        closeSchoolAdminReset();
-        setSuccessMessage(result.message);
-      }
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Bilgiler doğrulanamadı.'); }
-    finally { setIsSubmitting(false); }
-  };
-
-  const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (passwordLoginPending.current) return;
-    setError('');
-    setSuccessMessage('');
-    const normalizedPhone = normalizeUserPhoneInput(phone);
-    if (!normalizedPhone) {
-      setError('Geçerli bir Türkiye GSM numarası girin.');
-      return;
-    }
-    passwordLoginPending.current = true;
-    setIsSubmitting(true);
-    try {
-      const result = await login(phone, password);
-      if (!result.ok) {
-        setError(result.reason === 'INVALID_CREDENTIALS'
-          ? 'Telefon numarası veya şifre hatalı.'
-          : 'Güvenli oturum başlatılamadı. Bağlantınızı kontrol edip tekrar deneyin.');
-      }
-    } catch {
-      setError('Güvenli oturum başlatılamadı. Lütfen tekrar deneyin.');
-    } finally {
-      passwordLoginPending.current = false;
-      setIsSubmitting(false);
+    const ok = login(phone, selectedRole);
+    if (!ok) {
+      setError('Telefon numarası veya şifre hatalı! Lütfen kontrol ediniz.');
     }
   };
 
-  const handleCodeFlow = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!codeFlow) return;
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    if (codeFlow === 'activation' && !staffSetupToken) {
-      const normalizedPhone = normalizeUserPhoneInput(codePhone);
-      if (!normalizedPhone) { setError('Geçerli bir Türkiye GSM numarası girin.'); return; }
-      setIsSubmitting(true);
-      try {
-        const result = await api.verifyStaffActivation(schoolId, codePhone, code);
-        setStaffSetupToken(result.setupToken);
-        setResolvedStaffSchoolId(result.schoolId);
-        setSuccessMessage('Kod doğrulandı. Şimdi yeni parolanızı belirleyin.');
-      } catch (cause) { setError(cause instanceof Error ? cause.message : 'Kod doğrulanamadı.'); }
-      finally { setIsSubmitting(false); }
-      return;
-    }
-    if (newPassword !== passwordConfirmation) {
-      setError('Şifreler eşleşmiyor.');
-      return;
-    }
-    if (newPassword.length < 5) {
-      setError('Yeni şifre en az 5 karakter olmalıdır.');
+    if (!firstName || !lastName || !regPhone || !regPassword) {
+      setError('Lütfen tüm zorunlu alanları doldurunuz.');
       return;
     }
 
-    const normalizedPhone = normalizeUserPhoneInput(codePhone);
-    if (!normalizedPhone) {
-      setError('Geçerli bir Türkiye GSM numarası girin.');
+    const students = regRole === 'parent' && studentName ? [{ id: 's-' + Date.now(), name: studentName, className }] : [];
+
+    registerUser({
+      firstName,
+      lastName,
+      phone: regPhone,
+      role: regRole,
+      branch: regRole === 'teacher' ? branch : undefined,
+      students,
+      securityQuestion,
+    });
+
+    setSuccessMsg('Kaydınız başarıyla oluşturuldu ve sisteme giriş yapıldı.');
+  };
+
+  const handleForgotStep1 = () => {
+    setError('');
+    const clean = forgotPhone.replace(/\s+/g, '');
+    const user = users.find((u) => u.phone.replace(/\s+/g, '') === clean);
+    if (!user) {
+      setError('Bu telefon numarasına ait kullanıcı kaydı bulunamadı.');
       return;
     }
+    setFoundUserQuestion(user.securityQuestion || SECURITY_QUESTIONS_LIST[0]);
+    setForgotStep(2);
+  };
 
-    setIsSubmitting(true);
-    try {
-      const result = codeFlow === 'activation'
-        ? await api.completeStaffActivation(resolvedStaffSchoolId, codePhone, staffSetupToken, newPassword)
-        : await api.resetPasswordWithCode(schoolId, codePhone, code, newPassword);
-      setPhone(displayStoredTurkishPhone(normalizedPhone));
-      setPassword('');
-      closeCodeFlow();
-      setSuccessMessage(result.message);
-    } catch (requestError: any) {
-      setError(requestError.message || 'Bilgiler doğrulanamadı veya kodun süresi dolmuş olabilir.');
-    } finally {
-      setIsSubmitting(false);
+  const handleForgotStep2 = () => {
+    if (!forgotAnswer.trim()) {
+      setError('Lütfen güvenlik sorusunun cevabını giriniz.');
+      return;
     }
+    setError('');
+    setForgotStep(3);
+  };
+
+  const handleForgotStep3 = () => {
+    if (forgotNewPass.length < 6) {
+      setError('Yeni şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    resetUserPassword(forgotPhone, forgotNewPass);
+    setSuccessMsg('Şifreniz başarıyla sıfırlandı! Yeni şifreniz ile giriş yapabilirsiniz.');
+    setShowForgot(false);
+    setForgotStep(1);
+    setPhone(forgotPhone);
   };
 
   return (
-    <div className="auth-layout">
-      <aside className="auth-story">
-        <Brand light />
-        <div>
-          <h1>Eğitim, okul ve aileyle güçlenir.</h1>
-          <p>Öğretmeninizle iletişim kurmanın, görüşme planlamanın ve okul ziyaretlerinizi takip etmenin kolay yolu.</p>
-          <div className="auth-illustration" aria-label="Randevu adımları">
-            <div className="flow-node"><span><Users size={19} /></span>Öğretmeninizi seçin</div>
-            <div className="flow-connector" />
-            <div className="flow-node"><span><Calendar size={19} /></span>Size uygun zamanı bulun</div>
-            <div className="flow-connector" />
-            <div className="flow-node"><span><Check size={19} /></span>Görüşmeye hazır olun</div>
-          </div>
-        </div>
-        <div className="auth-footnote"><ShieldCheck size={18} />Okulunuzla güvenli ve düzenli iletişim.</div>
-      </aside>
-      <main className={`auth-form-side${getRuntimePlatform() === 'IOS' ? ' auth-form-side-ios' : ''}${usePhoneCentricLogin ? ' auth-form-side-phone' : ''}`} ref={authSideRef}>
-        <div className={`auth-form-wrap${usePhoneCentricLogin ? ' auth-form-wrap-phone' : ''}`}>
-          <div className="auth-mobile-brand"><Brand /></div>
-          <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
-          <h2 id="auth-heading">{passwordLoginMode ? 'Tekrar merhaba.' : 'Okulunuza Hoş Geldiniz'}</h2>
-          {capabilitiesStatus === 'ready' && !usePhoneCentricLogin && <p>Okulunuzla buluşmak için hesabınıza giriş yapın.</p>}
-          {!codeFlow && error && <div className="mb-5"><Alert tone="danger">{error}</Alert></div>}
-          {!codeFlow && accountDeletionNotice && <div className="mb-5"><Alert tone="success">{accountDeletionNotice}</Alert></div>}
-          {!codeFlow && !error && authStorageError && <div className="mb-5"><Alert tone="danger">Güvenli oturuma erişilemiyor. Lütfen tekrar deneyin.</Alert></div>}
-          {successMessage && <div className="mb-5"><Alert tone="success">{successMessage}</Alert></div>}
-          {getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'error' && <Alert tone="danger">Giriş seçenekleri alınamadı. Bağlantınızı kontrol edip tekrar deneyin. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>}
-          {!usePhoneCentricLogin && (loginEntry === 'loading' || loginEntry === 'error') ? (loginEntry === 'loading'
-            ? <p role="status">Giriş seçenekleri yükleniyor…</p>
-            : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
-            : loginEntry === 'unavailable' ? <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert> : usePhoneCentricLogin ? <PhoneCentricLoginPanel allowLegacyFallback={allowLegacyPhoneFallback(getRuntimePlatform())} requestEnabled={getRuntimePlatform() !== 'IOS' || (capabilitiesStatus === 'ready' && whatsappAuthEnabled && phoneCentricAuthEnabled)} checkingCapabilities={getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'loading'} onLegacyFallback={(fallbackPhone) => { setPhone(displayStoredTurkishPhone(fallbackPhone)); setPasswordLoginMode('standard'); }} /> : whatsappAuthEnabled && passwordLoginMode === null ? (unifiedLoginEnabled
-            ? <UnifiedWhatsAppLoginPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} onUsePlatform={() => setPasswordLoginMode('platform')} />
-            : <WhatsAppAuthPanel initialPhone={phone} onPhoneChange={setPhone} onUsePassword={() => setPasswordLoginMode('standard')} />) : <>
-          {passwordLoginMode === 'platform' && <div className="password-login-context"><ShieldCheck size={20} aria-hidden="true" /><div><h3>Platform Yönetimi</h3><p>Platform yöneticisi hesabınızla giriş yapın.</p></div></div>}
-          <form onSubmit={handleLogin} className="form-stack">
-            <label className="field" htmlFor="login-phone">Telefon numaranız
-              <div className="field-icon"><Phone size={18} aria-hidden="true" /><input ref={phoneRef} id="login-phone" type="tel" inputMode="numeric" enterKeyHint="next" autoComplete="tel" maxLength={14} value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); passwordRef.current?.focus(); } }} placeholder="0555 123 45 67" required /></div>
-            </label>
-            <div className="field">
-              <label htmlFor="login-password">Parolanız</label>
-              <div className="field-icon"><Lock size={18} aria-hidden="true" /><input ref={passwordRef} id="login-password" type={showPassword ? 'text' : 'password'} enterKeyHint="go" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Parolanızı girin" required /><button type="button" className="icon-button" aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
-              <button type="button" onClick={() => setShowResetChoices((shown) => !shown)} className="text-sm text-blue-700 font-semibold self-end">Şifremi unuttum</button>
-              {showResetChoices && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Şifre sıfırlama hesap türü"><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setParentFlow('reset'); setCodePhone(phone); }}>Veli</button><button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" onClick={() => { setSchoolAdminResetStep('request'); setCodePhone(phone); }}>Okul Yöneticisi</button></div>}
-            </div>
-            <button ref={loginButtonRef} className="ui-button ui-button-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor…' : 'Giriş yap'}<ArrowRight size={18} /></button>
-          </form>
-          <div className="auth-divider">İlk kez mi buradasınız?</div>
-          <Button variant="secondary" className="w-full" onClick={() => { setParentFlow('registration'); setCodePhone(phone); }}><Users size={18} />Veli Hesabı Oluştur</Button>
-          <button type="button" onClick={() => { setError(''); setSuccessMessage(''); setCode(''); setNewPassword(''); setPasswordConfirmation(''); setSchoolAdminSchoolCode(''); setSchoolAdminSetupToken(''); setSchoolAdminSchoolId(''); setCodePhone(phone); setSchoolAdminActivationStep('verify'); }} className="mt-3 w-full text-sm font-semibold text-blue-700">Okul Yöneticisi İlk Giriş</button>
-          {whatsappAuthEnabled && <button type="button" className="auth-help-link" onClick={() => setPasswordLoginMode(null)}>WhatsApp ile girişe dön</button>}
-          </>}
-          {import.meta.env?.VITE_REVIEW_API_ORIGIN&&<ReviewLogin/>}
-          <button type="button" className="auth-help-link" onClick={onOpenHelp} aria-label="Yardım, Kullanım Rehberi ve Yasal Bilgiler"><span className="auth-help-label-full">Yardım, Kullanım Rehberi ve Yasal Bilgiler</span><span className="auth-help-label-android" aria-hidden="true">Yardım ve yasal bilgiler</span><ArrowRight size={16} aria-hidden="true" /></button>
-          <div className="public-request-cta">
-            <div className="public-request-cta-copy"><BadgeHelp size={20} aria-hidden="true" /><div><h3>Veli Randevu ile tanışın</h3><p>Yıllık lisans hakkında bilgi alın veya bize ulaşın.</p></div></div>
-            <Button variant="secondary" className="w-full" onClick={onOpenPublicRequest}>Lisans / İletişim<ArrowRight size={17} /></Button>
-          </div>
-        </div>
-      </main>
-      {codeFlow && <Dialog title={codeFlow === 'activation' ? 'Birlikte başlayalım.' : 'Yeni bir parola belirleyin.'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeCodeFlow} dismissible={!isSubmitting}>
-        <form onSubmit={handleCodeFlow} className="form-stack">
-          {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field" htmlFor="code-school">Okulunuz
-            <input id="code-school" value={schoolId} onChange={(event) => setSchoolId(normalizeSchoolCodeInput(event.target.value))} placeholder="Okul kodu" disabled={!!staffSetupToken} required />
-          </label>
-          <label className="field" htmlFor="code-phone">Telefon numaranız<input id="code-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
-          {codeFlow === 'activation' && !staffSetupToken && <label className="field" htmlFor="activation-code">6 haneli aktivasyon kodu<input id="activation-code" type="text" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" autoComplete="one-time-code" spellCheck={false} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" required className="font-mono" /></label>}
-          {staffSetupToken && <><label className="field" htmlFor="new-password">Yeni parolanız<input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={5} maxLength={128} required /><span className="field-hint">En az 5 karakter</span></label><label className="field" htmlFor="confirm-password">Yeni parolanız, tekrar<input id="confirm-password" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} minLength={5} maxLength={128} required /></label></>}
-          <div className="form-actions"><Button variant="secondary" disabled={isSubmitting} onClick={closeCodeFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : staffSetupToken ? 'Hesabı Aktifleştir' : 'Kodu Doğrula'}</Button></div>
-        </form>
-      </Dialog>}
-      {parentFlow && <Dialog title={parentFlow === 'registration' ? 'Hesabınızı oluşturun' : 'Şifrenizi sıfırlayın'} description="Okul yönetiminizden aldığınız tek kullanımlık kodla devam edin." onClose={closeParentFlow} dismissible={!isSubmitting}>
-        <form onSubmit={submitParentFlow} className="form-stack">
-          {error && <Alert tone="danger">{error}</Alert>}
-          {!parentChallenge ? <>
-            <label className="field">Okul Kodu<input autoComplete="off" value={parentSchoolCode} onChange={(event) => setParentSchoolCode(normalizeSchoolCodeInput(event.target.value))} required /></label>
-            <label className="field">Telefon Numaranız<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} placeholder="0555 123 45 67" required /></label>
-            <label className="field">6 Haneli Güvenlik Kodu<input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={parentCode} onChange={(event) => setParentCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>
-          </> : <>
-            <label className="field">Yeni Şifreniz<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label>
-            <label className="field">Şifre Tekrar<input type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>
-          </>}
-          <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeParentFlow}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : parentChallenge ? parentFlow === 'registration' ? 'Hesabı Oluştur' : 'Şifremi Güncelle' : 'Devam Et'}</Button></div>
-        </form>
-      </Dialog>}
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-center relative overflow-hidden py-12 px-4 sm:px-6 lg:px-8">
+      {/* Background Image / Ambient styling */}
+      <div className="absolute inset-0 z-0 opacity-20 bg-cover bg-center" style={{ backgroundImage: "url('/school-hero.jpg'), radial-gradient(circle at center, #1e3a8a, #0f172a)" }} />
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-slate-950 via-slate-900/90 to-slate-900/80" />
 
-      {schoolAdminActivationStep && <Dialog title="Okul Yöneticisi İlk Giriş" description="Platform yönetiminin okulunuz için gönderdiği tek kullanımlık kodla hesabınızı etkinleştirin." onClose={closeSchoolAdminActivation} dismissible={!isSubmitting}>
-        <form onSubmit={submitSchoolAdminActivation} className="form-stack">
-          {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field" htmlFor="school-admin-activation-school">Okul Kodu<input id="school-admin-activation-school" autoComplete="off" value={schoolAdminSchoolCode} onChange={(event) => setSchoolAdminSchoolCode(normalizeSchoolCodeInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
-          <label className="field" htmlFor="school-admin-activation-phone">Telefon Numaranız<input id="school-admin-activation-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminActivationStep === 'password'} required /></label>
-          {schoolAdminActivationStep === 'verify' && <label className="field" htmlFor="school-admin-activation-license">Lisans Kodu<input id="school-admin-activation-license" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={64} placeholder="VR-7K4M-9Q2X-H8NP" value={schoolAdminLicenseCode} onChange={(event) => setSchoolAdminLicenseCode(formatLicenseCodeInput(event.target.value))} /><span className="field-hint">İlk okul yöneticisi aktivasyonunda e-postanızdaki lisans kodunu girin. Ek yöneticiler için gerekli değildir.</span></label>}
-          {schoolAdminActivationStep === 'verify' ? <label className="field" htmlFor="school-admin-activation-code">6 haneli aktivasyon kodu<input id="school-admin-activation-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label> : <>
-            <label className="field" htmlFor="school-admin-new-password">Yeni parolanız<input id="school-admin-new-password" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label>
-            <label className="field" htmlFor="school-admin-confirm-password">Yeni parolanız, tekrar<input id="school-admin-confirm-password" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label>
-          </>}
-          <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeSchoolAdminActivation}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : schoolAdminActivationStep === 'verify' ? 'Kodu Doğrula' : 'Hesabı Etkinleştir'}</Button></div>
-        </form>
-      </Dialog>}
-      {schoolAdminResetStep && <Dialog title="Okul Yönetimi parola sıfırlama" description="Yanıt, hesap bilgilerini açıklamaz. Kod varsa kayıtlı e-posta adresine gönderilir." onClose={closeSchoolAdminReset} dismissible={!isSubmitting}>
-        <form onSubmit={submitSchoolAdminReset} className="form-stack">
-          {error && <Alert tone="danger">{error}</Alert>}
-          <label className="field" htmlFor="school-admin-reset-school">Okul Kodu<input id="school-admin-reset-school" autoComplete="off" value={schoolAdminResetSchoolCode} onChange={(event) => setSchoolAdminResetSchoolCode(normalizeSchoolCodeInput(event.target.value))} readOnly={schoolAdminResetStep !== 'request'} required /></label>
-          <label className="field" htmlFor="school-admin-reset-phone">Telefon Numaranız<input id="school-admin-reset-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={14} placeholder="0555 123 45 67" value={codePhone} onChange={(event) => setCodePhone(formatTurkishPhoneInput(event.target.value))} readOnly={schoolAdminResetStep !== 'request'} required /></label>
-          {schoolAdminResetStep === 'verify' && <label className="field" htmlFor="school-admin-reset-code">6 haneli sıfırlama kodu<input id="school-admin-reset-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></label>}
-          {schoolAdminResetStep === 'password' && <><label className="field" htmlFor="school-admin-reset-password">Yeni parolanız<input id="school-admin-reset-password" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><span className="field-hint">En az 5 karakter</span></label><label className="field" htmlFor="school-admin-reset-confirm">Yeni parolanız, tekrar<input id="school-admin-reset-confirm" type="password" autoComplete="new-password" minLength={5} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label></>}
-          <div className="form-actions"><Button type="button" variant="secondary" disabled={isSubmitting} onClick={closeSchoolAdminReset}>Vazgeç</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'İşleniyor…' : schoolAdminResetStep === 'request' ? 'Sıfırlama Kodu Gönder' : schoolAdminResetStep === 'verify' ? 'Kodu Doğrula' : 'Parolayı Güncelle'}</Button></div>
-        </form>
-      </Dialog>}
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Brand Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-2xl shadow-lg shadow-blue-500/20 mb-3 border border-blue-400/30">
+            V
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight">
+            {settings.appName} <span className="font-light text-blue-400">Randevu</span>
+          </h1>
+          <p className="mt-1 text-xs text-slate-300 max-w-sm mx-auto font-medium">
+            {settings.schoolName}
+          </p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-6 sm:p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* QR / Invite Code Onboarding Banner */}
+          {onOpenOnboarding && (
+            <div className="mb-4 p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-blue-900 font-medium">
+                <QrCode className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Okul QR veya davet kodunuz mu var?</span>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenOnboarding}
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] transition-colors cursor-pointer shrink-0"
+              >
+                Kayıt Ol
+              </button>
+            </div>
+          )}
+
+          {!isRegister ? (
+            /* Login Form */
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Giriş Yapılacak Rol
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  {(['parent', 'teacher', 'security'] as UserRole[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole(r);
+                        if (r === 'parent') setPhone('+905551234567');
+                        if (r === 'teacher') setPhone('+905321112233');
+                        if (r === 'security') setPhone('+905550001122');
+                      }}
+                      className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                        selectedRole === r ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {r === 'parent' ? 'Veli' : r === 'teacher' ? 'Öğretmen' : 'Güvenlik'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Telefon Numarası
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+90 5XX XXX XX XX"
+                    required
+                    className="block w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Şifre
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(true)}
+                    className="text-xs text-blue-700 hover:underline font-medium"
+                  >
+                    Şifremi Unuttum?
+                  </button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="block w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold rounded-xl text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                Giriş Yap <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegister(true);
+                    setError('');
+                  }}
+                  className="text-xs text-slate-600 hover:text-blue-700 font-medium"
+                >
+                  Hesabınız yok mu? <span className="font-bold text-blue-700">Kayıt Olun</span>
+                </button>
+              </div>
+
+              {/* Demo Accounts Helper */}
+              <div className="mt-4 pt-4 border-t border-slate-100 text-[11px] text-slate-500">
+                <p className="font-semibold text-slate-700 mb-1">Test Giriş Bilgileri:</p>
+                <div className="grid grid-cols-2 gap-1 font-mono text-[10px]">
+                  <span className="text-slate-600">Veli: +905551234567</span>
+                  <span className="text-slate-600">Öğretmen: +905321112233</span>
+                  <span className="text-slate-600">Güvenlik: +905550001122</span>
+                  <span className="text-slate-600">Şifre: 12345678</span>
+                </div>
+              </div>
+            </form>
+          ) : (
+            /* Register Form */
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Adınız</label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Ahmet"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Soyadınız</label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Yılmaz"
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Rolünüz</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('parent')}
+                    className={`py-2 text-xs font-semibold rounded-xl border ${
+                      regRole === 'parent' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Veli
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('teacher')}
+                    className={`py-2 text-xs font-semibold rounded-xl border ${
+                      regRole === 'teacher' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Öğretmen
+                  </button>
+                </div>
+              </div>
+
+              {regRole === 'teacher' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Branş</label>
+                  <select
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                  >
+                    <option value="Matematik">Matematik</option>
+                    <option value="Türkçe">Türkçe</option>
+                    <option value="Fen Bilimleri">Fen Bilimleri</option>
+                    <option value="İngilizce">İngilizce</option>
+                    <option value="Sosyal Bilgiler">Sosyal Bilgiler</option>
+                    <option value="Rehberlik">Rehberlik</option>
+                    <option value="Beden Eğitimi">Beden Eğitimi</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Öğrenci Adı</label>
+                    <input
+                      type="text"
+                      value={studentName}
+                      onChange={(e) => setStudentName(e.target.value)}
+                      placeholder="Emre Yılmaz"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Sınıfı</label>
+                    <input
+                      type="text"
+                      value={className}
+                      onChange={(e) => setClassName(e.target.value)}
+                      placeholder="7-B"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Telefon Numarası</label>
+                <input
+                  type="text"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="+905XXXXXXXXX"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Şifre</label>
+                <input
+                  type="password"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="En az 8 karakter"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Güvenlik Sorusu</label>
+                <select
+                  value={securityQuestion}
+                  onChange={(e) => setSecurityQuestion(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                >
+                  {SECURITY_QUESTIONS_LIST.map((q) => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Güvenlik Cevabı</label>
+                <input
+                  type="text"
+                  value={securityAnswer}
+                  onChange={(e) => setSecurityAnswer(e.target.value)}
+                  placeholder="Kurtarma için cevabınız"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                Kayıt Ol ve Başla
+              </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsRegister(false)}
+                  className="text-xs text-slate-600 hover:text-blue-700 font-medium"
+                >
+                  Zaten hesabınız var mı? <span className="font-bold text-blue-700">Giriş Yapın</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* Forgot Password Modal */}
+      {showForgot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-2 text-blue-700">
+              <HelpCircle className="w-5 h-5" />
+              <h3 className="font-bold text-slate-900">Şifre Kurtarma</h3>
+            </div>
+
+            {forgotStep === 1 && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600">
+                  Kayıtlı telefon numaranızı girin. Sistem güvenlik sorunuzu getirecektir.
+                </p>
+                <input
+                  type="text"
+                  value={forgotPhone}
+                  onChange={(e) => setForgotPhone(e.target.value)}
+                  placeholder="+90 5XX XXX XX XX"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleForgotStep1}
+                  className="w-full py-2 bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Doğrula ve İlerle
+                </button>
+              </div>
+            )}
+
+            {forgotStep === 2 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-slate-800">
+                  {foundUserQuestion}
+                </p>
+                <input
+                  type="text"
+                  value={forgotAnswer}
+                  onChange={(e) => setForgotAnswer(e.target.value)}
+                  placeholder="Cevabınız"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleForgotStep2}
+                  className="w-full py-2 bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cevabı Onayla
+                </button>
+              </div>
+            )}
+
+            {forgotStep === 3 && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600">
+                  Güvenlik sorusu doğrulandı. Lütfen yeni şifrenizi belirleyin:
+                </p>
+                <input
+                  type="password"
+                  value={forgotNewPass}
+                  onChange={(e) => setForgotNewPass(e.target.value)}
+                  placeholder="Yeni Şifre (en az 6 karakter)"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleForgotStep3}
+                  className="w-full py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Şifreyi Güncelle
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgot(false);
+                setForgotStep(1);
+              }}
+              className="w-full py-2 text-slate-500 hover:text-slate-700 text-xs font-medium cursor-pointer"
+            >
+              Vazgeç
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

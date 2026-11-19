@@ -1,5 +1,4 @@
-import { ApiError } from '../platform/api-error';
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   User,
   Student,
@@ -14,35 +13,13 @@ import {
   SchoolMembership,
   SchoolRosterRecord,
   TenantIsolationTestResult,
-  SecurityQrVerification,
 } from '../types';
-import { api } from '../services/api';
-import { ManagedSchool } from '../types/platform';
-import { authSession } from '../platform/auth-session';
-import { clearAuthSensitivePreferences, setActiveSchoolRole, getActiveSchoolId, getPlatformTargetSchoolId, setActiveSchoolId, setPlatformTargetSchoolId } from '../platform/client-preferences';
-import { isReviewToken } from '../platform/review-origin';
-import { revokeSessionWithinBudget } from '../platform/remote-logout';
-import { LoginResult, performLogin } from '../platform/login-flow';
-import { mobilePush } from '../platform/mobile-push';
-import { pendingNavigationIntent } from '../platform/navigation-intent';
-import { resolveSchoolContext, SchoolResolution } from '../platform/school-resolution';
-import { networkHint } from '../platform/network';
-import { loadVerifiedSessionPrerequisites, restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';
-import { appLifecycle } from '../platform/lifecycle';
-import { isCurrentMobileRefresh } from '../platform/mobile-refresh-guard';
+import { api, setAuthToken, setActiveSchoolId, getAuthToken, getActiveSchoolId } from '../services/api';
 
 interface AppContextType {
-  refreshSchoolData: (section?: 'staff' | 'appointments' | 'audit') => Promise<void>;
-  refreshMobileData: () => Promise<void>;
-  refreshPlatformSchools: () => Promise<void>;
   currentUser: User | null;
   users: User[];
-  usersLoading: boolean;
-  usersError: string;
   schools: School[];
-  platformSchools: ManagedSchool[];
-  isPlatformAdmin: boolean;
-  platformContextActive: boolean;
   currentSchool: School | null;
   userMemberships: SchoolMembership[];
   currentMembership: SchoolMembership | null;
@@ -56,16 +33,11 @@ interface AppContextType {
   isolationTestResults: TenantIsolationTestResult[];
   unreadNotificationCount: number;
   isLoading: boolean;
-  authStorageError: boolean;
-  accountDeletionNotice: string | null;
-  switchSchool: (schoolId: string, role?: SchoolMembership['role']) => Promise<void>;
-  returnToPlatform: () => Promise<void>;
-  login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
-  whatsappLogin: (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }) => Promise<LoginResult>;
-  completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) => Promise<LoginResult>;
-  logout: () => Promise<void>;
-  deleteAccount: (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
+  switchSchool: (schoolId: string) => Promise<void>;
+  login: (phone: string, role?: UserRole) => Promise<boolean>;
+  logout: () => void;
   switchUser: (userId: string) => Promise<void>;
+  registerUser: (userData: Partial<User> & { password?: string }) => Promise<User>;
   bookAppointment: (data: {
     teacherId: string;
     studentName: string;
@@ -78,86 +50,39 @@ interface AppContextType {
   approveAppointment: (appointmentId: string) => Promise<void>;
   rejectAppointment: (appointmentId: string, reason?: string) => Promise<void>;
   cancelAppointment: (appointmentId: string) => Promise<void>;
-  verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
+  checkInVisitor: (appointmentIdOrCode: string) => Promise<{ success: boolean; message: string; appointment?: Appointment }>;
+  checkOutVisitor: (appointmentId: string) => Promise<void>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
-  createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => Promise<unknown>;
   removeAvailabilitySlot: (slotId: string) => Promise<void>;
   markNotificationsAsRead: () => Promise<void>;
-  deleteNotification: (notificationId: string) => Promise<void>;
-  clearParentNotifications: () => Promise<void>;
-  clearParentHistory: () => Promise<void>;
-  getParentClasses: () => Promise<string[]>;
   updateSettings: (newSettings: Partial<SchoolSettings>) => Promise<void>;
-  addStudentToProfile: (student: { name: string; className: string }) => Promise<void>;
+  addStudentToProfile: (student: { name: string; className: string }) => void;
   removeStudentFromProfile: (studentId: string) => void;
+  resetUserPassword: (phone: string, newPass: string) => boolean;
+  uploadRoster: (records: Partial<SchoolRosterRecord>[]) => Promise<number>;
   runIsolationTests: () => Promise<TenantIsolationTestResult[]>;
+  sendOtp: (phone: string, schoolId?: string) => Promise<{ success: boolean; message: string; debugOtpCode?: string }>;
+  verifyOtp: (phone: string, code: string, schoolId?: string) => Promise<{ success: boolean; memberships: SchoolMembership[] }>;
+  checkRoster: (schoolId: string) => Promise<any>;
+  claimStudents: (schoolId: string, firstName?: string, lastName?: string) => Promise<any>;
+  refreshCurrentSchoolData: () => Promise<void>;
 }
 
 const DEFAULT_SETTINGS: SchoolSettings = {
   schoolName: 'Kahramankazan Şehit Ömer Takdemir Ortaokulu',
-  appName: 'Veli Randevu',
+  appName: 'VELİ',
   defaultSlotMinutes: 15,
   minSlotMinutes: 10,
   maxBookingDaysAhead: 30,
   allowParentCancel: true,
 };
 
-const asSchool = (school: ManagedSchool): School => ({ ...school, settings: DEFAULT_SETTINGS });
-
-type SchoolAccess = {
-  schools: School[];
-  managedSchools: ManagedSchool[];
-  isPlatformAdmin: boolean;
-  resolution: SchoolResolution;
-};
-
-function recordStartupDuration(stage: 'secure-storage' | 'me' | 'school-access' | 'first-school-data', started: number): void {
-  try { performance.measure(`veli.startup.${stage}`, { start: started, end: performance.now() }); }
-  catch { /* Diagnostics must not affect authentication. */ }
-}
-
-function fetchSchoolAccessBase() {
-  return Promise.all([api.getPublicSchools(), api.getPlatformCapabilities()]);
-}
-
-async function fetchSchoolAccess(
-  memberships: SchoolMembership[],
-  preferredSchoolId: string | null,
-  preferredPlatformTargetId: string | null,
-  baseRequest = fetchSchoolAccessBase(),
-): Promise<SchoolAccess> {
-  const [schoolsResult, capabilities] = await baseRequest;
-  const managedSchools = capabilities.manageSchools ? (await api.getManagedSchools()).schools : [];
-  return {
-    schools: schoolsResult.schools,
-    managedSchools,
-    isPlatformAdmin: capabilities.manageSchools,
-    resolution: resolveSchoolContext({
-      memberships,
-      accessibleSchools: schoolsResult.schools,
-      managedSchools,
-      isPlatformAdmin: capabilities.manageSchools,
-      preferredSchoolId,
-      preferredPlatformTargetId,
-    }),
-  };
-}
-
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState('');
-  const schoolLoadSequence = useRef(0);
-  const mobileDataRevision = useRef(0);
-  const notificationVisibilityRevision = useRef(0);
-  const mobileRefresh = useRef<{ sequence: number; promise: Promise<void> } | null>(null);
-  const firstSchoolLoadMeasured = useRef(false);
   const [schools, setSchools] = useState<School[]>([]);
-  const [platformSchools, setPlatformSchools] = useState<ManagedSchool[]>([]);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [currentSchool, setCurrentSchool] = useState<School | null>(null);
   const [userMemberships, setUserMemberships] = useState<SchoolMembership[]>([]);
   const [currentMembership, setCurrentMembership] = useState<SchoolMembership | null>(null);
@@ -171,191 +96,144 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [roster, setRoster] = useState<SchoolRosterRecord[]>([]);
   const [isolationTestResults, setIsolationTestResults] = useState<TenantIsolationTestResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [authStorageError, setAuthStorageError] = useState(false);
-  const [accountDeletionNotice, setAccountDeletionNotice] = useState<string | null>(null);
-  const sessionRestore = useRef<Promise<SessionRestoreResult> | null>(null);
-  const platformContextActive = !!getPlatformTargetSchoolId() && isPlatformAdmin;
-
-  const clearRuntimeSession = useCallback(() => {
-    schoolLoadSequence.current += 1;
-    clearAuthSensitivePreferences();
-    setUsers([]);
-    setUsersError('');
-    setUsersLoading(false);
-    setCurrentUser(null);
-    setIsPlatformAdmin(false);
-    setPlatformSchools([]);
-    setSchools([]);
-    setCurrentSchool(null);
-    setUserMemberships([]);
-    setCurrentMembership(null);
-    setTeachers([]);
-    setAvailability([]);
-    setAppointments([]);
-    setNotifications([]);
-    setSettings(DEFAULT_SETTINGS);
-    setAuditLogs([]);
-    setRoster([]);
-    setIsolationTestResults([]);
-  }, []);
-
-  useEffect(() => authSession.subscribe(() => {
-    pendingNavigationIntent.clear();
-    void mobilePush.afterSessionInvalidated();
-    clearRuntimeSession();
-  }), [clearRuntimeSession]);
 
   // Load School-scoped data whenever active school or membership changes
-  const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null, platformContext = false) => {
-    setActiveSchoolRole(platformContext ? null : membership?.role || null);
+  const loadSchoolData = useCallback(async (schoolId: string, user: User | null, membership: SchoolMembership | null) => {
     if (!schoolId) return;
-    const dataStarted = performance.now();
-    const sequence = ++schoolLoadSequence.current;
-    const dataRevision = mobileDataRevision.current;
-    const notificationRevision = notificationVisibilityRevision.current;
-    setUsers([]);
-    setUsersError('');
-    const role = platformContext ? 'admin' : membership?.role;
-    const isAdmin = role === 'admin';
-    setUsersLoading(isAdmin);
-    const [teachersRes, usersRes, studentsRes, availRes, aptsRes, notifsRes, settingsRes, auditRes, rosterRes] = await Promise.all([
-      (isAdmin ? Promise.resolve({ teachers: [] }) : api.getTeachers(schoolId).catch(() => ({ teachers: [] }))),
-      Promise.resolve({ users: [] }),
-      (isAdmin ? Promise.resolve({ students: [] }) : api.getStudents(schoolId).catch(() => ({ students: [] }))).then((result) => {
-        if (sequence === schoolLoadSequence.current && user) setCurrentUser((current) => current?.id === user.id ? { ...current, students: result.students } : current);
-        return result;
-      }),
-      isAdmin ? Promise.resolve({ availability: [] }) : api.getAvailability(schoolId).catch(() => ({ availability: [] })),
-      (isAdmin || role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {
-        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setAppointments(result.appointments);
-        return result;
-      }),
-      api.getNotifications(schoolId).catch(() => ({ notifications: [] })).then((result) => {
-        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current && notificationRevision === notificationVisibilityRevision.current) setNotifications(result.notifications);
-        return result;
-      }),
-      api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),
-      role === 'security' ? api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] })) : Promise.resolve({ auditLogs: [] }),
-      Promise.resolve({ roster: [] }),
-    ]);
-    if (sequence !== schoolLoadSequence.current) return;
-    if (!firstSchoolLoadMeasured.current) {
-      firstSchoolLoadMeasured.current = true;
-      recordStartupDuration('first-school-data', dataStarted);
-    }
-    setTeachers(teachersRes.teachers);
-    setUsers(usersRes.users);
-    setUsersLoading(false);
-    if (user) setCurrentUser({ ...user, students: studentsRes.students });
-    if (dataRevision === mobileDataRevision.current) {
+
+    try {
+      // 1. Teachers
+      const teachersRes = await api.getTeachers(schoolId).catch(() => ({ teachers: [] }));
+      setTeachers(teachersRes.teachers);
+
+      // 2. Students for current user / school
+      const studentsRes = await api.getStudents(schoolId).catch(() => ({ students: [] }));
+      if (user) {
+        user.students = studentsRes.students;
+        setCurrentUser({ ...user });
+      }
+
+      // 3. Availability
+      const availRes = await api.getAvailability(schoolId).catch(() => ({ availability: [] }));
       setAvailability(availRes.availability);
+
+      // 4. Appointments
+      const aptsRes = await api.getAppointments(schoolId).catch(() => ({ appointments: [] }));
       setAppointments(aptsRes.appointments);
-      if (notificationRevision === notificationVisibilityRevision.current) setNotifications(notifsRes.notifications);
+
+      // 5. Notifications
+      const notifsRes = await api.getNotifications(schoolId).catch(() => ({ notifications: [] }));
+      setNotifications(notifsRes.notifications);
+
+      // 6. Settings
+      const settingsRes = await api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS }));
+      if (settingsRes.settings) {
+        setSettings(settingsRes.settings);
+      }
+
+      // 7. Audit logs (for admin & security)
+      if (membership && (membership.role === 'admin' || membership.role === 'security')) {
+        const auditRes = await api.getAuditLogs(schoolId).catch(() => ({ auditLogs: [] }));
+        setAuditLogs(auditRes.auditLogs);
+      } else {
+        setAuditLogs([]);
+      }
+
+      // 8. Roster (for admin)
+      if (membership && membership.role === 'admin') {
+        const rosterRes = await api.getRoster(schoolId).catch(() => ({ roster: [] }));
+        setRoster(rosterRes.roster);
+      } else {
+        setRoster([]);
+      }
+    } catch (err) {
+      console.error('Error loading school-scoped data:', err);
     }
-    setSettings(settingsRes.settings);
-    setAuditLogs(auditRes.auditLogs);
-    setRoster(rosterRes.roster);
   }, []);
 
-  const applyAuthenticatedSession = useCallback((user: User, memberships: SchoolMembership[], access: SchoolAccess) => {
-    const { resolution } = access;
-    const platformContext = resolution.kind === 'PLATFORM_TARGET';
-    const activeMembership = resolution.membership;
-    const activeUser: User = {
-      ...user,
-      students: [],
-      role: platformContext ? 'admin' : activeMembership?.role,
-      branch: activeMembership?.branch,
-    };
-    schoolLoadSequence.current += 1;
-    setUsers([]);
-    setUsersError('');
-    setTeachers([]);
-    setAvailability([]);
-    setAppointments([]);
-    setNotifications([]);
-    setSettings(DEFAULT_SETTINGS);
-    setAuditLogs([]);
-    setRoster([]);
-    setIsolationTestResults([]);
-    setSchools(access.schools);
-    setPlatformSchools(access.managedSchools);
-    setIsPlatformAdmin(access.isPlatformAdmin);
-    setUserMemberships(memberships);
-    setPlatformTargetSchoolId(platformContext ? resolution.schoolId : null);
-    setActiveSchoolId(resolution.schoolId);
-    setCurrentSchool(platformContext ? asSchool(resolution.school) : resolution.school);
-    setCurrentMembership(activeMembership);
-    setCurrentUser(activeUser);
-    if (resolution.schoolId) void loadSchoolData(resolution.schoolId, activeUser, activeMembership, platformContext);
-  }, [loadSchoolData]);
-
-  const restoreSession = useCallback((): Promise<SessionRestoreResult> => {
-    if (sessionRestore.current) return sessionRestore.current;
-    sessionRestore.current = restoreExistingSession({
-      session: authSession,
-      onHydrationDuration: (durationMs) => recordStartupDuration('secure-storage', performance.now() - durationMs),
-      bootstrap: async (token) => {
-        const meStarted = performance.now();
-        const accessStarted = performance.now();
-        const [meRes, accessBase] = await loadVerifiedSessionPrerequisites(
-          () => api.getMe().finally(() => recordStartupDuration('me', meStarted)),
-          fetchSchoolAccessBase,
-        );
-        const access = await fetchSchoolAccess(meRes.memberships, getActiveSchoolId(), getPlatformTargetSchoolId(), Promise.resolve(accessBase))
-          .finally(() => recordStartupDuration('school-access', accessStarted));
-        if (await authSession.getToken() !== token) throw new Error('Session changed during restore');
-        applyAuthenticatedSession(meRes.user, meRes.memberships, access);
-      },
-    }).finally(() => { sessionRestore.current = null; });
-    return sessionRestore.current;
-  }, [applyAuthenticatedSession]);
-
-  // Initial bootstrap from secure storage. Transient API/network failures preserve the token for reconnect.
+  // Initial bootstrap from API
   useEffect(() => {
     async function init() {
       setIsLoading(true);
       try {
-        await restoreSession();
-      } catch {
-        clearRuntimeSession();
-        setAuthStorageError(true);
+        // Fetch all public schools
+        const schoolsRes = await api.getPublicSchools().catch(() => ({ schools: [] }));
+        setSchools(schoolsRes.schools);
+
+        const token = getAuthToken();
+        if (token) {
+          try {
+            const meRes = await api.getMe();
+            const activeUser = meRes.user;
+            setUserMemberships(meRes.memberships);
+
+            // Determine active school
+            let targetSchoolId = getActiveSchoolId();
+            if (!targetSchoolId || !meRes.memberships.some((m) => m.schoolId === targetSchoolId)) {
+              targetSchoolId = meRes.memberships[0]?.schoolId || schoolsRes.schools[0]?.id || 'sch-kazan-01';
+              setActiveSchoolId(targetSchoolId);
+            }
+
+            const activeSchool = schoolsRes.schools.find((s) => s.id === targetSchoolId) || null;
+            setCurrentSchool(activeSchool);
+
+            const activeMem = meRes.memberships.find((m) => m.schoolId === targetSchoolId) || null;
+            setCurrentMembership(activeMem);
+
+            if (activeMem) {
+              activeUser.role = activeMem.role;
+              activeUser.branch = activeMem.branch;
+            }
+
+            setCurrentUser(activeUser);
+            await loadSchoolData(targetSchoolId, activeUser, activeMem);
+          } catch (err) {
+            // Token expired or invalid
+            setAuthToken(null);
+            setCurrentUser(null);
+          }
+        } else {
+          // If no token, auto-login as default parent Ahmet Yılmaz (+905551234567) for smooth immediate preview
+          try {
+            const loginRes = await api.login('+905551234567');
+            setAuthToken(loginRes.token);
+            const activeUser = loginRes.user;
+            setUserMemberships(loginRes.memberships);
+
+            const targetSchoolId = loginRes.memberships[0]?.schoolId || 'sch-kazan-01';
+            setActiveSchoolId(targetSchoolId);
+
+            const activeSchool = schoolsRes.schools.find((s) => s.id === targetSchoolId) || null;
+            setCurrentSchool(activeSchool);
+
+            const activeMem = loginRes.memberships.find((m) => m.schoolId === targetSchoolId) || null;
+            setCurrentMembership(activeMem);
+
+            if (activeMem) {
+              activeUser.role = activeMem.role;
+              activeUser.branch = activeMem.branch;
+            }
+
+            setCurrentUser(activeUser);
+            await loadSchoolData(targetSchoolId, activeUser, activeMem);
+          } catch (err) {
+            console.error('Default auto-login error:', err);
+          }
+        }
+      } catch (err) {
+        console.error('Initialization error:', err);
       } finally {
         setIsLoading(false);
       }
     }
 
-    void init();
-  }, [clearRuntimeSession, restoreSession]);
-
-  useEffect(() => {
-    const retryRestore = () => {
-      if (!currentUser) void restoreSession().catch(() => setAuthStorageError(true));
-    };
-    const unsubscribeNetwork = networkHint.subscribe((state) => {
-      if (state === 'CONNECTED') retryRestore();
-    });
-    const unsubscribeLifecycle = appLifecycle.subscribe((state) => {
-      if (state === 'ACTIVE') retryRestore();
-    });
-    return () => {
-      unsubscribeNetwork();
-      unsubscribeLifecycle();
-    };
-  }, [currentUser?.id, restoreSession]);
+    init();
+  }, [loadSchoolData]);
 
   // Switch Active School
-  const switchSchool = async (schoolId: string, role?: SchoolMembership['role']) => {
-    const platformSchool = isPlatformAdmin && platformSchools.find((school) => school.id === schoolId && !school.disabledAt);
-    const membership = userMemberships.find((item) => item.schoolId === schoolId && item.status === 'active' && (!role || item.role === role)) || null;
-    if (isPlatformAdmin && !platformSchool) return;
-    if (!platformSchool && (!membership || !schools.some((school) => school.id === schoolId))) return;
-    schoolLoadSequence.current += 1;
-    setUsers([]);
-    setUsersError('');
-    setPlatformTargetSchoolId(platformSchool ? schoolId : null);
+  const switchSchool = async (schoolId: string) => {
     setActiveSchoolId(schoolId);
-    const targetSchool = platformSchool ? asSchool(platformSchool) : schools.find((s) => s.id === schoolId) || null;
+    const targetSchool = schools.find((s) => s.id === schoolId) || null;
     setCurrentSchool(targetSchool);
 
     // Instant cache purge of previous school data
@@ -367,143 +245,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRoster([]);
 
     if (currentUser) {
-      const activeMem = platformSchool ? null : membership;
+      const activeMem = userMemberships.find((m) => m.schoolId === schoolId) || null;
       setCurrentMembership(activeMem);
 
       const updatedUser = {
         ...currentUser,
         students: [], // Reset previous school's students
-        role: platformSchool ? 'admin' as const : activeMem?.role,
+        role: activeMem ? activeMem.role : undefined,
         branch: activeMem ? activeMem.branch : undefined,
       };
       setCurrentUser(updatedUser);
-      await loadSchoolData(schoolId, updatedUser, activeMem, !!platformSchool);
-    }
-  };
-
-  const returnToPlatform = async () => {
-    const fallback = isPlatformAdmin ? null : userMemberships.find((membership) => membership.status === 'active' && schools.some((school) => school.id === membership.schoolId));
-    setPlatformTargetSchoolId(null);
-    if (fallback) {
-      const target = schools.find((school) => school.id === fallback.schoolId) || null;
-      setActiveSchoolId(fallback.schoolId);
-      setCurrentSchool(target);
-      setCurrentMembership(fallback);
-      setTeachers([]); setUsers([]); setAvailability([]); setAppointments([]); setNotifications([]); setAuditLogs([]); setRoster([]); setSettings(DEFAULT_SETTINGS); setIsolationTestResults([]);
-      if (currentUser) {
-        const updatedUser = { ...currentUser, role: fallback.role, branch: fallback.branch, students: [] };
-        setCurrentUser(updatedUser);
-        await loadSchoolData(fallback.schoolId, updatedUser, fallback);
-      }
-    }
-    else {
-      schoolLoadSequence.current += 1;
-      setActiveSchoolId(null);
-      setCurrentSchool(null); setCurrentMembership(null); setTeachers([]); setUsers([]); setAvailability([]); setAppointments([]); setNotifications([]); setRoster([]); setAuditLogs([]); setSettings(DEFAULT_SETTINGS); setIsolationTestResults([]);
-      if (currentUser) setCurrentUser({ ...currentUser, role: undefined, students: [] });
+      await loadSchoolData(schoolId, updatedUser, activeMem);
     }
   };
 
   // Login
-  const login = async (phone: string, password: string, role?: UserRole): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: () => api.login(phone, password, role),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
-    if (result.ok) setAccountDeletionNotice(null);
-    return result;
-  };
+  const login = async (phone: string, role?: UserRole): Promise<boolean> => {
+    try {
+      const res = await api.login(phone, role);
+      setAuthToken(res.token);
+      setUserMemberships(res.memberships);
 
-  const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: async () => {
-        if (verified) return { success: true, ...verified };
-        const response = await api.verifyWhatsappCode(data);
-        if (!response.token || !response.user || !response.memberships) throw new Error('Login incomplete');
-        return { success: true, token: response.token, user: response.user, memberships: response.memberships };
-      },
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
-    if (result.ok) setAccountDeletionNotice(null);
-    return result;
-  };
+      let targetSchoolId = res.memberships[0]?.schoolId || schools[0]?.id || 'sch-kazan-01';
+      setActiveSchoolId(targetSchoolId);
 
-  const completeUnifiedAdminEmail = async (data: { handle: string; phone: string; emailCode: string }): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: () => api.completeUnifiedAdminEmail(data),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
-    return result;
+      const activeSchool = schools.find((s) => s.id === targetSchoolId) || null;
+      setCurrentSchool(activeSchool);
+
+      const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId) || null;
+      setCurrentMembership(activeMem);
+
+      const userWithRole = {
+        ...res.user,
+        role: activeMem?.role || role,
+        branch: activeMem?.branch,
+      };
+
+      setCurrentUser(userWithRole);
+      await loadSchoolData(targetSchoolId, userWithRole, activeMem);
+      return true;
+    } catch (err) {
+      console.error('Login error:', err);
+      return false;
+    }
   };
 
   // Logout
-  const logout = async () => {
-    await mobilePush.beforeLogout();
-    if (!isReviewToken(await authSession.getToken())) {
-      await revokeSessionWithinBudget(signal => api.logout(signal));
-    }
-    await authSession.clearToken();
-    pendingNavigationIntent.clear();
-    clearRuntimeSession();
-  };
-
-  const deleteAccount = async (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => {
-    const result = await api.deleteOwnAccount(data);
-    let localCleanupFailed = false;
-    try {
-      await mobilePush.afterSessionInvalidated();
-    } catch {
-      localCleanupFailed = true;
-    }
-    try {
-      await authSession.clearTokenAfterRemoteInvalidation();
-    } catch {
-      try {
-        await authSession.clearTokenAfterRemoteInvalidation();
-      } catch {
-        localCleanupFailed = true;
-      }
-    }
-    pendingNavigationIntent.clear();
-    clearRuntimeSession();
-    setAccountDeletionNotice(result.message);
-    setAuthStorageError(localCleanupFailed);
+  const logout = () => {
+    setAuthToken(null);
+    setCurrentUser(null);
+    setUserMemberships([]);
+    setCurrentMembership(null);
+    setAppointments([]);
+    setNotifications([]);
+    setAuditLogs([]);
+    setRoster([]);
   };
 
   // Quick switch user for instant evaluator testing
   const switchUser = async (userId: string) => {
-    const result = await performLogin({
-      authenticate: () => api.quickSwitch(userId),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (!result.ok) console.error('Switch user failed:', result.reason);
+    try {
+      const res = await api.quickSwitch(userId);
+      setAuthToken(res.token);
+      setUserMemberships(res.memberships);
+
+      let targetSchoolId = res.memberships[0]?.schoolId || schools[0]?.id || 'sch-kazan-01';
+      setActiveSchoolId(targetSchoolId);
+
+      const activeSchool = schools.find((s) => s.id === targetSchoolId) || null;
+      setCurrentSchool(activeSchool);
+
+      const activeMem = res.memberships.find((m) => m.schoolId === targetSchoolId) || null;
+      setCurrentMembership(activeMem);
+
+      const userWithRole = {
+        ...res.user,
+        role: activeMem?.role,
+        branch: activeMem?.branch,
+      };
+
+      setCurrentUser(userWithRole);
+      await loadSchoolData(targetSchoolId, userWithRole, activeMem);
+    } catch (err) {
+      console.error('Switch user error:', err);
+    }
+  };
+
+  // Register User
+  const registerUser = async (userData: Partial<User> & { password?: string }): Promise<User> => {
+    const phone = userData.phone || '+905550000000';
+    await api.sendOtp(phone).catch(() => {});
+    const verifyRes = await api.verifyOtp(phone, '123456');
+    setAuthToken(verifyRes.token);
+
+    const schoolId = currentSchool?.id || 'sch-kazan-01';
+    const claimRes = await api
+      .claimStudents(schoolId, userData.firstName, userData.lastName)
+      .catch(() => ({ memberships: [] }));
+
+    const updatedMemberships = claimRes.memberships || [];
+    setUserMemberships(updatedMemberships);
+
+    const activeMem = updatedMemberships.find((m: any) => m.schoolId === schoolId) || null;
+    setCurrentMembership(activeMem);
+
+    const fullUser: User = {
+      ...verifyRes.user,
+      firstName: userData.firstName || 'Ad',
+      lastName: userData.lastName || 'Soyad',
+      role: activeMem?.role || userData.role || 'parent',
+      branch: userData.branch,
+    };
+
+    setCurrentUser(fullUser);
+    await loadSchoolData(schoolId, fullUser, activeMem);
+    return fullUser;
   };
 
   // Book Appointment
@@ -543,12 +399,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? res.appointment : a)));
   };
 
-  // Read-only QR verification (Strictly validated by backend tenant guard)
-  const verifySecurityQr = async (qrToken: string) => {
-    if (!currentSchool) {
-      return { success: false, allowed: false, decision: 'INVALID' as const, title: 'RANDEVU DOĞRULANAMADI', message: 'Bu randevu giriş için doğrulanamadı.' };
+  // Check In Visitor (Strictly validated by backend tenant guard)
+  const checkInVisitor = async (appointmentIdOrCode: string) => {
+    if (!currentSchool) return { success: false, message: 'Aktif okul seçili değil' };
+    try {
+      const res = await api.checkInVisitor(currentSchool.id, appointmentIdOrCode);
+      if (res.appointment) {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === res.appointment!.id ? res.appointment! : a))
+        );
+      }
+      return res;
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Giriş işlemi başarısız' };
     }
-    return api.verifySecurityQr(currentSchool.id, qrToken);
+  };
+
+  // Check Out Visitor
+  const checkOutVisitor = async (appointmentId: string) => {
+    if (!currentSchool) return;
+    const res = await api.checkOutVisitor(currentSchool.id, appointmentId);
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? res.appointment : a)));
   };
 
   // Add Availability Slot
@@ -556,43 +427,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentSchool) return;
     const res = await api.addAvailabilitySlot(currentSchool.id, slot);
     setAvailability((prev) => [...prev, res.slot]);
-  };
-
-  const refreshSchoolSection = useCallback(async (section: 'staff' | 'appointments' | 'audit' = 'staff') => {
-    const schoolId = currentSchool?.id;
-    if (!schoolId || getActiveSchoolId() !== schoolId || (currentMembership?.role !== 'admin' && !platformContextActive)) return;
-    const sequence = schoolLoadSequence.current;
-    const stillCurrent = () => getActiveSchoolId() === schoolId && schoolLoadSequence.current === sequence;
-    if (section === 'appointments') {
-      const result = await api.getAppointments(schoolId);
-      if (stillCurrent()) setAppointments(result.appointments);
-    } else if (section === 'audit') {
-      const result = await api.getAuditLogs(schoolId);
-      if (stillCurrent()) setAuditLogs(result.auditLogs);
-    } else {
-      const cachedStaff=api.peekCached?.(`/api/schools/${schoolId}/teachers`) && api.peekCached?.(`/api/schools/${schoolId}/users?role=security`);
-      setUsersLoading(!cachedStaff); setUsersError('');
-      try {
-        const [teacherData, userData] = await Promise.all([api.getTeachers(schoolId), api.getSecurityUsers(schoolId)]);
-        if (!stillCurrent()) return;
-        setTeachers(teacherData.teachers); setUsers(userData.users);
-      } catch (cause) {
-        if (stillCurrent()) {if(cause instanceof ApiError && [401,403].includes(cause.status)){setTeachers([]);setUsers([]);}setUsersError('Personel kayıtları yüklenemedi. Lütfen tekrar deneyin.');}
-        throw cause;
-      } finally { if (stillCurrent()) setUsersLoading(false); }
-    }
-  }, [currentSchool?.id, currentMembership?.role, platformContextActive]);
-
-  const createTeacher = async (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => {
-    if (!currentSchool) throw new Error('Aktif okul bulunamadı.');
-    try {
-      const result = await api.createStaff(currentSchool.id, data);
-      await refreshSchoolSection('staff');
-      return result;
-    } catch (error) {
-      await refreshSchoolSection('staff');
-      throw error;
-    }
   };
 
   // Remove Availability Slot
@@ -609,64 +443,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  const deleteNotification = async (notificationId: string) => {
-    if (!currentSchool || !currentUser) return;
-    const sequence = schoolLoadSequence.current;
-    const schoolId = currentSchool.id;
-    const userId = currentUser.id;
-    await api.deleteNotification(schoolId, notificationId);
-    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;
-    notificationVisibilityRevision.current += 1;
-    setNotifications((previous) => previous.filter((notification) => notification.id !== notificationId || notification.userId !== userId));
-  };
-
-  const clearParentNotifications = async () => {
-    if (!currentSchool || currentMembership?.role !== 'parent') return;
-    const sequence = schoolLoadSequence.current;
-    const schoolId = currentSchool.id;
-    await api.clearParentNotifications(schoolId);
-    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;
-    notificationVisibilityRevision.current += 1;
-    setNotifications((previous) => previous.filter((notification) => notification.userId !== currentUser?.id));
-  };
-
-  const clearParentHistory = async () => {
-    if (!currentSchool || currentMembership?.role !== 'parent') return;
-    await api.clearParentHistory(currentSchool.id);
-    const result = await api.getAppointments(currentSchool.id);
-    setAppointments(result.appointments);
-  };
-
-  const getParentClasses = async () => {
-    if (!currentSchool || currentMembership?.role !== 'parent') return [];
-    return (await api.getParentClasses(currentSchool.id)).classes;
-  };
-
   // Update Settings
   const updateSettings = async (newSettings: Partial<SchoolSettings>) => {
     if (!currentSchool) return;
     const res = await api.updateSettings(currentSchool.id, newSettings);
     setSettings(res.settings);
-    const updatedName = res.settings.schoolName?.trim();
-    if (updatedName) {
-      setCurrentSchool((school) => school ? { ...school, name: updatedName } : school);
-      setSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));
-      setPlatformSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));
-    }
   };
 
   // Add / Remove Student Profile (Local helpers)
-  const addStudentToProfile = async (student: { name: string; className: string }) => {
-    if (!currentUser || !currentSchool || currentMembership?.role !== 'parent') throw new Error('Aktif veli hesabı bulunamadı.');
-    await api.claimParentStudent(currentSchool.id, student);
-    const result = await api.getStudents(currentSchool.id);
-    setCurrentUser((previous) => previous ? { ...previous, students: result.students } : previous);
+  const addStudentToProfile = (student: { name: string; className: string }) => {
+    if (!currentUser) return;
+    const newStudent: Student = {
+      id: 's-' + Date.now(),
+      schoolId: currentSchool?.id,
+      name: student.name,
+      className: student.className,
+    };
+    const updated = [...(currentUser.students || []), newStudent];
+    setCurrentUser({ ...currentUser, students: updated });
   };
 
   const removeStudentFromProfile = (studentId: string) => {
     if (!currentUser) return;
     const updated = (currentUser.students || []).filter((s) => s.id !== studentId);
     setCurrentUser({ ...currentUser, students: updated });
+  };
+
+  // Password reset helper
+  const resetUserPassword = (_phone: string, _newPass: string): boolean => {
+    return true;
+  };
+
+  // Admin: Upload Roster
+  const uploadRoster = async (records: Partial<SchoolRosterRecord>[]): Promise<number> => {
+    if (!currentSchool) return 0;
+    const res = await api.uploadRoster(currentSchool.id, records);
+    const updatedRoster = await api.getRoster(currentSchool.id).catch(() => ({ roster: [] }));
+    setRoster(updatedRoster.roster);
+    return res.addedCount;
   };
 
   // Automated Tenant Isolation Test Suite
@@ -677,8 +491,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsolationTestResults(res.results);
       return res.results;
     } catch (err: any) {
-      console.error('Isolation check could not be completed.');
+      console.error('Test isolation error:', err);
       return [];
+    }
+  };
+
+  // Onboarding helpers
+  const sendOtp = async (phone: string, schoolId?: string) => {
+    return api.sendOtp(phone, schoolId);
+  };
+
+  const verifyOtp = async (phone: string, code: string, schoolId?: string) => {
+    const res = await api.verifyOtp(phone, code, schoolId);
+    setAuthToken(res.token);
+    setUserMemberships(res.memberships);
+    return res;
+  };
+
+  const checkRoster = async (schoolId: string) => {
+    return api.checkRoster(schoolId);
+  };
+
+  const claimStudents = async (schoolId: string, firstName?: string, lastName?: string) => {
+    const res = await api.claimStudents(schoolId, firstName, lastName);
+    setUserMemberships(res.memberships);
+    return res;
+  };
+
+  const refreshCurrentSchoolData = async () => {
+    if (currentSchool && currentUser) {
+      await loadSchoolData(currentSchool.id, currentUser, currentMembership);
     }
   };
 
@@ -689,55 +531,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        refreshMobileData: async () => {
-          if (!currentSchool || !currentUser || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;
-          const schoolId = currentSchool.id;
-          const sequence = schoolLoadSequence.current;
-          if (mobileRefresh.current?.sequence === sequence) return mobileRefresh.current.promise;
-          const revision = mobileDataRevision.current;
-          const notificationRevision = notificationVisibilityRevision.current;
-          const isTeacher = currentMembership?.role === 'teacher';
-          const promise = (async () => {
-            const [notificationResult, appointmentResult, availabilityResult] = await Promise.all([
-              api.getNotifications(schoolId), api.getAppointments(schoolId),
-              isTeacher ? api.getAvailability(schoolId) : Promise.resolve(null),
-            ]);
-            if (!isCurrentMobileRefresh(
-              { sequence, revision, notificationRevision, schoolId },
-              { sequence: schoolLoadSequence.current, revision: mobileDataRevision.current, notificationRevision: notificationVisibilityRevision.current, schoolId: getActiveSchoolId() || '' },
-            )) return;
-            setNotifications(notificationResult.notifications);
-            setAppointments(appointmentResult.appointments);
-            if (availabilityResult) setAvailability(availabilityResult.availability);
-            mobileDataRevision.current += 1;
-          })();
-          mobileRefresh.current = { sequence, promise };
-          try { await promise; } finally {
-            if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;
-          }
-        },
-        refreshSchoolData: refreshSchoolSection,
-        refreshPlatformSchools: async () => {
-          if (!isPlatformAdmin) return;
-          const result = await api.getManagedSchools();
-          setPlatformSchools(result.schools);
-          setSchools((current) => current.map((school) => {
-            const updated = result.schools.find((candidate) => candidate.id === school.id);
-            return updated ? asSchool(updated) : school;
-          }));
-          const active = currentSchool && result.schools.find((school) => school.id === currentSchool.id);
-          if ((!active || active.disabledAt) && currentSchool && platformContextActive) {
-            await returnToPlatform();
-          } else if (active) setCurrentSchool(asSchool(active));
-        },
         currentUser,
         users,
-        usersLoading,
-        usersError,
         schools,
-        platformSchools,
-        isPlatformAdmin,
-        platformContextActive,
         currentSchool,
         userMemberships,
         currentMembership,
@@ -751,33 +547,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isolationTestResults,
         unreadNotificationCount,
         isLoading,
-        authStorageError,
-        accountDeletionNotice,
         switchSchool,
-        returnToPlatform,
         login,
-        whatsappLogin,
-        completeUnifiedAdminEmail,
         logout,
-        deleteAccount,
         switchUser,
+        registerUser,
         bookAppointment,
         approveAppointment,
         rejectAppointment,
         cancelAppointment,
-        verifySecurityQr,
+        checkInVisitor,
+        checkOutVisitor,
         addAvailabilitySlot,
-        createTeacher,
         removeAvailabilitySlot,
         markNotificationsAsRead,
-        deleteNotification,
-        clearParentNotifications,
-        clearParentHistory,
-        getParentClasses,
         updateSettings,
         addStudentToProfile,
         removeStudentFromProfile,
+        resetUserPassword,
+        uploadRoster,
         runIsolationTests,
+        sendOtp,
+        verifyOtp,
+        checkRoster,
+        claimStudents,
+        refreshCurrentSchoolData,
       }}
     >
       {children}

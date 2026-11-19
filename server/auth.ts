@@ -1,16 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { userRepository, membershipRepository, schoolRepository, schoolLicenseRepository } from './repositories';
+import { userRepository, membershipRepository } from './repositories';
 import { UserRole, SchoolMembership } from '../src/types';
 
-const configuredSecret = process.env.JWT_SECRET?.trim();
-const isProduction = process.env.NODE_ENV === 'production';
-
-if (isProduction && (!configuredSecret || configuredSecret.length < 32)) {
-  throw new Error('KRİTİK HATA (Production Fail-Fast): JWT_SECRET tanımlı ve en az 32 karakter olmalıdır.');
-}
-
-const SECRET_KEY = configuredSecret || crypto.randomBytes(32).toString('base64url');
+const SECRET_KEY = process.env.JWT_SECRET || 'veli-multi-tenant-secure-secret-key-2025';
 
 export interface AuthUser {
   id: string;
@@ -18,41 +11,18 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   isPhoneVerified: boolean;
-  authMethod: AuthMethod;
-  authVersion: number;
 }
-
-export type AuthMethod = 'password' | 'whatsapp_otp' | 'whatsapp_admin' | 'phone_centric' | 'phone_centric_platform' | 'quick_switch' | 'legacy_password';
-
-export interface AuthTokenPayload {
-  userId: string;
-  phone: string;
-  auth_version: number;
-  auth_method: AuthMethod;
-}
-
-type AuthTokenInput = Omit<AuthTokenPayload, 'auth_method'> & { auth_method?: Exclude<AuthMethod, 'legacy_password'> };
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
-  membership?: SchoolMembership | { schoolId: string; role: UserRole };
-  schoolContext?: { schoolId: string; role: UserRole; source: 'membership' | 'platform'; membership?: SchoolMembership };
-  platformTargetSchoolId?: string;
-}
-
-export function isPlatformAdmin(userId: string | undefined): boolean {
-  return !!userId && (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean).includes(userId);
-}
-
-export function createAccountDeletionSubjectHash(userId: string): string {
-  return crypto.createHmac('sha256', SECRET_KEY).update(`account-deletion:${userId}`).digest('hex');
+  membership?: SchoolMembership;
 }
 
 // Token helper using base64url HMAC-SHA256
-export function createToken(payload: AuthTokenInput, expiresInSeconds = 86400): string {
+export function createToken(payload: object, expiresInSeconds = 86400): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
-  const body = Buffer.from(JSON.stringify({ ...payload, auth_method: payload.auth_method || 'password', exp })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, exp })).toString('base64url');
   const signature = crypto
     .createHmac('sha256', SECRET_KEY)
     .update(`${header}.${body}`)
@@ -60,7 +30,7 @@ export function createToken(payload: AuthTokenInput, expiresInSeconds = 86400): 
   return `${header}.${body}.${signature}`;
 }
 
-export function verifyToken(token: string): AuthTokenPayload | null {
+export function verifyToken(token: string): any {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -70,29 +40,13 @@ export function verifyToken(token: string): AuthTokenPayload | null {
       .update(`${header}.${body}`)
       .digest('base64url');
 
-    const signatureBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expectedSig);
-    if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
+    if (signature !== expectedSig) return null;
 
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf-8'));
-    if (!Number.isInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) {
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null; // Expired
     }
-    if (
-      typeof payload?.userId !== 'string' ||
-      typeof payload.phone !== 'string' ||
-      !Number.isInteger(payload.auth_version) ||
-      (payload.auth_method !== undefined && !['password', 'whatsapp_otp', 'whatsapp_admin', 'phone_centric', 'phone_centric_platform', 'quick_switch'].includes(payload.auth_method))
-    ) {
-      return null;
-    }
-
-    return {
-      userId: payload.userId,
-      phone: payload.phone,
-      auth_version: payload.auth_version,
-      auth_method: payload.auth_method || 'legacy_password',
-    };
+    return payload;
   } catch (err) {
     return null;
   }
@@ -113,8 +67,8 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     }
 
     const user = await userRepository.getById(payload.userId);
-    if (!user || user.authVersion !== payload.auth_version) {
-      return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş oturum anahtarı' });
+    if (!user) {
+      return res.status(401).json({ error: 'Kullanıcı bulunamadı' });
     }
 
     req.user = {
@@ -123,8 +77,6 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       firstName: user.firstName,
       lastName: user.lastName,
       isPhoneVerified: !!user.isPhoneVerified,
-      authMethod: payload.auth_method,
-      authVersion: user.authVersion,
     };
 
     next();
@@ -144,8 +96,7 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
       }
 
       // Determine target schoolId: route param takes precedence when present
-      if (Array.isArray(req.params.schoolId)) return res.status(400).json({error:'Geçersiz okul bağlamı.'});
-      const routeSchoolId = typeof req.params.schoolId === 'string' ? req.params.schoolId : undefined;
+      const routeSchoolId = req.params.schoolId;
       const headerSchoolId = req.headers['x-school-id'] as string;
 
       if (routeSchoolId && headerSchoolId && routeSchoolId !== headerSchoolId) {
@@ -160,54 +111,27 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
         return res.status(400).json({ error: 'Okul bağlamı (X-School-Id) eksik veya geçersiz' });
       }
 
-      const platformContext = req.platformTargetSchoolId === schoolId && canUsePlatformAuthority(req.user);
-      const requestedRole = req.header('X-School-Role');
-      let membership: SchoolMembership | null = null;
-      if (!platformContext) {
-        if (req.user.authMethod === 'whatsapp_otp' || req.user.authMethod === 'whatsapp_admin' || req.user.authMethod === 'phone_centric' || requestedRole) {
-          const eligibleRoles: UserRole[] = req.user.authMethod === 'whatsapp_admin' ? ['admin'] : req.user.authMethod === 'whatsapp_otp' ? ['parent', 'teacher', 'security'] : ['parent','teacher','security','admin'];
-          const memberships = await membershipRepository.getMembershipsByUserId(req.user.id);
-          membership = memberships.find((entry) =>
-            entry.schoolId === schoolId && entry.status === 'active' && eligibleRoles.includes(entry.role)
-            && (!requestedRole || entry.role === requestedRole) && (!allowedRoles?.length || allowedRoles.includes(entry.role))) || null;
-          if (membership && (!await schoolRepository.getById(schoolId) || !await schoolLicenseRepository.isAccessAllowed(schoolId))) membership = null;
-        } else {
-          membership = await requireSchoolMembership(req.user.id, schoolId);
-        }
-      }
+      const membership = await membershipRepository.getActiveMembership(req.user.id, schoolId);
 
-      if (!membership && !platformContext) {
+      if (!membership) {
         return res.status(403).json({
           error: 'Erişim Reddedildi: Bu okulda aktif üyeliğiniz bulunmamaktadır (Tenant İzolasyon Koruması).',
         });
       }
 
-      const role = platformContext ? 'admin' : membership!.role;
-      if (!platformContext && ['teacher','security'].includes(role)
-        && ['password','legacy_password'].includes(req.user.authMethod)) {
-        return res.status(403).json({ error: 'Personel erişimi için WhatsApp doğrulaması gerekir.' });
-      }
-      if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+      if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(membership.role)) {
         return res.status(403).json({
-          error: `Erişim Reddedildi: Bu işlem için yetkiniz (${role}) yetersizdir. Gerekli rol: ${allowedRoles.join(', ')}`,
+          error: `Erişim Reddedildi: Bu işlem için yetkiniz (${membership.role}) yetersizdir. Gerekli rol: ${allowedRoles.join(', ')}`,
         });
       }
 
-      req.membership = membership || { schoolId, role: 'admin' };
-      req.schoolContext = platformContext
-        ? { schoolId, role: 'admin', source: 'platform' }
-        : { schoolId, role: membership!.role, source: 'membership', membership: membership! };
+      req.membership = membership;
       next();
     } catch (err) {
       console.error('[tenantGuard Error]:', err);
       return res.status(500).json({ error: 'Yetkilendirme kontrolü sırasında sunucu hatası oluştu' });
     }
   };
-}
-
-export function canUsePlatformAuthority(user: Pick<AuthUser,'id'|'authMethod'> | undefined): boolean {
-  return !!user && user.authMethod !== 'whatsapp_otp' && user.authMethod !== 'whatsapp_admin' &&
-    user.authMethod !== 'phone_centric' && isPlatformAdmin(user.id);
 }
 
 // ==============================================================================
@@ -219,18 +143,16 @@ export function canUsePlatformAuthority(user: Pick<AuthUser,'id'|'authMethod'> |
  * NEVER trusts blind headers or unverified client inputs.
  */
 export function getAuthorizedSchool(req: AuthenticatedRequest): string {
-  if (!req.schoolContext || !req.schoolContext.schoolId) {
+  if (!req.membership || !req.membership.schoolId) {
     throw new Error('Erişim Reddedildi: İstek için doğrulanmış okul üyeliği (tenant context) bulunamadı.');
   }
-  return req.schoolContext.schoolId;
+  return req.membership.schoolId;
 }
 
 /**
  * Ensures user has an active membership in the school.
  */
 export async function requireSchoolMembership(userId: string, schoolId: string): Promise<SchoolMembership | null> {
-  if (!await schoolRepository.getById(schoolId)) return null;
-  if (!await schoolLicenseRepository.isAccessAllowed(schoolId)) return null;
   return membershipRepository.getActiveMembership(userId, schoolId);
 }
 

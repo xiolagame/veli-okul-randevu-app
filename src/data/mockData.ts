@@ -1,4 +1,3 @@
-import { getIstanbulDate } from '../utils/dates';
 import {
   User,
   TeacherProfile,
@@ -11,7 +10,7 @@ import {
 
 export const INITIAL_SETTINGS: SchoolSettings = {
   schoolName: 'Kahramankazan Şehit Ömer Takdemir Ortaokulu',
-  appName: 'Veli Randevu',
+  appName: 'VELİ',
   defaultSlotMinutes: 15,
   minSlotMinutes: 10,
   maxBookingDaysAhead: 30,
@@ -154,8 +153,8 @@ export const INITIAL_AVAILABILITY: AvailabilitySlot[] = [
 ];
 
 // Helper to get formatted today date
-
-export const getTodayDateString = () => getIstanbulDate();
+const todayObj = new Date();
+export const getTodayDateString = () => todayObj.toISOString().split('T')[0];
 
 const getFutureDateString = (daysAhead: number) => {
   const d = new Date();

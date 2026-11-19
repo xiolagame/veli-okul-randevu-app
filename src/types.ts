@@ -29,16 +29,12 @@ export interface School {
 }
 
 export interface SchoolMembership {
-  schoolName?: string;
-  schoolCode?: string;
-  city?: string;
-  district?: string;
   id: string;
   schoolId: string;
   userId: string;
   role: UserRole;
   branch?: string; // For teachers
-  status: 'active' | 'suspended' | 'pending' | 'inactive';
+  status: 'active' | 'suspended' | 'pending';
   joinedAt: string;
 }
 
@@ -50,9 +46,7 @@ export interface SchoolRosterRecord {
   studentName: string;
   className: string;
   studentNumber?: string;
-  birthDate?: string;
   isClaimed: boolean;
-  parentAccountDeletedAt?: string;
 }
 
 export interface Student {
@@ -61,7 +55,6 @@ export interface Student {
   name: string;
   className: string;
   studentNumber?: string;
-  birthDate?: string;
 }
 
 export interface StudentParentRelation {
@@ -78,29 +71,23 @@ export interface User {
   firstName: string;
   lastName: string;
   phone: string;
-  email?: string;
   branch?: string; // For teachers
   students?: Student[]; // For parents (in current active school)
   securityQuestion?: string;
   isPhoneVerified?: boolean;
   disabled?: boolean;
   createdAt?: string;
-  accountStatus?: 'pending' | 'active' | 'inactive';
-  deletionVerification?: 'credential' | 'whatsapp';
 }
 
 export interface TeacherProfile {
   id: string;
   schoolId?: string;
-  userId?: string;
   firstName: string;
   lastName: string;
   phone: string;
-  email?: string;
   branch: string;
   avatarUrl?: string;
   bio?: string;
-  accountStatus?: 'pending' | 'active' | 'inactive';
 }
 
 export interface AvailabilitySlot {
@@ -130,48 +117,12 @@ export interface Appointment {
   startTime: string; // "09:00"
   endTime: string;   // "09:15"
   status: AppointmentStatus;
-  entryCode?: string;
+  entryCode: string; // 6-digit verification code e.g. "482915"
   notes?: string;
   rejectionReason?: string;
   createdAt: string;
-  approvedAt?: string;
   checkedInAt?: string;
   checkedOutAt?: string;
-  qrToken?: string;
-  approvedBy?: string;
-  checkedInBy?: string;
-}
-
-export type SecurityQrDecision =
-  | 'APPROVED'
-  | 'PENDING_APPROVAL'
-  | 'REJECTED'
-  | 'CANCELLED'
-  | 'ALREADY_CHECKED_IN'
-  | 'EXPIRED'
-  | 'TOO_EARLY'
-  | 'INVALID';
-
-export interface SecurityQrAppointment {
-  id: string;
-  parentName: string;
-  studentName: string;
-  className: string;
-  teacherName: string;
-  teacherBranch: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  checkedInAt?: string;
-}
-
-export interface SecurityQrVerification {
-  success: boolean;
-  allowed: boolean;
-  decision: SecurityQrDecision;
-  title: string;
-  message: string;
-  appointment?: SecurityQrAppointment;
 }
 
 export interface NotificationItem {

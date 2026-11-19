@@ -5,7 +5,6 @@
 // Supports both standalone queries and atomic multi-table transactions.
 // ==============================================================================
 
-import crypto from 'crypto';
 import { getDb, TransactionClient } from '../database/postgres';
 import {
   School,
@@ -23,11 +22,6 @@ import {
   UserRole,
   AppointmentStatus,
 } from '../../src/types';
-import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../../src/utils/phone';
-import { PhoneIdentityAmbiguityError } from '../phone-identity-audit';
-import { normalizePersonName } from '../../src/utils/person-name';
-import { normalizeSchoolCodeInput } from '../../src/utils/school-code';
-import { normalizeSchoolSettings } from '../../src/utils/school-settings';
 
 // Helper: executes query on transaction client if provided, else on global db
 async function execQuery<T = any>(
@@ -42,98 +36,13 @@ async function execQuery<T = any>(
   return db.query<T>(sql, params);
 }
 
-function mapTeacherProfile(row: any): TeacherProfile {
-  return {
-    id: row.id,
-    schoolId: row.school_id,
-    userId: row.user_id || undefined,
-    firstName: normalizePersonName(row.first_name),
-    lastName: normalizePersonName(row.last_name),
-    branch: row.branch,
-    email: row.email || undefined,
-    phone: row.phone || '',
-  };
-}
-
-function mapAppointment(row: any): Appointment {
-  return {
-    id: row.id ?? row.appointment_id,
-    schoolId: row.school_id,
-    teacherId: row.teacher_id,
-    teacherName: normalizePersonName(row.teacher_name),
-    teacherBranch: row.teacher_branch,
-    parentId: row.parent_id,
-    parentName: normalizePersonName(row.parent_name),
-    parentPhone: row.parent_phone,
-    studentId: row.student_id || undefined,
-    studentName: normalizePersonName(row.student_name),
-    className: row.class_name,
-    date: row.date,
-    startTime: row.start_time,
-    endTime: row.end_time,
-    status: row.status as AppointmentStatus,
-    entryCode: row.entry_code || undefined,
-    qrToken: row.qr_token || undefined,
-    notes: row.notes || undefined,
-    rejectionReason: row.rejection_reason || undefined,
-    approvedAt: row.approved_at || undefined,
-    approvedBy: row.approved_by || undefined,
-    checkedInAt: row.checked_in_at || undefined,
-    checkedInBy: row.checked_in_by || undefined,
-    checkedOutAt: row.checked_out_at || undefined,
-    createdAt: row.created_at,
-  };
-}
-
-export type AuthCodePurpose =
-  | 'ACCOUNT_ACTIVATION'
-  | 'TEACHER_ACTIVATION'
-  | 'SECURITY_ACTIVATION'
-  | 'PASSWORD_RESET'
-  | 'parent_self_registration'
-  | 'parent_password_reset'
-  | 'staff_activation'
-  | 'staff_password_reset'
-  | 'staff_activation_setup'
-  | 'staff_password_setup'
-  | 'school_admin_activation'
-  | 'school_admin_activation_setup'
-  | 'school_admin_password_reset'
-  | 'school_admin_password_setup';
-
 // ==============================================================================
 // 1. SCHOOL REPOSITORY
 // ==============================================================================
-export type SchoolLicenseStatus = 'active' | 'suspended' | 'revoked';
-
-export const schoolLicenseRepository = {
-  async getBySchoolId(schoolId: string, client?: TransactionClient): Promise<{
-    id: string;
-    schoolId: string;
-    licenseCode: string;
-    status: SchoolLicenseStatus;
-    activatedAt: string | null;
-    expiresAt: string | null;
-  } | null> {
-    const result = await execQuery<{ id: string; school_id: string; license_code: string; status: SchoolLicenseStatus; activated_at: string | null; expires_at: string | null }>(
-      `SELECT id,school_id,license_code,status,activated_at,expires_at
-       FROM school_licenses WHERE school_id=$1`, [schoolId], client);
-    const row = result.rows[0];
-    return row ? { id: row.id, schoolId: row.school_id, licenseCode: row.license_code, status: row.status,
-      activatedAt: row.activated_at, expiresAt: row.expires_at } : null;
-  },
-
-  async isAccessAllowed(schoolId: string, client?: TransactionClient): Promise<boolean> {
-    const license = await this.getBySchoolId(schoolId, client);
-    if (!license) return true;
-    return license.status === 'active' && (!license.expiresAt || new Date(license.expiresAt).getTime() > Date.now());
-  },
-};
-
 export const schoolRepository = {
   async getAll(): Promise<School[]> {
     const res = await execQuery<any>(
-      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE disabled_at IS NULL ORDER BY name ASC;`
+      `SELECT id, name, code, city, district, settings, created_at FROM schools ORDER BY name ASC;`
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -141,14 +50,14 @@ export const schoolRepository = {
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
+      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
       createdAt: r.created_at,
     }));
   },
 
   async getById(id: string): Promise<School | null> {
     const res = await execQuery<any>(
-      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE id = $1 AND disabled_at IS NULL;`,
+      `SELECT id, name, code, city, district, settings, created_at FROM schools WHERE id = $1;`,
       [id]
     );
     if (res.rows.length === 0) return null;
@@ -159,29 +68,28 @@ export const schoolRepository = {
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
+      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
       createdAt: r.created_at,
     };
   },
 
   async getByCode(code: string): Promise<School | null> {
-    const clean = normalizeSchoolCodeInput(code.trim());
+    const clean = code.trim().toUpperCase();
     const res = await execQuery<any>(
       `SELECT id, name, code, city, district, settings, created_at 
        FROM schools 
-       WHERE (UPPER(code) = $1 OR id = $2) AND disabled_at IS NULL;`,
+       WHERE UPPER(code) = $1 OR id = $2;`,
       [clean, code.toLowerCase()]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
-    if (!await schoolLicenseRepository.isAccessAllowed(r.id)) return null;
     return {
       id: r.id,
       name: r.name,
       code: r.code,
       city: r.city,
       district: r.district,
-      settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
+      settings: typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings,
       createdAt: r.created_at,
     };
   },
@@ -190,7 +98,7 @@ export const schoolRepository = {
     const current = await this.getById(schoolId);
     if (!current) throw new Error(`Okul bulunamadı: ${schoolId}`);
 
-    const merged = normalizeSchoolSettings({ ...current.settings, ...settings }, settings.schoolName || current.name);
+    const merged = { ...current.settings, ...settings };
     const res = await execQuery<any>(
       `UPDATE schools 
        SET settings = $1, updated_at = NOW() 
@@ -207,63 +115,9 @@ export const schoolRepository = {
 // 2. USER REPOSITORY (Global Identities)
 // ==============================================================================
 export const userRepository = {
-  async getSecurityUsers(schoolId: string): Promise<User[]> {
-    const result = await execQuery<{
-      id: string; first_name: string; last_name: string; phone: string; email: string | null;
-      account_status: 'active' | 'pending';
-    }>(
-      `SELECT u.id, u.first_name, u.last_name, u.phone, u.email,
-         CASE WHEN u.is_phone_verified=TRUE OR NULLIF(u.password_hash, '') IS NOT NULL THEN 'active' ELSE 'pending' END AS account_status
-       FROM users u
-       WHERE EXISTS (
-         SELECT 1 FROM school_memberships sm
-         WHERE sm.user_id = u.id AND sm.school_id = $1
-           AND sm.role = 'security' AND sm.status = 'active'
-       )
-       UNION ALL
-       SELECT ps.id,ps.first_name,ps.last_name,ps.phone,ps.email,'pending' AS account_status
-       FROM pending_staff ps WHERE ps.school_id=$1 AND ps.role='security'
-       ORDER BY first_name, last_name, id;`,
-      [schoolId]
-    );
-    return result.rows.map((row) => ({
-      id: row.id, firstName: normalizePersonName(row.first_name), lastName: normalizePersonName(row.last_name),
-      phone: row.phone, email: row.email || undefined, role: 'security', accountStatus: row.account_status,
-    }));
-  },
-
-  async getAuthByPhone(phone: string): Promise<(User & { passwordHash: string | null; authVersion: number }) | null> {
-    const lookupDigits = getTurkishPhoneLookupDigits(phone);
-    if (!lookupDigits) return null;
-    const canonicalPhone = `+${lookupDigits[0]}`;
+  async getById(id: string, client?: TransactionClient): Promise<User | null> {
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, password_hash, auth_version, created_at
-       FROM users
-       WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
-       ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
-       LIMIT 2;`,
-      [...lookupDigits, canonicalPhone]
-    );
-    if (res.rows.length === 0) return null;
-    if (res.rows.length > 1) throw new PhoneIdentityAmbiguityError();
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      phone: r.phone,
-      firstName: normalizePersonName(r.first_name || ''),
-      lastName: normalizePersonName(r.last_name || ''),
-      isPhoneVerified: r.is_phone_verified,
-      securityQuestion: r.security_question,
-      createdAt: r.created_at,
-      passwordHash: r.password_hash,
-      authVersion: Number(r.auth_version),
-    };
-  },
-
-  async getById(id: string, client?: TransactionClient): Promise<(User & { authVersion: number }) | null> {
-    const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version,
-              (NULLIF(password_hash, '') IS NOT NULL) AS has_password, created_at
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
        FROM users 
        WHERE id = $1;`,
       [id],
@@ -274,69 +128,33 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: normalizePersonName(r.first_name || ''),
-      lastName: normalizePersonName(r.last_name || ''),
+      firstName: r.first_name || '',
+      lastName: r.last_name || '',
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
-      authVersion: Number(r.auth_version),
-      deletionVerification: r.has_password ? 'credential' : 'whatsapp',
     };
   },
 
-  async getByPhone(phone: string, client?: TransactionClient): Promise<(User & { authVersion: number }) | null> {
-    const lookupDigits = getTurkishPhoneLookupDigits(phone);
-    if (!lookupDigits) return null;
-    const canonicalPhone = `+${lookupDigits[0]}`;
+  async getByPhone(phone: string): Promise<User | null> {
+    const clean = phone.replace(/\s+/g, '');
     const res = await execQuery<any>(
-      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, auth_version,
-              (NULLIF(password_hash, '') IS NOT NULL) AS has_password, created_at
+      `SELECT id, phone, first_name, last_name, is_phone_verified, security_question, created_at 
        FROM users 
-       WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN ($1, $2, $3)
-       ORDER BY CASE WHEN phone = $4 THEN 0 ELSE 1 END, created_at ASC
-       LIMIT 2;`,
-      [...lookupDigits, canonicalPhone],
-      client
+       WHERE REPLACE(phone, ' ', '') = $1;`,
+      [clean]
     );
     if (res.rows.length === 0) return null;
-    if (res.rows.length > 1) throw new PhoneIdentityAmbiguityError();
     const r = res.rows[0];
     return {
       id: r.id,
       phone: r.phone,
-      firstName: normalizePersonName(r.first_name || ''),
-      lastName: normalizePersonName(r.last_name || ''),
+      firstName: r.first_name || '',
+      lastName: r.last_name || '',
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
-      deletionVerification: r.has_password ? 'credential' : 'whatsapp',
-      authVersion: Number(r.auth_version),
     };
-  },
-
-  async updatePasswordHash(id: string, passwordHash: string, client?: TransactionClient): Promise<boolean> {
-    const res = await execQuery(
-      `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`,
-      [passwordHash, id],
-      client
-    );
-    return res.rows.length > 0;
-  },
-
-  async updatePasswordHashAndInvalidateSessions(
-    id: string,
-    passwordHash: string,
-    client?: TransactionClient
-  ): Promise<number | null> {
-    const res = await execQuery<{ auth_version: number }>(
-      `UPDATE users
-       SET password_hash = $1, auth_version = auth_version + 1, updated_at = NOW()
-       WHERE id = $2
-       RETURNING auth_version;`,
-      [passwordHash, id],
-      client
-    );
-    return res.rows[0] ? Number(res.rows[0].auth_version) : null;
   },
 
   async create(
@@ -347,17 +165,15 @@ export const userRepository = {
       lastName?: string;
       isPhoneVerified?: boolean;
       securityQuestion?: string;
-      email?: string;
     },
     client?: TransactionClient
   ): Promise<User> {
     const id = user.id || 'usr-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const cleanPhone = normalizeTurkishPhone(user.phone);
-    if (!cleanPhone) throw new Error('Invalid Turkish phone number');
+    const cleanPhone = user.phone.replace(/\s+/g, '');
 
     const res = await execQuery<any>(
-      `INSERT INTO users (id, phone, first_name, last_name, is_phone_verified, security_question, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO users (id, phone, first_name, last_name, is_phone_verified, security_question)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (phone) DO UPDATE SET
          is_phone_verified = EXCLUDED.is_phone_verified,
          updated_at = NOW()
@@ -365,11 +181,10 @@ export const userRepository = {
       [
         id,
         cleanPhone,
-        normalizePersonName(user.firstName || ''),
-        normalizePersonName(user.lastName || ''),
+        user.firstName || '',
+        user.lastName || '',
         user.isPhoneVerified ?? false,
         user.securityQuestion || null,
-        user.email || null,
       ],
       client
     );
@@ -377,12 +192,11 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: normalizePersonName(r.first_name || ''),
-      lastName: normalizePersonName(r.last_name || ''),
+      firstName: r.first_name || '',
+      lastName: r.last_name || '',
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
-      deletionVerification: 'whatsapp',
     };
   },
 
@@ -400,7 +214,7 @@ export const userRepository = {
        SET first_name = $1, last_name = $2, is_phone_verified = $3, security_question = $4, updated_at = NOW()
        WHERE id = $5
        RETURNING id, phone, first_name, last_name, is_phone_verified, security_question, created_at;`,
-      [normalizePersonName(firstName), normalizePersonName(lastName), isVerified, securityQuestion, id],
+      [firstName, lastName, isVerified, securityQuestion, id],
       client
     );
     if (res.rows.length === 0) return null;
@@ -408,8 +222,8 @@ export const userRepository = {
     return {
       id: r.id,
       phone: r.phone,
-      firstName: normalizePersonName(r.first_name || ''),
-      lastName: normalizePersonName(r.last_name || ''),
+      firstName: r.first_name || '',
+      lastName: r.last_name || '',
       isPhoneVerified: r.is_phone_verified,
       securityQuestion: r.security_question,
       createdAt: r.created_at,
@@ -430,16 +244,15 @@ export const userRepository = {
 // 3. SCHOOL MEMBERSHIP REPOSITORY (Multi-tenant Role Scoping)
 // ==============================================================================
 export const membershipRepository = {
-  async getMembershipsByUserId(userId: string, client?: TransactionClient): Promise<SchoolMembership[]> {
+  async getMembershipsByUserId(userId: string): Promise<SchoolMembership[]> {
     const res = await execQuery<any>(
       `SELECT sm.id, sm.school_id, sm.user_id, sm.role, sm.branch, sm.status, sm.joined_at,
               s.name as school_name, s.code as school_code, s.city, s.district
        FROM school_memberships sm
        JOIN schools s ON s.id = sm.school_id
-       WHERE sm.user_id = $1 AND sm.status = 'active' AND s.disabled_at IS NULL
+       WHERE sm.user_id = $1 AND sm.status = 'active'
        ORDER BY sm.joined_at DESC;`,
-      [userId],
-      client
+      [userId]
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -462,7 +275,7 @@ export const membershipRepository = {
               s.name as school_name, s.code as school_code, s.city, s.district
        FROM school_memberships sm
        JOIN schools s ON s.id = sm.school_id
-       WHERE sm.user_id = $1 AND sm.school_id = $2 AND sm.status = 'active' AND s.disabled_at IS NULL
+       WHERE sm.user_id = $1 AND sm.school_id = $2 AND sm.status = 'active'
        LIMIT 1;`,
       [userId, schoolId],
       client
@@ -489,7 +302,6 @@ export const membershipRepository = {
       `SELECT id, school_id, user_id, role, branch, status, joined_at
        FROM school_memberships
        WHERE role = $1 AND status = 'active'
-         AND EXISTS (SELECT 1 FROM schools s WHERE s.id=school_memberships.school_id AND s.disabled_at IS NULL)
        LIMIT 1;`,
       [role]
     );
@@ -566,7 +378,7 @@ export const membershipRepository = {
 export const studentRepository = {
   async getStudentsBySchool(schoolId: string): Promise<Student[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
+      `SELECT id, school_id, name, class_name, student_number
        FROM students
        WHERE school_id = $1
        ORDER BY class_name ASC, name ASC;`,
@@ -575,16 +387,15 @@ export const studentRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      name: normalizePersonName(r.name),
+      name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     }));
   },
 
   async getStudentById(schoolId: string, studentId: string, client?: TransactionClient): Promise<Student | null> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
+      `SELECT id, school_id, name, class_name, student_number
        FROM students
        WHERE school_id = $1 AND id = $2;`,
       [schoolId, studentId],
@@ -595,16 +406,15 @@ export const studentRepository = {
     return {
       id: r.id,
       schoolId: r.school_id,
-      name: normalizePersonName(r.name),
+      name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     };
   },
 
   async getStudentsByParent(schoolId: string, parentUserId: string): Promise<Student[]> {
     const res = await execQuery<any>(
-      `SELECT s.id, s.school_id, s.name, s.class_name, s.student_number, s.birth_date::text AS birth_date
+      `SELECT s.id, s.school_id, s.name, s.class_name, s.student_number
        FROM students s
        JOIN student_parent_relations rel ON rel.student_id = s.id AND rel.school_id = s.school_id
        WHERE rel.school_id = $1 AND rel.parent_user_id = $2
@@ -614,59 +424,52 @@ export const studentRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      name: normalizePersonName(r.name),
+      name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     }));
   },
 
   async findOrCreateStudent(
     schoolId: string,
-    data: { id?: string; name: string; className: string; studentNumber?: string; birthDate?: string },
+    data: { id?: string; name: string; className: string; studentNumber?: string },
     client?: TransactionClient
   ): Promise<Student> {
-    const cleanName = normalizePersonName(data.name);
+    // Check if matching student exists in this school
     const existing = await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
+      `SELECT id, school_id, name, class_name, student_number
        FROM students
-       WHERE school_id = $1 AND class_name = $2 AND name = $3
-         AND student_number IS NOT DISTINCT FROM $4 LIMIT 1;`,
-      [schoolId, data.className, cleanName, data.studentNumber || null],
+       WHERE school_id = $1 AND name = $2 AND class_name = $3
+       LIMIT 1;`,
+      [schoolId, data.name, data.className],
       client
     );
-    const legacy = existing.rows.length ? [] : (await execQuery<any>(
-      `SELECT id, school_id, name, class_name, student_number, birth_date::text AS birth_date
-       FROM students WHERE school_id = $1 AND class_name = $2;`, [schoolId, data.className], client)).rows;
-    const existingStudent = existing.rows[0] || legacy.find((row) => normalizePersonName(row.name) === cleanName && (row.student_number || null) === (data.studentNumber || null));
-    if (existingStudent) {
-      const r = existingStudent;
+    if (existing.rows.length > 0) {
+      const r = existing.rows[0];
       return {
         id: r.id,
         schoolId: r.school_id,
-        name: normalizePersonName(r.name),
+        name: r.name,
         className: r.class_name,
         studentNumber: r.student_number || undefined,
-        birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
       };
     }
 
     const id = data.id || 'stu-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const res = await execQuery<any>(
-      `INSERT INTO students (id, school_id, name, class_name, student_number, birth_date)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, school_id, name, class_name, student_number, birth_date::text AS birth_date;`,
-      [id, schoolId, cleanName, data.className, data.studentNumber || null, data.birthDate || null],
+      `INSERT INTO students (id, school_id, name, class_name, student_number)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, school_id, name, class_name, student_number;`,
+      [id, schoolId, data.name, data.className, data.studentNumber || null],
       client
     );
     const r = res.rows[0];
     return {
       id: r.id,
       schoolId: r.school_id,
-      name: normalizePersonName(r.name),
+      name: r.name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0, 10) : undefined,
     };
   },
 };
@@ -734,7 +537,7 @@ export const relationRepository = {
 export const rosterRepository = {
   async getRoster(schoolId: string): Promise<SchoolRosterRecord[]> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
        FROM school_roster
        WHERE school_id = $1
        ORDER BY class_name ASC, student_name ASC;`,
@@ -744,69 +547,39 @@ export const rosterRepository = {
       id: r.id,
       schoolId: r.school_id,
       parentPhone: r.parent_phone,
-      parentName: normalizePersonName(r.parent_name),
-      studentName: normalizePersonName(r.student_name),
+      parentName: r.parent_name,
+      studentName: r.student_name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
-      parentAccountDeletedAt: r.parent_account_deleted_at || undefined,
     }));
   },
 
-  async checkPhone(schoolId: string, parentPhone: string, client?: TransactionClient): Promise<SchoolRosterRecord[]> {
-    const lookupDigits = getTurkishPhoneLookupDigits(parentPhone);
-    if (!lookupDigits) return [];
+  async checkPhone(schoolId: string, parentPhone: string): Promise<SchoolRosterRecord[]> {
+    const clean = parentPhone.replace(/\s+/g, '');
     const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
+      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, is_claimed
        FROM school_roster
-       WHERE school_id = $1 AND parent_account_deleted_at IS NULL
-         AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4);`,
-      [schoolId, ...lookupDigits],
-      client
+       WHERE school_id = $1 AND REPLACE(parent_phone, ' ', '') = $2;`,
+      [schoolId, clean]
     );
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
       parentPhone: r.parent_phone,
-      parentName: normalizePersonName(r.parent_name),
-      studentName: normalizePersonName(r.student_name),
+      parentName: r.parent_name,
+      studentName: r.student_name,
       className: r.class_name,
       studentNumber: r.student_number || undefined,
-      birthDate: r.birth_date ? String(r.birth_date).slice(0,10) : undefined,
       isClaimed: r.is_claimed,
-      parentAccountDeletedAt: r.parent_account_deleted_at || undefined,
     }));
-  },
-
-  async getById(schoolId: string, rosterId: string, client?: TransactionClient): Promise<SchoolRosterRecord | null> {
-    const res = await execQuery<any>(
-      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, parent_account_deleted_at
-       FROM school_roster WHERE school_id = $1 AND id = $2;`,
-      [schoolId, rosterId],
-      client
-    );
-    if (res.rows.length === 0) return null;
-    const roster = res.rows[0];
-    return {
-      id: roster.id,
-      schoolId: roster.school_id,
-      parentPhone: roster.parent_phone,
-      parentName: normalizePersonName(roster.parent_name),
-      studentName: normalizePersonName(roster.student_name),
-      className: roster.class_name,
-      studentNumber: roster.student_number || undefined,
-      birthDate: roster.birth_date ? String(roster.birth_date).slice(0,10) : undefined,
-      isClaimed: roster.is_claimed,
-      parentAccountDeletedAt: roster.parent_account_deleted_at || undefined,
-    };
   },
 
   async claimRosterRecord(schoolId: string, rosterId: string, client?: TransactionClient): Promise<boolean> {
     const res = await execQuery<any>(
       `UPDATE school_roster
        SET is_claimed = TRUE, claimed_at = NOW(), updated_at = NOW()
-       WHERE school_id = $1 AND id = $2 AND parent_account_deleted_at IS NULL;`,
+       WHERE school_id = $1 AND id = $2;`,
       [schoolId, rosterId],
       client
     );
@@ -827,17 +600,14 @@ export const rosterRepository = {
     let count = 0;
     for (const item of records) {
       if (!item.parentPhone || !item.studentName) continue;
-      const cleanPhone = normalizeTurkishPhone(item.parentPhone);
-      const lookupDigits = getTurkishPhoneLookupDigits(item.parentPhone);
-      if (!cleanPhone || !lookupDigits) throw new Error('Invalid Turkish phone number');
+      const cleanPhone = item.parentPhone.replace(/\s+/g, '');
       const id = 'rost-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
 
       // Check if already in roster
       const exists = await execQuery<any>(
         `SELECT id FROM school_roster 
-         WHERE school_id = $1 AND parent_account_deleted_at IS NULL
-           AND regexp_replace(parent_phone, '[^0-9]', '', 'g') IN ($2, $3, $4) AND student_name = $5;`,
-        [schoolId, ...lookupDigits, item.studentName],
+         WHERE school_id = $1 AND REPLACE(parent_phone, ' ', '') = $2 AND student_name = $3;`,
+        [schoolId, cleanPhone, item.studentName],
         client
       );
 
@@ -849,8 +619,8 @@ export const rosterRepository = {
             id,
             schoolId,
             cleanPhone,
-            normalizePersonName(item.parentName || 'Veli'),
-            normalizePersonName(item.studentName),
+            item.parentName || 'Veli',
+            item.studentName,
             item.className || 'Genel',
             item.studentNumber || null,
           ],
@@ -867,96 +637,43 @@ export const rosterRepository = {
 // 7. TEACHER PROFILES REPOSITORY (Strictly Tenant Scoped)
 // ==============================================================================
 export const teacherRepository = {
-  async getTeachers(schoolId: string, includeAccountStatus = false): Promise<TeacherProfile[]> {
+  async getTeachers(schoolId: string): Promise<TeacherProfile[]> {
     const res = await execQuery<any>(
-      `SELECT tp.id, tp.school_id, tp.user_id, tp.first_name, tp.last_name, tp.branch, tp.email, tp.phone,
-         CASE
-           WHEN tp.account_deleted_at IS NOT NULL THEN 'inactive'
-           WHEN tp.user_id IS NULL OR (u.is_phone_verified IS NOT TRUE AND NULLIF(u.password_hash, '') IS NULL) THEN 'pending'
-           WHEN EXISTS (
-             SELECT 1 FROM school_memberships sm
-             WHERE sm.user_id = tp.user_id AND sm.school_id = tp.school_id
-               AND sm.role = 'teacher' AND sm.status = 'active'
-           ) THEN 'active'
-           ELSE 'inactive'
-         END AS account_status
-       FROM teacher_profiles tp
-       LEFT JOIN users u ON u.id = tp.user_id
-       WHERE tp.school_id = $1
-       ORDER BY tp.first_name ASC, tp.last_name ASC;`,
+      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
+       FROM teacher_profiles
+       WHERE school_id = $1
+       ORDER BY first_name ASC, last_name ASC;`,
       [schoolId]
     );
-    return res.rows.filter((row) => row.account_status !== 'inactive' && (includeAccountStatus || row.account_status === 'active')).map((row) => ({
-      ...mapTeacherProfile(row),
-      ...(includeAccountStatus ? { accountStatus: row.account_status } : {}),
+    return res.rows.map((r) => ({
+      id: r.id,
+      schoolId: r.school_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      branch: r.branch,
+      email: r.email || undefined,
+      phone: r.phone || '',
     }));
   },
 
-  async createPending(
-    schoolId: string,
-    teacher: { firstName: string; lastName: string; branch: string; phone: string; email?: string },
-    client?: TransactionClient
-  ): Promise<TeacherProfile> {
-    const id = `tch-${crypto.randomUUID()}`;
-    const res = await execQuery<any>(
-      `INSERT INTO teacher_profiles (id, school_id, first_name, last_name, branch, phone, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, school_id, user_id, first_name, last_name, branch, email, phone;`,
-      [id, schoolId, normalizePersonName(teacher.firstName), normalizePersonName(teacher.lastName), teacher.branch, teacher.phone, teacher.email || null],
-      client
-    );
-    return mapTeacherProfile(res.rows[0]);
-  },
-
-  async getTeacherById(schoolId: string, teacherId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
+  async getTeacherById(schoolId: string, teacherId: string): Promise<TeacherProfile | null> {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
        FROM teacher_profiles
-       WHERE school_id = $1 AND account_deleted_at IS NULL AND (id = $2 OR user_id = $2);`,
-      [schoolId, teacherId],
-      client
+       WHERE school_id = $1 AND (id = $2 OR user_id = $2);`,
+      [schoolId, teacherId]
     );
     if (res.rows.length === 0) return null;
-    return mapTeacherProfile(res.rows[0]);
-  },
-
-  async getTeacherByUserId(schoolId: string, userId: string, client?: TransactionClient): Promise<TeacherProfile | null> {
-    const res = await execQuery<any>(
-      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
-       FROM teacher_profiles
-       WHERE school_id = $1 AND account_deleted_at IS NULL AND user_id = $2
-       LIMIT 1;`,
-      [schoolId, userId],
-      client
-    );
-    return res.rows[0] ? mapTeacherProfile(res.rows[0]) : null;
-  },
-
-  async getTeacherByPhone(schoolId: string, phone: string, client?: TransactionClient): Promise<TeacherProfile | null> {
-    const lookupDigits = getTurkishPhoneLookupDigits(phone);
-    if (!lookupDigits) return null;
-    const res = await execQuery<any>(
-      `SELECT id, school_id, user_id, first_name, last_name, branch, email, phone
-       FROM teacher_profiles
-       WHERE school_id = $1 AND account_deleted_at IS NULL
-         AND regexp_replace(phone, '[^0-9]', '', 'g') IN ($2, $3, $4)
-       LIMIT 1;`,
-      [schoolId, ...lookupDigits],
-      client
-    );
-    return res.rows[0] ? mapTeacherProfile(res.rows[0]) : null;
-  },
-
-  async linkUser(schoolId: string, teacherId: string, userId: string, client?: TransactionClient): Promise<boolean> {
-    const res = await execQuery<any>(
-      `UPDATE teacher_profiles
-       SET user_id = $3, updated_at = NOW()
-       WHERE school_id = $1 AND id = $2 AND account_deleted_at IS NULL AND (user_id IS NULL OR user_id = $3)
-       RETURNING id;`,
-      [schoolId, teacherId, userId],
-      client
-    );
-    return res.rows.length > 0;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      schoolId: r.school_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      branch: r.branch,
+      email: r.email || undefined,
+      phone: r.phone || '',
+    };
   },
 };
 
@@ -1059,37 +776,23 @@ export const availabilityRepository = {
 // 9. APPOINTMENTS REPOSITORY (Concurreny & Partial Unique Index Guarded)
 // ==============================================================================
 export const appointmentRepository = {
-  async getOccupiedIntervals(schoolId: string, teacherId: string, date: string): Promise<{ startTime: string; endTime: string }[]> {
-    const result = await execQuery<{ start_time: string; end_time: string }>(
-      `SELECT start_time, end_time FROM appointments
-       WHERE school_id=$1 AND teacher_id=$2 AND date=$3
-         AND status NOT IN ('cancelled', 'rejected')`,
-      [schoolId, teacherId, date]
-    );
-    return result.rows.map((row) => ({ startTime: row.start_time, endTime: row.end_time }));
-  },
-
   async getAppointments(
     schoolId: string,
-    filter?: { role?: UserRole; userId?: string; teacherProfileId?: string }
+    filter?: { role?: UserRole; userId?: string }
   ): Promise<Appointment[]> {
-    if (filter?.role === 'teacher' && !filter.teacherProfileId) {
-      return [];
-    }
-
     let sql = `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                       student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                      notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+                      notes, rejection_reason, check_in_time, check_out_time, created_at
                FROM appointments
                WHERE school_id = $1`;
     const params: any[] = [schoolId];
 
     if (filter?.role === 'parent' && filter.userId) {
-      sql += ` AND parent_id = $2 AND hidden_for_parent_at IS NULL`;
+      sql += ` AND parent_id = $2`;
       params.push(filter.userId);
-    } else if (filter?.role === 'teacher' && filter.teacherProfileId) {
+    } else if (filter?.role === 'teacher' && filter.userId) {
       sql += ` AND teacher_id = $2`;
-      params.push(filter.teacherProfileId);
+      params.push(filter.userId);
     }
 
     sql += ` ORDER BY date DESC, start_time DESC;`;
@@ -1099,36 +802,35 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: normalizePersonName(r.teacher_name),
+      teacherName: r.teacher_name,
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: normalizePersonName(r.parent_name),
+      parentName: r.parent_name,
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: normalizePersonName(r.student_name),
+      studentName: r.student_name,
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
-      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.checked_in_at || undefined,
-      checkedOutAt: r.checked_out_at || undefined,
+      checkedInAt: r.check_in_time || undefined,
+      checkedOutAt: r.check_out_time || undefined,
       createdAt: r.created_at,
     }));
   },
 
-  async getAppointmentById(schoolId: string, appointmentId: string, client?: TransactionClient): Promise<Appointment | null> {
+  async getAppointmentById(schoolId: string, appointmentId: string): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+              notes, rejection_reason, check_in_time, check_out_time, created_at
        FROM appointments
-       WHERE school_id = $1 AND id = $2${client ? ' FOR UPDATE' : ''};`,
-      [schoolId, appointmentId], client
+       WHERE school_id = $1 AND id = $2;`,
+      [schoolId, appointmentId]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -1136,24 +838,23 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: normalizePersonName(r.teacher_name),
+      teacherName: r.teacher_name,
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: normalizePersonName(r.parent_name),
+      parentName: r.parent_name,
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: normalizePersonName(r.student_name),
+      studentName: r.student_name,
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
-      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.checked_in_at || undefined,
-      checkedOutAt: r.checked_out_at || undefined,
+      checkedInAt: r.check_in_time || undefined,
+      checkedOutAt: r.check_out_time || undefined,
       createdAt: r.created_at,
     };
   },
@@ -1163,7 +864,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+              notes, rejection_reason, check_in_time, check_out_time, created_at
        FROM appointments
        WHERE school_id = $1 AND (entry_code = $2 OR id = $2);`,
       [schoolId, clean]
@@ -1174,37 +875,25 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: normalizePersonName(r.teacher_name),
+      teacherName: r.teacher_name,
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: normalizePersonName(r.parent_name),
+      parentName: r.parent_name,
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: normalizePersonName(r.student_name),
+      studentName: r.student_name,
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
       endTime: r.end_time,
       status: r.status as AppointmentStatus,
       entryCode: r.entry_code,
-      qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.checked_in_at || undefined,
-      checkedOutAt: r.checked_out_at || undefined,
+      checkedInAt: r.check_in_time || undefined,
+      checkedOutAt: r.check_out_time || undefined,
       createdAt: r.created_at,
     };
-  },
-
-  async getAppointmentByQrToken(schoolId: string, qrToken: string): Promise<Appointment | null> {
-    const res = await execQuery<any>(
-      `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-              student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
-       FROM appointments WHERE school_id = $1 AND qr_token = $2;`,
-      [schoolId, qrToken.trim()]
-    );
-    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
   },
 
   async findByCodeAnySchool(code: string): Promise<Appointment | null> {
@@ -1222,7 +911,7 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: '',
-      teacherName: normalizePersonName(r.teacher_name),
+      teacherName: r.teacher_name,
       teacherBranch: '',
       parentId: '',
       parentName: '',
@@ -1243,17 +932,15 @@ export const appointmentRepository = {
     teacherId: string,
     date: string,
     startTime: string,
-    client?: TransactionClient,
-    endTime?: string
+    client?: TransactionClient
   ): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `SELECT id, status
        FROM appointments
-       WHERE school_id = $1 AND teacher_id = $2 AND date = $3
-         AND ($5::text IS NULL AND start_time = $4 OR $5::text IS NOT NULL AND start_time < $5 AND end_time > $4)
+       WHERE school_id = $1 AND teacher_id = $2 AND date = $3 AND start_time = $4
          AND status NOT IN ('cancelled', 'rejected')
        LIMIT 1;`,
-      [schoolId, teacherId, date, startTime, endTime || null],
+      [schoolId, teacherId, date, startTime],
       client
     );
     if (res.rows.length === 0) return null;
@@ -1263,58 +950,76 @@ export const appointmentRepository = {
   async createAppointment(apt: Appointment, client?: TransactionClient): Promise<Appointment> {
     const id = apt.id || 'apt-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const entryCode = apt.entryCode || Math.floor(100000 + Math.random() * 900000).toString();
-    const qrToken = apt.qrToken || `VELIQR1:${crypto.randomBytes(24).toString('base64url')}`;
 
     const res = await execQuery<any>(
       `INSERT INTO appointments (
          id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, notes
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-                 student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token, notes, created_at;`,
+                 student_id, student_name, class_name, date, start_time, end_time, status, entry_code, notes, created_at;`,
       [
         id,
         apt.schoolId,
         apt.teacherId,
-        normalizePersonName(apt.teacherName),
+        apt.teacherName,
         apt.teacherBranch,
         apt.parentId,
-        normalizePersonName(apt.parentName),
+        apt.parentName,
         apt.parentPhone,
         apt.studentId || null,
-        normalizePersonName(apt.studentName),
+        apt.studentName,
         apt.className,
         apt.date,
         apt.startTime,
         apt.endTime,
         apt.status || 'pending',
         entryCode,
-        qrToken,
         apt.notes || null,
       ],
       client
     );
-    return mapAppointment({ ...res.rows[0], id: res.rows[0]?.id ?? id });
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      schoolId: r.school_id,
+      teacherId: r.teacher_id,
+      teacherName: r.teacher_name,
+      teacherBranch: r.teacher_branch,
+      parentId: r.parent_id,
+      parentName: r.parent_name,
+      parentPhone: r.parent_phone,
+      studentId: r.student_id || undefined,
+      studentName: r.student_name,
+      className: r.class_name,
+      date: r.date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      status: r.status as AppointmentStatus,
+      entryCode: r.entry_code,
+      notes: r.notes || undefined,
+      createdAt: r.created_at,
+    };
   },
 
   async updateStatus(
     schoolId: string,
     appointmentId: string,
     status: AppointmentStatus,
-      extra?: { rejectionReason?: string; checkedInAt?: string; checkedOutAt?: string },
+    extra?: { rejectionReason?: string; checkedInAt?: string; checkedOutAt?: string },
     client?: TransactionClient
   ): Promise<Appointment | null> {
     const res = await execQuery<any>(
       `UPDATE appointments
        SET status = $1,
            rejection_reason = COALESCE($2, rejection_reason),
-           checked_in_at = COALESCE($3, checked_in_at),
-           checked_out_at = COALESCE($4, checked_out_at),
+           check_in_time = COALESCE($3, check_in_time),
+           check_out_time = COALESCE($4, check_out_time),
            updated_at = NOW()
        WHERE school_id = $5 AND id = $6
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                  student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                 notes, rejection_reason, checked_in_at, checked_out_at, created_at;`,
+                 notes, rejection_reason, check_in_time, check_out_time, created_at;`,
       [
         status,
         extra?.rejectionReason || null,
@@ -1331,13 +1036,13 @@ export const appointmentRepository = {
       id: r.id,
       schoolId: r.school_id,
       teacherId: r.teacher_id,
-      teacherName: normalizePersonName(r.teacher_name),
+      teacherName: r.teacher_name,
       teacherBranch: r.teacher_branch,
       parentId: r.parent_id,
-      parentName: normalizePersonName(r.parent_name),
+      parentName: r.parent_name,
       parentPhone: r.parent_phone,
       studentId: r.student_id || undefined,
-      studentName: normalizePersonName(r.student_name),
+      studentName: r.student_name,
       className: r.class_name,
       date: r.date,
       startTime: r.start_time,
@@ -1346,47 +1051,14 @@ export const appointmentRepository = {
       entryCode: r.entry_code,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
-      checkedInAt: r.checked_in_at || undefined,
-      checkedOutAt: r.checked_out_at || undefined,
+      checkedInAt: r.check_in_time || undefined,
+      checkedOutAt: r.check_out_time || undefined,
       createdAt: r.created_at,
     };
   },
-
-// ==============================================================================
-  async transitionStatus(
-    schoolId: string,
-    appointmentId: string,
-    fromStatus: AppointmentStatus,
-    toStatus: AppointmentStatus,
-    extra?: { rejectionReason?: string; approvedBy?: string; approvedAt?: string },
-    client?: TransactionClient
-  ): Promise<Appointment | null> {
-    const res = await execQuery<any>(
-      `UPDATE appointments SET status = $1, rejection_reason = COALESCE($2, rejection_reason),
-         approved_at = COALESCE($3, approved_at), approved_by = COALESCE($4, approved_by), updated_at = NOW()
-       WHERE school_id = $5 AND id = $6 AND status = $7
-       RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
-         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
-      [toStatus, extra?.rejectionReason || null, extra?.approvedAt || null, extra?.approvedBy || null, schoolId, appointmentId, fromStatus],
-      client
-    );
-    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
-  },
-
-  async checkInAtomically(schoolId: string, appointmentId: string, checkedInBy: string): Promise<Appointment | null> {
-    const res = await execQuery<any>(
-      `UPDATE appointments SET status = 'checked_in', checked_in_at = NOW(), checked_in_by = $1, updated_at = NOW()
-       WHERE school_id = $2 AND id = $3 AND status = 'booked'
-       RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
-         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
-         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
-      [checkedInBy, schoolId, appointmentId]
-    );
-    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
-  },
 };
 
+// ==============================================================================
 // 10. NOTIFICATION REPOSITORY (Tenant & User Scoped)
 // ==============================================================================
 export const notificationRepository = {
@@ -1394,7 +1066,7 @@ export const notificationRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, user_id, title, message, date, read, appointment_id, created_at
        FROM notifications
-        WHERE school_id = $1 AND user_id = $2 AND hidden_at IS NULL
+       WHERE school_id = $1 AND user_id = $2
        ORDER BY created_at DESC;`,
       [schoolId, userId]
     );
@@ -1404,7 +1076,7 @@ export const notificationRepository = {
       userId: r.user_id,
       title: r.title,
       message: r.message,
-      date: new Date(r.created_at).toISOString(),
+      date: r.date,
       read: r.read,
       appointmentId: r.appointment_id || undefined,
     }));
@@ -1414,24 +1086,10 @@ export const notificationRepository = {
     await execQuery(
       `UPDATE notifications
        SET read = TRUE
-       WHERE school_id = $1 AND user_id = $2 AND read = FALSE AND hidden_at IS NULL;`,
+       WHERE school_id = $1 AND user_id = $2 AND read = FALSE;`,
       [schoolId, userId]
     );
     return true;
-  },
-
-  async hideAllForParent(schoolId: string, userId: string): Promise<void> {
-    await execQuery(`UPDATE notifications SET hidden_at=NOW() WHERE school_id=$1 AND user_id=$2 AND hidden_at IS NULL`, [schoolId, userId]);
-  },
-
-  async hideOne(schoolId: string, userId: string, notificationId: string): Promise<boolean> {
-    const result = await execQuery(
-      `UPDATE notifications SET hidden_at=NOW()
-       WHERE school_id=$1 AND user_id=$2 AND id=$3 AND hidden_at IS NULL
-       RETURNING id`,
-      [schoolId, userId, notificationId]
-    );
-    return result.rows.length === 1;
   },
 
   async createNotification(
@@ -1447,7 +1105,7 @@ export const notificationRepository = {
     client?: TransactionClient
   ): Promise<NotificationItem> {
     const id = notif.id || 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const dateStr = notif.date || new Date().toISOString();
+    const dateStr = notif.date || 'Şimdi';
 
     const res = await execQuery<any>(
       `INSERT INTO notifications (id, school_id, user_id, title, message, date, read, appointment_id)
@@ -1485,7 +1143,7 @@ export const auditLogRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       schoolId: r.school_id,
-      timestamp: new Date(r.created_at).toISOString(),
+      timestamp: r.timestamp,
       action: r.action,
       actorName: r.actor_name,
       details: r.details,
@@ -1499,22 +1157,20 @@ export const auditLogRepository = {
       timestamp?: string;
       action: string;
       actorName: string;
-      actorUserId?: string;
       details: string;
-      auditScope?: 'SCHOOL' | 'PLATFORM';
     },
     client?: TransactionClient
   ): Promise<AuditLogItem> {
     const id = log.id || 'log-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const time =
       log.timestamp ||
-      new Date().toISOString();
+      new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
     const res = await execQuery<any>(
-      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, actor_user_id, details, audit_scope)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, details)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, school_id, timestamp, action, actor_name, details;`,
-      [id, log.schoolId, time, log.action, log.actorName, log.actorUserId || null, log.details, log.auditScope || 'SCHOOL'],
+      [id, log.schoolId, time, log.action, log.actorName, log.details],
       client
     );
     const r = res.rows[0];
@@ -1550,92 +1206,64 @@ export const invitationRepository = {
       description: r.description || undefined,
     };
   },
-
-  async createAuthCode(
-    data: {
-      schoolId: string;
-      targetPhone: string;
-      targetUserId?: string;
-      targetRole?: UserRole;
-      purpose: AuthCodePurpose;
-      codeHash: string;
-      createdBy?: string;
-      expiresAt: string;
-      token: string;
-    },
-    client?: TransactionClient
-  ): Promise<{ id: string; expiresAt: string }> {
-    const cleanPhone = normalizeTurkishPhone(data.targetPhone);
-    if (!cleanPhone) throw new Error('Invalid Turkish phone number');
-    await execQuery(
-      `UPDATE invitations SET is_active = FALSE, revoked_at = NOW()
-       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3
-         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL;`,
-      [data.schoolId, cleanPhone, data.purpose],
-      client
-    );
-
-    const id = `inv-auth-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-    const res = await execQuery<any>(
-      `INSERT INTO invitations (
-         id, school_id, token, is_active, expires_at, purpose, target_phone,
-         target_user_id, target_role, code_hash, created_by, attempts
-       ) VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10, 0)
-       RETURNING id, expires_at;`,
-      [id, data.schoolId, data.token, data.expiresAt, data.purpose, cleanPhone, data.targetUserId || null, data.targetRole || null, data.codeHash, data.createdBy || null],
-      client
-    );
-    return { id: res.rows[0].id, expiresAt: res.rows[0].expires_at };
-  },
-
-  async consumeAuthCode(
-    data: {
-      schoolId: string;
-      targetPhone: string;
-      targetUserId?: string;
-      targetRole?: UserRole;
-      purpose: AuthCodePurpose;
-      codeHash: string;
-    },
-    client?: TransactionClient
-  ): Promise<{ id: string; targetRole?: UserRole; targetUserId?: string } | null> {
-    const cleanPhone = normalizeTurkishPhone(data.targetPhone);
-    if (!cleanPhone) return null;
-    const res = await execQuery<any>(
-      `UPDATE invitations SET consumed_at = NOW(), is_active = FALSE
-       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3 AND code_hash = $4
-         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL
-         AND attempts < 5 AND expires_at > NOW()
-         AND ($6::varchar IS NULL OR target_role = $6)
-         AND (target_user_id IS NULL OR target_user_id = $5)
-       RETURNING id, target_role, target_user_id;`,
-      [data.schoolId, cleanPhone, data.purpose, data.codeHash, data.targetUserId || null, data.targetRole || null],
-      client
-    );
-    return res.rows[0] ? { id: res.rows[0].id, targetRole: res.rows[0].target_role || undefined, targetUserId: res.rows[0].target_user_id || undefined } : null;
-  },
-
-  async recordFailedAuthCodeAttempt(
-    schoolId: string,
-    targetPhone: string,
-    purpose: AuthCodePurpose,
-    client?: TransactionClient
-  ): Promise<void> {
-    const cleanPhone = normalizeTurkishPhone(targetPhone);
-    if (!cleanPhone) return;
-    await execQuery(
-      `UPDATE invitations
-       SET attempts = attempts + 1,
-           revoked_at = CASE WHEN attempts + 1 >= 5 THEN NOW() ELSE revoked_at END,
-           is_active = CASE WHEN attempts + 1 >= 5 THEN FALSE ELSE is_active END
-       WHERE school_id = $1 AND target_phone = $2 AND purpose = $3
-         AND is_active = TRUE AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > NOW();`,
-      [schoolId, cleanPhone, purpose],
-      client
-    );
-  },
 };
 
 // ==============================================================================
-// Legacy otp_verifications data is intentionally retained in the database until a separate cleanup migration.
+// 13. OTP REPOSITORY (Secure Verification Store)
 // ==============================================================================
+export const otpRepository = {
+  async saveOtp(phone: string, code: string, expiresAt: number): Promise<void> {
+    const cleanPhone = phone.replace(/\s+/g, '');
+    await execQuery(
+      `INSERT INTO otp_verifications (phone, code, expires_at, attempts, is_consumed, updated_at)
+       VALUES ($1, $2, $3, 0, FALSE, NOW())
+       ON CONFLICT (phone) DO UPDATE SET
+         code = EXCLUDED.code,
+         expires_at = EXCLUDED.expires_at,
+         attempts = 0,
+         is_consumed = FALSE,
+         updated_at = NOW();`,
+      [cleanPhone, code, expiresAt]
+    );
+  },
+
+  async getOtp(phone: string): Promise<{ code: string; expiresAt: number; attempts: number; isConsumed: boolean } | null> {
+    const cleanPhone = phone.replace(/\s+/g, '');
+    const res = await execQuery<any>(
+      `SELECT phone, code, expires_at, attempts, is_consumed
+       FROM otp_verifications
+       WHERE phone = $1;`,
+      [cleanPhone]
+    );
+    if (res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      code: r.code,
+      expiresAt: Number(r.expires_at),
+      attempts: Number(r.attempts || 0),
+      isConsumed: Boolean(r.is_consumed),
+    };
+  },
+
+  async consumeOtp(phone: string): Promise<void> {
+    const cleanPhone = phone.replace(/\s+/g, '');
+    await execQuery(
+      `UPDATE otp_verifications 
+       SET is_consumed = TRUE, updated_at = NOW() 
+       WHERE phone = $1;`,
+      [cleanPhone]
+    );
+  },
+
+  async incrementAttempts(phone: string): Promise<number> {
+    const cleanPhone = phone.replace(/\s+/g, '');
+    const res = await execQuery<any>(
+      `UPDATE otp_verifications
+       SET attempts = attempts + 1, updated_at = NOW()
+       WHERE phone = $1
+       RETURNING attempts;`,
+      [cleanPhone]
+    );
+    return res.rows[0]?.attempts || 1;
+  },
+};

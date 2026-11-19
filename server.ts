@@ -1,17 +1,40 @@
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { createExpressApp, ensureDatabase } from './server/app';
-import { closeDatabase } from './server/database/postgres';
+import { apiRouter } from './server/api';
+import { initDatabase, closeDatabase } from './server/database/postgres';
 
 async function startServer() {
-  const app = createExpressApp();
+  const app = express();
   const PORT = 3000;
 
-  // Initialize PostgreSQL Database Layer immediately on server startup (fail-fast)
+  // Production CORS Configuration: Configurable via CORS_ORIGIN or origin whitelist
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    : ['*'];
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow mobile applications / curl / same-origin requests (no Origin header)
+        if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error(`CORS İhlali: ${origin} adresine izin verilmiyor.`));
+      },
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-School-Id'],
+      credentials: true,
+    })
+  );
+
+  app.use(express.json());
+
+  // Initialize PostgreSQL Database Layer
   try {
-    await ensureDatabase();
+    await initDatabase();
     console.log('[VELİ Database] PostgreSQL Data Layer initialized successfully.');
   } catch (err) {
     console.error('[VELİ Database Init Fatal Error]:', err);
@@ -20,8 +43,11 @@ async function startServer() {
     }
   }
 
+  // Mount API routes FIRST
+  app.use('/api', apiRouter);
+
   // Vite middleware for development vs static build for production
-  const distPath = path.join(process.cwd(), 'dist', 'client');
+  const distPath = path.join(process.cwd(), 'dist');
   const indexHtmlPath = path.join(distPath, 'index.html');
 
   if (process.env.NODE_ENV !== 'production' || !fs.existsSync(indexHtmlPath)) {

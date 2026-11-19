@@ -1,6 +1,5 @@
-﻿import { getPostgresConnectionOptions } from './tls';
 // ==============================================================================
-// VELÄ° - OKUL RANDEVU SÄ°STEMÄ°: UNIFIED POSTGRESQL DATA ENGINE
+// VELİ - OKUL RANDEVU SİSTEMİ: UNIFIED POSTGRESQL DATA ENGINE
 // Supports:
 // 1. Production: Remote Supabase PostgreSQL / Cloud SQL via pg.Pool (DATABASE_URL)
 // 2. Development / Testing: Embedded Persistent PostgreSQL via PGlite (WASM)
@@ -28,7 +27,6 @@ let initPromise: Promise<void> | null = null;
 
 const SCHEMA_PATH = path.join(process.cwd(), 'server', 'database', 'supabase_schema.sql');
 const SEED_PATH = path.join(process.cwd(), 'server', 'database', 'seed_supabase_migration.sql');
-const MIGRATIONS_DIR = path.join(process.cwd(), 'server', 'database', 'migrations');
 const DATA_DIR = path.join(process.cwd(), 'server', 'data', 'postgres_db');
 
 export async function getDb(): Promise<{
@@ -37,7 +35,13 @@ export async function getDb(): Promise<{
   engineType: string;
 }> {
   if (!isInitialized) {
-    await initDatabase();
+    if (!initPromise) {
+      initPromise = initDatabase().catch((err) => {
+        initPromise = null;
+        throw err;
+      });
+    }
+    await initPromise;
   }
 
   if (pgPool) {
@@ -49,7 +53,6 @@ export async function getDb(): Promise<{
       },
       transaction: async <T>(fn: (tx: TransactionClient) => Promise<T>): Promise<T> => {
         const client: PoolClient = await pgPool!.connect();
-        let releaseError: Error | undefined;
         try {
           await client.query('BEGIN');
           const tx: TransactionClient = {
@@ -62,14 +65,10 @@ export async function getDb(): Promise<{
           await client.query('COMMIT');
           return result;
         } catch (err) {
-          try {
-            await client.query('ROLLBACK');
-          } catch {
-            releaseError = new Error('PostgreSQL transaction connection unavailable');
-          }
+          await client.query('ROLLBACK');
           throw err;
         } finally {
-          client.release(releaseError);
+          client.release();
         }
       },
     };
@@ -100,22 +99,6 @@ export async function getDb(): Promise<{
 }
 
 export async function initDatabase(): Promise<void> {
-  if (isInitialized) return;
-  if (!initPromise) {
-    initPromise = initializeDatabase().catch((error) => {
-      initPromise = null;
-      throw error;
-    });
-  }
-  await initPromise;
-}
-
-async function initializeDatabase(): Promise<void> {
-  // Serverless / Warm Invocation Reuse: If pool or instance is already alive and initialized, reuse safely
-  if (isInitialized && (pgPool || pgliteInstance)) {
-    return;
-  }
-
   const isProduction = process.env.NODE_ENV === 'production';
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -131,43 +114,39 @@ async function initializeDatabase(): Promise<void> {
   if (isProduction) {
     if (!databaseUrl) {
       throw new Error(
-        'KRÄ°TÄ°K HATA (Production Fail-Fast): NODE_ENV=production modunda DATABASE_URL ortam deÄŸiÅŸkeni zorunludur! PGlite / Embedded veritabanÄ± veya store.json fallback kesinlikle yasaktÄ±r.'
+        'KRİTİK HATA (Production Fail-Fast): NODE_ENV=production modunda DATABASE_URL ortam değişkeni zorunludur! PGlite / Embedded veritabanı veya store.json fallback kesinlikle yasaktır.'
       );
     }
 
     if (isPlaceholderPassword) {
       throw new Error(
-        'KRÄ°TÄ°K HATA (Production Fail-Fast): DATABASE_URL ortam deÄŸiÅŸkeninde "[YOUR-PASSWORD]" yer tutucusu tespit edildi! CanlÄ± Supabase PostgreSQL ÅŸifrenizi Secrets panelinde tanÄ±mlamalÄ±sÄ±nÄ±z. PGlite veya store.json fallback kesinlikle yasaktÄ±r.'
+        'KRİTİK HATA (Production Fail-Fast): DATABASE_URL ortam değişkeninde "[YOUR-PASSWORD]" yer tutucusu tespit edildi! Canlı Supabase PostgreSQL şifrenizi Secrets panelinde tanımlamalısınız. PGlite veya store.json fallback kesinlikle yasaktır.'
       );
     }
 
     console.log('[PostgreSQL Engine] Connecting to remote PostgreSQL cluster via connection pool...');
     try {
       pgPool = new Pool({
-        ...getPostgresConnectionOptions(databaseUrl, isProduction),
-        // Each warm serverless instance has its own pool. Queue locally rather
-        // than consuming the session pooler's entire connection allowance.
-        max: 1,
-        idleTimeoutMillis: 5000,
-        connectionTimeoutMillis: 5000,
-      });
-      pgPool.on('error', () => {
-        console.error('[PostgreSQL Engine] Idle connection lost; pool will reconnect on demand.');
+        connectionString: databaseUrl,
+        ssl: { rejectUnauthorized: false },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
       });
 
       // Test connection
       const client = await pgPool.connect();
       try {
-        await client.query('SELECT 1');
-        console.log('[PostgreSQL Engine] Remote database connection verified.');
+        const res = await client.query('SELECT NOW() as now, current_database() as db;');
+        console.log(`[PostgreSQL Engine] Connected successfully to remote database: ${res.rows[0].db} (${res.rows[0].now})`);
       } finally {
         client.release();
       }
 
       isInitialized = true;
       return;
-    } catch {
-      console.error('[PostgreSQL Engine] Remote database connection unavailable.');
+    } catch (connErr: any) {
+      console.error('[PostgreSQL Engine Fatal] Remote PostgreSQL connection failed:', connErr.message);
       // Clean pool reference on failure
       if (pgPool) {
         try {
@@ -177,7 +156,7 @@ async function initializeDatabase(): Promise<void> {
       }
       // In production, or whenever DATABASE_URL was provided, connection failure MUST fail-fast!
       // Strictly NO fallback to PGlite or in-memory/JSON stores.
-      throw new Error('PostgreSQL connection unavailable');
+      throw new Error(`KRİTİK HATA (PostgreSQL Fail-Fast): Remote PostgreSQL veritabanına bağlanılamadı! Sebep: ${connErr.message}`);
     }
   }
 
@@ -186,13 +165,11 @@ async function initializeDatabase(): Promise<void> {
     console.log('[PostgreSQL Engine] Connecting to remote PostgreSQL cluster via connection pool (development)...');
     try {
       pgPool = new Pool({
-        ...getPostgresConnectionOptions(databaseUrl, isProduction),
+        connectionString: databaseUrl,
+        ssl: { rejectUnauthorized: false },
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
-      });
-      pgPool.on('error', () => {
-        console.error('[PostgreSQL Engine] Idle connection lost; pool will reconnect on demand.');
       });
 
       const client = await pgPool.connect();
@@ -236,22 +213,6 @@ async function initializeDatabase(): Promise<void> {
     }
   };
 
-  const applyDevelopmentMigrations = async (pg: PGlite) => {
-    if (!fs.existsSync(MIGRATIONS_DIR)) {
-      return;
-    }
-
-    const migrationFiles = fs.readdirSync(MIGRATIONS_DIR)
-      .filter((file) => file.endsWith('.sql'))
-      .sort();
-
-    for (const migrationFile of migrationFiles) {
-      const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
-      await pg.exec(fs.readFileSync(migrationPath, 'utf-8'));
-      console.log(`[PostgreSQL Engine] Development migration applied: ${migrationFile}`);
-    }
-  };
-
   try {
     // Attempt normal boot of PGlite instance
     pgliteInstance = new PGlite(DATA_DIR);
@@ -275,18 +236,31 @@ async function initializeDatabase(): Promise<void> {
         console.warn('[PostgreSQL Engine] Schema update check notice:', e.message);
       }
     }
-
-    await applyDevelopmentMigrations(pgliteInstance);
   } catch (initErr: any) {
-    if (pgliteInstance) {
-      try {
-        await pgliteInstance.close();
-      } catch (_) {}
+    console.error('[PostgreSQL Engine] PGlite failed on existing directory. Repairing data directory...', initErr.message);
+    try {
+      if (pgliteInstance) {
+        try {
+          await pgliteInstance.close();
+        } catch (_) {}
+      }
+      pgliteInstance = null;
+
+      // Clean corrupted/stale data directory
+      if (fs.existsSync(DATA_DIR)) {
+        fs.rmSync(DATA_DIR, { recursive: true, force: true });
+      }
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+
+      // Fresh initialization
+      pgliteInstance = new PGlite(DATA_DIR);
+      console.log('[PostgreSQL Engine] Clean data directory initialized. Reapplying schema and seed migration...');
+      await applySchemaAndSeed(pgliteInstance);
+      console.log('[PostgreSQL Engine] Recovery complete. Database is healthy.');
+    } catch (recoverErr: any) {
+      console.error('[PostgreSQL Engine Fatal] Recovery failed:', recoverErr);
+      throw recoverErr;
     }
-    pgliteInstance = null;
-    throw new Error(
-      `[PostgreSQL Engine] Local PGlite initialization failed without modifying existing data: ${initErr.message}`
-    );
   }
 
   isInitialized = true;
@@ -321,9 +295,6 @@ export async function closeDatabase(): Promise<void> {
   if (pgPool) {
     try {
       await pgPool.end();
-      pgPool = null;
-      isInitialized = false;
-      initPromise = null;
       console.log('[PostgreSQL Engine] Pool drained and connections closed gracefully.');
     } catch (err) {
       console.error('[PostgreSQL Engine Error during pool close]:', err);

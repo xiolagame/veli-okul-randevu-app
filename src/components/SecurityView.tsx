@@ -1,286 +1,313 @@
-import { formatAppointmentDateTime, formatDate, formatDatesInText } from '../utils/dates';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, PageHeader } from './ui';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTodayDateString } from '../data/mockData';
-import { SecurityQrVerification } from '../types';
-import QrScanner from 'qr-scanner';
-import { AlertTriangle, Camera, CheckCircle2, QrCode, Settings, ShieldCheck, X } from 'lucide-react';
-import { CameraPermissionAdapter, CameraPermissionState, androidCameraPermission } from '../platform/android-camera-permission';
-import { appLifecycle } from '../platform/lifecycle';
-import type { LifecycleAdapter } from '../platform/browser-lifecycle';
-import { registerBackHandler } from '../platform/back-navigation';
-import { getRuntimePlatform } from '../platform/runtime-platform';
+import { Appointment } from '../types';
+import {
+  ShieldCheck,
+  Search,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  User,
+  ArrowRight,
+  LogOut,
+  Calendar,
+  LogIn,
+  Check,
+} from 'lucide-react';
 
-interface SecurityViewProps {
-  cameraPermission?: CameraPermissionAdapter;
-  lifecycle?: LifecycleAdapter;
-}
+export const SecurityView: React.FC = () => {
+  const { appointments, checkInVisitor, checkOutVisitor, settings } = useApp();
+  const todayStr = getTodayDateString();
 
-export const SecurityView: React.FC<SecurityViewProps> = ({
-  cameraPermission = androidCameraPermission,
-  lifecycle = appLifecycle,
-}) => {
-  const { verifySecurityQr, settings } = useApp();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [verifyResult, setVerifyResult] = useState<SecurityQrVerification | null>(null);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraStarting, setCameraStarting] = useState(false);
-  const [cameraError, setCameraError] = useState('');
-  const [cameraPermissionState, setCameraPermissionState] = useState<CameraPermissionState | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const scannerRef = useRef<QrScanner | null>(null);
-  const scanHandledRef = useRef(false);
-  const verificationInProgressRef = useRef(false);
-  const verificationRunRef = useRef(0);
-  const startingRef = useRef(false);
-  const startOperationRef = useRef<Promise<void> | null>(null);
-  const cameraActiveRef = useRef(false);
-  const cameraRunRef = useRef(0);
-  const resumeOnActiveRef = useRef(false);
-  const resumeAfterSettingsRef = useRef(false);
-  const mountedRef = useRef(true);
+  const [inputCode, setInputCode] = useState<string>('');
+  const [verifyResult, setVerifyResult] = useState<{
+    success: boolean;
+    message: string;
+    appointment?: Appointment;
+  } | null>(null);
 
-  const stopCamera = (clearResumeIntent = true) => {
-    cameraRunRef.current += 1;
-    startingRef.current = false;
-    cameraActiveRef.current = false;
-    if (clearResumeIntent) {
-      resumeOnActiveRef.current = false;
-      resumeAfterSettingsRef.current = false;
-    }
-    scannerRef.current?.stop();
-    if (mountedRef.current) {
-      setCameraActive(false);
-      setCameraStarting(false);
+  const [segment, setSegment] = useState<'all' | 'expected' | 'inside' | 'done'>('all');
+
+  // Filter today's appointments
+  const todayAppointments = appointments.filter((a) => a.date === todayStr);
+
+  const expectedVisitors = todayAppointments.filter((a) => a.status === 'booked');
+  const insideVisitors = todayAppointments.filter((a) => a.status === 'checked_in');
+  const checkedOutVisitors = todayAppointments.filter((a) => a.status === 'checked_out');
+
+  const displayedAppointments = todayAppointments.filter((a) => {
+    if (segment === 'expected') return a.status === 'booked';
+    if (segment === 'inside') return a.status === 'checked_in';
+    if (segment === 'done') return a.status === 'checked_out';
+    return true;
+  });
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputCode.trim()) return;
+    const res = await checkInVisitor(inputCode.trim());
+    setVerifyResult(res);
+    if (res.success) {
+      setInputCode('');
     }
   };
 
-  const getCameraError = (cause: unknown) => {
-    const cameraFailure = typeof cause === 'object' && cause !== null
-      ? cause as { name?: unknown; message?: unknown }
-      : null;
-    const name = typeof cameraFailure?.name === 'string' ? cameraFailure.name : '';
-    const message = typeof cause === 'string' ? cause.toLowerCase() : typeof cameraFailure?.message === 'string' ? cameraFailure.message.toLowerCase() : '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return getRuntimePlatform() === 'IOS'
-      ? 'Kamera izni verilmedi. Ayarlar > Veli Randevu > Kamera bölümünden erişime izin verin.'
-      : 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.';
-    if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || message.includes('camera not found')) return 'Bu cihazda kullanılabilir kamera bulunamadı.';
-    if (name === 'SecurityError') return 'Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.';
-    if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') return 'Kamera başka bir uygulama tarafından kullanılıyor olabilir.';
-    return 'Kamera başlatılamadı. Lütfen tekrar deneyin.';
+  const handleManualCheckIn = async (idOrCode: string) => {
+    const res = await checkInVisitor(idOrCode);
+    setVerifyResult(res);
   };
 
-  const showPermissionFailure = (state: CameraPermissionState) => {
-    cameraActiveRef.current = false;
-    setCameraActive(false);
-    setCameraPermissionState(state);
-    setCameraError(state === 'permanently-denied'
-      ? 'Kamera izni kalıcı olarak reddedildi. Ayarlardan kamera erişimine izin verin.'
-      : 'Kamera izni verilmedi. QR kod taramak için tekrar deneyebilirsiniz.');
-  };
-
-  const verifyCode = async (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode || verificationInProgressRef.current) return;
-    verificationInProgressRef.current = true;
-    scanHandledRef.current = true;
-    resumeOnActiveRef.current = false;
-    resumeAfterSettingsRef.current = false;
-    const verificationRun = ++verificationRunRef.current;
-    stopCamera();
-    setBusy(true);
-    setError('');
-    try {
-      const result = await verifySecurityQr(cleanCode);
-      if (mountedRef.current && verificationRun === verificationRunRef.current) setVerifyResult(result);
-    } catch {
-      if (mountedRef.current && verificationRun === verificationRunRef.current) {
-        setVerifyResult(null);
-        setError('QR kod doğrulanamadı. Bağlantınızı kontrol edip yeniden deneyin.');
-      }
-    } finally {
-      if (mountedRef.current && verificationRun === verificationRunRef.current) setBusy(false);
-    }
-  };
-
-  const resetResult = () => {
-    verificationRunRef.current += 1;
-    verificationInProgressRef.current = false;
-    scanHandledRef.current = false;
-    resumeOnActiveRef.current = false;
-    resumeAfterSettingsRef.current = false;
-    setBusy(false);
+  const handleManualCheckOut = async (id: string) => {
+    await checkOutVisitor(id);
     setVerifyResult(null);
-    setError('');
-    setCameraError('');
-    setCameraPermissionState(null);
   };
 
-  const startCamera = (allowPermissionRequest = true): Promise<void> => {
-    if (startOperationRef.current) return startOperationRef.current;
-    if (cameraActiveRef.current) return Promise.resolve();
-    const operation = (async () => {
-      resumeOnActiveRef.current = false;
-      setCameraError('');
-      setCameraPermissionState(null);
-      startingRef.current = true;
-      const run = ++cameraRunRef.current;
-      setCameraStarting(true);
-
-      try {
-        if (cameraPermission.requiresNativePermission()) {
-          let permission = await cameraPermission.check();
-          if (run !== cameraRunRef.current || !mountedRef.current) return;
-          if (permission.state !== 'granted' && allowPermissionRequest && permission.state !== 'permanently-denied') {
-            permission = await cameraPermission.request();
-          }
-          if (run !== cameraRunRef.current || !mountedRef.current) return;
-          if (permission.state !== 'granted') {
-            showPermissionFailure(permission.state);
-            return;
-          }
-        } else {
-          if (!window.isSecureContext) {
-            setCameraError('Kamera yalnızca güvenli bağlantıda (HTTPS) kullanılabilir.');
-            return;
-          }
-          if (!navigator.mediaDevices?.getUserMedia) {
-            setCameraError('Bu tarayıcı QR taramayı desteklemiyor.');
-            return;
-          }
-        }
-
-        if (!videoRef.current) {
-          setCameraError('Kamera başlatılamadı. Lütfen tekrar deneyin.');
-          return;
-        }
-
-        setCameraActive(true);
-        const scanner: QrScanner = scannerRef.current || new QrScanner(videoRef.current, (result) => {
-          if (scannerRef.current !== scanner || scanHandledRef.current) return;
-          const code = typeof result === 'string' ? result : result.data;
-          scanHandledRef.current = true;
-          void verifyCode(code.trim());
-        }, { preferredCamera: 'environment', returnDetailedScanResult: true });
-        scannerRef.current = scanner;
-        await scanner.start();
-        if (run !== cameraRunRef.current || !mountedRef.current) {
-          scanner.stop();
-          return;
-        }
-        cameraActiveRef.current = true;
-      } catch (cause) {
-        if (run !== cameraRunRef.current || !mountedRef.current) return;
-        scannerRef.current?.stop();
-        cameraActiveRef.current = false;
-        setCameraActive(false);
-        let denied = false;
-        try {
-          denied = (await navigator.permissions?.query({ name: 'camera' as PermissionName }))?.state === 'denied';
-        } catch {}
-        if (run === cameraRunRef.current && mountedRef.current) {
-          setCameraError(denied ? 'Kamera izni verilmedi. Ayarlarınızdan kamera erişimine izin verin.' : getCameraError(cause));
-        }
-      } finally {
-        if (run === cameraRunRef.current && mountedRef.current) {
-          startingRef.current = false;
-          setCameraStarting(false);
-        }
-      }
-    })();
-    startOperationRef.current = operation;
-    void operation.finally(() => {
-      if (startOperationRef.current === operation) startOperationRef.current = null;
-    });
-    return operation;
-  };
-
-  const openCameraSettings = async () => {
-    resumeAfterSettingsRef.current = true;
-    try {
-      await cameraPermission.openSettings();
-    } catch {
-      resumeAfterSettingsRef.current = false;
-      setCameraError('Uygulama ayarları açılamadı. Lütfen cihaz ayarlarından kamera iznini etkinleştirin.');
-    }
-  };
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const unsubscribeLifecycle = lifecycle.subscribe((state) => {
-      if (state === 'INACTIVE') {
-        if (cameraActiveRef.current || startingRef.current) resumeOnActiveRef.current = true;
-        stopCamera(false);
-        return;
-      }
-      if (!resumeOnActiveRef.current && !resumeAfterSettingsRef.current) return;
-      void (async () => {
-        const pendingStart = startOperationRef.current;
-        if (pendingStart) await pendingStart.catch(() => {});
-        if (!mountedRef.current || lifecycle.getCurrentState() !== 'ACTIVE') return;
-        if (!resumeOnActiveRef.current && !resumeAfterSettingsRef.current) return;
-        resumeOnActiveRef.current = false;
-        resumeAfterSettingsRef.current = false;
-        await startCamera(false);
-      })();
-    });
-    return () => {
-      mountedRef.current = false;
-      unsubscribeLifecycle();
-      cameraRunRef.current += 1;
-      verificationRunRef.current += 1;
-      startingRef.current = false;
-      startOperationRef.current = null;
-      cameraActiveRef.current = false;
-      resumeOnActiveRef.current = false;
-      resumeAfterSettingsRef.current = false;
-      scannerRef.current?.destroy();
-      scannerRef.current = null;
-    };
-  }, [cameraPermission, lifecycle]);
-
-  useEffect(() => {
-    const hasDismissiblePanel = Boolean(verifyResult || error || cameraError);
-    if (!hasDismissiblePanel && !cameraActive && !cameraStarting) return;
-    return registerBackHandler(() => {
-      if (hasDismissiblePanel) resetResult();
-      else stopCamera();
-    });
-  }, [cameraActive, cameraStarting, cameraError, error, verifyResult]);
-
-  const resultTone = verifyResult?.allowed ? 'success' : verifyResult?.decision === 'TOO_EARLY' || verifyResult?.decision === 'PENDING_APPROVAL' ? 'warning' : 'danger';
-  const showAppointmentDetails = verifyResult?.appointment && ['APPROVED', 'TOO_EARLY', 'ALREADY_CHECKED_IN'].includes(verifyResult.decision);
-
-  return <main id="main-content" className="page-shell">
-    <PageHeader eyebrow="GÜVENLİK NOKTASI" title="QR kodu kamerayla doğrulayın." description={`${settings.schoolName} · ${formatDate(getTodayDateString())}`} />
-    <section className="security-scanner">
-      {!verifyResult && !error && <>
-        <div className="scan-frame"><QrCode size={40} strokeWidth={1.5} /></div>
-        <h2>QR kodu okutun</h2>
-        <p>Velinin randevu kartındaki QR kodu kameraya gösterin.</p>
-      </>}
-      <div className={`camera-preview ${verifyResult || error || busy ? `camera-preview-result tone-${resultTone}` : cameraActive ? 'camera-preview-active' : ''}`}>
-        <video ref={videoRef} autoPlay playsInline muted aria-label="QR kodu kamera görüntüsü" hidden={!!(verifyResult || error || busy)} />
-        {verifyResult || error || busy ? <div className="camera-result-panel" role="status" aria-live="polite">
-          <button type="button" className="camera-result-close" aria-label="Sonucu kapat" disabled={busy} onClick={resetResult}><X size={21} /></button>
-          {busy && !verifyResult && !error ? <><QrCode className="camera-result-icon" /><h2>QR KOD DOĞRULANIYOR</h2><p>Lütfen bekleyin.</p></> : verifyResult ? <>
-            {verifyResult.allowed ? <CheckCircle2 className="camera-result-icon" /> : <AlertTriangle className="camera-result-icon" />}
-            <h2>{verifyResult.title}</h2><p>{formatDatesInText(verifyResult.message)}</p>
-            {showAppointmentDetails && verifyResult.appointment && <dl className="camera-result-details"><div><dt>Veli</dt><dd>{verifyResult.appointment.parentName}</dd></div><div><dt>Öğrenci</dt><dd>{verifyResult.appointment.studentName}</dd></div><div><dt>Öğretmen</dt><dd>{verifyResult.appointment.teacherName}</dd></div><div><dt>Randevu</dt><dd>{formatAppointmentDateTime(verifyResult.appointment.date, verifyResult.appointment.startTime)}</dd></div><div><dt>Saat aralığı</dt><dd>{verifyResult.appointment.startTime}–{verifyResult.appointment.endTime}</dd></div></dl>}
-            <Button variant="secondary" className="w-full" disabled={busy} onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button>
-          </> : <><AlertTriangle className="camera-result-icon" /><h2>QR DOĞRULANAMADI</h2><p>{error}</p><Button className="w-full" onClick={() => { resetResult(); void startCamera(); }}><Camera size={19} />Yeni QR Tara</Button></>}
-        </div> : <>
-          {!cameraActive && <div className="camera-placeholder"><Camera size={30} /><span>Arka kamera tarama alanı</span></div>}
-          {cameraActive && <div className="camera-reticle" aria-hidden="true" />}
-        </>}
+  return (
+    <div className="min-h-screen bg-slate-50 pb-12">
+      {/* Top Header Banner */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                Okul Güvenlik Kapısı
+              </span>
+              <span className="text-xs text-slate-500 font-medium">{settings.schoolName}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              Giriş - Çıkış Kontrol Paneli
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <Calendar className="w-4 h-4 text-blue-700" />
+            Bugünün Tarihi: <span className="font-bold text-slate-800">{todayStr}</span>
+          </div>
+        </div>
       </div>
-      {cameraError && <Alert tone="danger"><p>{cameraError}</p>{cameraPermissionState === 'permanently-denied' && <Button type="button" variant="secondary" onClick={() => void openCameraSettings()}><Settings size={18} />Ayarları Aç</Button>}</Alert>}
-      {!verifyResult && !error && !busy && <Button type="button" variant={cameraActive ? 'secondary' : 'primary'} disabled={cameraStarting} onClick={() => cameraActive ? stopCamera() : void startCamera()}>
-        <Camera size={19} />{cameraStarting ? 'Kamera açılıyor…' : cameraActive ? 'Taramayı durdur' : 'QR Kod Tara'}
-      </Button>}
-      {!verifyResult && !error && !busy && <p className="mt-5 text-xs flex gap-2 items-start"><ShieldCheck size={17} />QR doğrulaması randevu kaydını değiştirmez.</p>}
-    </section>
-  </main>;
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Verification Scanner / Code Box */}
+        <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white rounded-2xl p-6 shadow-xl border border-slate-800">
+          <div className="max-w-2xl mx-auto space-y-4 text-center sm:text-left">
+            <div className="flex items-center gap-2.5 justify-center sm:justify-start">
+              <div className="p-2 bg-blue-600/30 rounded-xl border border-blue-500/40">
+                <ShieldCheck className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">6 Haneli Kod veya QR Sorgula</h2>
+                <p className="text-xs text-slate-300">
+                  Velinin gösterdiği giriş kartındaki 6 haneli doğrulama kodunu giriniz:
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleVerify} className="flex flex-col sm:flex-row gap-2.5 pt-1">
+              <div className="relative flex-1">
+                <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="Örn: 482915"
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-lg font-mono font-bold tracking-widest text-white placeholder:text-slate-400 placeholder:font-sans placeholder:text-sm placeholder:tracking-normal focus:outline-hidden focus:ring-2 focus:ring-blue-400 focus:bg-white/15"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                <LogIn className="w-4 h-4" /> Girişi Onayla
+              </button>
+            </form>
+
+            {/* Verification Result Feedback */}
+            {verifyResult && (
+              <div
+                className={`p-4 rounded-xl text-xs font-semibold flex items-start gap-3 mt-3 animate-in fade-in ${
+                  verifyResult.success
+                    ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/50'
+                    : 'bg-red-950/80 text-red-200 border border-red-500/50'
+                }`}
+              >
+                {verifyResult.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-bold">{verifyResult.message}</p>
+                  {verifyResult.appointment && (
+                    <div className="mt-1 text-slate-300 font-normal">
+                      Öğretmen: {verifyResult.appointment.teacherName} • Saat: {verifyResult.appointment.startTime} - {verifyResult.appointment.endTime}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Real-time Today Status Counters */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div
+            onClick={() => setSegment('expected')}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+              segment === 'expected'
+                ? 'bg-amber-50/70 border-amber-300 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                Giriş Bekleyenler
+              </span>
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="text-3xl font-extrabold text-slate-900">{expectedVisitors.length}</div>
+            <p className="text-xs text-slate-500 mt-1">Henüz okula gelmemiş onaylı veliler</p>
+          </div>
+
+          <div
+            onClick={() => setSegment('inside')}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+              segment === 'inside'
+                ? 'bg-blue-50/70 border-blue-300 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
+                Şu An Okulda (İçeride)
+              </span>
+              <User className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-3xl font-extrabold text-blue-700">{insideVisitors.length}</div>
+            <p className="text-xs text-slate-500 mt-1">Giriş yapmış, görüşmedeki ziyaretçiler</p>
+          </div>
+
+          <div
+            onClick={() => setSegment('done')}
+            className={`p-5 rounded-2xl border transition-all cursor-pointer ${
+              segment === 'done'
+                ? 'bg-purple-50/70 border-purple-300 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-800">
+                Çıkış Yapanlar
+              </span>
+              <LogOut className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="text-3xl font-extrabold text-slate-900">{checkedOutVisitors.length}</div>
+            <p className="text-xs text-slate-500 mt-1">Ziyareti bitip ayrılanlar</p>
+          </div>
+        </div>
+
+        {/* Today's List Table / Cards */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Bugünkü Randevu Kayıtları</h3>
+              <p className="text-xs text-slate-500">Bugün randevusu olan veliler ve ziyaret durumları</p>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+              {[
+                { id: 'all', label: 'Tümü' },
+                { id: 'expected', label: `Bekleyen (${expectedVisitors.length})` },
+                { id: 'inside', label: `İçeride (${insideVisitors.length})` },
+                { id: 'done', label: `Çıkış (${checkedOutVisitors.length})` },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setSegment(item.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    segment === item.id ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {displayedAppointments.length === 0 ? (
+            <div className="p-8 text-center text-slate-400">
+              <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="font-semibold text-slate-700 text-sm">Bu filtreye uygun randevu kaydı bulunamadı</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {displayedAppointments.map((apt) => (
+                <div
+                  key={apt.id}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm">{apt.parentName}</span>
+                      <span className="text-xs text-slate-500 font-mono">({apt.parentPhone})</span>
+                      {apt.status === 'booked' && (
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-full border border-amber-200">
+                          Giriş Bekleniyor
+                        </span>
+                      )}
+                      {apt.status === 'checked_in' && (
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-full border border-blue-200">
+                          İçeride (Giriş: {apt.checkedInAt})
+                        </span>
+                      )}
+                      {apt.status === 'checked_out' && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-full border border-slate-200">
+                          Çıkış Yapıldı ({apt.checkedOutAt})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-slate-600 flex flex-wrap items-center gap-3">
+                      <span>
+                        <span className="text-slate-400">Öğrenci:</span> {apt.studentName} ({apt.className})
+                      </span>
+                      <span>
+                        <span className="text-slate-400">Görüşülecek:</span> {apt.teacherName} ({apt.teacherBranch})
+                      </span>
+                      <span>
+                        <span className="text-slate-400">Saat:</span> {apt.startTime} - {apt.endTime}
+                      </span>
+                      <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                        Kod: {apt.entryCode}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Security Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    {apt.status === 'booked' && (
+                      <button
+                        onClick={() => handleManualCheckIn(apt.entryCode)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <LogIn className="w-3.5 h-3.5" /> Giriş Yapıldı
+                      </button>
+                    )}
+                    {apt.status === 'checked_in' && (
+                      <button
+                        onClick={() => handleManualCheckOut(apt.id)}
+                        className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <LogOut className="w-3.5 h-3.5" /> Çıkış Yapıldı
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
 };
