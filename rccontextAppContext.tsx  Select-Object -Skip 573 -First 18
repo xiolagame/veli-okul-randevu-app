@@ -1,0 +1,149 @@
+warning: in the working copy of 'src/context/AppContext.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/context/AppContext.tsx b/src/context/AppContext.tsx[m
+[1mindex 19fd511..0d74088 100644[m
+[1m--- a/src/context/AppContext.tsx[m
+[1m+++ b/src/context/AppContext.tsx[m
+[36m@@ -26,6 +26,7 @@[m [mimport { resolveSchoolContext, SchoolResolution } from '../platform/school-resol[m
+ import { networkHint } from '../platform/network';[m
+ import { loadVerifiedSessionPrerequisites, restoreExistingSession, SessionRestoreResult } from '../platform/session-restore';[m
+ import { appLifecycle } from '../platform/lifecycle';[m
+[32m+[m[32mimport { isCurrentMobileRefresh } from '../platform/mobile-refresh-guard';[m
+ [m
+ interface AppContextType {[m
+   refreshSchoolData: () => Promise<void>;[m
+[36m@@ -77,6 +78,7 @@[m [minterface AppContextType {[m
+   createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email: string }) => Promise<unknown>;[m
+   removeAvailabilitySlot: (slotId: string) => Promise<void>;[m
+   markNotificationsAsRead: () => Promise<void>;[m
+[32m+[m[32m  deleteNotification: (notificationId: string) => Promise<void>;[m
+   clearParentNotifications: () => Promise<void>;[m
+   clearParentHistory: () => Promise<void>;[m
+   getParentClasses: () => Promise<string[]>;[m
+[36m@@ -144,6 +146,8 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+   const [usersLoading, setUsersLoading] = useState(false);[m
+   const [usersError, setUsersError] = useState('');[m
+   const schoolLoadSequence = useRef(0);[m
+[32m+[m[32m  const mobileDataRevision = useRef(0);[m
+[32m+[m[32m  const mobileRefresh = useRef<{ sequence: number; promise: Promise<void> } | null>(null);[m
+   const firstSchoolLoadMeasured = useRef(false);[m
+   const [schools, setSchools] = useState<School[]>([]);[m
+   const [platformSchools, setPlatformSchools] = useState<ManagedSchool[]>([]);[m
+[36m@@ -200,6 +204,7 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+     if (!schoolId) return;[m
+     const dataStarted = performance.now();[m
+     const sequence = ++schoolLoadSequence.current;[m
+[32m+[m[32m    const dataRevision = mobileDataRevision.current;[m
+     setUsers([]);[m
+     setUsersError('');[m
+     const role = platformContext ? 'admin' : membership?.role;[m
+[36m@@ -214,11 +219,11 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+       }),[m
+       api.getAvailability(schoolId).catch(() => ({ availability: [] })),[m
+       (role === 'security' ? Promise.resolve({ appointments: [] }) : api.getAppointments(schoolId).catch(() => ({ appointments: [] }))).then((result) => {[m
+[31m-        if (sequence === schoolLoadSequence.current) setAppointments(result.appointments);[m
+[32m+[m[32m        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setAppointments(result.appointments);[m
+         return result;[m
+       }),[m
+       api.getNotifications(schoolId).catch(() => ({ notifications: [] })).then((result) => {[m
+[31m-        if (sequence === schoolLoadSequence.current) setNotifications(result.notifications);[m
+[32m+[m[32m        if (sequence === schoolLoadSequence.current && dataRevision === mobileDataRevision.current) setNotifications(result.notifications);[m
+         return result;[m
+       }),[m
+       api.getSettings(schoolId).catch(() => ({ settings: DEFAULT_SETTINGS })),[m
+[36m@@ -234,9 +239,11 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+     setUsers(usersRes.users);[m
+     setUsersLoading(false);[m
+     if (user) setCurrentUser({ ...user, students: studentsRes.students });[m
+[31m-    setAvailability(availRes.availability);[m
+[31m-    setAppointments(aptsRes.appointments);[m
+[31m-    setNotifications(notifsRes.notifications);[m
+[32m+[m[32m    if (dataRevision === mobileDataRevision.current) {[m
+[32m+[m[32m      setAvailability(availRes.availability);[m
+[32m+[m[32m      setAppointments(aptsRes.appointments);[m
+[32m+[m[32m      setNotifications(notifsRes.notifications);[m
+[32m+[m[32m    }[m
+     setSettings(settingsRes.settings);[m
+     setAuditLogs(auditRes.auditLogs);[m
+     setRoster(rosterRes.roster);[m
+[36m@@ -531,9 +538,24 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));[m
+   };[m
+ [m
+[32m+[m[32m  const deleteNotification = async (notificationId: string) => {[m
+[32m+[m[32m    if (!currentSchool || !currentUser) return;[m
+[32m+[m[32m    const sequence = schoolLoadSequence.current;[m
+[32m+[m[32m    const schoolId = currentSchool.id;[m
+[32m+[m[32m    const userId = currentUser.id;[m
+[32m+[m[32m    await api.deleteNotification(schoolId, notificationId);[m
+[32m+[m[32m    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;[m
+[32m+[m[32m    mobileDataRevision.current += 1;[m
+[32m+[m[32m    setNotifications((previous) => previous.filter((notification) => notification.id !== notificationId || notification.userId !== userId));[m
+[32m+[m[32m  };[m
+[32m+[m
+   const clearParentNotifications = async () => {[m
+     if (!currentSchool || currentMembership?.role !== 'parent') return;[m
+[31m-    await api.clearParentNotifications(currentSchool.id);[m
+[32m+[m[32m    const sequence = schoolLoadSequence.current;[m
+[32m+[m[32m    const schoolId = currentSchool.id;[m
+[32m+[m[32m    await api.clearParentNotifications(schoolId);[m
+[32m+[m[32m    if (sequence !== schoolLoadSequence.current || getActiveSchoolId() !== schoolId) return;[m
+[32m+[m[32m    mobileDataRevision.current += 1;[m
+     setNotifications((previous) => previous.filter((notification) => notification.userId !== currentUser?.id));[m
+   };[m
+ [m
+[36m@@ -554,6 +576,12 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+     if (!currentSchool) return;[m
+     const res = await api.updateSettings(currentSchool.id, newSettings);[m
+     setSettings(res.settings);[m
+[32m+[m[32m    const updatedName = res.settings.schoolName?.trim();[m
+[32m+[m[32m    if (updatedName) {[m
+[32m+[m[32m      setCurrentSchool((school) => school ? { ...school, name: updatedName } : school);[m
+[32m+[m[32m      setSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));[m
+[32m+[m[32m      setPlatformSchools((items) => items.map((school) => school.id === currentSchool.id ? { ...school, name: updatedName } : school));[m
+[32m+[m[32m    }[m
+   };[m
+ [m
+   // Add / Remove Student Profile (Local helpers)[m
+[36m@@ -593,12 +621,28 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+         refreshMobileData: async () => {[m
+           if (!currentSchool || !currentUser || !['parent', 'teacher'].includes(currentMembership?.role || '')) return;[m
+           const schoolId = currentSchool.id;[m
+[31m-          const [notificationResult, appointmentResult] = await Promise.all([[m
+[31m-            api.getNotifications(schoolId), api.getAppointments(schoolId),[m
+[31m-          ]);[m
+[31m-          if (schoolId !== getActiveSchoolId()) return;[m
+[31m-          setNotifications(notificationResult.notifications);[m
+[31m-          setAppointments(appointmentResult.appointments);[m
+[32m+[m[32m          const sequence = schoolLoadSequence.current;[m
+[32m+[m[32m          if (mobileRefresh.current?.sequence === sequence) return mobileRefresh.current.promise;[m
+[32m+[m[32m          const revision = mobileDataRevision.current;[m
+[32m+[m[32m          const isTeacher = currentMembership?.role === 'teacher';[m
+[32m+[m[32m          const promise = (async () => {[m
+[32m+[m[32m            const [notificationResult, appointmentResult, availabilityResult] = await Promise.all([[m
+[32m+[m[32m              api.getNotifications(schoolId), api.getAppointments(schoolId),[m
+[32m+[m[32m              isTeacher ? api.getAvailability(schoolId) : Promise.resolve(null),[m
+[32m+[m[32m            ]);[m
+[32m+[m[32m            if (!isCurrentMobileRefresh([m
+[32m+[m[32m              { sequence, revision, schoolId },[m
+[32m+[m[32m              { sequence: schoolLoadSequence.current, revision: mobileDataRevision.current, schoolId: getActiveSchoolId() || '' },[m
+[32m+[m[32m            )) return;[m
+[32m+[m[32m            setNotifications(notificationResult.notifications);[m
+[32m+[m[32m            setAppointments(appointmentResult.appointments);[m
+[32m+[m[32m            if (availabilityResult) setAvailability(availabilityResult.availability);[m
+[32m+[m[32m            mobileDataRevision.current += 1;[m
+[32m+[m[32m          })();[m
+[32m+[m[32m          mobileRefresh.current = { sequence, promise };[m
+[32m+[m[32m          try { await promise; } finally {[m
+[32m+[m[32m            if (mobileRefresh.current?.promise === promise) mobileRefresh.current = null;[m
+[32m+[m[32m          }[m
+         },[m
+         refreshSchoolData: async () => {[m
+           const schoolId = currentSchool?.id;[m
+[36m@@ -663,6 +707,7 @@[m [mexport const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children[m
+         createTeacher,[m
+         removeAvailabilitySlot,[m
+         markNotificationsAsRead,[m
+[32m+[m[32m        deleteNotification,[m
+         clearParentNotifications,[m
+         clearParentHistory,[m
+         getParentClasses,[m

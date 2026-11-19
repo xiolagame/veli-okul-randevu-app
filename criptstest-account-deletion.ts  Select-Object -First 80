@@ -1,0 +1,61 @@
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m153[m[36m:[m      `INSERT INTO audit_logs(id,school_id,timestamp,action,actor_name,[1;31mactor_user_id[m,details)
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m158[m[36m:[m      `INSERT INTO audit_logs(id,school_id,timestamp,action,actor_name,[1;31mactor_user_id[m,details)
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m226[m[36m:[m    const roster = (await db.query<any>('SELECT parent_name,parent_phone,[1;31mparent_account_deleted_at[m FROM school_roster WHERE id=$1', [rosterId])).rows[0];
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m229[m[36m:[m    check(Boolean(roster.[1;31mparent_account_deleted_at[m), 'roster records deletion timestamp');
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m237[m[36m:[m    const audit = (await db.query<any>('SELECT actor_name,[1;31mactor_user_id[m,details FROM audit_logs WHERE id=$1', [`audit-${suffix}`])).rows[0];
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m239[m[36m:[m    equal(audit.[1;31mactor_user_id[m, null, 'audit actor identifier is removed');
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m241[m[36m:[m    const sameNameAudit = (await db.query<any>('SELECT actor_name,[1;31mactor_user_id[m,details FROM audit_logs WHERE id=$1', [`audit-same-name-${suffix}`])).rows[0];
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m243[m[36m:[m    equal(sameNameAudit.[1;31mactor_user_id[m, sameNameUserId, 'same-name user audit identity is not detached');
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m276[m[36m:[m    const profile = (await db.query<any>('SELECT user_id,first_name,last_name,email,phone,[1;31maccount_deleted_at[m FROM teacher_profiles WHERE id=$1', [teacherProfileId])).rows[0];
+[35mscripts/test-account-deletion.ts[m[36m:[m[32m281[m[36m:[m    check(Boolean(profile.[1;31maccount_deleted_at[m), 'teacher profile records deletion timestamp');
+[35mscripts/test-settings-email-reminders.ts[m[36m:[m[32m215[m[36m:[m    assert.equal((await db.query('SELECT status,[1;31mteacher_reminder_30m_sent_at[m FROM appointments WHERE id=$1', [approvedId])).rows[0].status, 'booked');
+[35mscripts/test-settings-email-reminders.ts[m[36m:[m[32m216[m[36m:[m    assert((await db.query('SELECT [1;31mteacher_reminder_30m_sent_at[m FROM appointments WHERE id=$1', [approvedId])).rows[0].[1;31mteacher_reminder_30m_sent_at[m);
+[35mscripts/test-settings-email-reminders.ts[m[36m:[m[32m221[m[36m:[m      assert.equal((await db.query('SELECT [1;31mteacher_reminder_30m_sent_at[m FROM appointments WHERE id=$1', [id])).rows[0].[1;31mteacher_reminder_30m_sent_at[m, null);
+[35mscripts/test-settings-email-reminders.ts[m[36m:[m[32m231[m[36m:[m    assert.equal((await db.query('SELECT status,[1;31mteacher_reminder_30m_sent_at[m FROM appointments WHERE id=$1', [retryId])).rows[0].[1;31mteacher_reminder_30m_sent_at[m, null);
+[35mscripts/test-settings-email-reminders.ts[m[36m:[m[32m234[m[36m:[m    assert((await db.query('SELECT [1;31mteacher_reminder_30m_sent_at[m FROM appointments WHERE id=$1', [retryId])).rows[0].[1;31mteacher_reminder_30m_sent_at[m);
+[35mserver/account-deletion.ts[m[36m:[m[32m153[m[36m:[m         [1;31maccount_deleted_at[m=NOW(),
+[35mserver/account-deletion.ts[m[36m:[m[32m164[m[36m:[m         [1;31mparent_account_deleted_at[m=NOW(),
+[35mserver/account-deletion.ts[m[36m:[m[32m199[m[36m:[m           WHEN [1;31mactor_user_id[m=$1 OR (
+[35mserver/account-deletion.ts[m[36m:[m[32m200[m[36m:[m             [1;31mactor_user_id[m IS NULL AND actor_name=$2 AND NOT EXISTS (
+[35mserver/account-deletion.ts[m[36m:[m[32m207[m[36m:[m         [1;31mactor_user_id[m=CASE WHEN [1;31mactor_user_id[m=$1 THEN NULL ELSE [1;31mactor_user_id[m END,
+[35mserver/account-deletion.ts[m[36m:[m[32m209[m[36m:[m           WHEN [1;31mactor_user_id[m=$1 OR (
+[35mserver/account-deletion.ts[m[36m:[m[32m210[m[36m:[m             [1;31mactor_user_id[m IS NULL AND actor_name=$2 AND NOT EXISTS (
+[35mserver/account-deletion.ts[m[36m:[m[32m225[m[36m:[m       WHERE [1;31mactor_user_id[m=$1
+[35mserver/account-deletion.ts[m[36m:[m[32m232[m[36m:[m             [1;31mactor_user_id[m IS NULL AND actor_name=$2 AND NOT EXISTS (
+[35mserver/appointment-reminders.ts[m[36m:[m[32m26[m[36m:[m  AND a.[1;31mteacher_reminder_30m_sent_at[m IS NULL
+[35mserver/appointment-reminders.ts[m[36m:[m[32m80[m[36m:[m        await tx.query(`UPDATE appointments SET [1;31mteacher_reminder_30m_sent_at[m=NOW(),
+[35mserver/appointment-reminders.ts[m[36m:[m[32m91[m[36m:[m        WHERE id=$1 AND [1;31mteacher_reminder_30m_sent_at[m IS NULL`, [candidate.id]).catch(() => {});
+[35mserver/database/migrations/20260929_add_teacher_appointment_reminders.sql[m[36m:[m[32m2[m[36m:[m  ADD COLUMN IF NOT EXISTS [1;31mteacher_reminder_30m_sent_at[m TIMESTAMPTZ,
+[35mserver/database/migrations/20260929_add_teacher_appointment_reminders.sql[m[36m:[m[32m8[m[36m:[m  WHERE status = 'booked' AND [1;31mteacher_reminder_30m_sent_at[m IS NULL;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m31[m[36m:[m  ADD COLUMN IF NOT EXISTS [1;31maccount_deleted_at[m TIMESTAMPTZ;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m34[m[36m:[m  ADD COLUMN IF NOT EXISTS [1;31mparent_account_deleted_at[m TIMESTAMPTZ;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m47[m[36m:[m  ADD COLUMN IF NOT EXISTS [1;31mactor_user_id[m TEXT;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m49[m[36m:[m  DROP CONSTRAINT IF EXISTS audit_logs_[1;31mactor_user_id[m_fkey;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m51[m[36m:[m  ADD CONSTRAINT audit_logs_[1;31mactor_user_id[m_fkey
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m52[m[36m:[m    FOREIGN KEY ([1;31mactor_user_id[m) REFERENCES public.users(id) ON DELETE SET NULL;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m61[m[36m:[m  WHERE target.[1;31mactor_user_id[m IS NULL
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m67[m[36m:[mSET [1;31mactor_user_id[m=unique_actor.user_id
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m101[m[36m:[m-- ALTER TABLE public.teacher_profiles DROP COLUMN IF EXISTS [1;31maccount_deleted_at[m;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m102[m[36m:[m-- ALTER TABLE public.school_roster DROP COLUMN IF EXISTS [1;31mparent_account_deleted_at[m;
+[35mserver/database/migrations/20261006_add_account_deletion.sql[m[36m:[m[32m104[m[36m:[m-- ALTER TABLE public.audit_logs DROP COLUMN IF EXISTS [1;31mactor_user_id[m;
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m82[m[36m:[m    [1;31mparent_account_deleted_at[m TIMESTAMPTZ,
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m146[m[36m:[m    [1;31maccount_deleted_at[m TIMESTAMPTZ,
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m195[m[36m:[m    [1;31mteacher_reminder_30m_sent_at[m TIMESTAMPTZ,
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m214[m[36m:[mALTER TABLE appointments ADD COLUMN IF NOT EXISTS [1;31mteacher_reminder_30m_sent_at[m TIMESTAMPTZ;
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m219[m[36m:[mWHERE status = 'booked' AND [1;31mteacher_reminder_30m_sent_at[m IS NULL;
+[35mserver/database/supabase_schema.sql[m[36m:[m[32m244[m[36m:[m    [1;31mactor_user_id[m TEXT REFERENCES users(id) ON DELETE SET NULL,
+[35mserver/repositories/index.ts[m[36m:[m[32m726[m[36m:[m      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, [1;31mparent_account_deleted_at[m
+[35mserver/repositories/index.ts[m[36m:[m[32m742[m[36m:[m      parentAccountDeletedAt: r.[1;31mparent_account_deleted_at[m || undefined,
+[35mserver/repositories/index.ts[m[36m:[m[32m750[m[36m:[m      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, [1;31mparent_account_deleted_at[m
+[35mserver/repositories/index.ts[m[36m:[m[32m752[m[36m:[m       WHERE school_id = $1 AND [1;31mparent_account_deleted_at[m IS NULL
+[35mserver/repositories/index.ts[m[36m:[m[32m767[m[36m:[m      parentAccountDeletedAt: r.[1;31mparent_account_deleted_at[m || undefined,
+[35mserver/repositories/index.ts[m[36m:[m[32m773[m[36m:[m      `SELECT id, school_id, parent_phone, parent_name, student_name, class_name, student_number, birth_date::text AS birth_date, is_claimed, [1;31mparent_account_deleted_at[m
+[35mserver/repositories/index.ts[m[36m:[m[32m790[m[36m:[m      parentAccountDeletedAt: roster.[1;31mparent_account_deleted_at[m || undefined,
+[35mserver/repositories/index.ts[m[36m:[m[32m798[m[36m:[m       WHERE school_id = $1 AND id = $2 AND [1;31mparent_account_deleted_at[m IS NULL;`,
+[35mserver/repositories/index.ts[m[36m:[m[32m827[m[36m:[m         WHERE school_id = $1 AND [1;31mparent_account_deleted_at[m IS NULL
+[35mserver/repositories/index.ts[m[36m:[m[32m863[m[36m:[m           WHEN tp.[1;31maccount_deleted_at[m IS NOT NULL THEN 'inactive'
+[35mserver/repositories/index.ts[m[36m:[m[32m904[m[36m:[m       WHERE school_id = $1 AND [1;31maccount_deleted_at[m IS NULL AND (id = $2 OR user_id = $2);`,
+[35mserver/repositories/index.ts[m[36m:[m[32m916[m[36m:[m       WHERE school_id = $1 AND [1;31maccount_deleted_at[m IS NULL AND user_id = $2
+[35mserver/repositories/index.ts[m[36m:[m[32m930[m[36m:[m       WHERE school_id = $1 AND [1;31maccount_deleted_at[m IS NULL
+[35mserver/repositories/index.ts[m[36m:[m[32m943[m[36m:[m       WHERE school_id = $1 AND id = $2 AND [1;31maccount_deleted_at[m IS NULL AND (user_id IS NULL OR user_id = $3)
+[35mserver/repositories/index.ts[m[36m:[m[32m1493[m[36m:[m      `INSERT INTO audit_logs (id, school_id, timestamp, action, actor_name, [1;31mactor_user_id[m, details, audit_scope)

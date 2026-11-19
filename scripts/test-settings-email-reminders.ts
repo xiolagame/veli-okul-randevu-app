@@ -126,7 +126,9 @@ async function run() {
     assert(unsafe.text.includes('VELİ RANDEVU'));
     const adminEmail = schoolAdminEmail('School <A>', 'ABC123', 'Admin & One', '123456');
     assert(adminEmail.html.includes('School &lt;A&gt;'));
-    assert(adminEmail.text.includes('Aktivasyon Kodu: 123456'));
+    assert(adminEmail.text.includes('E-posta Doğrulama Kodu: 123456'));
+    assert(adminEmail.text.indexOf('123456') < adminEmail.text.indexOf('Merhaba'));
+    assert(adminEmail.html.indexOf('123456') < adminEmail.html.indexOf('Merhaba'));
     const adminSource = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
     assert(!adminSource.includes('setDefaultSlotInput(Number(event.target.value))'));
     for (const file of ['server/api.ts', 'server/appointment-email.ts', 'server/school-admin-email.ts', 'server/appointment-reminders.ts']) {

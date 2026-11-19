@@ -1,3 +1,4 @@
+import { rosterImportJobsRouter } from './roster-import-jobs';
 import { Router, Response } from 'express';
 import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
@@ -758,7 +759,7 @@ apiRouter.post('/auth/staff/reset-request', async (req, res) => {
         if (!cooldown.rows.length) {
           const code = generateStaffCode();
           await invitationRepository.createAuthCode({schoolId:school.id,targetPhone:phone,targetUserId:found.id,targetRole:found.role,purpose:'staff_password_reset',codeHash:hashActivationCode(code),expiresAt:new Date(Date.now()+15*60*1000).toISOString(),token:crypto.randomUUID()});
-          await sendEmail({ to: found.email, subject: 'Veli Randevu Parola Sıfırlama', ...renderBrandedEmail({
+          await sendEmail({ to: found.email, subject: 'Veli Randevu Parola Sıfırlama', ...renderBrandedEmail({ codeFirst: true,
             subtitle: 'Personel Parola Sıfırlama', greeting: found.full_name,
             intro: ['Personel hesabınız için parola sıfırlama talebi alındı.'],
             infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
@@ -938,7 +939,7 @@ apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
               token: crypto.randomUUID() }, tx);
           });
           const fullName = `${candidate.rows[0].first_name} ${candidate.rows[0].last_name}`.trim();
-          await sendEmail({ to: candidate.rows[0].email, subject: 'Veli Randevu Okul Yönetimi Parola Sıfırlama', ...renderBrandedEmail({
+          await sendEmail({ to: candidate.rows[0].email, subject: 'Veli Randevu Okul Yönetimi Parola Sıfırlama', ...renderBrandedEmail({ codeFirst: true,
             subtitle: 'Okul Yönetimi Parola Sıfırlama', greeting: fullName,
             intro: [`${school.name} okul yönetimi hesabınız için parola sıfırlama talebi alındı.`],
             infoCards: [{ label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' }],
@@ -1163,7 +1164,7 @@ async function emailStaffActivation(data: { schoolId: string; role: 'teacher' | 
   try { await sendEmail({
     to: data.email,
     subject: 'Veli Randevu Hesap Aktivasyonu',
-    ...renderBrandedEmail({
+    ...renderBrandedEmail({ codeFirst: true,
       subtitle: 'Personel Hesabınız Hazır', greeting: `${data.firstName} ${data.lastName}`.trim(),
       intro: [
         `${school.name} yönetimi tarafından Veli Randevu sistemine personel olarak eklendiniz.`,
@@ -2460,6 +2461,8 @@ apiRouter.post(
     }
   }
 );
+
+apiRouter.use('/schools/:schoolId/roster/imports', authMiddleware, tenantGuard(['admin']), rosterImportJobsRouter);
 
 // Admin: Bulk Upload Roster (CSV / Excel insertion)
 apiRouter.post(

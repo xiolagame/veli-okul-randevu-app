@@ -12,8 +12,8 @@ export function schoolAdminEmail(
   const codeLabel = reset ? 'Parola Sıfırlama Kodu' : 'E-posta Doğrulama Kodu';
   const instructions = reset
     ? 'Veli Randevu giriş ekranında “Şifremi unuttum” seçeneğini, ardından “Okul yöneticisi” seçimini kullanın.'
-    : `Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın. Bu ilk davet kodu “Okul Yöneticisi İlk Giriş” akışına aittir. WhatsApp ile giriş yapıyorsanız bu kodu kullanmayın; telefon doğrulamasından sonra gönderilen yeni e-postadaki güncel kodu girin. Eski ilk giriş akışında okul kodunuz, telefon numaranız${licenseCode ? ', lisans kodunuz' : ''} ve bu davet kodu kullanılır.`;
-  const rendered = renderBrandedEmail({
+    : `Okul yöneticisi hesabınızı etkinleştirmek için yukarıdaki e-posta doğrulama kodunu kullanın. Bu ilk davet kodu “Okul Yöneticisi İlk Giriş” akışına aittir. WhatsApp ile giriş yapıyorsanız bu kodu kullanmayın; telefon doğrulamasından sonra gönderilen yeni e-postadaki güncel kodu girin. Eski ilk giriş akışında okul kodunuz, telefon numaranız${licenseCode ? ', lisans kodunuz' : ''} ve bu davet kodu kullanılır.`;
+  const rendered = renderBrandedEmail({ codeFirst: true,
     subtitle: `Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'Hesabınız Hazır'}`,
     greeting: fullName,
     intro: [`${schoolName} için ${reset ? 'parola sıfırlama' : 'ilk hesap aktivasyonu'} bilgileri aşağıdadır.`, instructions],
@@ -58,12 +58,12 @@ export async function deliverUnifiedAdminActivationEmail(
   licenseCode?: string,
 ): Promise<boolean> {
   try {
-    const content = renderBrandedEmail({
+    const content = renderBrandedEmail({ codeFirst: true,
       subtitle: 'Okul Yönetimi — E-posta Doğrulaması',
       greeting: fullName,
       intro: [
         `${schoolName} için WhatsApp telefon doğrulamanız tamamlandı.`,
-        'Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın.',
+        'Okul yöneticisi hesabınızı etkinleştirmek için yukarıdaki e-posta doğrulama kodunu kullanın.',
         'Giriş ekranındaki e-posta doğrulama alanına bu güncel 6 haneli kodu ve istendiğinde okul kodunuzu girin. İlk davet e-postasındaki kodu kullanmayın.',
         'Lisans kodunuz bilgilendirme amaçlıdır; giriş parolası değildir.',
       ],
@@ -83,12 +83,12 @@ export async function deliverUnifiedAdminActivationEmail(
 
 export async function deliverPlatformLoginEmail(to: string, fullName: string, emailCode: string): Promise<boolean> {
   try {
-    const content = renderBrandedEmail({
+    const content = renderBrandedEmail({ codeFirst: true,
       subtitle: 'Platform Yönetimi — İkinci Doğrulama',
       greeting: fullName,
       intro: [
         'WhatsApp telefon doğrulamanız tamamlandı.',
-        'Platform Yönetimi oturumunu açmak için aşağıdaki bağımsız e-posta kodunu giriş ekranına yazın.',
+        'Platform Yönetimi oturumunu açmak için yukarıdaki bağımsız e-posta kodunu giriş ekranına yazın.',
       ],
       infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
       notice: 'Kod 10 dakika geçerli, tek kullanımlıdır ve WhatsApp kodundan farklıdır.',
@@ -102,12 +102,12 @@ export async function deliverPlatformLoginEmail(to: string, fullName: string, em
 
 export async function deliverPlatformPhoneBindingEmail(to: string, fullName: string, emailCode: string): Promise<boolean> {
   try {
-    const content = renderBrandedEmail({
+    const content = renderBrandedEmail({ codeFirst: true,
       subtitle: 'Platform Yönetimi — Telefon Bağlama',
       greeting: fullName,
       intro: [
         'Platform hesabınıza yeni bir WhatsApp telefonu bağlama işlemi başlatıldı.',
-        'İşlemi siz başlattıysanız aşağıdaki e-posta kodunu Platform Yönetimi ekranına yazın. Ardından yeni telefon ayrıca WhatsApp koduyla doğrulanacaktır.',
+        'İşlemi siz başlattıysanız yukarıdaki e-posta kodunu Platform Yönetimi ekranına yazın. Ardından yeni telefon ayrıca WhatsApp koduyla doğrulanacaktır.',
       ],
       infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
       notice: 'Kod 10 dakika geçerli ve tek kullanımlıdır. Bu kod telefon doğrulama kodundan farklıdır.',
@@ -121,12 +121,12 @@ export async function deliverPlatformPhoneBindingEmail(to: string, fullName: str
 
 export async function deliverPlatformInitialEmailVerification(to: string, fullName: string, emailCode: string): Promise<boolean> {
   try {
-    const content = renderBrandedEmail({
+    const content = renderBrandedEmail({ codeFirst: true,
       subtitle: 'Platform Yönetimi — İlk E-posta Doğrulaması',
       greeting: fullName,
       intro: [
         'Platform hesabınız için ilk e-posta tanımlama işlemi başlatıldı.',
-        'E-posta adresinin size ait olduğunu doğrulamak için aşağıdaki tek kullanımlık kodu Platform Yönetimi ekranına yazın.',
+        'E-posta adresinin size ait olduğunu doğrulamak için yukarıdaki tek kullanımlık kodu Platform Yönetimi ekranına yazın.',
       ],
       infoCards: [{ label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' }],
       notice: 'Kod 10 dakika geçerli ve tek kullanımlıdır. İşlemi siz başlatmadıysanız kodu paylaşmayın.',

@@ -27,6 +27,14 @@ workflows:
           npm ci
           npx cap --version
 
+      - name: Install optional Firebase iOS config
+        script: |
+          set -euo pipefail
+          if [ -n "${FCM_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            test -f "$FCM_GOOGLE_SERVICE_INFO_PLIST"
+            cp "$FCM_GOOGLE_SERVICE_INFO_PLIST" ios/App/App/GoogleService-Info.plist
+          fi
+
       - name: Build and sync the Capacitor iOS shell
         script: |
           set -euo pipefail
@@ -203,6 +211,32 @@ workflows:
           xcode-project build-ipa \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
+
+      - name: Verify signed IPA for App Store Connect
+        script: |
+          set -euo pipefail
+          IPAS=("$CM_BUILD_DIR"/build/ios/ipa/*.ipa)
+          if [ "${#IPAS[@]}" -ne 1 ] || [ ! -f "${IPAS[0]}" ]; then
+            echo "Expected exactly one signed IPA."
+            exit 1
+          fi
+          CHECK_DIR=$(mktemp -d)
+          trap 'rm -rf "$CHECK_DIR"' EXIT
+          ditto -x -k "${IPAS[0]}" "$CHECK_DIR" >/dev/null
+          APP_PATH="$CHECK_DIR/Payload/App.app"
+          FIREBASE_PLIST="$APP_PATH/GoogleService-Info.plist"
+          if [ ! -d "$APP_PATH" ] || [ ! -f "$FIREBASE_PLIST" ]; then
+            echo "IPA is missing the app or Firebase plist."
+            exit 1
+          fi
+          codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1
+          codesign --display --entitlements - --xml "$APP_PATH" > "$CHECK_DIR/entitlements.plist" 2>/dev/null
+          plutil -lint "$APP_PATH/Info.plist" "$FIREBASE_PLIST" "$CHECK_DIR/entitlements.plist" >/dev/null
+          EXPECTED_BUNDLE_ID="com.velirandevu.app"
+          [ "$(plutil -extract CFBundleIdentifier raw -o - "$APP_PATH/Info.plist")" = "$EXPECTED_BUNDLE_ID" ]
+          [ "$(plutil -extract BUNDLE_ID raw -o - "$FIREBASE_PLIST")" = "$EXPECTED_BUNDLE_ID" ]
+          [ "$(plutil -extract aps-environment raw -o - "$CHECK_DIR/entitlements.plist")" = "production" ]
+          echo "Signed IPA bundle ID, Firebase plist, and production push entitlement verified."
     artifacts:
       - build/ios/ipa/*.ipa
       - build/logs/*.log

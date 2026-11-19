@@ -86,6 +86,10 @@ export const api = {
   deactivatePushDevice: (installationId: string, registrationGeneration?: number) =>
     request<{ success: boolean }>(`/api/mobile/push/devices/${encodeURIComponent(installationId)}${registrationGeneration === undefined ? '' : `?registrationGeneration=${registrationGeneration}`}`, { method: 'DELETE' }),
   getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
+  startRosterImport: (schoolId:string,id:string,manifestHash:string,totalRows:number)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports`,{method:'POST',body:JSON.stringify({id,manifestHash,totalRows})}),
+  getRosterImport: (schoolId:string,id:string)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}`),
+  sendRosterBatch: (schoolId:string,id:string,index:number,records:import('../utils/roster-import').RosterDraft[])=>request<{job:import('../utils/roster-transfer').RosterImportJob;batch:import('../utils/roster-transfer').RosterBatchReport}>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}/batches`,{method:'POST',body:JSON.stringify({index,records})}),
+  getRosterImportReports: (schoolId:string,id:string,page=0)=>request<{reports:import('../utils/roster-transfer').RosterBatchReport[];pages:number}>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}/reports?page=${page}`),
   importRoster: (schoolId: string, records: import('../utils/roster-import').RosterDraft[], preview: boolean) =>
     request<{ rows: import('../utils/roster-import').RosterPreview[]; addedCount: number; skippedCount: number }>(`/api/schools/${schoolId}/roster/bulk-upload`, { method: 'POST', body: JSON.stringify({ records, preview }) }),
   getPlatformCapabilities: () => request<{ manageSchools: boolean }>('/api/platform/capabilities'),

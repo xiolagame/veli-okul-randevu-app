@@ -3,6 +3,7 @@ import cors from 'cors';
 import { apiRouter } from './api';
 import { initDatabase } from './database/postgres';
 import { platformTargetContextGuard } from './platform-management';
+import { createDatabaseRoleDiagnostic } from './platform-database-diagnostic';
 
 let initPromise: Promise<void> | null = null;
 
@@ -18,6 +19,10 @@ export async function ensureDatabase(): Promise<void> {
 
 export function createExpressApp() {
   const app = express();
+
+  // Temporary private diagnostic: keep before parsers/DB bootstrap so failures
+  // are sanitized and unauthorized requests never initiate a DB connection.
+  app.all(['/api/platform/diagnostics/database-role', '/.netlify/functions/api/platform/diagnostics/database-role'], createDatabaseRoleDiagnostic());
 
   // Production CORS Configuration: Configurable via CORS_ORIGIN or origin whitelist
   const allowedOrigins = process.env.CORS_ORIGIN
@@ -47,6 +52,18 @@ export function createExpressApp() {
       res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? 'Kayıt listesi çok büyük. Daha küçük bir liste gönderin.' : 'Kayıt listesi okunamadı.' });
     },
   );
+  app.use([
+    '/api/schools/:schoolId/roster/imports',
+    '/.netlify/functions/api/schools/:schoolId/roster/imports',
+    '/api/platform-target/:targetSchoolId/schools/:schoolId/roster/imports',
+    '/.netlify/functions/api/platform-target/:targetSchoolId/schools/:schoolId/roster/imports',
+  ], express.json({ limit: '256kb' }),
+  (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const tooLarge = typeof error === 'object' && error !== null && 'status' in error && error.status === 413;
+    res.status(tooLarge ? 413 : 400).json({ error: tooLarge
+      ? 'Aktarım partisi çok büyük. Dosyanın tamamı yerine güvenli partiler gönderin.'
+      : 'Aktarım partisi okunamadı.' });
+  });
   app.use(express.json());
 
   // Ensure database is initialized before handling API requests
