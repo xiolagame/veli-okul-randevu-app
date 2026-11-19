@@ -1,0 +1,231 @@
+{
+  "status": "PASS",
+  "kind": "source-package",
+  "sourceSha256": "2f5da34f03cbab771dc0cec47f87e58cce36c9f9661c70253b2c9613b5b792d1",
+  "files": [
+    {
+      "path": "PERSONEL_BİLGİ_FORMU.xlsx",
+      "sha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34"
+    },
+    {
+      "path": "app-image.png",
+      "sha256": "1d5f9e9f69ee62a572d48a9537fbc8844d52c8b3f8297ee54a6d19b7ace9495d"
+    },
+    {
+      "path": "assets/AdminView-DqdcTK44.js",
+      "sha256": "7f53aedb4d29104af7b536bb7989f32d385d809ea3aaefe07e2065d812420efa"
+    },
+    {
+      "path": "assets/AppointmentEmailReview-DQgWQeM-.js",
+      "sha256": "535d3ad780e7cc6e61f79ed9b080881bb3685879a5762912994699c36caea715"
+    },
+    {
+      "path": "assets/HelpCenterPage-3TZTT1HV.js",
+      "sha256": "42626c15bd038fe9d58867104eb30029f340f959114b26c73204b0cf268c8d9d"
+    },
+    {
+      "path": "assets/NotificationsModal-D2ece9Ml.js",
+      "sha256": "13c88bce8798782e5199c14a882dd6b36b66848d9fedd679aca84ccd001ea98d"
+    },
+    {
+      "path": "assets/OnboardingModal-CllrSzkX.js",
+      "sha256": "7b901ceebeca4d30fbd96eafff9c7ee02ca6f16c867422627300002da90c2097"
+    },
+    {
+      "path": "assets/ParentView-B0bRjPIa.js",
+      "sha256": "7dfc1b217b604148647cef5ca0320ce4976bddd0638cdae8dfb0d716d54e121a"
+    },
+    {
+      "path": "assets/PublicRequestPage-B5djw4y-.js",
+      "sha256": "7c8a63ba54ea8429c47ac2ca1dbce5ce2e938fad25e73efc9204404e8c5ecd7f"
+    },
+    {
+      "path": "assets/SchoolManagement-DH0yVIOj.js",
+      "sha256": "6a07a308710ff3534874b86d804d4f1229c04c91efe109f345789cd3cc870386"
+    },
+    {
+      "path": "assets/SecurityView-gBzaunwm.js",
+      "sha256": "682ea0ada1e70b46432a74960a336af7771e1afe93bced63c94a50dea437873e"
+    },
+    {
+      "path": "assets/SupportConversation-B4YwuJ4W.js",
+      "sha256": "0b24384784cd7bdfcb1e2cc76f592349149360844f2ca408254b3d293b5140ab"
+    },
+    {
+      "path": "assets/TeacherView-DRmvIFJk.js",
+      "sha256": "4ef19d18389af3ded3e676149993818deb94546ce8bff637aa3bd0a5629171d6"
+    },
+    {
+      "path": "assets/base-BNPsPpjH.js",
+      "sha256": "837b37a4437bc193550c7eca8ddd0605f1f48de28eadfd77562806d5c4a704c2"
+    },
+    {
+      "path": "assets/book-open-Dpo_8ugc.js",
+      "sha256": "5af3a8462b13b16c6e7881d36e20257b6dd055b152999c98ab9accb4b9271c42"
+    },
+    {
+      "path": "assets/browser-DhGf3-N_.js",
+      "sha256": "e3e945b8ef005f9a11a189568d7fe94ffabf0945c014185f1d360da949035308"
+    },
+    {
+      "path": "assets/dates-z_bVQhe_.js",
+      "sha256": "509bf24156b321a472b1935597913098ef99f5dfad05af551e9c62c7337507fc"
+    },
+    {
+      "path": "assets/file-text-BM3_yEXA.js",
+      "sha256": "0c971877f83521a41ca24b8aacccf1b5eafcaea3a5d87af7712e5ce643e3ba85"
+    },
+    {
+      "path": "assets/index-B9l_Uabb.js",
+      "sha256": "2edfa68cfe14345325756e334cd9a7bc4b70ee8567973893a7b8c375779d6d8d"
+    },
+    {
+      "path": "assets/index-CKGBKQwC.css",
+      "sha256": "08a0e1cdb101cb884bc04a803221504b29beecd97cc3221d3a84c5b12f6dd5c5"
+    },
+    {
+      "path": "assets/index-CzTlX6vr.js",
+      "sha256": "4aca7058b58ae9cf4a4adb3f68c7bac9a5424062f554e6cc182db6761c4dc50b"
+    },
+    {
+      "path": "assets/index-DD3z4aXo.js",
+      "sha256": "16868f2ea23525e8801d7cbdc0a1d20cadd8f860dfec157428870f555cbb9aa8"
+    },
+    {
+      "path": "assets/index-DNoYnF_y.js",
+      "sha256": "ae06a24feaeaf7afea3d25a4427d839b66677525ff30bd49029fc67372d2f283"
+    },
+    {
+      "path": "assets/index-V689Nl9F.js",
+      "sha256": "2d367cca7ce151f1bca648d43d9fb244eea5585cf916b75c9e6262daa3d0a71f"
+    },
+    {
+      "path": "assets/life-buoy-DHf3p4my.js",
+      "sha256": "65dc1bf3a347ab6660ba748d27ff80d8055f4626afdddd45573383b705501af8"
+    },
+    {
+      "path": "assets/native--jnoQrXF.js",
+      "sha256": "8d4c6c8759601fa4aec3c551b96cbe11d461d682893b2f549e574b5fcc48cca7"
+    },
+    {
+      "path": "assets/person-name-CrVt2evJ.js",
+      "sha256": "a92a81390ab827eb7af245bd3ddbef8494c53c1ef4e9417424011083ebc09da7"
+    },
+    {
+      "path": "assets/platform-request-ui-Bjna8gUv.js",
+      "sha256": "a324bc0939cfd3a39fb7ebfb9b9ef823f5c1e5f0ea17eaf794a0467393723e7f"
+    },
+    {
+      "path": "assets/qr-scanner-worker.min-D85Z9gVD.js",
+      "sha256": "f9d5a00a24ef3c0f52453748a018feec9441c0031c7068e41606c744a26491f5"
+    },
+    {
+      "path": "assets/refresh-cw-B2pWd3Ml.js",
+      "sha256": "848c32f5027ad23bf2ee59cd3997e31a104cb1d281bfb1f36cf11a688e4cfb10"
+    },
+    {
+      "path": "assets/request-token-wcQt9xsF.js",
+      "sha256": "9734cd5abb162bef26999f3bdcda20a36873006f56ceb0f9166623e668b056e5"
+    },
+    {
+      "path": "assets/roster-worker-BJwSeU1i.js",
+      "sha256": "6f88493f0d29eeeb123959cb11cbe66b2960f45f11f618924022454648a46ba1"
+    },
+    {
+      "path": "assets/search-xeLxu5PJ.js",
+      "sha256": "06f429d82b80a01f618881faec81971d1523d7a88ba92a4e4ddecc2519d5636a"
+    },
+    {
+      "path": "assets/settings-CqashXQj.js",
+      "sha256": "b34c9e27ec22c3298274e3873affe24c7d8163ddf8a90bc6adf27db1144992fd"
+    },
+    {
+      "path": "assets/useHomeRefresh-BuKLsAxK.js",
+      "sha256": "12e6e92c37b9b8ad2c833e44681adb2e6561080cd2d8b5723930fe96127759f7"
+    },
+    {
+      "path": "assets/web-BBZgOy43.js",
+      "sha256": "800fc5516e59a618a1ed6aa6c6492c7211544686af5fafb6a3f751f37c7a6e65"
+    },
+    {
+      "path": "assets/web-Cs_FFiwQ.js",
+      "sha256": "35afbe944b0dded971df8ae4347f6bb5e7084927753646e3af227e26ccffa48d"
+    },
+    {
+      "path": "assets/web-Cy8sRKl7.js",
+      "sha256": "5ef436462d4c8ce98fe75472cc713d899fb6e24c4d9c275dec5c191f85a91ef3"
+    },
+    {
+      "path": "assets/web-D-h4UeDW.js",
+      "sha256": "6bce52d39870353642b761e6796d8e96790baadbe7afe5259391d2deb5116dbf"
+    },
+    {
+      "path": "assets/web-Dn72tju6.js",
+      "sha256": "5d2fb6678a824f98751b546a486239a2dde74f2fb1f17631d297c8170bc2849c"
+    },
+    {
+      "path": "branding/04-Mobil.png",
+      "sha256": "be993712f722f5bf6a5b850f02aee1f99ef6849e4772a197c7f4465fff70f1c6"
+    },
+    {
+      "path": "branding/school-background.png",
+      "sha256": "1dd9d748636874720bc373f90f01ead2bcc96f39d537cb01ff950b475c9120b7"
+    },
+    {
+      "path": "branding/veli-randevu-logo.png",
+      "sha256": "2fa3b64c1d4efa3d070255e5e4cf249afda5131d4776f7c5d466f179d85fadae"
+    },
+    {
+      "path": "favicon.png",
+      "sha256": "38240320cf730bf9164ef0744cf2a428c827c0312c0c42a057ac3a4b7de0aafd"
+    },
+    {
+      "path": "icon.png",
+      "sha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722"
+    },
+    {
+      "path": "index.html",
+      "sha256": "91c8aa2cec66f46f76002114c91d3ae5dae358171dccf0d0e0474d9a32ee73a6"
+    },
+    {
+      "path": "logo-small.png",
+      "sha256": "0bc8bd9f0d0a035ac8e19f4103106036c0bcb8bff5ea67618c460b9448ce5516"
+    },
+    {
+      "path": "logo.png",
+      "sha256": "f04433a4eea7eb25da485359ac3c448b579b0de464736f759f3d54f863fbefb5"
+    },
+    {
+      "path": "ogrenci-veli-bilgi-formu.xlsx",
+      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+    },
+    {
+      "path": "partial-react-logo.png",
+      "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c"
+    },
+    {
+      "path": "react-logo.png",
+      "sha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c"
+    },
+    {
+      "path": "react-logo@2x.png",
+      "sha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde"
+    },
+    {
+      "path": "react-logo@3x.png",
+      "sha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16"
+    },
+    {
+      "path": "school-hero.jpg",
+      "sha256": "5071decb04f2a849f428051fa0a99f9c72c7d475d2b6ec2d9d6f8a3faa60d406"
+    },
+    {
+      "path": "whatsapp-login-icon.png",
+      "sha256": "42ac43191f83bee7ef7b79ccf0e00883c96d5978e19db2a2c86fe22a5c980163"
+    },
+    {
+      "path": "ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx",
+      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+    }
+  ]
+}

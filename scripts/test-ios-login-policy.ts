@@ -14,8 +14,5 @@ for (const platform of ['IOS','WEB'] as const) {
 assert.equal(allowLegacyPhoneFallback('ANDROID'),true);
 assert.equal(resolveLoginEntry('ANDROID','ready',true,false),'phone');
 assert.equal(resolveLoginEntry('ANDROID','ready',true,true),'legacy');
-for(const status of ['loading','error'] as const)for(const enabled of [false,true])for(const selected of [false,true]){
-  assert.equal(resolveLoginEntry('ANDROID',status,enabled,selected),status);
-}
-assert.equal(resolveLoginEntry('ANDROID','ready',false,false),'legacy');
+assert.equal(resolveLoginEntry('ANDROID','loading',false,false),'legacy');
 console.log('iOS/web fail-closed capability states, no password downgrade, Android rollout policy PASS.');

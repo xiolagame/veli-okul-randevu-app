@@ -5,7 +5,7 @@ import {contentHash,isTextSource} from './ios-artifact-policy.mjs';
 const lock=JSON.parse(fs.readFileSync('audit/ios-source-lock.json'));
 const ref=process.argv.includes('--index')?':':'HEAD:';
 const data=execFileSync('git',['cat-file','--batch'],{input:lock.files.map(f=>ref+f.path).join('\n')+'\n',maxBuffer:100*1024*1024});
-const attr=execFileSync('git',['-c','core.quotepath=false','check-attr','text','eol','--stdin'],{input:lock.files.map(f=>f.path).join('\n'),encoding:'utf8'});
+const attr=execFileSync('git',['check-attr','text','eol','--stdin'],{input:lock.files.map(f=>f.path).join('\n'),encoding:'utf8'});
 let pos=0;const rows=[];
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 for(const f of lock.files){

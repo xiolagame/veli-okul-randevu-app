@@ -11,11 +11,9 @@ import { remainingResendSeconds } from '../platform/otp-resend-clock';
 
 type Step = 'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE';
 
-export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback = true, requestEnabled = true, checkingCapabilities = false }: {
+export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback = true }: {
   onLegacyFallback: (phone: string) => void;
   allowLegacyFallback?: boolean;
-  requestEnabled?: boolean;
-  checkingCapabilities?: boolean;
 }) {
   const { whatsappLogin } = useApp();
   const [step, setStep] = useState<Step>('PHONE');
@@ -71,7 +69,6 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
   };
 
   const requestCode = async () => {
-    if (!requestEnabled) throw new Error('Giriş bağlantısı henüz doğrulanmadı. Lütfen tekrar deneyin.');
     const canonicalPhone = normalizeUserPhoneInput(phone);
     if (!canonicalPhone) throw new Error('Geçerli bir Türkiye GSM numarası girin.');
     const response = await api.requestPhoneCentricCode(canonicalPhone);
@@ -84,13 +81,12 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     setChallengeId(response.challengeId);
     setCooldown(response.resendAfterSeconds);
     if (getRuntimePlatform() === 'IOS') setResendAvailableAt(Date.now() + response.resendAfterSeconds * 1000);
-    setMessage('WhatsApp doğrulama kodunuz gönderildi. 6 haneli kodu girin.');
+    setMessage('Lütfen telefonunuza gelen WhatsApp onay kodunu girin.');
     setStep('WHATSAPP_CODE');
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!requestEnabled) return;
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
@@ -160,17 +156,16 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
       <span className="whatsapp-login-logo"><img src="/whatsapp-login-icon.png" alt="" aria-hidden="true" /></span>
       <p id="phone-centric-description">Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>
     </div>
-    {message && <Alert tone="info">{message}</Alert>}
-    {checkingCapabilities && <p role="status">Güvenli giriş bağlantısı doğrulanıyor…</p>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {message && <Alert tone={step === 'WHATSAPP_CODE' ? 'info' : 'success'}>{message}</Alert>}
     <form onSubmit={submit} className="form-stack">
       <label className="field" htmlFor="phone-centric-phone">Telefon numaranız
         <div className="field-icon"><Phone size={18} aria-hidden="true" />
           <input id="phone-centric-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14}
             value={phone} onChange={(event) => setPhone(formatTurkishPhoneInput(event.target.value))}
-            placeholder="0555 123 45 67" readOnly={busy || step !== 'PHONE'} aria-invalid={step === 'PHONE' && !!error} aria-describedby={error ? 'phone-centric-error' : undefined} required />
+            placeholder="0555 123 45 67" readOnly={busy || step !== 'PHONE'} required />
         </div>
       </label>
-      {error && <div id="phone-centric-error"><Alert tone="danger">{error}</Alert></div>}
       {step === 'WHATSAPP_CODE' && <label className="field" htmlFor="phone-centric-code">WhatsApp doğrulama kodu
         <div className="field-icon"><ShieldCheck size={18} aria-hidden="true" />
           <input id="phone-centric-code" type="text" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go"
@@ -192,7 +187,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
             onChange={(event) => setSchoolCode(normalizeSchoolCodeInput(event.target.value))} required />
         </label>}
       </>}
-      <Button type="submit" disabled={busy || !requestEnabled}>{busy ? 'İşleniyor…' : step === 'PHONE' ? 'WhatsApp Kodu Gönder' : step === 'WHATSAPP_CODE' ? 'Kodu Doğrula' : 'Aktivasyonu Tamamla'}</Button>
+      <Button type="submit" disabled={busy}>{busy ? 'İşleniyor…' : step === 'PHONE' ? 'WhatsApp Kodu Gönder' : step === 'WHATSAPP_CODE' ? 'Kodu Doğrula' : 'Aktivasyonu Tamamla'}</Button>
       {step !== 'PHONE' && <div className="whatsapp-auth-actions">
         <button type="button" onClick={reset} disabled={busy}><ArrowLeft size={16} aria-hidden="true" />Telefonu değiştir</button>
         {step === 'WHATSAPP_CODE' && <button type="button" onClick={resend} disabled={busy || cooldown > 0}>
