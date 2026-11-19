@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "branch": "feature/ios-prod-sync-20261027",
-  "baseline": "ade431bc346075019536d650130304c649ff6e0f",
+  "branch": "feature/ios-license-sync-20261029",
+  "baseline": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "hashMode": "UTF-8 text LF normalized; binary exact; lock itself excluded",
   "files": [
     {
@@ -14,15 +14,15 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "aab57a83dd1425e54c5a02bc22cf4ff8f7194576ba0dad8ff0e4ce19ace80240"
+      "sha256": "dcdba56bff446b6c5a4b64a1ae225ba69f8010d08ca1f2ab328edcc3ee158778"
     },
     {
       "path": ".node-version",
       "sha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53"
     },
     {
-      "path": "README.md",
-      "sha256": "b1df4780301066de345adcd63e2c7e9cab696e2b8649c827b93b419c5c1a075e"
+      "path": "audit/license-reminder-overlay.json",
+      "sha256": "5d829487a01a387580825bb3cd57fbd88409a8df4b33dd0b228013f3994da591"
     },
     {
       "path": "audit/production-source-manifest.json",
@@ -157,10 +157,6 @@
       "sha256": "df265bc4ea29a51659b78f989b10cb448723510f4ede4aa241283666a6941b18"
     },
     {
-      "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
-      "sha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34"
-    },
-    {
       "path": "public/adaptive-icon.png",
       "sha256": "2800a149cb4d3c1507b82bdc82ed8f2ce09678585ed279f63ca1ffdc91572722"
     },
@@ -197,8 +193,16 @@
       "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
     },
     {
+      "path": "public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx",
+      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+    },
+    {
       "path": "public/partial-react-logo.png",
       "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c"
+    },
+    {
+      "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
+      "sha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34"
     },
     {
       "path": "public/react-logo.png",
@@ -225,8 +229,8 @@
       "sha256": "42ac43191f83bee7ef7b79ccf0e00883c96d5978e19db2a2c86fe22a5c980163"
     },
     {
-      "path": "public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx",
-      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+      "path": "README.md",
+      "sha256": "b1df4780301066de345adcd63e2c7e9cab696e2b8649c827b93b419c5c1a075e"
     },
     {
       "path": "scripts/audit-canonical-phone-collisions.ts",
@@ -359,6 +363,14 @@
     {
       "path": "scripts/test-ios-build-portability.mjs",
       "sha256": "56065086f10abbe601dd6ab1b7ff070724e0ab062946fe0eb1f98e94858543cc"
+    },
+    {
+      "path": "scripts/test-ios-license-client.mjs",
+      "sha256": "25dd9bff6cf193a6bf8d94e028535fe3179133f05369ab0a43e2b283320174c0"
+    },
+    {
+      "path": "scripts/test-ios-license-ui.mjs",
+      "sha256": "001909ca8c261937d359a68a8b8007cdd2d04c4441467cf27d399f2d448b2065"
     },
     {
       "path": "scripts/test-ios-login-policy.ts",
@@ -589,8 +601,12 @@
       "sha256": "9b2527c274c6d5856ce0785385a0873800ed33334523bf44b1339d7c889ba478"
     },
     {
+      "path": "scripts/verify-ios-license-sync.mjs",
+      "sha256": "196d693b8b3d190e86bdb3f2dd79aff3bde08dfb1ca94667d23fa29055d1f863"
+    },
+    {
       "path": "scripts/verify-ios-provenance.mjs",
-      "sha256": "ad25c163a6094a539c7fa4370aae04e006d130698bcdb47cf3ce38fffb68defc"
+      "sha256": "2000eaa9c84c17d18488c6c1e5c5fe53d9b6cf7ffd59f80776fb6216db3d9ff7"
     },
     {
       "path": "scripts/verify-ios-source-lock.mjs",
@@ -898,7 +914,15 @@
     },
     {
       "path": "src/components/LicenseManagement.tsx",
-      "sha256": "cbf2a1d32d750e72549bae1068f2e61bb5a575d32d9f657e7900b0ea5be9e7fe"
+      "sha256": "fa33746f7938fca2c9bc7c031d6bb809aa5e9ab07f5b394ab65767f38be0c78a"
+    },
+    {
+      "path": "src/components/LicenseWhatsAppPanel.tsx",
+      "sha256": "3304abd0250693e0b0439d9f5cddf28a0c5c690f0f520f667ad73051aa62f771"
+    },
+    {
+      "path": "src/components/LicenseWhatsAppPreference.tsx",
+      "sha256": "fd3151642d7e4c1338fb6a8aa0b80de7f367dfab6d24b6c8e921f0aa8595e30c"
     },
     {
       "path": "src/components/ManagementActions.tsx",
@@ -906,7 +930,7 @@
     },
     {
       "path": "src/components/Navbar.tsx",
-      "sha256": "17f2a83e7ef424ef5fb11e62d5eb68eed1f53a4653531b0bd1269b08e2a40056"
+      "sha256": "4ad6cc744ebbd874cb0115e084d47004766b4f5758b6883a53b5c26be131fc3d"
     },
     {
       "path": "src/components/NotificationsModal.tsx",
@@ -949,6 +973,10 @@
       "sha256": "54217f59a1169fa4d299de0e619146eb4354b9c39d7000ab8ea69ff09ef9c008"
     },
     {
+      "path": "src/components/push-prompt-state.ts",
+      "sha256": "066b7a8a64117f7be2bbe9a67ab3b88aa6ee3adbf99bf8ccbc7c5e897c6b489a"
+    },
+    {
       "path": "src/components/QRCodePass.tsx",
       "sha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e"
     },
@@ -989,24 +1017,20 @@
       "sha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054"
     },
     {
-      "path": "src/components/UnifiedWhatsAppLoginPanel.tsx",
-      "sha256": "5941e2f350e4b1f6e947297d85159282b7e5b7dbb4790c2c2645410c772cf46c"
-    },
-    {
-      "path": "src/components/WhatsAppAuthPanel.tsx",
-      "sha256": "72680be144f43833adcb2d2703cbdc7c0f508910fad44812977bd1572f114db6"
-    },
-    {
-      "path": "src/components/push-prompt-state.ts",
-      "sha256": "066b7a8a64117f7be2bbe9a67ab3b88aa6ee3adbf99bf8ccbc7c5e897c6b489a"
-    },
-    {
       "path": "src/components/ui.tsx",
       "sha256": "db78c3449f451013ea36ab52a5648155e5fcb5693098b497cbb782d5cf39143e"
     },
     {
+      "path": "src/components/UnifiedWhatsAppLoginPanel.tsx",
+      "sha256": "5941e2f350e4b1f6e947297d85159282b7e5b7dbb4790c2c2645410c772cf46c"
+    },
+    {
       "path": "src/components/useHomeRefresh.tsx",
       "sha256": "ad69c9a1ca082b4ff971f2a311c4f53fa03bdfa21a6dfcee8436ef72c0f7a2ae"
+    },
+    {
+      "path": "src/components/WhatsAppAuthPanel.tsx",
+      "sha256": "72680be144f43833adcb2d2703cbdc7c0f508910fad44812977bd1572f114db6"
     },
     {
       "path": "src/content/help-content.ts",
@@ -1022,7 +1046,7 @@
     },
     {
       "path": "src/index.css",
-      "sha256": "e9c3ac98c83878784b47f27a56337d9c3bba8319ce350285641fab1c3f736a82"
+      "sha256": "91942eca0b96d919cb2da15a175e129c1fdedc9be36e017970a0eb466ba3f94a"
     },
     {
       "path": "src/main.tsx",
@@ -1046,7 +1070,7 @@
     },
     {
       "path": "src/platform/api-session-policy.ts",
-      "sha256": "a84c40fbd1cef17626860ec119cd8930e5903fb5875f1525eadfde8be27bfaa0"
+      "sha256": "7e20257327b40e5d4c0c494c4f69a5ce009f4dad898e57c574dc33b2572928cc"
     },
     {
       "path": "src/platform/appointment-navigation.ts",
@@ -1158,11 +1182,15 @@
     },
     {
       "path": "src/services/api.ts",
-      "sha256": "eb8a46d19afbed74d0fe7e8d766db27dc9466a46dd1b617ccd47743276cc120f"
+      "sha256": "c955c085c415ffb821e9447d3eb684ab8fc8848cef5fd088967ab4993e0421f9"
     },
     {
       "path": "src/types.ts",
       "sha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc"
+    },
+    {
+      "path": "src/types/license-reminders.ts",
+      "sha256": "e339e5576874c43bb20ea0251f17aa243b7609c54791e757670665a35714edc0"
     },
     {
       "path": "src/types/licenses.ts",

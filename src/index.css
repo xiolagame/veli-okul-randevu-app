@@ -847,3 +847,7 @@ html[data-runtime-platform="ios"] .admin-backdrop {
     border: 0;
   }
 }
+
+/* License reminder additions only; preserve native auth and existing layouts. */
+.license-whatsapp, .license-whatsapp-preference { min-width: 0; overflow-wrap: anywhere; }
+html[data-runtime-platform="ios"] :is(.license-whatsapp,.license-whatsapp-preference) label { min-height: 44px; }

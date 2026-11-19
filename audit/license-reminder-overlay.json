@@ -1,0 +1,38 @@
+{
+  "reportedDeploy": "6ae2633d19619e6006874d90",
+  "productionSource": "C:/Users/XIO/Documents/Codex/veli-randevu-license-reminders-release-20261028",
+  "iosBase": "651e46c40a359b0d645b4b22a42bcc5860820af5",
+  "scope": "Frontend license-reminder overlay only; not a full production sync; no backend transfer",
+  "files": [
+    {
+      "path": "src/components/LicenseWhatsAppPanel.tsx",
+      "productionSha256": "b8d25c2d2a270c722554f32b5f013d37ea144e163f3c3cba686b274f52231730",
+      "iosCanonicalSha256": "3304abd0250693e0b0439d9f5cddf28a0c5c690f0f520f667ad73051aa62f771"
+    },
+    {
+      "path": "src/components/LicenseWhatsAppPreference.tsx",
+      "productionSha256": "f3976ec5477c750058fe6e85071f949cb6705e98eb3b95b3bfba061c205fd4ed",
+      "iosCanonicalSha256": "fd3151642d7e4c1338fb6a8aa0b80de7f367dfab6d24b6c8e921f0aa8595e30c"
+    },
+    {
+      "path": "src/components/LicenseManagement.tsx",
+      "productionSha256": "78e3328f4420c96ee0a99bfb2600df3c4baae59c64fdb313d45948cd8596c907",
+      "iosCanonicalSha256": "fa33746f7938fca2c9bc7c031d6bb809aa5e9ab07f5b394ab65767f38be0c78a"
+    },
+    {
+      "path": "src/components/Navbar.tsx",
+      "productionSha256": "9998ace94894aebd0eec28a95b79475a2af3287d252367d37f0aead9a10fda81",
+      "iosCanonicalSha256": "4ad6cc744ebbd874cb0115e084d47004766b4f5758b6883a53b5c26be131fc3d"
+    },
+    {
+      "path": "src/services/api.ts",
+      "productionSha256": "c9976824d964646737671a6eca4b55612114a3e100a9d24eda24ee431dad81e8",
+      "iosCanonicalSha256": "c955c085c415ffb821e9447d3eb684ab8fc8848cef5fd088967ab4993e0421f9"
+    },
+    {
+      "path": "src/types/license-reminders.ts",
+      "productionSha256": "b31938013958414dd265ee9b119890dbbe1fabce2ab0b4b4791ffe30c25f46cd",
+      "iosCanonicalSha256": "e339e5576874c43bb20ea0251f17aa243b7609c54791e757670665a35714edc0"
+    }
+  ]
+}

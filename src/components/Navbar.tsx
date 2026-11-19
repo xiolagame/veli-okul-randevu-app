@@ -1,3 +1,4 @@
+import { LicenseWhatsAppPreference } from './LicenseWhatsAppPreference';
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, LogOut, Shield, ChevronDown, Check, Building2, KeyRound, GraduationCap, Users, UserRound, CircleHelp, Trash2 } from 'lucide-react';
@@ -147,6 +148,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
         {isLoggingOut ? <p role="status" aria-live="polite" className="text-sm text-slate-600">Oturum kapatılıyor…</p> : <>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
+        {currentSchool&&!isPlatformAdmin&&currentUser?.role==='admin'&&<LicenseWhatsAppPreference key={currentSchool.id} schoolId={currentSchool.id}/>}
         {canUseMobilePush(currentUser?.role) && <div className="mb-3 rounded-xl border border-slate-200 p-3 text-sm">
           <strong>Randevu bildirimleri</strong>
           <p className="text-slate-600 mt-1" aria-live="polite">{pushStatus === 'ready' ? 'Bildirimler açık.' : pushStatus === 'preparing' ? 'Bildirimler hazırlanıyor.' : pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı.' : pushStatus === 'unavailable' ? 'Bildirimler şu anda kullanılamıyor.' : 'Bildirimler etkin değil.'}</p>
