@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "branch": "feature/staff-otp-master-20261031",
+  "branch": "main",
   "baseline": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "hashMode": "UTF-8 text LF normalized; binary exact; lock itself excluded",
   "files": [
@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "09a3bdf6541d2a858eb8665947903acf37db894dc1791264dde472bca12db0fb"
+      "sha256": "3efa89febf656bba6792c6c74778a62c694b978501e162e29594d21faafdb0da"
     },
     {
       "path": "bun.lock",
@@ -401,6 +401,10 @@
       "sha256": "5a16a6c589a1b1311cce2963c84480e85a8b65fa864d091e2894065531ee16b9"
     },
     {
+      "path": "docs/MOBILE-RELEASE-PREP-20261122.md",
+      "sha256": "f7c38daa128adfacc7f9c680f1de57859425cf160a8aacfd6aead8b86194bd82"
+    },
+    {
       "path": "docs/REVIEW-DEMO-THEME-SETUP.md",
       "sha256": "4d364265e57aa0ea7c39dea119f39379dba3c604ca9a14dd5b9560e16e3d245d"
     },
@@ -442,7 +446,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "7e1afd3f0bc6b4e4f2bd7a1069aa7c9f17c3011da1b654745d6ebd9c163539a6"
+      "sha256": "a3081158cc984092632d752504cb7af51cd67cabfc63a685a3c025c522e9da48"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -570,7 +574,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "2f953b5ec9dc86960a62dfc28fc4868e1d1664c2a70c185f2d431c3dad4b0fe4"
+      "sha256": "b9e1834269cc36b02089d7d3d88e3fbe45cb7bae0a9effb76973832912496b26"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -926,7 +930,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "27a5b75ce18c443d24d35459ef44a62f43aee1eec494a5fae52f0f426017e8f9"
+      "sha256": "e0ffd1d5e39857e0f7f73e4a238874d5101465199b60edf66e2aa886636dc2dc"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1003,6 +1007,10 @@
     {
       "path": "scripts/test-platform-phone-binding.ts",
       "sha256": "69614c3ad1112a016e2d90d3cba8b8ed9f634b59d0dda797a9af330757817a8d"
+    },
+    {
+      "path": "scripts/test-platform-pricing.ts",
+      "sha256": "e030c4e37db61728d5b3665660b27c819a311953bf8d0db271175464f953d160"
     },
     {
       "path": "scripts/test-platform-requests.ts",
@@ -1266,7 +1274,7 @@
     },
     {
       "path": "server/api.ts",
-      "sha256": "ef7f7b74ad4f8412d1d95430ae84a92971f2bc0cfc7714f8dcfd207086cbe186"
+      "sha256": "8ed2be5164fde586241481555ce0b09881abbb56836463e3b5b219a1f3a15a6e"
     },
     {
       "path": "server/app.ts",
@@ -1397,8 +1405,12 @@
       "sha256": "48eb5c4218147337022e558daa49a5a23ec3f83a1b147b9c0d680365ae90da68"
     },
     {
+      "path": "server/database/migrations/20261122_add_platform_pricing.sql",
+      "sha256": "7a001f5d3699c0f42836f162a69f9e7c21d3413bd0b7c2ea7db1f860a5a537c7"
+    },
+    {
       "path": "server/database/postgres.ts",
-      "sha256": "435d0734e382b8f061d8fd7a7c0c7042dc4074ecc8615bf6457e1d786cc59f35"
+      "sha256": "6aa333b0f44bba1dfa8fdaefba532cf030e009361ab0e708e2b1553ff1be8f5e"
     },
     {
       "path": "server/database/seed_supabase_migration.sql",
@@ -1406,7 +1418,7 @@
     },
     {
       "path": "server/database/supabase_schema.sql",
-      "sha256": "0c446dee2b6c4407423e2a26581c5255008142a4c828f9b1ebb47ad66e1ecfba"
+      "sha256": "24d9778607c432033e15534eabd18b5e30ba274793d902f70836ea4bcd96bd84"
     },
     {
       "path": "server/database/tls.ts",
@@ -1426,7 +1438,7 @@
     },
     {
       "path": "server/identity-auth-attempts.ts",
-      "sha256": "e9307c7551d08c6e6433da3c40e3b0c4e244bc156b28f750f58dda90fd4ef7c5"
+      "sha256": "22d3dc2acf30eaf339e9639e3fca79d631d08d9c0d65d0676fbf5513ca8d7cd5"
     },
     {
       "path": "server/operations.ts",
@@ -1446,11 +1458,15 @@
     },
     {
       "path": "server/platform-management.ts",
-      "sha256": "00140d71c80b9217412c720de585c0336c326ac1d91d4c171c221d68574bc5ea"
+      "sha256": "3c2bf0e2039379c9c7834d8762b1898cbf2d0a1ce5a0d75fe4c6ef5cfd98034d"
     },
     {
       "path": "server/platform-phone-binding.ts",
       "sha256": "251062e1307946bc6e050b66f12191cacae4cac67ce89cfa8815bc8a14b219a1"
+    },
+    {
+      "path": "server/platform-pricing.ts",
+      "sha256": "dd6dbeddfba16f41f1498be817d49ec1c1282f4dd9034ee805d691d52f1e1fb3"
     },
     {
       "path": "server/platform-requests.ts",
@@ -1462,7 +1478,7 @@
     },
     {
       "path": "server/push-notifications.ts",
-      "sha256": "69643d15a8cafa965a149ae012af437af1262fe331c32b86988686a2a6357a8e"
+      "sha256": "a9d11dadcbd0b87ac48f2667c252b5cbd9d334c31d999a95b1b9dd219111c62f"
     },
     {
       "path": "server/repositories/index.ts",
@@ -1534,7 +1550,7 @@
     },
     {
       "path": "server/whatsapp-auth.ts",
-      "sha256": "0f13039da2a7ad656101e3de889aa08dc7567493487184bf0eec836a9e74f3d9"
+      "sha256": "6734295474d6c956b68968cbd7f164f9a08c8eb0ab664e3a2dbc8007ff0571d5"
     },
     {
       "path": "server/whatsapp-cloud.ts",
@@ -1641,6 +1657,10 @@
       "sha256": "b9294c3dad4e29a3414aae06628880703cafd49a99409bbd576cad1d37606809"
     },
     {
+      "path": "src/components/PlatformPricing.tsx",
+      "sha256": "14a7ea699ce4dabe793480d77654be89a1b4b94a8735d8373afdc1f7f7401602"
+    },
+    {
       "path": "src/components/PlatformRequestCenter.tsx",
       "sha256": "14b04b854b4300d617544ead70584cbfefe6bd882a6a2372634cea5e260b35a6"
     },
@@ -1650,7 +1670,7 @@
     },
     {
       "path": "src/components/PublicRequestSection.tsx",
-      "sha256": "54217f59a1169fa4d299de0e619146eb4354b9c39d7000ab8ea69ff09ef9c008"
+      "sha256": "56432c7ceb5ef30e6b298d6ae8660d7748c4ca3a1a014a3883aca0db41e5ec5b"
     },
     {
       "path": "src/components/QRCodePass.tsx",
@@ -1674,7 +1694,7 @@
     },
     {
       "path": "src/components/SchoolManagement.tsx",
-      "sha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d"
+      "sha256": "746a385543a5aabc768e92d8430f4eb31c525f397caec24cde67cf9646b2bd93"
     },
     {
       "path": "src/components/SchoolRequestCenter.tsx",
@@ -1754,7 +1774,7 @@
     },
     {
       "path": "src/components/web-welcome.css",
-      "sha256": "53434f3543efbed01dd9219302a61ad5f27a3bf95323305f8c246f4dc26e34fe"
+      "sha256": "a0efa5413ef63b42fc655b56e51e478f2f779b5e02df45d5174c3fda42c30d72"
     },
     {
       "path": "src/content/help-content.ts",
@@ -1770,7 +1790,7 @@
     },
     {
       "path": "src/index.css",
-      "sha256": "311f22e4efca7daf1c5e52fc34d08f393995ed12e2260ead150b90cb00c29726"
+      "sha256": "f2ae4ba163e7d9da2910af27685d47bd92eec1de7bd3a08c2534a156f14231b5"
     },
     {
       "path": "src/main.tsx",
@@ -1802,7 +1822,7 @@
     },
     {
       "path": "src/platform/api-session-policy.ts",
-      "sha256": "f4cdbd7e95572c8d6bd3c23b00129f3e5e4098c226f89b9b4929b69eaa8ac254"
+      "sha256": "a030b2a307262210e46a5701e87709c8840ef3e45654b06beb2f3ad6538d7990"
     },
     {
       "path": "src/platform/appointment-navigation.ts",
@@ -1930,11 +1950,11 @@
     },
     {
       "path": "src/services/api.ts",
-      "sha256": "7414ec41c6627000562d5578e5cb17203f918e37b9a08caaa77acbe30b6f8e2f"
+      "sha256": "9615675480774f3d966eba25ed6576cf9ffc19fbd28f867ecac7668d5b42024c"
     },
     {
       "path": "src/theme.css",
-      "sha256": "680d63705d2e8ab9a32669cafc850988ce78786320e971e7ef236c5a2833f844"
+      "sha256": "46139470b84a0c0c16e04c429d694ba53280d8fdc2f1df8cdec9b0a722aee8a2"
     },
     {
       "path": "src/types.ts",
@@ -2001,6 +2021,10 @@
       "sha256": "7dad1515a1791cff81cefcdcaab72ade32dbd724e8b53b25decef29eea5801c3"
     },
     {
+      "path": "src/utils/license-price.ts",
+      "sha256": "97f7941db222ae216ed72a808cee9058d5c761f17eb67eae0fc50d26fd69a2d3"
+    },
+    {
       "path": "src/utils/multi-class-challenge.ts",
       "sha256": "59cf8ae23501e2a4cdcc6b4f2130b18c260112f9edf6844f6131479024370e1c"
     },
@@ -2059,6 +2083,10 @@
     {
       "path": "src/utils/student-records.ts",
       "sha256": "0a31dfc66ab0a489c4a75e9ab16bc56c7099185f74995c73bf11c2406e78f8c0"
+    },
+    {
+      "path": "src/utils/tr-currency.ts",
+      "sha256": "4e6718cad3b68c5303d65739493a5a8899ab8650d96ccd70be7b492ff9ca90b9"
     },
     {
       "path": "src/vite-env.d.ts",
