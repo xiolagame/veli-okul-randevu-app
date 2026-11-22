@@ -155,7 +155,7 @@
   }
 
   .welcome-artboard {
-    width: min(100%, 177.68svh);
+    width: 100%;
     margin-inline: auto;
     container-type: inline-size;
   }
