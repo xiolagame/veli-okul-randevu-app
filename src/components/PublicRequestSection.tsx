@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
 import { api } from '../services/api';
+import { formatTryAmount, loadYearlyLicensePrice } from '../utils/license-price';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
 import { isBasicEmailAddress } from '../utils/platform-request-ui';
 import type { PublicRequestKind } from '../utils/public-request-route';
 import { createRequestToken } from '../utils/request-token';
 import { Alert, Button } from './ui';
 
-const labels: Record<PublicRequestKind, string> = {
-  YEARLY_LICENSE: 'Yıllık Lisans / 9.900 TL',
-  CONTACT: 'İletişim',
-};
+function requestLabels(yearlyPriceMinor: number | null): Record<PublicRequestKind, string> {
+  return {
+    YEARLY_LICENSE: yearlyPriceMinor === null ? 'Yıllık Lisans' : `Yıllık Lisans / ${formatTryAmount(yearlyPriceMinor)}`,
+    CONTACT: 'İletişim',
+  };
+}
 
 const emptyForm = { schoolName: '', contactName: '', email: '', phone: '', message: '', companyWebsite: '' };
 
@@ -21,6 +24,14 @@ export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [yearlyPriceMinor, setYearlyPriceMinor] = useState<number | null>(null);
+  const labels = requestLabels(yearlyPriceMinor);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadYearlyLicensePrice(controller.signal).then((value) => { if (!controller.signal.aborted) setYearlyPriceMinor(value); });
+    return () => controller.abort();
+  }, []);
 
   const reset = () => {
     setRequestType(initialRequestType);

@@ -12,6 +12,7 @@ import { formatLicenseCodeInput } from '../utils/license-code';
 import { PlatformRequestCenter } from './PlatformRequestCenter';
 import { PlatformPhoneBinding } from './PlatformPhoneBinding';
 import { LicenseManagement } from './LicenseManagement';
+import { PlatformPricing } from './PlatformPricing';
 
 type PlatformManagementSection = 'overview' | 'schools' | 'licenses' | 'requests' | 'security' | 'audit';
 
@@ -92,7 +93,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       <nav className="platform-nav" aria-label="Platform yönetimi">
         {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'licenses', label: 'Lisans Yönetimi', Icon: FileText }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}{id === 'requests' && unseenRequests > 0 && <span className="platform-unseen-badge" aria-label={`${unseenRequests} yeni talep`}>{unseenRequests > 99 ? '99+' : unseenRequests}</span>}</button>)}
       </nav>
-      {section === 'licenses' && <LicenseManagement/>}
+      {section === 'licenses' && <><PlatformPricing/><LicenseManagement/></>}
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
       {changed && <Alert tone="success">{changeMessage}</Alert>}
       {section === 'overview' && <><div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}

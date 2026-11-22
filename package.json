@@ -44,6 +44,7 @@
     "test:platform-school-deletion": "tsx scripts/test-platform-school-deletion.ts",
     "test:platform-navigation": "tsx scripts/test-platform-admin-navigation.ts",
     "test:platform-requests": "tsx scripts/test-platform-requests.ts",
+    "test:platform-pricing": "tsx scripts/test-platform-pricing.ts",
     "test:support-conversations": "tsx scripts/test-support-conversations.ts",
     "test:platform-unseen": "tsx scripts/test-platform-unseen.ts",
     "test:platform-audit-clear": "tsx scripts/test-platform-audit-clear.ts",

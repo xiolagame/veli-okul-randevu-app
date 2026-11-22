@@ -6,6 +6,7 @@ import { processRosterImport, RosterImportError } from './roster-import';
 import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
 import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
+import { publicPricingRouter } from './platform-pricing';
 import { accountDeletionRouter } from './account-deletion';
 import crypto from 'crypto';
 import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice, StalePushRegistrationError, StalePushSessionError } from './push-notifications';
@@ -123,6 +124,7 @@ apiRouter.use('/auth', (req, res, next) => {
 });
 apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
 apiRouter.use('/public/requests', publicRequestRouter);
+apiRouter.use('/public/pricing', publicPricingRouter);
 apiRouter.use('/schools/:schoolId/requests', schoolRequestRouter);
 apiRouter.use('/platform', platformManagementRouter);
 apiRouter.use(accountDeletionRouter);

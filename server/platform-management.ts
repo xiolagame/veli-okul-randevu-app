@@ -11,6 +11,7 @@ import { deliverSchoolAdminCode } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
 import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
+import { platformPricingRouter } from './platform-pricing';
 import { platformLicenseRouter } from './platform-licenses';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import {
@@ -67,6 +68,7 @@ platformManagementRouter.use((req: AuthenticatedRequest, res, next) => {
   next();
 });
 platformManagementRouter.use('/requests', platformRequestRouter);
+platformManagementRouter.use('/pricing', platformPricingRouter);
 platformManagementRouter.use('/licenses', platformLicenseRouter);
 
 platformManagementRouter.get('/schools', async (_req, res) => {
