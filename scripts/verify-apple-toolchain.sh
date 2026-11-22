@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-XCODE_MAJOR=$(xcodebuild -version | awk '/^Xcode / {split($2,parts,".");print parts[1];exit}')
+# Read all of xcodebuild's output: exiting early closes the pipe and, under pipefail, aborts with SIGPIPE (141).
+XCODE_MAJOR=$(xcodebuild -version | awk '/^Xcode / && !seen {split($2,parts,".");print parts[1];seen=1}')
 IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-version)
 SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
 [[ "$XCODE_MAJOR" =~ ^[0-9]+$ ]] && [ "$XCODE_MAJOR" -ge 26 ]

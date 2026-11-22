@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "3efa89febf656bba6792c6c74778a62c694b978501e162e29594d21faafdb0da"
+      "sha256": "866e1f5e456b560b02324276f72303b48616b1b2e58acb8cc23dc6722c56c831"
     },
     {
       "path": "bun.lock",
@@ -1222,7 +1222,7 @@
     },
     {
       "path": "scripts/verify-apple-toolchain.sh",
-      "sha256": "1b4c3fcf34589e0235089eb26caa4fca619a825f5b2b80ea2382f6819fe56ae2"
+      "sha256": "fdff7bdc1558186e5f65e0ba957f8ca13a3c3eca8ca39c1cd5cbb8777dac4bc8"
     },
     {
       "path": "scripts/verify-ios-ipa.sh",

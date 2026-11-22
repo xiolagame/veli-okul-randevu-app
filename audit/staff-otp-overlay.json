@@ -411,6 +411,12 @@
       "currentCanonicalSha256": "7bd4869d64c625c64c6fdc8598c735945c2880a346e64ee92fad6217d35ef87d"
     },
     {
+      "path": "scripts/verify-apple-toolchain.sh",
+      "baselineCanonicalSha256": "1b4c3fcf34589e0235089eb26caa4fca619a825f5b2b80ea2382f6819fe56ae2",
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "fdff7bdc1558186e5f65e0ba957f8ca13a3c3eca8ca39c1cd5cbb8777dac4bc8"
+    },
+    {
       "path": "scripts/verify-ios-ipa.sh",
       "baselineCanonicalSha256": "9b2527c274c6d5856ce0785385a0873800ed33334523bf44b1339d7c889ba478",
       "archivedProductionCanonicalSha256": null,
