@@ -148,7 +148,10 @@ async function initializeDatabase(): Promise<void> {
         // Each warm serverless instance has its own pool. Queue locally rather
         // than consuming the session pooler's entire connection allowance.
         max: 1,
-        idleTimeoutMillis: 5000,
+        // A user typing a phone number takes >5s; closing the idle socket that fast forced
+        // a fresh TLS + auth handshake to the database on every "send code" request.
+        idleTimeoutMillis: 60_000,
+        keepAlive: true,
         connectionTimeoutMillis: 5000,
       });
       pgPool.on('error', () => {
