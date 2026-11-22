@@ -6,6 +6,8 @@ import { Button } from './ui';
 import { HelpGuidePage } from './HelpGuidePage';
 import {HelpCategoryArt, HelpTopicIcon} from './HelpCategoryArt';
 import {ThemeSwitcher} from './ThemeSwitcher';
+import {getRuntimePlatform} from '../platform/runtime-platform';
+import {ReviewLogin} from './ReviewLogin';
 
 interface HelpCenterPageProps {
   pathname: string;
@@ -67,6 +69,20 @@ export function HelpCenterPage({ pathname, isAuthenticated, isPlatformAdmin = fa
                 </section>;
               })}
             </div>
+            {getRuntimePlatform() === 'IOS' && !isAuthenticated && Boolean(import.meta.env?.VITE_REVIEW_API_ORIGIN) && (
+              <section className="help-category ios-review-help-access" aria-label="İnceleme erişimi">
+                <header>
+                  <span><ShieldCheck size={22} aria-hidden="true" /></span>
+                  <div>
+                    <h2>İnceleme erişimi</h2>
+                    <p>Yetkili uygulama inceleme ekipleri için demo okuluna giriş.</p>
+                  </div>
+                </header>
+                <nav aria-label="İnceleme erişimi">
+                  <ReviewLogin />
+                </nav>
+              </section>
+            )}
             {isAuthenticated && isPlatformAdmin && <p className="help-platform-note">Platform yöneticileri genel yardım ve bilgilendirme içeriklerine erişebilir. Bu fazda ayrı bir Platform Yönetimi kullanım rehberi yayınlanmamıştır.</p>}
           </>}
         </>}

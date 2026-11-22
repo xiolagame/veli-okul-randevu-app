@@ -19,6 +19,8 @@ const allowed=new Set(['src/components/HelpCenterPage.tsx','src/components/Publi
 // Reviewed CI runtime pin; production application behavior is unchanged.
 allowed.add('.node-version');
 allowed.add('index.html');
+// Reviewed iOS marketing version bump from 1.0.0 to 1.0.1.
+allowed.add('ios/App/App.xcodeproj/project.pbxproj');
 allowed.add('src/components/ui.tsx');
 allowed.add('scripts/test-android-shell.ts');
 allowed.add('src/components/DeleteAccountDialog.tsx');

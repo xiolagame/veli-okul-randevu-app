@@ -86,3 +86,28 @@ html[data-theme="dark"] .camera-preview-result.tone-warning .camera-result-panel
 html[data-theme="dark"] .camera-preview-result.tone-danger .camera-result-panel {background:#492c32;color:var(--theme-danger);}
 html[data-theme="dark"] .camera-result-close {background:var(--theme-elevated);}
 html[data-theme] .security-scanner .ui-button-primary:hover:not(:disabled) {background:var(--theme-accent-hover);color:var(--theme-on-accent);}
+/* Contrast audit: every light hover/focus/active/disabled/selected surface needs an explicit dark pair.
+   Base light rules in index.css hard-code pale backgrounds while dark mode flips text to light. */
+html[data-theme="dark"] .auth-help-link:is(:hover,:focus-visible,:active) {background:var(--theme-elevated);color:var(--theme-text);}
+html[data-theme="dark"] .unified-login-alternatives .auth-help-link {background:var(--theme-input);border-color:var(--theme-border);color:var(--theme-text);}
+html[data-theme="dark"] .unified-login-alternatives .auth-help-link:is(:hover,:focus-visible,:active) {background:var(--theme-elevated);border-color:var(--theme-accent);color:var(--theme-text);}
+html[data-theme="dark"] .icon-button:is(:hover,:focus-visible,:active) {background:var(--theme-elevated);color:var(--theme-accent);}
+html[data-theme="dark"] .notification-delete-button:is(:hover,:focus-visible) {background:#492c32;color:var(--theme-danger);}
+html[data-theme="dark"] .tone-rose {background:#492c32;color:#ffd0d5;border-color:#92636b;}
+html[data-theme="dark"] .tone-teal {background:#193e2b;color:#b8efc9;border-color:#527c61;}
+html[data-theme="dark"] :is(.chips button,.slot-grid button,.record-import-table input:not([type="checkbox"]),.security-scanner .field input) {background:var(--theme-input);color:var(--theme-text);border-color:var(--theme-border);}
+html[data-theme="dark"] :is(.chips button,.slot-grid button,.calendar-days button)[aria-pressed="true"] {background:var(--theme-accent);color:var(--theme-on-accent);border-color:var(--theme-accent);}
+html[data-theme="dark"] :is(.calendar-days button,.slot-grid button):disabled {background:var(--theme-soft);color:var(--theme-muted);opacity:.7;}
+html[data-theme="dark"] :is(.booking-date-summary,.record-import-table th) {background:var(--theme-soft);color:var(--theme-text);}
+html[data-theme="dark"] :is(.request-card,.help-not-found) {background:var(--theme-surface);color:var(--theme-text);border-color:var(--theme-border);}
+html[data-theme="dark"] .support-message-platform {background:var(--theme-elevated);color:var(--theme-text);border-color:var(--theme-border);}
+html[data-theme="dark"] .skip-link {background:var(--theme-elevated);color:var(--theme-text);}
+html[data-theme="dark"] :is(.staff-import-actions .staff-template-download,.staff-import-actions .staff-bulk-upload):is(:hover,:focus-visible) {background:var(--theme-elevated);color:var(--theme-text);}
+html[data-theme="dark"] :is(.operation-category,.operation-status-row):is(:hover,:focus-visible) {background:var(--theme-elevated);color:var(--theme-text);}
+html[data-theme="dark"] .whatsapp-auth-tabs button.active {background:var(--theme-elevated);color:var(--theme-accent);}
+html[data-theme="dark"] .whatsapp-auth-heading > span:not(.whatsapp-login-logo) {background:var(--theme-soft);color:var(--theme-accent);}
+html[data-theme="dark"] .license-badge:is(.license-suspended,.license-revoked) {background:#2d3a34;color:#dbe7e0;}
+html[data-theme="dark"] .license-badge.license-legacy {background:#2b2f55;color:#d6dcff;}
+html[data-theme="dark"] :is(.brand-mark,.platform-unseen-badge) {background:var(--theme-accent);color:var(--theme-on-accent);}
+html[data-theme="dark"] .text-red-700:not(.bg-red-50) {color:var(--theme-danger);}
+html[data-theme="dark"] .bg-white.text-amber-900 {background:#fff;color:#78350f;}

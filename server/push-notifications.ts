@@ -82,6 +82,7 @@ export class FirebasePushProvider implements PushProvider {
           notification: { title: payload.title, body: payload.body },
           data: payload.data,
           android: { notification: { channelId: 'veli_randevu_appointments' } },
+          apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
         });
       }
       return { status: 'SENT', messageId };

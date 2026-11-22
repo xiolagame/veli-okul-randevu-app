@@ -142,6 +142,9 @@ export const api = {
     request<import('../types/licenses').LicensePage>('/api/platform/licenses?' + new URLSearchParams({ ...filters, threshold: String(filters.threshold), page:String(filters.page), problems:String(filters.problems) })),
   updatePlatformLicense: (schoolId: string, change: import('../types/licenses').LicenseChange) =>
     request<{ license: import('../types/licenses').PlatformLicense; auditId: string }>(`/api/platform/licenses/${encodeURIComponent(schoolId)}`, { method:'PATCH', body:JSON.stringify(change) }),
+  getPlatformPricing: () => request<{ plans: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string }[] }>('/api/platform/pricing'),
+  updatePlatformPricing: (planCode: string, amountMinor: number) =>
+    request<{ plan: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string } }>(`/api/platform/pricing/${encodeURIComponent(planCode)}`, { method: 'PATCH', body: JSON.stringify({ amountMinor }) }),
   createSchool: (data: { name: string; code: string; licenseCode: string; city: string; district: string }) =>
     request<{ school: import('../types/platform').ManagedSchool }>('/api/platform/schools', { method: 'POST', body: JSON.stringify(data) }),
   createSchoolAdminInvitation: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
@@ -252,6 +255,8 @@ export const api = {
     request<{ success: boolean }>(`/api/schools/${schoolId}/management/audit-logs`, { method: 'DELETE' }),
   // Public
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
+  getPublicPricing: (signal?: AbortSignal) =>
+    request<{ plans: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string }[] }>('/api/public/pricing', { cache: 'no-store', signal }),
   getSchoolContext: (code: string) =>
     request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
   getAuthCapabilities: (signal?: AbortSignal) =>

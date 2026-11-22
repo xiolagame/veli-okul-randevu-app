@@ -90,7 +90,7 @@
 .brand-light { color: white; }
 .brand-light .brand-mark { background: #e3efc8; color: #173f30; }
 .brand-light .brand-mark span { color: #173f30; }
-.eyebrow { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .15em; color: var(--primary); margin-bottom: 9px; }
+.eyebrow { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .15em; color: var(--primary); margin-bottom: 9px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .page-heading h1 { font-size: clamp(25px, 3vw, 34px); font-weight: 750; }
 .page-description { color: var(--muted); margin-top: 10px; max-width: 580px; }
@@ -130,7 +130,7 @@
 .role-navigation button { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 9px 16px; border-radius: 10px; color: var(--muted); font-size: 13px; font-weight: 650; position: relative; }
 .role-navigation button[aria-current] { background: #eaf3ed; color: var(--primary); }
 .nav-icon { position: relative; }
-.nav-count { position: absolute; top: -8px; right: -10px; font-size: 9px; background: var(--primary); color: white; border: 2px solid white; border-radius: 20px; min-width: 17px; line-height: 13px; padding: 0 2px; text-align: center; }
+.nav-count { position: absolute; top: -8px; right: -10px; font-size: 10px; background: var(--primary); color: white; border: 2px solid white; border-radius: 20px; min-width: 18px; line-height: 14px; padding: 0 2px; text-align: center; }
 .metric-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
 .parent-metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .metric-card { border: 1px solid var(--line); background: white; border-radius: 16px; padding: 22px; min-width: 0; }
@@ -147,7 +147,7 @@
 .empty-state p { color: var(--muted); font-size: 14px; max-width: 390px; }
 .empty-state .ui-button { margin-top: 8px; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; background: #10271f7a; backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; padding: 24px; }
-.dialog-panel { width: min(100%, 480px); max-height: calc(100dvh - 48px); overflow: auto; background: white; border-radius: 24px; box-shadow: 0 24px 80px #10271f30; outline: none; }
+.dialog-panel { width: min(100%, 480px); max-height: calc(100dvh - 48px); overflow: auto; background: var(--surface); border-radius: 24px; box-shadow: 0 24px 80px #10271f30; outline: none; }
 .dialog-wide { width: min(100%, 600px); }
 .dialog-panel.roster-import-dialog { width: min(100%, 1120px); }
 .dialog-heading { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px; background: white; border-bottom: 1px solid var(--line); }
@@ -251,7 +251,7 @@
 .profile-trigger .avatar { width: 38px; height: 38px; font-size: 12px; border-radius: 50%; }
 .profile-trigger strong { font-size: 12px; display: block; }
 .profile-trigger small { color: var(--muted); font-size: 11px; display: block; text-align: left; }
-.dropdown { position: absolute; top: calc(100% + 12px); left: 0; width: min(340px,calc(100vw - 32px)); background: white; border: 1px solid var(--line); border-radius: 16px; padding: 10px; box-shadow: 0 15px 40px #193c2618; z-index: 45; max-height: min(480px,70dvh); overflow: auto; }
+.dropdown { position: absolute; top: calc(100% + 12px); left: 0; width: min(340px,calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px; box-shadow: 0 15px 40px #193c2618; z-index: 45; max-height: min(480px,70dvh); overflow: auto; }
 .dropdown button { width: 100%; padding: 12px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; font-size: 13px; }
 .dropdown button:hover { background: #edf4ef; }
 .dropdown p { padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
@@ -473,7 +473,7 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 .school-info-list dd { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .school-info-list p { grid-column: 2; color: var(--muted); font-size: 12px; }
 .school-info-list > div:last-child dd { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.school-code-value { display: inline-flex; align-items: center; min-height: 38px; padding: 7px 11px; border: 1px solid #cad9d1; border-radius: 9px; background: #f5f8f6; font-family: ui-monospace, monospace; letter-spacing: .05em; }
+.school-code-value { display: inline-flex; align-items: center; min-height: 44px; padding: 7px 11px; border: 1px solid #cad9d1; border-radius: 9px; background: #f5f8f6; font-family: ui-monospace, monospace; letter-spacing: .05em; }
 .school-code-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
 .school-code-actions .ui-button { min-width: 116px; padding: 8px 12px; }
 .school-info-message { width: min(100%, 620px); margin-top: 12px; color: var(--muted); font-size: 13px; }
@@ -522,10 +522,10 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
   .page-description { font-size: 14px; }
   .page-action, .page-action .ui-button { width: 100%; }
   .role-navigation { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; width: 100%; justify-content: space-around; padding: 8px 4px max(8px,env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px #173f3005; gap: 0; }
-  .role-navigation button { flex-direction: column; gap: 5px; padding: 7px 2px; font-size: 10px; min-width: 0; flex: 1; min-height: 54px; border-radius: 10px; }
+  .role-navigation button { flex-direction: column; gap: 5px; padding: 7px 2px; font-size: 11px; min-width: 0; flex: 1; min-height: 54px; border-radius: 10px; }
   .metric-grid { gap: 9px; }
   .metric-card { padding: 14px 11px; border-radius: 14px; }
-  .metric-top { font-size: 11px; align-items: flex-start; }
+  .metric-top { font-size: 12px; align-items: flex-start; }
   .metric-top svg { display: none; }
   .metric-card strong { font-size: 27px; }
   .metric-card p { font-size: 11px; }
@@ -538,7 +538,7 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
   .topbar-inner > .brand .brand-name { font-size: 19px; }
   .topbar-inner .brand-mark { width: 30px; height: 30px; font-size: 25px; border-radius: 9px; }
   .school-switch { order: 3; flex-basis: 100%; border-top: 1px solid var(--line); padding-top: 8px; }
-  .school-trigger { border: 0; padding: 0; min-height: 36px; width: 100%; }
+  .school-trigger { border: 0; padding: 0; min-height: 44px; width: 100%; }
   .school-trigger > svg:last-child { margin-left: auto; }
   .school-trigger strong { max-width: none; font-size: 12px; white-space: normal; line-height: 1.4; }
   .school-trigger small { display: none; }
@@ -628,7 +628,7 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
   .admin-header { padding: 16px 18px; }
   .admin-nav { display: none; }
   .admin-nav .eyebrow { display: none; }
-  .admin-nav button { padding: 8px 5px; gap: 5px; font-size: 11px; justify-content: center; min-height: 40px; }
+  .admin-nav button { padding: 8px 5px; gap: 5px; font-size: 12px; justify-content: center; min-height: 44px; }
   .admin-nav button svg { width: 16px; }
   .admin-content { padding: 20px 16px 32px; }
   .security-scanner { padding: 24px; }
@@ -724,13 +724,13 @@ html[data-runtime-platform="android"] .auth-form-side { padding-bottom: calc(40p
 .student-list-filters { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: end; gap: 12px; }
 .student-list-filters .management-filter { max-width: none; }
 .admin-compact .student-class-groups, .admin-compact .student-class-grid { gap: 7px; }
-.admin-compact .staff-import-actions .ui-button { min-height: 40px; padding: 8px 12px; }
+.admin-compact .staff-import-actions .ui-button { min-height: 44px; padding: 8px 12px; }
 .school-info-compact { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 12px 16px; margin-bottom: 10px; }
 .school-info-compact > h3 { margin: 0; font-size: 13px; color: var(--muted); }
 .school-info-compact .school-info-list { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 12px 22px; width: auto; }
 .school-info-compact .school-info-list > div { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; border: 0; align-items: center; }
 .school-info-compact .school-info-list p { flex-basis: 100%; margin: 0; }
-.school-info-compact .school-code-actions .ui-button { min-height: 36px; padding: 6px 10px; }
+.school-info-compact .school-code-actions .ui-button { min-height: 44px; padding: 6px 10px; }
 .dashboard-quick-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .school-dashboard .metric-grid { gap: 10px; }
 .school-dashboard .metric-card { padding: 12px 16px; border-radius: 12px; }
