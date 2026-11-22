@@ -23,7 +23,6 @@ import { normalizePersonName } from '../src/utils/person-name';
 import { SchoolMembership, User, UserRole } from '../src/types';
 import {
   attachIssuedEmailChallenge,
-  attachPhoneChallenge,
   consumeAuthenticatedAttempt,
   createIdentityAuthAttempt,
   getIdentityAuthAttempt,
@@ -31,6 +30,7 @@ import {
   isPhoneCentricAuthEnabled,
   issueEmailChallenge,
   markPhoneVerified,
+  revokeIdentityAuthAttempt,
   verifyEmailChallenge,
 } from './identity-auth-attempts';
 
@@ -107,6 +107,31 @@ async function withinRateLimit(scope: string, maximum: number, windowMinutes: nu
   );
   const row = result.rows[0];
   return !!row && Number(row.attempts) < maximum && (!row.blocked_until || new Date(row.blocked_until).getTime() <= Date.now());
+}
+
+// Same semantics as three withinRateLimit() calls, in a single database round trip.
+// Rows are upserted in a stable (sorted) order so concurrent requests cannot deadlock.
+async function withinRateLimits(scopes: { scope: string; maximum: number }[], windowMinutes: number): Promise<boolean> {
+  const items = scopes
+    .map((item) => ({ hash: hashSetupToken(`whatsapp-rate:${item.scope}`), maximum: item.maximum }))
+    .sort((left, right) => (left.hash < right.hash ? -1 : left.hash > right.hash ? 1 : 0));
+  const result = await (await getDb()).query<{ attempts: number; blocked_until: string | null; maximum: number }>(
+    `WITH input AS (SELECT * FROM unnest($1::text[], $2::int[]) AS t(scope_hash, maximum)),
+          upsert AS (
+            INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at,blocked_until)
+            SELECT scope_hash,1,NOW(),NULL FROM input ORDER BY scope_hash
+            ON CONFLICT(scope_hash) DO UPDATE SET
+              attempts=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN 1 ELSE auth_rate_limits.attempts + 1 END,
+              window_started_at=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NOW() ELSE auth_rate_limits.window_started_at END,
+              blocked_until=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NULL
+                WHEN auth_rate_limits.attempts + 1 >= (SELECT i.maximum FROM input i WHERE i.scope_hash=auth_rate_limits.scope_hash) THEN NOW() + make_interval(mins => $3)
+                ELSE auth_rate_limits.blocked_until END
+            RETURNING scope_hash,attempts,blocked_until)
+     SELECT u.attempts,u.blocked_until,i.maximum FROM upsert u JOIN input i ON i.scope_hash=u.scope_hash`,
+    [items.map((item) => item.hash), items.map((item) => item.maximum), windowMinutes],
+  );
+  return result.rows.length === items.length && result.rows.every((row) =>
+    Number(row.attempts) < Number(row.maximum) && (!row.blocked_until || new Date(row.blocked_until).getTime() <= Date.now()));
 }
 
 async function eligibleMemberships(userId: string, client?: TransactionClient): Promise<SchoolMembership[]> {
@@ -270,13 +295,15 @@ async function resolveUnifiedTarget(phone: string, knownUser?: Awaited<ReturnTyp
   return candidates.length === 1 ? candidates[0] : null;
 }
 
-async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: WhatsAppAuthPurpose; target: ChallengeTarget } | null> {
+type KnownUser = Awaited<ReturnType<typeof userRepository.getByPhone>>;
+
+async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: WhatsAppAuthPurpose; target: ChallengeTarget; knownUser: KnownUser } | null> {
   const user = await userRepository.getByPhone(phone);
   if (user && isPlatformAdmin(user.id)) {
-    return { purpose: 'login', target: { schoolId: null, userId: user.id, role: null, profileId: null } };
+    return { purpose: 'login', target: { schoolId: null, userId: user.id, role: null, profileId: null }, knownUser: user };
   }
   const resolved = await resolveUnifiedTarget(phone, user);
-  return resolved;
+  return resolved ? { ...resolved, knownUser: user } : null;
 }
 
 export async function requestWhatsAppAuthChallenge(input: {
@@ -287,6 +314,22 @@ export async function requestWhatsAppAuthChallenge(input: {
   requesterKey: string;
   phoneCentric?: boolean;
 }): Promise<{ challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }> {
+  return issueWhatsAppAuthChallenge(input);
+}
+
+type ChallengeIssueContext = { challengeId: string; purpose: WhatsAppAuthPurpose; targetUserId: string | null; knownUser: KnownUser | undefined };
+
+// `concurrentWork` runs while the WhatsApp message is in flight (network wait), so
+// follow-up database writes no longer add to the user-visible latency.
+async function issueWhatsAppAuthChallenge(input: {
+  purpose: WhatsAppAuthPurpose | 'auto';
+  phone: unknown;
+  schoolCode?: unknown;
+  authenticatedUserId?: string;
+  requesterKey: string;
+  phoneCentric?: boolean;
+  concurrentWork?: (context: ChallengeIssueContext) => Promise<void>;
+}): Promise<{ challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }> {
   if (input.purpose === 'auto' && input.phoneCentric && !isPhoneCentricAuthEnabled()) {
     throw new WhatsAppAuthError(404, 'Bu giriş yöntemi kullanılamıyor.');
   }
@@ -296,10 +339,12 @@ export async function requestWhatsAppAuthChallenge(input: {
   assertWhatsAppDeliveryConfigured();
   const phone = normalizeTurkishPhone(input.phone);
   const schoolCode = typeof input.schoolCode === 'string' ? input.schoolCode.trim() : undefined;
-  const requesterAllowed = phone && await withinRateLimit(`${input.requesterKey}:${input.purpose}:requester`, 30, 15);
-  const targetAllowed = phone && await withinRateLimit(`${input.requesterKey}:${input.purpose}:${phone}`, 6, 15);
-  const phoneAllowed = phone && await withinRateLimit(`phone:${input.purpose}:${phone}`, 6, 15);
-  if (!phone || !requesterAllowed || !targetAllowed || !phoneAllowed) {
+  const allowed = !!phone && await withinRateLimits([
+    { scope: `${input.requesterKey}:${input.purpose}:requester`, maximum: 30 },
+    { scope: `${input.requesterKey}:${input.purpose}:${phone}`, maximum: 6 },
+    { scope: `phone:${input.purpose}:${phone}`, maximum: 6 },
+  ], 15);
+  if (!phone || !allowed) {
     throw new WhatsAppAuthError(429, 'Doğrulama isteği şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin.');
   }
   const dummyId = crypto.randomUUID();
@@ -310,6 +355,7 @@ export async function requestWhatsAppAuthChallenge(input: {
   const resolved = input.purpose === 'auto'
     ? await (input.phoneCentric ? resolvePhoneCentricTarget(phone) : resolveUnifiedTarget(phone))
     : null;
+  const resolvedKnownUser: KnownUser | undefined = resolved && 'knownUser' in resolved ? resolved.knownUser : undefined;
   const purpose: WhatsAppAuthPurpose = input.purpose === 'auto' ? (resolved?.purpose || 'login') : input.purpose;
   const target = input.purpose === 'auto' ? (resolved?.target || null) : await resolveTarget({
     purpose,
@@ -335,7 +381,9 @@ export async function requestWhatsAppAuthChallenge(input: {
   const db = await getDb();
   let cooldownMasked = false;
   await db.transaction(async (tx) => {
-    await tx.query('LOCK TABLE whatsapp_auth_challenges IN SHARE ROW EXCLUSIVE MODE');
+    // Serialize only requests for the same phone/purpose/school (was a table-wide lock).
+    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
+      [`whatsapp-challenge:${phone}:${purpose}:${target.schoolId ?? ''}`]);
     const recent = await tx.query<{ resend_available_at: string }>(
       `SELECT resend_available_at FROM whatsapp_auth_challenges
        WHERE target_phone=$1 AND purpose=$2 AND school_id IS NOT DISTINCT FROM $3
@@ -350,14 +398,14 @@ export async function requestWhatsAppAuthChallenge(input: {
       }
       throw new WhatsAppAuthError(429, 'Yeni kod istemeden önce kısa süre bekleyin.');
     }
+    // Revoke previous open challenges and insert the new one in a single round trip.
     await tx.query(
-      `UPDATE whatsapp_auth_challenges SET revoked_at=NOW()
-       WHERE target_phone=$1 AND purpose=$2 AND school_id IS NOT DISTINCT FROM $3
-         AND consumed_at IS NULL AND revoked_at IS NULL`,
-      [phone, purpose, target.schoolId],
-    );
-    await tx.query(
-      `INSERT INTO whatsapp_auth_challenges
+      `WITH revoked AS (
+         UPDATE whatsapp_auth_challenges SET revoked_at=NOW()
+         WHERE target_phone=$3 AND purpose=$7 AND school_id IS NOT DISTINCT FROM $2
+           AND consumed_at IS NULL AND revoked_at IS NULL
+         RETURNING id)
+       INSERT INTO whatsapp_auth_challenges
        (id,school_id,target_phone,target_user_id,target_role,target_profile_id,purpose,code_hash,max_attempts,expires_at,resend_available_at)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [challengeId, target.schoolId, phone, target.userId, target.role, target.profileId, purpose,
@@ -366,14 +414,22 @@ export async function requestWhatsAppAuthChallenge(input: {
     );
   });
   if (cooldownMasked) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
-  try {
-    await sendWhatsAppAuthenticationCode(phone, code);
-  } catch (error) {
+  const [sent, work] = await Promise.allSettled([
+    sendWhatsAppAuthenticationCode(phone, code),
+    input.concurrentWork
+      ? input.concurrentWork({ challengeId, purpose, targetUserId: target.userId, knownUser: resolvedKnownUser })
+      : Promise.resolve(),
+  ]);
+  if (sent.status === 'rejected') {
     await db.query('UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challengeId]);
     // Legacy unified callers retain their masked response. Phone-centric callers receive a delivery error.
     console.warn('[WhatsApp Auth] Delivery unavailable; challenge revoked.');
     if (input.purpose === 'auto' && !input.phoneCentric) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
-    throw error;
+    throw sent.reason;
+  }
+  if (work.status === 'rejected') {
+    await db.query('UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challengeId]);
+    throw work.reason;
   }
   return { challengeId, expiresInSeconds: 300, resendAfterSeconds: 60 };
 }
@@ -826,36 +882,36 @@ export async function requestPhoneCentricAuthChallenge(input: {
       throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
     }
   }
-  const challenge = await requestWhatsAppAuthChallenge({
-    purpose: registration ? 'parent_registration' : 'auto',
-    phone,
-    schoolCode: registration ? schoolCode : undefined,
-    requesterKey: input.requesterKey,
-    phoneCentric: true,
-  });
-  const row = await (await getDb()).query<ChallengeRow>(
-    `SELECT id,school_id,target_phone,target_user_id,target_role,target_profile_id,purpose,code_hash,attempts,
-            max_attempts,expires_at,resend_available_at,consumed_at,revoked_at
-     FROM whatsapp_auth_challenges WHERE id=$1`,
-    [challenge.challengeId],
-  );
-  const record = row.rows[0];
-  if (!record || record.revoked_at) throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
+  let attemptId: string | null = null;
   try {
-    const user = record.target_user_id ? await userRepository.getById(record.target_user_id) : null;
-    const attempt = await createIdentityAuthAttempt({
+    const challenge = await issueWhatsAppAuthChallenge({
+      purpose: registration ? 'parent_registration' : 'auto',
       phone,
-      targetUserId: record.target_user_id,
-      flowType: flowTypeForChallenge(record),
-      authVersionAtStart: user?.authVersion ?? null,
+      schoolCode: registration ? schoolCode : undefined,
+      requesterKey: input.requesterKey,
+      phoneCentric: true,
+      // Runs while the WhatsApp message is being delivered; no extra latency for the user.
+      concurrentWork: async (context) => {
+        const user = context.targetUserId
+          ? (context.knownUser && context.knownUser.id === context.targetUserId
+            ? context.knownUser
+            : await userRepository.getById(context.targetUserId))
+          : null;
+        const attempt = await createIdentityAuthAttempt({
+          phone,
+          targetUserId: context.targetUserId,
+          flowType: flowTypeForChallenge({ purpose: context.purpose, target_user_id: context.targetUserId }),
+          authVersionAtStart: user?.authVersion ?? null,
+          whatsappChallengeId: context.challengeId,
+        });
+        attemptId = attempt.id;
+      },
     });
-    await attachPhoneChallenge(attempt.id, record.id);
-    return { attemptId: attempt.id, ...challenge };
+    if (!attemptId) throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
+    return { attemptId, ...challenge };
   } catch (error) {
-    await (await getDb()).query(
-      'UPDATE whatsapp_auth_challenges SET revoked_at=NOW() WHERE id=$1 AND consumed_at IS NULL',
-      [record.id],
-    );
+    // Best effort: never leave a usable attempt behind for a challenge that was revoked.
+    if (attemptId) await revokeIdentityAuthAttempt(attemptId).catch(() => undefined);
     throw error;
   }
 }

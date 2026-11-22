@@ -159,6 +159,9 @@ export async function createIdentityAuthAttempt(input: {
   flowType: IdentityAuthFlowType;
   authVersionAtStart?: number | null;
   ttlMs?: number;
+  // Create the attempt already bound to its WhatsApp challenge (one INSERT instead of
+  // create + lock + attach). Equivalent to createIdentityAuthAttempt + attachPhoneChallenge.
+  whatsappChallengeId?: string;
 }): Promise<IdentityAuthAttempt> {
   assertEnabled();
   const canonicalPhone = normalizeTurkishPhone(input.phone);
@@ -171,11 +174,11 @@ export async function createIdentityAuthAttempt(input: {
   const id = crypto.randomUUID();
   const result = await (await getDb()).query<AttemptRow>(
     `INSERT INTO identity_auth_attempts
-     (id,canonical_phone,target_user_id,flow_type,status,auth_version_at_start,expires_at)
-     VALUES($1,$2,$3,$4,'CREATED',$5,$6)
+     (id,canonical_phone,target_user_id,flow_type,status,auth_version_at_start,expires_at,whatsapp_challenge_id)
+     VALUES($1,$2,$3,$4,CASE WHEN $7::text IS NULL THEN 'CREATED' ELSE 'PHONE_CHALLENGE_ISSUED' END,$5,$6,$7::text)
      RETURNING *`,
     [id, canonicalPhone, input.targetUserId || null, input.flowType, input.authVersionAtStart ?? null,
-      new Date(Date.now() + ttlMs).toISOString()],
+      new Date(Date.now() + ttlMs).toISOString(), input.whatsappChallengeId || null],
   );
   return mapAttempt(result.rows[0]);
 }
