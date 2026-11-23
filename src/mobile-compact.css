@@ -1,0 +1,144 @@
+/* Telefon ekranları için sıkı yerleşim: daha az kaydırma, aynı bilgi.
+   Yalnız boşluk, yazı boyutu ve dizilim değişir; renkler index.css / theme.css'te kalır (koyu/açık mod bozulmaz). */
+/* Okul adı tüm ekran boyutlarında kalın görünsün (önce düz yazı gibi duruyordu). */
+.platform-school-row h3 { font-weight: 750; font-size: 17px; }
+
+@media (max-width: 767px) {
+  /* Sayfa çerçevesi ve başlık. Kısa sayfada altta arka plan fotoğrafı şerit gibi görünmesin. */
+  .page-shell { padding: 14px 14px 92px; }
+  main.page-shell { min-height: calc(100svh - var(--topbar-height, 56px)); }
+  /* Arama + branş yan yana */
+  .filter-bar { flex-wrap: nowrap; gap: 8px; margin-bottom: 12px; }
+  .filter-bar > .field { min-width: 0; }
+  .filter-bar > .field:last-child:not(:first-child) { flex: 0 0 38%; }
+  .page-heading { gap: 10px; margin-bottom: 14px; }
+  .page-heading .eyebrow { font-size: 10.5px; margin-bottom: 4px; letter-spacing: .12em; }
+  .page-heading h1 { font-size: 23px; line-height: 1.2; }
+  /* Alt başlık çoğu sayfada okul adını tekrar ediyordu (üst çubukta zaten var). */
+  .page-description { display: none; }
+  .page-action .ui-button { min-height: 46px; }
+
+  /* Bölümler arası dikey boşluklar */
+  /* Tailwind v4 space-y, alttaki boşluğu margin-block-end ile verir. */
+  .page-shell .space-y-8 > :not(:last-child) { margin-block-end: 16px; }
+  .page-shell .space-y-7 > :not(:last-child) { margin-block-end: 14px; }
+  .page-shell .space-y-6 > :not(:last-child) { margin-block-end: 12px; }
+  .page-shell .space-y-4 > :not(:last-child) { margin-block-end: 10px; }
+  .section-heading { margin-bottom: 10px; gap: 8px; }
+  .section-heading h2, .section-heading h3 { font-size: 16px; }
+  .section-heading p { margin-top: 2px; }
+
+  /* Kartlar */
+  .surface { padding: 14px; border-radius: 16px; }
+  .hero-card { padding: 16px; gap: 12px; border-radius: 18px; }
+  .hero-card h2 { font-size: 20px; margin: 6px 0; line-height: 1.25; }
+  .hero-card .eyebrow { margin-bottom: 4px; }
+  .hero-card .detail-row { margin-top: 6px; }
+  .hero-card .ui-button { min-height: 46px; }
+  .hero-card .ui-button.mt-6 { margin-top: 12px; }
+
+  /* Sayaç kutuları: tek satırda, kısa */
+  .metric-grid { gap: 8px; }
+  .metric-card { padding: 10px 10px 9px; border-radius: 12px; }
+  .metric-top { font-size: 11.5px; line-height: 1.25; }
+  .metric-card strong { font-size: 22px; margin-top: 4px; }
+
+  /* Randevu kartları */
+  .appointment-card { padding: 14px; gap: 12px; border-radius: 16px; }
+  .appointment-actions { margin-top: 10px; padding-top: 10px; gap: 8px; }
+
+  /* Boş durumlar daha az yer kaplasın */
+  .empty-state { padding: 18px 10px; gap: 8px; }
+  .empty-state .empty-icon { width: 44px; height: 44px; }
+  .empty-state h3 { font-size: 15px; }
+  .empty-state p { font-size: 13px; }
+
+  .teacher-grid { gap: 10px; }
+  .skeleton-list { gap: 10px; }
+  .skeleton-card { padding: 14px; }
+
+  /* Filtre düğmeleri iki satıra taşmasın: yatay kaydırılan tek satır */
+  .chip-row { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-inline: -14px; padding-inline: 14px; }
+  .chip-row::-webkit-scrollbar { display: none; }
+  .chip-row > .ui-button { flex: 0 0 auto; min-height: 40px; padding-inline: 14px; }
+
+  /* Form alanları biraz daha sıkı */
+  .form-stack { gap: 12px; }
+
+  /* Öğretmen haftalık müsaitliği: gün adı solda, saatler sağda (gün başına tek blok) */
+  .availability-day { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: start; gap: 4px 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .availability-day:last-child { border-bottom: 0; }
+  .availability-day > h3 { padding-top: 10px; font-size: 12px; }
+  .availability-day .py-2 { padding-block: 2px; }
+  .availability-day .icon-button { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+
+  /* Veli: öğretmen kartı tek satır (ad solda, "Randevu al" sağda) */
+  .teacher-card:not(:has(> p)) { flex-direction: row; align-items: center; gap: 10px; padding: 12px 14px; }
+  .teacher-card:not(:has(> p)) > div { flex: 1; min-width: 0; }
+  .teacher-card:not(:has(> p)) .ui-button { width: auto; margin-top: 0; flex-shrink: 0; min-height: 42px; padding-inline: 12px; }
+
+  /* Okul yönetimi: okul bilgisi kartı ve kısa yollar */
+  .school-info-compact { padding: 10px 12px; gap: 6px 12px; }
+  .school-info-compact > h3 { display: none; }
+  .school-info-compact .school-info-list { gap: 6px 14px; }
+  .school-info-compact .school-code-actions .ui-button { min-height: 38px; }
+  .dashboard-quick-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; }
+  .dashboard-quick-actions::-webkit-scrollbar { display: none; }
+  .dashboard-quick-actions .ui-button { flex: 0 0 auto; min-height: 38px; padding-inline: 10px; }
+  .admin-content { padding: 12px 12px 28px; }
+  /* Okul kodu ile "Kopyala" aynı satırda */
+  .school-info-compact .school-info-list > div { flex-wrap: nowrap; gap: 8px; }
+  .school-info-compact .school-info-list dd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .school-info-compact .school-code-actions { display: inline-flex; gap: 6px; width: auto; }
+  .school-info-compact .school-code-actions .ui-button { width: auto; flex: 0 0 auto; min-width: 0; padding-inline: 10px; }
+  /* Öğrenci listesi: başlık + "Kayıt ekle" aynı satırda, arama ve filtre yan yana, sınıf kartları küçük */
+  /* Yalnız "başlık + tek düğme" olan başlıklar tek satır olur; çok düğmeli başlıklar alta kayar. */
+  .admin-content .section-heading:has(> .ui-button:nth-child(2):last-child) { flex-wrap: nowrap; align-items: center; }
+  .admin-content .section-heading:has(> .ui-button:nth-child(2):last-child) > .ui-button { flex-shrink: 0; min-height: 42px; padding-inline: 12px; }
+  .student-list-filters { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 8px; align-items: end; }
+  .student-list-filters > .field { min-width: 0; }
+  .class-selection-toolbar { gap: 8px; }
+  .class-selection-toolbar .ui-button { min-height: 38px; padding-inline: 10px; font-size: 13px; }
+  .student-class-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+  .student-class-card { min-height: 46px; padding: 6px 8px; gap: 0 6px; }
+  .student-class-card .student-class-icon { width: 26px; height: 26px; }
+  .student-class-card .student-class-icon svg { width: 15px; height: 15px; }
+
+  /* Güvenlik: sayfa başlığı zaten "QR kodu kamerayla doğrulayın" diyor; tekrar eden başlık ve büyük simge
+     kalkınca "QR Kod Tara" düğmesi ilk ekranda görünür. */
+  .security-scanner { padding: 16px; }
+  .security-scanner > .scan-frame, .security-scanner > h2 { display: none; }
+  .security-scanner > p:first-of-type { margin-top: 0; margin-bottom: 10px; }
+  .security-scanner .camera-preview { margin-top: 0; margin-bottom: 12px; }
+
+  /* Ana platform: başlık kısa, çıkış düğmesi küçük, sayaçlar yan yana */
+  .platform-management-page { border-inline: 0; box-shadow: none; }
+  .platform-management-header { flex-direction: row; align-items: center; gap: 10px; padding-bottom: 12px; }
+  .platform-management-header .eyebrow { display: none; }
+  .platform-management-header h1 { font-size: 22px; }
+  .platform-management-header p:last-child { display: none; }
+  .platform-management-header .ui-button { width: auto; min-height: 40px; padding-inline: 12px; font-size: 13px; flex-shrink: 0; }
+  .platform-management-page > .space-y-5 { padding-top: 12px; }
+  .platform-management-page .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .platform-management-page .metric-card strong { margin-top: 0; }
+  .platform-management-page .metric-card p { margin-top: 2px; }
+  .platform-overview-action { flex-direction: column; align-items: stretch; gap: 10px; margin-top: 12px; }
+  /* Lisans yönetimi: 5 sayaç 3 sütunda küçük, filtreler 2 sütunda, uzun açıklama gizli */
+  .license-management { padding: 10px; gap: 10px; }
+  .license-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .license-metric { padding: 8px; gap: 0; flex-direction: column; align-items: flex-start; }
+  .license-metric svg { display: none; }
+  .license-metric span { font-size: 11px; line-height: 1.25; }
+  .license-metric strong { font-size: 20px; }
+  .license-metrics-note { display: none; }
+  .license-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .license-filters > :first-child { grid-column: 1 / -1; }
+
+  /* Okul kartları: ad kalın, rozetler yan yana, düğmeler aynı satırda */
+  .platform-school-list { gap: 10px; }
+  .platform-school-row { gap: 6px 8px; padding: 12px 14px; }
+  .platform-school-row h3 { font-size: 16px; font-weight: 750; }
+  .platform-school-row > p { font-size: 13px; color: var(--muted); }
+  .platform-school-row > p:has(> .status-badge) { width: auto; }
+  .platform-school-row > .ui-button { min-height: 40px; padding-inline: 10px; font-size: 13px; flex: 1 1 auto; }
+}

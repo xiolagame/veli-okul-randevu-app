@@ -278,14 +278,14 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
   const teacherCard = (teacher: TeacherProfile) => (
     <article key={teacher.id} className="surface teacher-card">
       <div><h3>{normalizePersonName(`${teacher.firstName} ${teacher.lastName}`)}</h3><p>{teacher.branch}</p></div>
-      <p>{teacher.bio || 'Uygun bir gün ve saat seçerek görüşme planlayın.'}</p>
+      {teacher.bio && <p>{teacher.bio}</p>}
       <Button variant="secondary" onClick={() => handleOpenBooking(teacher)}>Randevu al<ArrowRight size={16} /></Button>
     </article>
   );
 
   return (
     <main id="main-content" className="page-shell" {...touchHandlers}>
-      <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={(activeTab === 'home' || activeTab === 'appointments') && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
+      <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={activeTab === 'appointments' && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
       <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
       {refreshControl}
       {actionError && <div className="mb-5"><Alert tone="danger">{actionError}</Alert></div>}

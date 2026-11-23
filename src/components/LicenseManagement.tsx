@@ -63,7 +63,7 @@ export function LicenseManagement() {
       {label:'Süresi yaklaşan lisans',key:'expiring',icon:Clock,status:'expiring'}, {label:'Süresi dolan lisans',key:'expired',icon:AlertTriangle,status:'expired'},
       {label:'Manuel durdurulan lisans',key:'suspended',icon:PauseCircle,status:'suspended'},
     ].map(item=><article key={item.key} className={`license-metric license-${item.key}`}><item.icon size={23} aria-hidden="true"/><div><span>{item.label}</span><strong>{data?data.summary[item.key as keyof LicensePage['summary']]:'—'}</strong></div></article>)}</div>
-    <p className="text-sm text-slate-600">Aktif sayısı yaklaşan lisansları da içerir. Süresi dolan sayısı, durdurulmuş olsa bile bitişi geçmiş lisansları kapsar.</p>
+    <p className="text-sm text-slate-600 license-metrics-note">Aktif sayısı yaklaşan lisansları da içerir. Süresi dolan sayısı, durdurulmuş olsa bile bitişi geçmiş lisansları kapsar.</p>
     <div className="license-filters">
       <label className="field">Okul adına göre ara<div className="field-icon"><Search size={17} aria-hidden="true"/><input value={search} maxLength={100} onChange={event=>setSearch(event.target.value)} placeholder="Okul adı…" /></div></label>
       <label className="field">Lisans durumu<select aria-label="Lisans durumu" value={filters.status} onChange={event=>patch({status:event.target.value})}><option value="">Tümü</option>{Object.entries(licenseStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
@@ -76,7 +76,7 @@ export function LicenseManagement() {
     {!data && loading ? <Skeleton/> : data && <>
       <div className="license-table-wrap"><table className="license-table"><thead><tr>{['Okul adı','Lisans referansı','Lisans başlangıcı','Lisans bitişi','Kalan süre','Durum','İşlemler'].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{data.items.map(license=><tr key={license.schoolId}>
         <td data-label="Okul adı"><button className="license-school" onClick={()=>setSelected(license)}><School size={18} aria-hidden="true"/><span><strong>{license.schoolName}</strong><small>{license.schoolCode}{license.schoolDisabledAt?' · Okul pasif':''}</small></span></button></td>
-        <td data-label="Lisans referansı"><code>{license.licenseCode||'Kayıt yok (legacy)'}</code></td>
+        <td data-label="Lisans referansı"><code>{license.licenseCode||'Lisans kaydı yok'}</code></td>
         <td data-label="Başlangıç">{displayTime(license.activatedAt)}</td><td data-label="Bitiş">{license.expiresAt?displayTime(license.expiresAt):license.licenseId?'Süresiz':'—'}</td>
         <td data-label="Kalan süre">{remaining(license)}</td><td data-label="Durum">{badge(license)}</td><td data-label="İşlemler">{actions(license)}</td>
       </tr>)}</tbody></table></div>

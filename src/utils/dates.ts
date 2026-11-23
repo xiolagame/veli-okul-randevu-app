@@ -22,6 +22,10 @@ export function formatAppointmentDateTime(date: string, time: string): string {
 
 export function formatDateTime(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value);
+  // Veritabanından bazen "2026-11-22 20:03:15.578346+00" biçimi gelir (boşluklu, kısa saat dilimi):
+  // ISO'ya çevir, yoksa ekranda ham metin olarak görünüyordu.
+  const pg = value.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)([+-]\d{2})(?::?(\d{2}))?$/);
+  if (pg) value = `${pg[1]}T${pg[2]}${pg[3]}:${pg[4] || '00'}`;
   if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return formatDatesInText(value);
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return '—';

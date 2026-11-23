@@ -7,6 +7,7 @@ import { getRuntimePlatform } from './platform/runtime-platform';
 import './index.css';
 import './theme.css';
 import './android-auth.css';
+import './mobile-compact.css';
 import { subscribeAndroidSystemBars } from './platform/android-system-bars';
 import {ReviewBanner} from './components/ReviewBanner';
 import {initializeIosThemeChrome} from './platform/theme';
