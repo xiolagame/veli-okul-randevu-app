@@ -6,7 +6,7 @@ import { ALL_CLASSES, MULTI_CLASS_CONFIRMATION, MultiClassRemovalPreview, classS
 import { normalizeClassName } from '../utils/class-name';
 import { classCardColors } from '../utils/class-card-colors';
 import { MultiClassChallengeGuard } from '../utils/multi-class-challenge';
-import { Alert, Button, Dialog, RecordAction } from './ui';
+import { Alert, Button, Dialog, RecordAction, Toast } from './ui';
 import { ManagementActions } from './ManagementActions';
 import { displayTurkishPhone } from '../utils/phone';
 
@@ -111,7 +111,7 @@ export function StudentManagement({ schoolId, schoolName, onChanged = async () =
   return <section className="management-section" aria-label="Öğrenci ve veli yönetimi">
     <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{schoolName} · {records.length} öğrenci</p></div><Button onClick={onImport}><Plus size={18} aria-hidden="true" />Kayıt ekle</Button></div>
     {error && <Alert tone="danger">{error}</Alert>}
-    {success && <Alert tone="success">{success}</Alert>}
+    {success && <Toast tone="success" resetKey={success} onClose={() => setSuccess('')}>{success}</Toast>}
       <div className="student-list-filters">
       <label className="field" htmlFor="student-record-search">Öğrenci veya veli ara<div className="field-icon"><Search size={18} aria-hidden="true" /><input id="student-record-search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, öğrenci numarası veya telefon" /></div></label>
       <label className="field management-filter">Kayıt filtresi<select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(0); }}><option value="all">Tüm kayıtlar</option><option value="pending">Veli hesabı bekleyenler</option><option value="active">Aktif veli hesabı bulunanlar</option><option value="missing">Eksik bilgisi bulunanlar</option></select></label>

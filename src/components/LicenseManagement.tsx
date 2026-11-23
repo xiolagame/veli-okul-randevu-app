@@ -2,7 +2,7 @@ import { LicenseWhatsAppPanel } from './LicenseWhatsAppPanel';
 import React, { useEffect, useRef, useState } from 'react';
 import { CalendarClock, CheckCircle2, Clock, Search, School, PauseCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
-import { Alert, Button, Dialog, Skeleton } from './ui';
+import { Alert, Button, Dialog, Skeleton, Toast } from './ui';
 import type { LicenseChange, LicensePage, PlatformLicense } from '../types/licenses';
 import { extendLicenseCalendar, licenseExpiryFromDay, licenseLastDay, licenseStatusLabels } from '../utils/license-management';
 import { formatDateTime } from '../utils/dates';
@@ -56,7 +56,7 @@ export function LicenseManagement() {
   return <section className="license-management" aria-label="Lisans Yönetimi">
     {whatsappSchool&&<LicenseWhatsAppPanel key={whatsappSchool} schoolId={whatsappSchool} onClose={()=>setWhatsappSchool(null)}/>}
     <header className="section-heading"><div><p className="eyebrow">PLATFORM / LİSANSLAR</p><h2>Lisans Yönetimi</h2><p>Okulların lisans sürelerini izleyin ve erişim durumlarını güvenle yönetin.</p></div></header>
-    {success && <Alert tone="success">{success}</Alert>}
+    {success && <Toast tone="success" resetKey={success} onClose={() => setSuccess('')}>{success}</Toast>}
     {error && <Alert tone="danger">{error}<Button variant="quiet" onClick={()=>setReload(value=>value+1)}>Tekrar dene</Button></Alert>}
     <div className="license-metrics">{[
       {label:'Toplam okul',key:'total',icon:School,status:''},{label:'Aktif lisans',key:'active',icon:CheckCircle2,status:'active'},

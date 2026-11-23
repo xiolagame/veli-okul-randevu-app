@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
-import { Alert, Button, Dialog, Skeleton } from './ui';
+import { Alert, Button, Dialog, Skeleton, Toast } from './ui';
 import { formatDateTime } from '../utils/dates';
 import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Trash2 } from 'lucide-react';
 import { auditDisplay } from '../utils/audit-display';
@@ -99,7 +99,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       </nav>
       {section === 'licenses' && <><PlatformPricing/><LicenseManagement/></>}
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
-      {changed && <Alert tone="success">{changeMessage}</Alert>}
+      {changed && <Toast tone="success" resetKey={changeMessage} onClose={() => setChanged(false)}>{changeMessage}</Toast>}
       {section === 'overview' && <><div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}
       {section === 'schools' && !schoolFormOpen && <Button onClick={() => setSchoolFormOpen(true)}>+ Yeni okul ekle</Button>}
       {section === 'schools' && schoolFormOpen && <form className="form-stack platform-school-form surface" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', licenseCode: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); setSchoolFormOpen(false); }); }}>

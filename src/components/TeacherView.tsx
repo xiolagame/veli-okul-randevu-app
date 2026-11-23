@@ -2,7 +2,7 @@ import { formatDate, getIstanbulDate } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
-import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge } from './ui';
+import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge, Toast } from './ui';
 import { ApiError } from '../platform/api-error';
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { isSlotInFuture } from '../utils/booking-window';
@@ -41,6 +41,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'availability' | 'profile'>('home');
+  useEffect(() => { setFeedback(null); }, [activeTab]);
   const { touchHandlers, control: refreshControl } = useHomeRefresh(activeTab === 'home', refreshMobileData);
   useEffect(() => {
     if (!pushAppointmentIntent) return;
@@ -170,7 +171,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       <PageHeader eyebrow={`ÖĞRETMEN ALANI · ${currentUser?.branch || 'GÖRÜŞME PROGRAMI'}`} title={activeTab === 'home' ? `İyi günler, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Görüşmelerinizi planlayın. Velilerinizle bağınızı güçlendirin.' : settings.schoolName} />
       <RoleNavigation items={navigation} active={activeTab} onChange={(tab) => { if (tab === 'appointments') setAppointmentFilter('all'); setActiveTab(tab); }} />
       {refreshControl}
-      {feedback && <div className="mb-6"><Alert tone={feedback.failed ? 'danger' : 'success'}>{feedback.message}</Alert></div>}
+      {feedback && <Toast tone={feedback.failed ? 'danger' : 'success'} resetKey={feedback} onClose={() => setFeedback(null)}>{feedback.message}</Toast>}
       {(activeTab === 'home' || activeTab === 'appointments') && schoolDataLoading && <Skeleton rows={3} />}
       {activeTab === 'home' && !schoolDataLoading && <div className="space-y-7">
         {pendingAppointments.length > 0 && <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => pendingAppointments.length ? showAppointments('pending') : setActiveTab('availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>}
@@ -187,7 +188,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
         {appointmentFilter === 'all' && completedAppointments.length > 0 && <section><div className="section-heading"><h2>Geçmiş randevular</h2></div><div className="space-y-4">{completedAppointments.map(appointmentCard)}</div></section>}
       </div>}
       {activeTab === 'availability' && <div className="space-y-6">
-        <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından okulunuzun {settings.defaultSlotMinutes} dakikalık standart görüşme süresiyle randevu seçebilir.</p></div></div>
+        <section className="surface"><div className="section-heading"><h2>Görüşme saatlerinizi belirleyin</h2></div>
           <AvailabilityForm durationMinutes={settings.defaultSlotMinutes} busy={busy} onSubmit={(days, start, end) => { void handleAddSlots(days, start, end); }} />
         </section>
         <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-3">{availabilityGroups.map((day) => <section key={day.id} className="availability-day" aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-2"><p className="text-sm font-semibold text-slate-700">{slot.startTime} – {slot.endTime}</p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>

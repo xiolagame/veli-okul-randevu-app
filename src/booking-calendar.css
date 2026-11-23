@@ -56,3 +56,12 @@ html[data-theme="dark"] .availability-legend { color: var(--theme-text); }
 html[data-theme="dark"] .availability-chips button { color: var(--theme-text); border-color: var(--theme-border); }
 html[data-theme="dark"] .time-stepper > div { border-color: var(--theme-border); }
 html[data-theme="dark"] .time-stepper button { background: var(--theme-soft); color: var(--theme-accent); }
+
+/* Geçici bildirim (Toast): düzeni itmez, üstte yüzer */
+.toast-layer { position: fixed; top: calc(var(--topbar-height, 56px) + env(safe-area-inset-top, 0px) + 8px); left: 0; right: 0; z-index: 70; display: flex; justify-content: center; padding: 0 12px; pointer-events: none; }
+.toast-card { position: relative; width: min(560px, 100%); pointer-events: auto; box-shadow: 0 10px 30px #10271f40; border-radius: 14px; animation: toast-in .18s ease-out; }
+.toast-card .ui-alert { padding-right: 44px; margin: 0; }
+.toast-close { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: inherit; opacity: .75; }
+.toast-close:hover, .toast-close:focus-visible { opacity: 1; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast-card { animation: none; } }

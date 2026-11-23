@@ -2,7 +2,7 @@ import React, { FormEvent, useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { formatTryAmount, parseTryInputToMinor } from '../utils/tr-currency';
 import { resetLicensePriceCacheForTests } from '../utils/license-price';
-import { Alert, Button, Skeleton } from './ui';
+import { Alert, Button, Skeleton, Toast } from './ui';
 
 const PLAN = 'YEARLY_LICENSE';
 
@@ -61,7 +61,7 @@ export function PlatformPricing() {
           <input id="platform-pricing-input" inputMode="decimal" autoComplete="off" placeholder="9.900" value={input}
             onChange={(event) => setInput(event.target.value)} disabled={busy} />
           {error && <Alert tone="danger">{error}</Alert>}
-          {success && <Alert tone="success">{success}</Alert>}
+          {success && <Toast tone="success" resetKey={success} onClose={() => setSuccess('')}>{success}</Toast>}
           <Button type="submit" disabled={busy || !input.trim()}>{busy ? 'Kaydediliyor…' : 'Fiyatı güncelle'}</Button>
         </form>
       )}

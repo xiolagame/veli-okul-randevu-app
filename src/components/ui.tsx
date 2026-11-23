@@ -18,6 +18,18 @@ export function Alert({ children, tone = 'info' }: { children: React.ReactNode; 
   return <div role={tone === 'danger' ? 'alert' : 'status'} className={`ui-alert tone-${tone}`}><Icon aria-hidden="true" size={19} /><div>{children}</div></div>;
 }
 
+// Geçici bildirim: sayfa düzenini itmez (ekranın üstünde yüzer), kendiliğinden kaybolur, × ile kapatılır.
+// Başarı 4 sn, hata 8 sn görünür. `resetKey` değişince (ör. yeni mesaj) süre yeniden başlar.
+export function Toast({ tone, children, onClose, resetKey }: { tone: 'success' | 'danger' | 'info' | 'warning'; children: React.ReactNode; onClose: () => void; resetKey?: unknown }) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const timer = window.setTimeout(() => closeRef.current(), tone === 'danger' ? 8000 : 4000);
+    return () => window.clearTimeout(timer);
+  }, [tone, resetKey]);
+  return <div className="toast-layer"><div className="toast-card"><Alert tone={tone}>{children}</Alert><button type="button" className="toast-close" aria-label="Mesajı kapat" onClick={onClose}><X size={16} aria-hidden="true" /></button></div></div>;
+}
+
 export function RecordAction({ label, icon: Icon, danger = false, ...props }: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & { label: string; icon: LucideIcon; danger?: boolean }) {
   return <button type="button" {...props} aria-label={label} title={props.title || label} className={`record-action ${danger ? 'record-action-danger' : ''}`}><Icon size={17} aria-hidden="true" /></button>;
 }

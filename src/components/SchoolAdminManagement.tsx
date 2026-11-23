@@ -5,7 +5,7 @@ import { api } from '../services/api';
 import { ManagedSchoolAdmin } from '../types/management';
 import { displayStoredTurkishPhone, formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
-import { Alert, Button, Dialog, EmptyState, RecordAction } from './ui';
+import { Alert, Button, Dialog, EmptyState, RecordAction, Toast } from './ui';
 
 type FormMode = { kind: 'create' } | { kind: 'edit' | 'remove'; admin: ManagedSchoolAdmin } | null;
 
@@ -72,7 +72,7 @@ export function SchoolAdminManagement({ schoolId, schoolName = 'Seçili okul', o
 
   return <section className="management-section">
     <div className="section-heading"><div><h3>Okul Yöneticileri</h3><p>Bu okulun yönetim yetkisine sahip kişileri ve bekleyen aktivasyonları yönetin.</p></div><Button onClick={openCreate}><Plus size={18} />Yeni Yönetici</Button></div>
-    {message && <Alert tone="success">{message}</Alert>}
+    {message && <Toast tone="success" resetKey={message} onClose={() => setMessage('')}>{message}</Toast>}
     {error && !mode && <Alert tone="danger">{error}</Alert>}
     <label className="field">Okul yöneticisi ara<input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, telefon veya e-posta" /></label>
     {error && !mode && <Button variant="secondary" onClick={() => { setError(''); void load().catch(() => setError('Okul yöneticileri yüklenemedi.')); }}>Tekrar dene</Button>}

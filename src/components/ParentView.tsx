@@ -4,7 +4,7 @@ import { normalizePersonName, uppercasePersonNameInput } from '../utils/person-n
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
-import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge, StepIndicator } from './ui';
+import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge, StepIndicator, Toast } from './ui';
 import { QRCodePass } from './QRCodePass';
 import { api } from '../services/api';
 import { calendarWeekday, generateAppointmentSlots, intervalsOverlap } from '../utils/appointment-slots';
@@ -288,7 +288,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
       <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={activeTab === 'appointments' && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
       <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
       {refreshControl}
-      {actionError && <div className="mb-5"><Alert tone="danger">{actionError}</Alert></div>}
+      {actionError && <Toast tone="danger" resetKey={actionError} onClose={() => setActionError('')}>{actionError}</Toast>}
 
       {activeTab !== 'profile' && schoolDataLoading && <Skeleton rows={3} />}
       {activeTab === 'home' && !schoolDataLoading && <div className="space-y-7">
