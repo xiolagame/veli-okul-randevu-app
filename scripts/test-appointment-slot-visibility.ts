@@ -63,12 +63,15 @@ async function run() {
     const mondaySlot = { dayOfWeek: 1, startTime: '12:30', endTime: '12:45', slotDurationMinutes: 15 };
     assert(slotMatchesAvailability(mondaySlot, sameWeekdayInWindow('2090-03-13'), '12:30', '12:45'));
     assert(!slotMatchesAvailability(mondaySlot, sameWeekdayInWindow('2090-03-11'), '12:30', '12:45'));
+    // 2 haftalık takvim: yalnız firstDate..lastDate gösterilir; öğretmen Pazartesi(1) ve Cumartesi(6) müsait.
     const calendar = renderToStaticMarkup(React.createElement(AvailabilityCalendar, {
-      month: '2090-03', selectedDate: '', weekdays: [1, 6], onMonthChange: () => {}, onSelectDate: () => {},
+      firstDate: '2090-03-09', lastDate: '2090-03-22', selectedDate: '', weekdays: [1, 6], onSelectDate: () => {},
     }));
-    assert(calendar.includes('aria-label="11/03/2090"') && calendar.includes('aria-label="13/03/2090"'));
-    for (const day of [12, 14, 15, 16, 17]) assert(calendar.includes(`disabled="" aria-label="${day}/03/2090"`));
-    for (const day of [11, 13]) assert(!calendar.includes(`disabled="" aria-label="${day}/03/2090"`));
+    for (const day of [11, 13, 18, 20]) assert(calendar.includes(`aria-label="${day}/03/2090"`) && !calendar.includes(`disabled="" aria-label="${day}/03/2090"`), 'açık gün ' + day);
+    for (const day of ['09', 10, 12, 14, 15, 16, 17, 19, 21, 22]) assert(calendar.includes(`disabled="" aria-label="${day}/03/2090"`), 'kapalı gün ' + day);
+    assert(!calendar.includes('aria-label="08/03/2090"') && !calendar.includes('aria-label="23/03/2090"'), 'aralık dışı günler çizilmez');
+    assert(calendar.includes('data-open="true"') && calendar.includes('data-open="false"'));
+    assert(!calendar.includes('Önceki ay') && !calendar.includes('Sonraki ay'), 'ay düğmeleri kalktı');
     const parentManagement = fs.readFileSync('src/components/ParentManagement.tsx', 'utf8');
     assert(parentManagement.includes('kind="parent"') && parentManagement.includes('showRemove={false}'));
     const studentActions = parentManagement.match(/<ManagementActions[^>]*kind="student"[^>]*>/)?.[0];

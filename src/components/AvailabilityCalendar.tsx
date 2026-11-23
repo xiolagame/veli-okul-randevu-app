@@ -2,38 +2,54 @@ import React from 'react';
 import { calendarWeekday } from '../utils/appointment-slots';
 import { formatDate, getIstanbulDate } from '../utils/dates';
 
-export function AvailabilityCalendar({ month, onMonthChange, selectedDate, onSelectDate, weekdays, lastDate, lastDateHint, isDateAvailable }: {
-  month: string;
-  onMonthChange: (month: string) => void;
+function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+const monthShort = new Intl.DateTimeFormat('tr-TR', { month: 'short', timeZone: 'UTC' });
+const monthLong = new Intl.DateTimeFormat('tr-TR', { month: 'long', timeZone: 'UTC' });
+const label = (date: string, formatter: Intl.DateTimeFormat) => formatter.format(new Date(`${date}T00:00:00Z`));
+
+// Kompakt "2 haftalık" takvim: yalnız randevu alınabilecek aralığı (firstDate..lastDate) gösterir.
+// Açık günler kalın ve çerçeveli, kapalı günler soluk ve üstü çizili. Ay değiştirme düğmesi yoktur.
+export function AvailabilityCalendar({ selectedDate, onSelectDate, weekdays, firstDate, lastDate, hint, isDateAvailable }: {
   selectedDate: string;
   onSelectDate: (date: string) => void;
   weekdays: number[];
-  // Seçilebilecek son gün (dahil). Bu günden sonrası ve sonraki aylar kapalı.
-  lastDate?: string;
-  lastDateHint?: string;
+  firstDate: string;
+  lastDate: string;
+  hint?: string;
   // Ek kontrol (ör. bugünün bütün saatleri geçtiyse bugün kapalı).
   isDateAvailable?: (date: string) => boolean;
 }) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const first = new Date(Date.UTC(year, monthNumber - 1, 1));
-  const dayCount = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-  const offset = (first.getUTCDay() + 6) % 7;
   const today = getIstanbulDate();
-  const move = (months: number) => {
-    const next = new Date(Date.UTC(year, monthNumber - 1 + months, 1));
-    onMonthChange(`${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`);
-  };
-  return <div className="availability-calendar" aria-label="Müsait günler">
-    <div className="calendar-heading"><button type="button" onClick={() => move(-1)} disabled={month <= today.slice(0, 7)} aria-label="Önceki ay">‹</button><strong>{new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)}</strong><button type="button" onClick={() => move(1)} disabled={!!lastDate && month >= lastDate.slice(0, 7)} aria-label="Sonraki ay">›</button></div>
+  // Izgara, firstDate'in haftasının pazartesisinden lastDate'in haftasının pazarına kadar uzanır;
+  // aralığın dışındaki hücreler boş bırakılır.
+  const startOffset = ((calendarWeekday(firstDate) ?? 1) + 6) % 7;
+  const gridStart = addDays(firstDate, -startOffset);
+  const endOffset = 6 - (((calendarWeekday(lastDate) ?? 0) + 6) % 7);
+  const gridEnd = addDays(lastDate, endOffset);
+  const cells: string[] = [];
+  for (let date = gridStart; date <= gridEnd; date = addDays(date, 1)) cells.push(date);
+  const range = `${Number(firstDate.slice(8))} ${label(firstDate, monthLong)} – ${Number(lastDate.slice(8))} ${label(lastDate, monthLong)}`;
+
+  return <div className="availability-calendar two-week-calendar" aria-label="Müsait günler">
+    <div className="calendar-heading"><strong>{range}</strong></div>
     <div className="calendar-days">{['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pa'].map((day) => <span key={day}>{day}</span>)}
-      {Array.from({ length: offset }, (_, index) => <span key={`blank-${index}`} />)}
-      {Array.from({ length: dayCount }, (_, index) => {
-        const date = `${month}-${String(index + 1).padStart(2, '0')}`;
-        const enabled = date >= today && (!lastDate || date <= lastDate) && weekdays.includes(calendarWeekday(date) ?? -1) && (!isDateAvailable || isDateAvailable(date));
-        return <button key={date} type="button" disabled={!enabled} aria-label={formatDate(date)} aria-pressed={selectedDate === date} onClick={() => onSelectDate(date)}>{index + 1}</button>;
+      {cells.map((date) => {
+        if (date < firstDate || date > lastDate) return <span key={date} aria-hidden="true" />;
+        const enabled = weekdays.includes(calendarWeekday(date) ?? -1) && (!isDateAvailable || isDateAvailable(date));
+        const dayNumber = Number(date.slice(8));
+        // Ay değişen günlerde (ayın 1'i ve aralığın ilk günü) küçük ay adı gösterilir.
+        const showMonth = dayNumber === 1 || date === firstDate;
+        return <button key={date} type="button" disabled={!enabled} aria-label={formatDate(date)} aria-pressed={selectedDate === date}
+          data-open={enabled} data-today={date === today ? 'true' : undefined} onClick={() => onSelectDate(date)}>
+          <b>{dayNumber}</b>{showMonth && <small>{label(date, monthShort)}</small>}
+        </button>;
       })}
     </div>
     {!weekdays.length && <p role="status" className="field-hint mt-2">Öğretmen henüz müsait gün belirlemedi.</p>}
-    {weekdays.length > 0 && lastDateHint && <p className="field-hint mt-2">{lastDateHint}</p>}
+    {weekdays.length > 0 && hint && <p className="field-hint mt-2">{hint}</p>}
   </div>;
 }
