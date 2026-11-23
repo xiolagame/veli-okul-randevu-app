@@ -9,6 +9,7 @@ import { Calendar } from 'lucide-react';
 import { Metric } from '../src/components/ui';
 import { calendarWeekday, intervalsOverlap, slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { AvailabilityCalendar } from '../src/components/AvailabilityCalendar';
+import { sameWeekdayInWindow, bookableDate } from './lib/test-dates';
 
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) throw new Error('Local PGlite only.');
@@ -60,8 +61,8 @@ async function run() {
     assert(intervalsOverlap({ startTime: '10:30', endTime: '10:45' }, { startTime: '10:30', endTime: '10:45' }));
     assert(!intervalsOverlap({ startTime: '10:30', endTime: '10:45' }, { startTime: '10:45', endTime: '11:00' }));
     const mondaySlot = { dayOfWeek: 1, startTime: '12:30', endTime: '12:45', slotDurationMinutes: 15 };
-    assert(slotMatchesAvailability(mondaySlot, '2090-03-13', '12:30', '12:45'));
-    assert(!slotMatchesAvailability(mondaySlot, '2090-03-11', '12:30', '12:45'));
+    assert(slotMatchesAvailability(mondaySlot, sameWeekdayInWindow('2090-03-13'), '12:30', '12:45'));
+    assert(!slotMatchesAvailability(mondaySlot, sameWeekdayInWindow('2090-03-11'), '12:30', '12:45'));
     const calendar = renderToStaticMarkup(React.createElement(AvailabilityCalendar, {
       month: '2090-03', selectedDate: '', weekdays: [1, 6], onMonthChange: () => {}, onSelectDate: () => {},
     }));
@@ -100,7 +101,7 @@ async function run() {
       `INSERT INTO teacher_profiles(id,school_id,user_id,first_name,last_name,branch,phone)
        VALUES($1,$2,$3,'LOCAL','TEACHER','Türkçe',$4)`, [id, schoolId, user.id, user.phone]);
 
-    const date = '2090-03-09';
+    const date = sameWeekdayInWindow('2090-03-09');
     await db.query(`INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
       VALUES($1,$2,$3,'09:30','09:45',15)`, [schoolA, teacherA, calendarWeekday(date)]);
     const path = `/schools/${schoolA}/teachers/${teacherA}/occupied-slots?date=${date}`;
@@ -109,15 +110,17 @@ async function run() {
     const otherBooking = { ...booking, studentName: 'STUDENT A2', className: '6-C' };
     const bookingPath = `/schools/${schoolA}/appointments`;
     const unavailable = await request('POST', bookingPath, parentA.token, {
-      ...booking, date: '2090-03-11', startTime: '12:30', endTime: '12:45',
+      ...booking, date: sameWeekdayInWindow('2090-03-11'), startTime: '12:30', endTime: '12:45',
     });
     assert.equal(unavailable.status, 409, 'Unavailable Saturday must be rejected server-side.');
     await db.query(`INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
       VALUES($1,$2,6,'11:00','11:15',15)`, [schoolA, teacherA]);
     const saturday = await request('POST', bookingPath, parentA.token, {
-      ...booking, date: '2090-03-11', startTime: '11:00', endTime: '11:15',
+      ...booking, date: sameWeekdayInWindow('2090-03-11'), startTime: '11:00', endTime: '11:15',
     });
     assert.equal(saturday.status, 200, 'Configured Saturday slot must book.');
+    // Aynı öğrenci+öğretmen için tek açık randevu kuralı: sonraki adımlar temiz başlasın diye bu randevu iptal edilir.
+    await db.query("UPDATE appointments SET status='cancelled' WHERE id=$1", [(saturday.body.appointment as { id: string }).id]);
     assert.deepEqual((await request('GET', path, parentA.token)).body.occupied, []);
     assert.equal((await request('GET', path, foreignParent.token)).status, 403);
     assert.equal((await request('GET', `/schools/${schoolA}/teachers/${teacherB}/occupied-slots?date=${date}`, parentA.token)).status, 404);
@@ -134,7 +137,7 @@ async function run() {
     assert.deepEqual(occupied.body.occupied, [{ startTime: '09:30', endTime: '09:45' }]);
     assert.deepEqual(Object.keys(occupied.body), ['occupied'], 'Occupancy must not leak appointment or parent data.');
     assert.deepEqual((await request('GET', `/schools/${schoolA}/teachers/${teacherA2}/occupied-slots?date=${date}`, parentA2.token)).body.occupied, []);
-    assert.deepEqual((await request('GET', `/schools/${schoolA}/teachers/${teacherA}/occupied-slots?date=2090-03-10`, parentA2.token)).body.occupied, []);
+    assert.deepEqual((await request('GET', `/schools/${schoolA}/teachers/${teacherA}/occupied-slots?date=${sameWeekdayInWindow('2090-03-10')}`, parentA2.token)).body.occupied, []);
     const conflict = await request('POST', bookingPath, parentA2.token, otherBooking);
     assert.equal(conflict.status, 409);
     assert.equal(conflict.body.error, 'Bu saat az önce başka bir randevu için alındı. Lütfen başka bir saat seçin.');

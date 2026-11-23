@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
 import type { Appointment, UserRole } from '../src/types';
+import { sameWeekdayInWindow, bookableDate } from './lib/test-dates';
 
 async function run() {
   if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) {
@@ -84,7 +85,7 @@ async function run() {
       parentPhone: '+905551234567',
       studentName: 'Local Student',
       className: '5-A',
-      date: '2026-09-23',
+      date: sameWeekdayInWindow('2026-09-23'),
       startTime: '09:30',
       endTime: '09:45',
       status: 'pending',

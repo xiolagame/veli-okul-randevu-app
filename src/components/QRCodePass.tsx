@@ -18,12 +18,13 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
     let active = true;
     setQrDataUrl(null);
     setQrError(false);
-    if (appointment.qrToken) {
+    // QR yalnız öğretmen onayından sonra (onaylı veya giriş yapılmış randevu) gösterilir.
+    if (appointment.qrToken && (appointment.status === 'booked' || appointment.status === 'checked_in')) {
       void import('qrcode').then(({ default: QRCode }) => QRCode.toDataURL(appointment.qrToken!, { margin: 4, width: 280 }))
         .then((image) => { if (active) setQrDataUrl(image); }).catch(() => { if (active) setQrError(true); });
     }
     return () => { active = false; };
-  }, [appointment.qrToken]);
+  }, [appointment.qrToken, appointment.status]);
 
   const statusMessage = {
     pending: 'Öğretmen onayı bekleniyor. Bu kart henüz giriş izni vermez.',
@@ -39,7 +40,7 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
     <div className="flex justify-center mb-5"><StatusBadge status={appointment.status} /></div>
     <Alert tone={tone}>{statusMessage[appointment.status]}</Alert>
     <div className="qr-picture">
-      {qrDataUrl ? <img src={qrDataUrl} alt="Okul girişinde gösterilecek randevu QR kodu" /> : <div className="text-center text-sm text-slate-500" role="status"><QrCode size={36} className="mx-auto mb-3" />{qrError ? 'QR görüntüsü yüklenemedi. Kartı yeniden açın.' : appointment.qrToken ? 'QR hazırlanıyor…' : 'Bu randevu için QR bulunmuyor.'}</div>}
+      {qrDataUrl ? <img src={qrDataUrl} alt="Okul girişinde gösterilecek randevu QR kodu" /> : <div className="text-center text-sm text-slate-500" role="status"><QrCode size={36} className="mx-auto mb-3" />{qrError ? 'QR görüntüsü yüklenemedi. Kartı yeniden açın.' : appointment.status === 'pending' ? 'QR kod, öğretmen randevuyu onayladığında burada görünür.' : appointment.status === 'booked' || appointment.status === 'checked_in' ? (appointment.qrToken ? 'QR hazırlanıyor…' : 'Bu randevu için QR bulunmuyor.') : 'Bu randevu için giriş QR kodu yok.'}</div>}
     </div>
     <dl className="pass-details">
       <div><dt>Öğretmen</dt><dd>{appointment.teacherName}<span className="block font-normal text-xs text-slate-500">{appointment.teacherBranch}</span></dd></div>

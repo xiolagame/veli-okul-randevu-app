@@ -9,6 +9,7 @@ import { QRCodePass } from './QRCodePass';
 import { api } from '../services/api';
 import { calendarWeekday, generateAppointmentSlots, intervalsOverlap } from '../utils/appointment-slots';
 import { AvailabilityCalendar } from './AvailabilityCalendar';
+import { MAX_BOOKING_DAYS_AHEAD, bookingWindow, isSlotInFuture } from '../utils/booking-window';
 import {
   Calendar,
   Clock,
@@ -234,7 +235,8 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
     );
 
     // If teacher has defined hours for this day
-    const slots = generateAppointmentSlots(teacherAvail, settings.defaultSlotMinutes);
+    // Bugün için geçmiş saatler listelenmez.
+    const slots = generateAppointmentSlots(teacherAvail, settings.defaultSlotMinutes).filter((slot) => isSlotInFuture(dateStr, slot.time));
 
     const intervals = occupiedSlots?.key === occupiedKey ? occupiedSlots.intervals : [];
     return [...new Map(slots.map((slot) => [slot.time, slot])).values()].map((slot) => ({
@@ -339,7 +341,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
           <label className="field" htmlFor="booking-student">Hangi öğrenciniz için?
             {currentUser?.students && currentUser.students.length > 0 ? <select id="booking-student" value={selectedStudent} onChange={(event) => { setSelectedStudent(event.target.value); const match = currentUser.students?.find((student) => student.name === event.target.value); if (match) setStudentClass(match.className); }}>{currentUser.students.map((student) => <option key={student.id} value={student.name}>{student.name} ({student.className})</option>)}</select> : <select id="booking-student" disabled><option>Önce profilinize öğrenci ekleyin</option></select>}
           </label>
-          <div className="field"><span>Görüşme tarihi</span>{!bookingDate || bookingCalendarOpen ? <AvailabilityCalendar month={calendarMonth} onMonthChange={setCalendarMonth} selectedDate={bookingDate} weekdays={[...new Set(availability.filter((slot) => slot.teacherId === bookingTeacher.id && slot.dayOfWeek >= 1 && slot.dayOfWeek <= 6).map((slot) => slot.dayOfWeek))]} onSelectDate={(date) => { setBookingDate(date); setSelectedSlotTime(''); setBookingCalendarOpen(false); }} /> : <div className="booking-date-summary"><div role="status" aria-live="polite"><span>Seçilen tarih</span><strong>{formatBookingDate(bookingDate)}</strong></div><Button variant="quiet" onClick={() => setBookingCalendarOpen(true)}>Tarihi değiştir</Button></div>}</div>
+          <div className="field"><span>Görüşme tarihi</span>{!bookingDate || bookingCalendarOpen ? <AvailabilityCalendar month={calendarMonth} onMonthChange={setCalendarMonth} selectedDate={bookingDate} lastDate={bookingWindow().lastDate} lastDateHint={`Randevu en fazla ${MAX_BOOKING_DAYS_AHEAD} gün sonrası için alınabilir.`} weekdays={[...new Set(availability.filter((slot) => slot.teacherId === bookingTeacher.id && slot.dayOfWeek >= 1 && slot.dayOfWeek <= 6).map((slot) => slot.dayOfWeek))]} onSelectDate={(date) => { setBookingDate(date); setSelectedSlotTime(''); setBookingCalendarOpen(false); }} /> : <div className="booking-date-summary"><div role="status" aria-live="polite"><span>Seçilen tarih</span><strong>{formatBookingDate(bookingDate)}</strong></div><Button variant="quiet" onClick={() => setBookingCalendarOpen(true)}>Tarihi değiştir</Button></div>}</div>
           {bookingDate && <fieldset ref={bookingSlotsRef} className="booking-slots-anchor"><legend className="text-sm font-semibold mb-3">Uygun saatler</legend>{slotsError && <Alert tone="danger">{slotsError} <Button variant="secondary" onClick={() => setSlotsRefresh((value) => value + 1)}>Tekrar dene</Button></Alert>}{!slotsError && occupiedSlots?.key !== occupiedKey && <p role="status">Saatler yükleniyor…</p>}{noSelectableBookingSlots && <Alert tone="warning">Bu tarihte uygun saat bulunmuyor. Başka bir tarih seçin.</Alert>}<div className="slot-grid">{bookingSlots.map((slot) => <button key={slot.time} type="button" data-booked={slot.isBooked} disabled={slot.isBooked || occupiedSlots?.key !== occupiedKey || !!slotsError} aria-pressed={selectedSlotTime === slot.time} aria-label={`${slot.time}${slot.isBooked ? ', dolu' : ''}`} onClick={() => setSelectedSlotTime(slot.time)}>{slot.time}</button>)}</div>{bookingSlots.length > 0 && <p className="field-hint mt-2">Üzeri çizili saatler doludur.</p>}</fieldset>}
           <label className="field" htmlFor="booking-note">Görüşme notu <span className="field-hint">İsteğe bağlı</span><textarea id="booking-note" rows={2} value={bookingNotes} onChange={(event) => setBookingNotes(event.target.value)} placeholder="Görüşmek istediğiniz konuyu kısaca yazabilirsiniz." /></label>
           {selectedSlotTime && <Alert>{formatDate(bookingDate)} tarihinde, {selectedSlotTime} için talep göndereceksiniz. Randevunuz öğretmen onayından sonra kesinleşir.</Alert>}

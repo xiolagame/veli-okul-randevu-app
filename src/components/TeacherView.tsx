@@ -5,6 +5,7 @@ import { Appointment } from '../types';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge } from './ui';
 import { ApiError } from '../platform/api-error';
 import { formatTurkishPhoneInput } from '../utils/phone';
+import { isSlotInFuture } from '../utils/booking-window';
 import { AVAILABILITY_DAYS, groupAvailabilityByDay } from '../utils/availability';
 import {
   Calendar,
@@ -70,12 +71,14 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   const teacherProfileId = teachers.find((teacher) => teacher.userId === currentUser?.id)?.id;
 
   const byDateTime = (a: Appointment, b: Appointment) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`);
-  const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending').sort(byDateTime);
+  // Saati geçmiş ama onaylanmamış talep artık onaylanamaz; "Onay bekleyen" yerine geçmişte görünür.
+  const isExpiredPending = (a: Appointment) => a.status === 'pending' && !isSlotInFuture(a.date, a.startTime);
+  const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending' && !isExpiredPending(a)).sort(byDateTime);
   const bookedAppointments = teacherAppointments.filter(
     (a) => a.status === 'booked' || a.status === 'checked_in'
   ).sort(byDateTime);
   const completedAppointments = teacherAppointments.filter(
-    (a) => a.status === 'checked_out' || a.status === 'cancelled' || a.status === 'rejected'
+    (a) => a.status === 'checked_out' || a.status === 'cancelled' || a.status === 'rejected' || isExpiredPending(a)
   ).sort((a, b) => byDateTime(b, a));
 
   const teacherAvailability = availability.filter((av) => av.teacherId === teacherProfileId);
@@ -145,7 +148,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
         <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><a className="inline-flex items-center gap-1" href={`tel:${appointment.parentPhone}`} aria-label={`Veliyi ara: ${formatTurkishPhoneInput(appointment.parentPhone)}`}><Phone size={15} />{formatTurkishPhoneInput(appointment.parentPhone)}</a></div>
         {appointment.notes && <p className="mt-4 p-3 bg-slate-50 rounded-xl">Veli notu: {appointment.notes}</p>}
         {appointment.rejectionReason && <p className="mt-3">Ret gerekçesi: {appointment.rejectionReason}</p>}
-        {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : appointment.status === 'booked' && <div className="appointment-actions"><Button variant="quiet" disabled={busy} onClick={() => setCancelingApt(appointment)}>İptal et</Button></div>}
+        {isExpiredPending(appointment) ? <p className="mt-3 text-sm text-slate-500">Saati geçtiği için bu talep artık onaylanamaz.</p> : appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : appointment.status === 'booked' && <div className="appointment-actions"><Button variant="quiet" disabled={busy} onClick={() => setCancelingApt(appointment)}>İptal et</Button></div>}
       </div>
     </article>
   );

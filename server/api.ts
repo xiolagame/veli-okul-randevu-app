@@ -21,6 +21,7 @@ import {
 import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
+import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
 import { normalizeLicenseCode } from '../src/utils/license-code';
@@ -72,6 +73,9 @@ import {
 
 const PARENT_AUTH_ERROR = 'Bilgiler okul kayıtlarıyla eşleşmedi. Lütfen bilgilerinizi kontrol edin veya okul yönetimiyle iletişime geçin.';
 const PHONE_IDENTITY_CONFLICT_ERROR = 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı. Lütfen okul yönetimiyle iletişime geçin.';
+// Veli QR anahtarını yalnız öğretmen onayından sonra alır; onay bekleyen/iptal/ret randevuda QR yoktur.
+const forParent = (appointment: Appointment) =>
+  appointment.status === 'booked' || appointment.status === 'checked_in' ? appointment : withoutQrToken(appointment);
 const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> => {
   const { qrToken: _qrToken, ...safeAppointment } = appointment;
   return safeAppointment;
@@ -1509,7 +1513,7 @@ apiRouter.get('/schools/:schoolId/appointments', authMiddleware, tenantGuard(), 
       userId,
       ...(teacher ? { teacherProfileId: teacher.id } : {}),
     });
-    res.json({ appointments: role === 'parent' ? appointments : appointments.map(withoutQrToken) });
+    res.json({ appointments: role === 'parent' ? appointments.map(forParent) : appointments.map(withoutQrToken) });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/appointments Error]:', err);
     res.status(500).json({ error: 'Randevular alınamadı' });
@@ -1533,6 +1537,12 @@ apiRouter.post(
           !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) || endTime <= startTime) {
         return res.status(400).json({ error: 'Geçerli tarih ve saat seçin.' });
       }
+      // Geçmiş tarih/saat hiç kimse için; 14 günden ileri tarih veli için kabul edilmez (İstanbul saati).
+      const timeProblem = bookingTimeProblem(date, startTime);
+      if (timeProblem === 'PAST') return res.status(400).json({ error: 'Geçmiş bir tarih veya saat için randevu alınamaz.' });
+      if (timeProblem === 'TOO_FAR' && req.membership!.role === 'parent') {
+        return res.status(400).json({ error: `Randevu en fazla ${MAX_BOOKING_DAYS_AHEAD} gün sonrası için alınabilir.` });
+      }
       // 1. Teacher must exist in this school
       const teacher = await teacherRepository.getTeacherById(schoolId, teacherId);
       if (!teacher) {
@@ -1554,7 +1564,7 @@ apiRouter.post(
 
         if (!selectedStudentId) {
           return res.status(403).json({
-            error: 'VERİ BÜTÜNLÜĞÜ VE YETKİ HATASI: Belirtilen öğrenci bu okulda veli hesabınıza tanımlı değildir! Başka bir okulun veya velinin öğrencisi için randevu oluşturulamaz.',
+            error: 'Seçilen öğrenci bu okulda hesabınıza tanımlı değil. Öğrenci bilgilerini kontrol edin veya okul yönetimiyle iletişime geçin.',
           });
         }
       }
@@ -1578,6 +1588,18 @@ apiRouter.post(
           const invalid = new Error('Öğrenci eşleşmesi doğrulanamadı.');
           Object.assign(invalid, { code: 'STUDENT_UNAVAILABLE' });
           throw invalid;
+        }
+        // Aynı öğrenci için aynı öğretmenle aynı anda yalnız bir açık (bekleyen/onaylı, ileri tarihli) randevu.
+        if (req.membership!.role === 'parent') {
+          const open = await tx.query(
+            `SELECT 1 FROM appointments WHERE school_id=$1 AND teacher_id=$2 AND student_id=$3
+               AND status IN ('pending','booked') AND date >= $4 LIMIT 1`,
+            [schoolId, teacher.id, selectedStudentId, bookingWindow().firstDate]);
+          if (open.rows.length) {
+            const duplicate = new Error('Açık randevu var.');
+            Object.assign(duplicate, { code: 'OPEN_APPOINTMENT_EXISTS' });
+            throw duplicate;
+          }
         }
         const activeTeacher = await tx.query(
           `SELECT tp.id FROM teacher_profiles tp JOIN users u ON u.id=tp.user_id
@@ -1683,9 +1705,10 @@ apiRouter.post(
       }
 
       await dispatchPushDeliveries(undefined, 50, newApt.id).catch(() => {});
-      res.json({ success: true, appointment: req.membership!.role === 'parent' ? newApt : withoutQrToken(newApt) });
+      res.json({ success: true, appointment: req.membership!.role === 'parent' ? forParent(newApt) : withoutQrToken(newApt) });
     } catch (err: any) {
       if (err.code === 'STUDENT_UNAVAILABLE') return res.status(409).json({ error: 'Öğrenci eşleşmesi doğrulanamadı.' });
+      if (err.code === 'OPEN_APPOINTMENT_EXISTS') return res.status(409).json({ error: 'Bu öğrenciniz için bu öğretmenle zaten bekleyen veya onaylı bir randevunuz var. Yeni randevu için önce mevcut randevuyu iptal edin.' });
       if (err.code === 'SCHOOL_UNAVAILABLE') return res.status(403).json({ error: 'Okul kullanılamıyor.' });
       if (err.code === 'TEACHER_UNAVAILABLE') return res.status(409).json({ error: 'Bu öğretmen şu anda randevu kabul etmiyor.' });
       if (err.code === 'SLOT_UNAVAILABLE') return res.status(409).json({ error: 'Öğretmen bu gün ve saatte randevu kabul etmiyor. Lütfen başka bir zaman seçin.' });
@@ -1793,6 +1816,10 @@ apiRouter.post(
         if (!teacher || apt.teacherId !== teacher.id) {
           return res.status(403).json({ error: 'Yetkisiz İşlem: Yalnızca kendi randevularınızı onaylayabilirsiniz.' });
         }
+      }
+
+      if (apt.status === 'pending' && !isSlotInFuture(apt.date, apt.startTime)) {
+        return res.status(409).json({ error: 'Bu randevunun saati geçti; artık onaylanamaz.' });
       }
 
       const db = await getDb();
@@ -1964,7 +1991,7 @@ apiRouter.post(
         return res.status(404).json({ error: 'Randevu bulunamadı' });
       }
 
-      res.json({ success: true, appointment: req.membership!.role === 'parent' ? updated : withoutQrToken(updated) });
+      res.json({ success: true, appointment: req.membership!.role === 'parent' ? forParent(updated) : withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/cancel Error]:', err);
       res.status(500).json({ error: 'Randevu iptal edilirken hata oluştu' });

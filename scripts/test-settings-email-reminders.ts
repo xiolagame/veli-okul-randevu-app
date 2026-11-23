@@ -8,6 +8,7 @@ import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/util
 import { renderBrandedEmail } from '../server/email-template';
 import { schoolAdminEmail } from '../server/school-admin-email';
 import { getPublicOrigin } from '../server/public-origin';
+import { sameWeekdayInWindow } from './lib/test-dates';
 
 let stage = 'setup';
 
@@ -180,14 +181,14 @@ async function run() {
     assert.equal((createdWindow.body.slot as { slotDurationMinutes: number }).slotDurationMinutes, 20);
     const availabilityA = await request('GET', `/schools/${schoolA}/availability`, parentA.token);
     assert((availabilityA.body.availability as { slotDurationMinutes: number }[]).every((slot) => slot.slotDurationMinutes === 20));
-    const bookingA = { teacherId: teacherA, studentName: 'STUDENT A', className: '5-A', date: '2090-01-02', notes: '' };
+    const bookingA = { teacherId: teacherA, studentName: 'STUDENT A', className: '5-A', date: sameWeekdayInWindow('2090-01-02'), notes: '' };
     assert.equal((await request('POST', `/schools/${schoolA}/appointments`, parentA.token,
       { ...bookingA, startTime: '09:15', endTime: '09:35' })).status, 409);
     assert.equal((await request('POST', `/schools/${schoolA}/appointments`, parentA.token,
       { ...bookingA, startTime: '09:20', endTime: '09:40' })).status, 200);
     assert.equal((await request('POST', `/schools/${schoolA}/appointments`, parentA.token,
       { ...bookingA, startTime: '09:20', endTime: '09:40' })).status, 409);
-    const bookingB = { teacherId: teacherB, studentName: 'STUDENT B', className: '5-A', date: '2090-01-02', notes: '' };
+    const bookingB = { teacherId: teacherB, studentName: 'STUDENT B', className: '5-A', date: sameWeekdayInWindow('2090-01-02'), notes: '' };
     assert.equal((await request('POST', `/schools/${schoolB}/appointments`, parentB.token,
       { ...bookingB, startTime: '09:15', endTime: '09:30' })).status, 200);
 

@@ -19,6 +19,7 @@ import { initDatabase, getDb } from '../server/database/postgres';
 import { bootstrapLocalPasswordFixtures, loginLocalStaffWithWhatsApp } from './test-auth-fixtures';
 import { calendarWeekday } from '../src/utils/appointment-slots';
 import { displayStoredTurkishPhone } from '../src/utils/phone';
+import { sameWeekdayInWindow, bookableDate } from './lib/test-dates';
 import {
   appointmentRepository,
   availabilityRepository,
@@ -282,8 +283,9 @@ async function runSecurityAudit() {
     const teacherKazan = kazanTeachers.find((teacher) => teacher.userId === t1TokenRes.body.user.id);
     if (!teacherKazan) throw new Error('Active audit teacher fixture missing.');
     const freeDate = async (month: string, time: string) => {
-      for (let day = 1; day <= 28; day++) {
-        const date = `2090-${month}-${String(day).padStart(2, '0')}`;
+      // 14 gün kuralı: tarihler bugünden sonraki 14 gün içinden seçilir (month yalnız başlangıç kaydırması).
+      for (let offset = 0; offset < 14; offset++) {
+        const date = bookableDate(((Number(month) * 4 + offset) % 14) + 1);
         const weekday = calendarWeekday(date);
         if (weekday && !await appointmentRepository.findConflictingAppointment('sch-kazan-01', teacherKazan.id, date, time)) {
           const slot = await availabilityRepository.createSlot({ schoolId: 'sch-kazan-01', teacherId: teacherKazan.id,
@@ -435,6 +437,8 @@ async function runSecurityAudit() {
 
     // 5.H & 5.I: Slot cancellation and re-booking behavior
     // First, let's create a fresh appointment, cancel it, and verify slot can be re-booked!
+    // Tek açık randevu kuralı (aynı öğrenci + öğretmen): önceki bölümün açık randevuları kapatılır.
+    await (await getDb()).query("UPDATE appointments SET status='cancelled' WHERE school_id='sch-kazan-01' AND status IN ('pending','booked')");
     const slotDate = await freeDate('02', '09:00');
     const slotTime = '09:00';
     const aptH1 = await makeReq('POST', '/schools/sch-kazan-01/appointments', {
@@ -562,6 +566,8 @@ async function runSecurityAudit() {
     // =========================================================================
     console.log('\n--- BÖLÜM 7: CONCURRENCY DOUBLE-BOOKING TESTİ (idx_appointments_no_double_booking) ---');
 
+    // Tek açık randevu kuralı (aynı öğrenci + öğretmen): önceki bölümün açık randevuları kapatılır.
+    await (await getDb()).query("UPDATE appointments SET status='cancelled' WHERE school_id='sch-kazan-01' AND status IN ('pending','booked')");
     const concurrentDate = await freeDate('03', '15:00');
     const concurrentTime = '15:00';
 

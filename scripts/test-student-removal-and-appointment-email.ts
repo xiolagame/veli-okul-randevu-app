@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import express from 'express';
+import { sameWeekdayInWindow, bookableDate } from './lib/test-dates';
 
 let stage = 'setup';
 
@@ -96,7 +97,7 @@ async function run() {
       [teacherProfileA, schoolA, teacherA.id, teacherA.phone, teacherProfileB, teacherB.id, teacherB.phone]);
     for (const teacherId of [teacherProfileA, teacherProfileB]) await db.query(
       `INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
-       VALUES($1,$2,EXTRACT(DOW FROM DATE '2090-01-02'),'10:00','14:00',15)`, [schoolA, teacherId]);
+       VALUES($1,$2,EXTRACT(DOW FROM DATE '${sameWeekdayInWindow('2090-01-02')}'),'10:00','14:00',15)`, [schoolA, teacherId]);
     const removal = (id: string) => `${schoolPath}/management/students/${id}/removal`;
     stage = 'removal authorization';
     for (const token of [parentOnly.token, teacherA.token, security.token, otherAdmin.token]) {
@@ -106,7 +107,7 @@ async function run() {
     assert.equal((await db.query('SELECT id FROM students WHERE id=$1', [foreignStudent])).rows.length, 1);
 
     const booking = { teacherId: teacherProfileA, studentName: 'ONLY STUDENT', className: '5-A',
-      date: '2090-01-02', startTime: '10:00', endTime: '10:15', notes: 'Görüşmede <b>deneme sınavını</b> konuşmak istiyorum.' };
+      date: sameWeekdayInWindow('2090-01-02'), startTime: '10:00', endTime: '10:15', notes: 'Görüşmede <b>deneme sınavını</b> konuşmak istiyorum.' };
     stage = 'booking and email';
     const booked = await request('POST', `${schoolPath}/appointments`, parentOnly.token, booking);
     assert.equal(booked.status, 200);
@@ -116,7 +117,7 @@ async function run() {
     assert(messages[0].html.includes('data-email-preheader'));
     assert.deepEqual(messages[0].to, ['teacher-a@example.test']);
     for (const text of ['ONLY STUDENT', '5-A', (booked.body.appointment as { parentName: string }).parentName,
-      '02/01/2090', '10:00', '10:15', 'Randevu Talebini İncele', 'Veli Notu', '&lt;b&gt;deneme sınavını&lt;/b&gt;']) {
+      sameWeekdayInWindow('2090-01-02').split('-').reverse().join('/'), '10:00', '10:15', 'Randevu Talebini İncele', 'Veli Notu', '&lt;b&gt;deneme sınavını&lt;/b&gt;']) {
       assert(messages[0].html.includes(text));
     }
     assert(!messages[0].html.includes('<b>deneme sınavını</b>'));
@@ -147,6 +148,8 @@ async function run() {
 
     const siblingBooking = { ...booking, studentName: 'SIBLING ONE' };
     async function reviewFixture(startTime: string, endTime: string) {
+      // Tek açık randevu kuralı (aynı öğrenci + öğretmen): önceki fikstürün kontrolleri bittiği için kapatılır.
+      await db.query("UPDATE appointments SET status='cancelled' WHERE student_name='SIBLING ONE' AND status IN ('pending','booked')");
       const result = await request('POST', `${schoolPath}/appointments`, parentSibling.token,
         { ...siblingBooking, startTime, endTime });
       assert.equal(result.status, 200);
@@ -174,7 +177,7 @@ async function run() {
     stage = 'appointment binding';
     const wrongBinding = await reviewFixture('13:00', '13:15');
     await db.query('UPDATE invitations SET description=$2 WHERE token=$1',
-      [hashSetupToken(wrongBinding.token), JSON.stringify({ a: wrongBinding.appointmentId, t: teacherProfileA, d: '2090-01-02', s: '10:00', e: '10:15' })]);
+      [hashSetupToken(wrongBinding.token), JSON.stringify({ a: wrongBinding.appointmentId, t: teacherProfileA, d: sameWeekdayInWindow('2090-01-02'), s: '10:00', e: '10:15' })]);
     assert.equal((await request('GET', reviewPath, teacherA.token, undefined, wrongBinding.token)).status, 404);
     assert.equal((await request('POST', `${reviewPath}/approve`, teacherA.token, undefined, wrongBinding.token)).status, 404);
     assert.equal((await db.query('SELECT status FROM appointments WHERE id=$1', [wrongBinding.appointmentId])).rows[0].status, 'pending');
