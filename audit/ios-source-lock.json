@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "c57635047e4ba04d2ec66c02e6596a48a4cd516fabe3a5991e355a98331f2ad5"
+      "sha256": "388cc570e392aa765ea076108af8933e42161a4e4c789e868f49b9bae3fcf377"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "5763e709b8d1766605298b28161031449c52f9e9281991f3b462c8c193c98723"
+      "sha256": "fbfa497747dbb476f987bbbfd269f0fbfc92b70cf37abf9bc1b9b1f868671e62"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -578,7 +578,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "02499f23b2aaaade1d377b2c40aaf7a1cd75dcd1a4af99004a555dddc3275314"
+      "sha256": "b23e5791264a69608e1d87671dc0c9e9292c27d43b8a6c517b40f8529b29e9d9"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -830,7 +830,7 @@
     },
     {
       "path": "scripts/test-appointment-slot-visibility.ts",
-      "sha256": "58693aa69250a672cb64262353723056a9850e64af60719a25a5d5479a8e4888"
+      "sha256": "581c64833f8455b619fecd82e794fc872b7abffaae7d0448b297e1897e319df0"
     },
     {
       "path": "scripts/test-auth-capabilities-client.mjs",
@@ -843,6 +843,10 @@
     {
       "path": "scripts/test-auth-performance-ui.mjs",
       "sha256": "6ee246e04cd0a6a8cd9bc6086dafe4a3b4f0f84bac937db1499f796602cc8234"
+    },
+    {
+      "path": "scripts/test-availability-form.ts",
+      "sha256": "e3118b519fd31edf4c14df80a0bdabf2d9ab79dc1c33b8bd3a1497f7ac1aa259"
     },
     {
       "path": "scripts/test-booking-window.ts",
@@ -954,7 +958,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "26ffe8431d279db4545a620e6b8eadfa2e78dc7abeca6337ac173de93036e47a"
+      "sha256": "e8a6a223a2de0dab9f3fd534e0c00499d2252bebfcc336c7e048c7cdbc3ed7ef"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1597,6 +1601,10 @@
       "sha256": "05acbe62d867a59695629e0199a5697cb7da3269381c5f736c6ae4eee694ca75"
     },
     {
+      "path": "src/booking-calendar.css",
+      "sha256": "cd51ad272b88b4f6e852249f7650f0e75da348671de873efc9533fe031ea764c"
+    },
+    {
       "path": "src/components/AdminView.tsx",
       "sha256": "2f5d89ec4459dcceb9b7d59c23c5254f39d6b452fbb2b15e5f3949836adf63b2"
     },
@@ -1614,7 +1622,11 @@
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
-      "sha256": "98cea06b9f02db898b73bef1f5e213a310723fe81624cc1adf310726a9afe9f3"
+      "sha256": "6d67ae215abd3325734b04b820b8848dfaaa2d65a6123a8fc6da895999674364"
+    },
+    {
+      "path": "src/components/AvailabilityForm.tsx",
+      "sha256": "8682fdea2689d4fd84ea4b603722a5e07e4773e1750bdaa9215e5afbbd635e8b"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -1646,7 +1658,7 @@
     },
     {
       "path": "src/components/LicenseManagement.tsx",
-      "sha256": "be31a4e98111855c2653015efbe8bf5de14f13613bbc8f75a780c4d4810b615d"
+      "sha256": "62b24d8f7fc821b6c1b6d39964238773744fea87e14b3f954cdef372eb054e62"
     },
     {
       "path": "src/components/LicenseWhatsAppPanel.tsx",
@@ -1682,7 +1694,7 @@
     },
     {
       "path": "src/components/ParentView.tsx",
-      "sha256": "20407e27b75018f058e194d50ecdd83bd48ab299169e0d9696a0a11077424c15"
+      "sha256": "06b3d9e2524df5593982e49787614ea0f3959d149c5acd0a5591b8102c3f2b94"
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
@@ -1694,7 +1706,7 @@
     },
     {
       "path": "src/components/PlatformPricing.tsx",
-      "sha256": "14a7ea699ce4dabe793480d77654be89a1b4b94a8735d8373afdc1f7f7401602"
+      "sha256": "15260442b62fab1cba7b2c339c1803d840074b3492c61b95e4739432aa10e6cb"
     },
     {
       "path": "src/components/PlatformRequestCenter.tsx",
@@ -1722,7 +1734,7 @@
     },
     {
       "path": "src/components/SchoolAdminManagement.tsx",
-      "sha256": "68beddf022c105ac5993448b1e191ce40369703412633eda2c5ff625f3856a6f"
+      "sha256": "f043e9c76f3832ccde17c9270f422fdc561aed2bd6f9f7252c3128a5e7328598"
     },
     {
       "path": "src/components/SchoolInfo.tsx",
@@ -1730,7 +1742,7 @@
     },
     {
       "path": "src/components/SchoolManagement.tsx",
-      "sha256": "065a2ade0051d2e76d9bbf3089bfe55cccb5ce1d55a26b71585ff049ea73c55d"
+      "sha256": "4b69013770efa1f0f1814113430ed962a511576d501577a0c23993fbf0f3cfc0"
     },
     {
       "path": "src/components/SchoolRequestCenter.tsx",
@@ -1746,7 +1758,7 @@
     },
     {
       "path": "src/components/StudentManagement.tsx",
-      "sha256": "7a8b30a9e18b6ff03c75dc11c0bff43c36ed2038f04ad0ad2e075173c7037453"
+      "sha256": "db5bd8bb3feb59a8fb028dacf93eed8752436505add6dabc9d6ea283f1a59730"
     },
     {
       "path": "src/components/SupportConversation.tsx",
@@ -1754,7 +1766,7 @@
     },
     {
       "path": "src/components/TeacherView.tsx",
-      "sha256": "7b18ca507d4ec3e6a23af0b3289c3d195ed01c94c788d5f691adfacbc47f93d1"
+      "sha256": "b51fb4c16cbc813c02f6147da88009ece79cde2ac19336e0c79d24c3fd65df4b"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -1802,7 +1814,7 @@
     },
     {
       "path": "src/components/ui.tsx",
-      "sha256": "0233f2363bb628eb93aa872b4ed41c9e49d22e0137b5f36afa0fec6508a3c9bb"
+      "sha256": "4c80821306d6c7e0f3f3d9795b0aa68c6a042cdd767b2a392f97c463ae1a86fb"
     },
     {
       "path": "src/components/useHomeRefresh.tsx",
@@ -1830,7 +1842,7 @@
     },
     {
       "path": "src/main.tsx",
-      "sha256": "18756caafdd77712d29baa6946e6b19669d83bf561882478a386b545dd2d9100"
+      "sha256": "e6905f0fe0fb781ebe46877ca94d5ca21699666712122bbefb8a346e827426d2"
     },
     {
       "path": "src/mobile-compact.css",
@@ -2031,6 +2043,10 @@
     {
       "path": "src/utils/audit-display.ts",
       "sha256": "473266f76c1e9dd7477e689396d05975c08ad4f8da3605ceb260d6c025cb45e0"
+    },
+    {
+      "path": "src/utils/availability-form.ts",
+      "sha256": "17f8ce0278afbe02df62460e27cc124f722c97ee50f475fd19942c9cd35b4598"
     },
     {
       "path": "src/utils/availability.ts",

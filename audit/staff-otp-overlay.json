@@ -24,7 +24,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "5763e709b8d1766605298b28161031449c52f9e9281991f3b462c8c193c98723"
+      "currentCanonicalSha256": "fbfa497747dbb476f987bbbfd269f0fbfc92b70cf37abf9bc1b9b1f868671e62"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -72,7 +72,7 @@
       "path": "package.json",
       "baselineCanonicalSha256": "2f953b5ec9dc86960a62dfc28fc4868e1d1664c2a70c185f2d431c3dad4b0fe4",
       "archivedProductionCanonicalSha256": "39fd20d062c83303d01ee7ec3bf3106e46e51e4bd6ff902fbb4253b25ab8fedb",
-      "currentCanonicalSha256": "02499f23b2aaaade1d377b2c40aaf7a1cd75dcd1a4af99004a555dddc3275314"
+      "currentCanonicalSha256": "b23e5791264a69608e1d87671dc0c9e9292c27d43b8a6c517b40f8529b29e9d9"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -198,7 +198,7 @@
       "path": "scripts/test-appointment-slot-visibility.ts",
       "baselineCanonicalSha256": "7dc2a66f50e851a885269a2a3d1fff94a4fe016bf1bf52c4eecc018d2b62f900",
       "archivedProductionCanonicalSha256": "1cd86f775a101aed4d7f44a905ebbeb75d79ce1dd0883c1f82c48c92340accf9",
-      "currentCanonicalSha256": "58693aa69250a672cb64262353723056a9850e64af60719a25a5d5479a8e4888"
+      "currentCanonicalSha256": "581c64833f8455b619fecd82e794fc872b7abffaae7d0448b297e1897e319df0"
     },
     {
       "path": "scripts/test-auth-capabilities-client.mjs",
@@ -211,6 +211,12 @@
       "baselineCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
       "archivedProductionCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
       "currentCanonicalSha256": "2403ba1a886a0f4c80498bdf482ca8ac19bb43615062ce6ea688a968dc155007"
+    },
+    {
+      "path": "scripts/test-availability-form.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "e3118b519fd31edf4c14df80a0bdabf2d9ab79dc1c33b8bd3a1497f7ac1aa259"
     },
     {
       "path": "scripts/test-booking-window.ts",
@@ -294,7 +300,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "26ffe8431d279db4545a620e6b8eadfa2e78dc7abeca6337ac173de93036e47a"
+      "currentCanonicalSha256": "e8a6a223a2de0dab9f3fd534e0c00499d2252bebfcc336c7e048c7cdbc3ed7ef"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -669,6 +675,12 @@
       "currentCanonicalSha256": "7497e479bf89840526b784377d0c546cd7eda1feabb23723b2d098c0532740a3"
     },
     {
+      "path": "src/booking-calendar.css",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "cd51ad272b88b4f6e852249f7650f0e75da348671de873efc9533fe031ea764c"
+    },
+    {
       "path": "src/components/AdminView.tsx",
       "baselineCanonicalSha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff",
       "archivedProductionCanonicalSha256": "6769e74dc48198b4133cd67e005ff5ef5c02e7320dcd143f6a2f173f99f22cff",
@@ -684,7 +696,13 @@
       "path": "src/components/AvailabilityCalendar.tsx",
       "baselineCanonicalSha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51",
       "archivedProductionCanonicalSha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51",
-      "currentCanonicalSha256": "98cea06b9f02db898b73bef1f5e213a310723fe81624cc1adf310726a9afe9f3"
+      "currentCanonicalSha256": "6d67ae215abd3325734b04b820b8848dfaaa2d65a6123a8fc6da895999674364"
+    },
+    {
+      "path": "src/components/AvailabilityForm.tsx",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "8682fdea2689d4fd84ea4b603722a5e07e4773e1750bdaa9215e5afbbd635e8b"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -726,7 +744,7 @@
       "path": "src/components/LicenseManagement.tsx",
       "baselineCanonicalSha256": "fa33746f7938fca2c9bc7c031d6bb809aa5e9ab07f5b394ab65767f38be0c78a",
       "archivedProductionCanonicalSha256": "cbf2a1d32d750e72549bae1068f2e61bb5a575d32d9f657e7900b0ea5be9e7fe",
-      "currentCanonicalSha256": "be31a4e98111855c2653015efbe8bf5de14f13613bbc8f75a780c4d4810b615d"
+      "currentCanonicalSha256": "62b24d8f7fc821b6c1b6d39964238773744fea87e14b3f954cdef372eb054e62"
     },
     {
       "path": "src/components/ManagementActions.tsx",
@@ -756,7 +774,7 @@
       "path": "src/components/ParentView.tsx",
       "baselineCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
       "archivedProductionCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
-      "currentCanonicalSha256": "20407e27b75018f058e194d50ecdd83bd48ab299169e0d9696a0a11077424c15"
+      "currentCanonicalSha256": "06b3d9e2524df5593982e49787614ea0f3959d149c5acd0a5591b8102c3f2b94"
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
@@ -768,7 +786,7 @@
       "path": "src/components/PlatformPricing.tsx",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "14a7ea699ce4dabe793480d77654be89a1b4b94a8735d8373afdc1f7f7401602"
+      "currentCanonicalSha256": "15260442b62fab1cba7b2c339c1803d840074b3492c61b95e4739432aa10e6cb"
     },
     {
       "path": "src/components/PublicRequestPage.tsx",
@@ -792,7 +810,7 @@
       "path": "src/components/SchoolAdminManagement.tsx",
       "baselineCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
       "archivedProductionCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
-      "currentCanonicalSha256": "68beddf022c105ac5993448b1e191ce40369703412633eda2c5ff625f3856a6f"
+      "currentCanonicalSha256": "f043e9c76f3832ccde17c9270f422fdc561aed2bd6f9f7252c3128a5e7328598"
     },
     {
       "path": "src/components/SchoolInfo.tsx",
@@ -804,7 +822,7 @@
       "path": "src/components/SchoolManagement.tsx",
       "baselineCanonicalSha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d",
       "archivedProductionCanonicalSha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d",
-      "currentCanonicalSha256": "065a2ade0051d2e76d9bbf3089bfe55cccb5ce1d55a26b71585ff049ea73c55d"
+      "currentCanonicalSha256": "4b69013770efa1f0f1814113430ed962a511576d501577a0c23993fbf0f3cfc0"
     },
     {
       "path": "src/components/SchoolRequestCenter.tsx",
@@ -828,13 +846,13 @@
       "path": "src/components/StudentManagement.tsx",
       "baselineCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
       "archivedProductionCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
-      "currentCanonicalSha256": "7a8b30a9e18b6ff03c75dc11c0bff43c36ed2038f04ad0ad2e075173c7037453"
+      "currentCanonicalSha256": "db5bd8bb3feb59a8fb028dacf93eed8752436505add6dabc9d6ea283f1a59730"
     },
     {
       "path": "src/components/TeacherView.tsx",
       "baselineCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
       "archivedProductionCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
-      "currentCanonicalSha256": "7b18ca507d4ec3e6a23af0b3289c3d195ed01c94c788d5f691adfacbc47f93d1"
+      "currentCanonicalSha256": "b51fb4c16cbc813c02f6147da88009ece79cde2ac19336e0c79d24c3fd65df4b"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -888,7 +906,7 @@
       "path": "src/components/ui.tsx",
       "baselineCanonicalSha256": "17e17706d20875dd4513c531d90883b786f992f68f8eb43434a87a5068c285fb",
       "archivedProductionCanonicalSha256": "db78c3449f451013ea36ab52a5648155e5fcb5693098b497cbb782d5cf39143e",
-      "currentCanonicalSha256": "0233f2363bb628eb93aa872b4ed41c9e49d22e0137b5f36afa0fec6508a3c9bb"
+      "currentCanonicalSha256": "4c80821306d6c7e0f3f3d9795b0aa68c6a042cdd767b2a392f97c463ae1a86fb"
     },
     {
       "path": "src/components/web-welcome.css",
@@ -918,7 +936,7 @@
       "path": "src/main.tsx",
       "baselineCanonicalSha256": "44c81764d1c9c36b41601c32917b65e50cec6080343ba8ae059933a1703d4960",
       "archivedProductionCanonicalSha256": "6690b22ce8090911bc86f274cd60cc3fdd9760e1885ca82e0dd6adeb4c9b6473",
-      "currentCanonicalSha256": "18756caafdd77712d29baa6946e6b19669d83bf561882478a386b545dd2d9100"
+      "currentCanonicalSha256": "e6905f0fe0fb781ebe46877ca94d5ca21699666712122bbefb8a346e827426d2"
     },
     {
       "path": "src/mobile-compact.css",
@@ -985,6 +1003,12 @@
       "baselineCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
       "archivedProductionCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
       "currentCanonicalSha256": "fc3752d92a933c86c99d8d8645f5b63bb1f554eea25c73c7d5184905579dee11"
+    },
+    {
+      "path": "src/utils/availability-form.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "17f8ce0278afbe02df62460e27cc124f722c97ee50f475fd19942c9cd35b4598"
     },
     {
       "path": "src/utils/booking-window.ts",
