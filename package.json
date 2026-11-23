@@ -29,6 +29,7 @@
     "test:whatsapp-auth": "tsx scripts/test-whatsapp-auth.ts",
     "test:test-login": "tsx scripts/test-test-login.ts",
     "test:booking-window": "tsx scripts/test-booking-window.ts",
+    "test:availability-form": "tsx scripts/test-availability-form.ts",
     "test:whatsapp-unified": "tsx scripts/test-unified-whatsapp-login.ts",
     "test:whatsapp-login-ui": "tsx scripts/test-whatsapp-login-ui.ts",
     "test:whatsapp-migrations": "tsx scripts/test-whatsapp-migrations.ts",

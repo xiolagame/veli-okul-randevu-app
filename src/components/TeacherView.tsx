@@ -6,6 +6,8 @@ import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, 
 import { ApiError } from '../platform/api-error';
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { isSlotInFuture } from '../utils/booking-window';
+import { AvailabilityForm } from './AvailabilityForm';
+import { planAvailabilityAdditions } from '../utils/availability-form';
 import { AVAILABILITY_DAYS, groupAvailabilityByDay } from '../utils/availability';
 import {
   Calendar,
@@ -61,10 +63,6 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   // Onaylanmış randevu tek dokunuşla iptal edilmesin: önce onay penceresi.
   const [cancelingApt, setCancelingApt] = useState<Appointment | null>(null);
 
-  // New Availability Slot State
-  const [newDay, setNewDay] = useState<number>(1);
-  const [newStartTime, setNewStartTime] = useState<string>('09:30');
-  const [newEndTime, setNewEndTime] = useState<string>('11:30');
 
   // The API already scopes teacher appointments from the authenticated user.
   const teacherAppointments = appointments;
@@ -110,22 +108,36 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
     }
   };
 
-  const handleAddSlot = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!newStartTime || !newEndTime || newStartTime >= newEndTime) {
-      setFeedback({ message: 'Bitiş saati başlangıç saatinden sonra olmalı.', failed: true });
+  // Seçilen günlerin her birine aynı saat aralığını ekler; çakışan günler atlanır ve ayrıca bildirilir.
+  const handleAddSlots = async (days: number[], startTime: string, endTime: string) => {
+    const dayName = (id: number) => AVAILABILITY_DAYS.find((day) => day.id === id)?.name || '';
+    const { add, conflicts } = planAvailabilityAdditions(teacherAvailability, days, startTime, endTime);
+    if (!add.length) {
+      setFeedback({ message: `Bu saat aralığı seçtiğiniz günlerde (${conflicts.map(dayName).join(', ')}) eklediğiniz başka bir aralıkla çakışıyor.`, failed: true });
       return;
     }
-    if (teacherAvailability.some((slot) => slot.dayOfWeek === newDay && slot.startTime < newEndTime && slot.endTime > newStartTime)) {
-      setFeedback({ message: 'Bu saat aralığı o gün için eklediğiniz başka bir aralıkla çakışıyor.', failed: true });
-      return;
+    setBusy(true);
+    setFeedback(null);
+    const added: number[] = [];
+    let failure = '';
+    try {
+      for (const day of add) {
+        try {
+          await addAvailabilitySlot({ dayOfWeek: day, startTime, endTime, slotDurationMinutes: settings.defaultSlotMinutes });
+          added.push(day);
+        } catch (cause) {
+          failure = cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && cause.message ? cause.message : 'İşlem tamamlanamadı. Lütfen tekrar deneyin.';
+          break;
+        }
+      }
+    } finally {
+      setBusy(false);
     }
-    void perform(() => addAvailabilitySlot({
-      dayOfWeek: newDay,
-      startTime: newStartTime,
-      endTime: newEndTime,
-      slotDurationMinutes: settings.defaultSlotMinutes,
-    }), 'Müsaitlik programınıza eklendi.');
+    const parts: string[] = [];
+    if (added.length) parts.push(`${added.map(dayName).join(', ')} için ${startTime}–${endTime} eklendi.`);
+    if (conflicts.length) parts.push(`${conflicts.map(dayName).join(', ')} çakıştığı için eklenmedi.`);
+    if (failure) parts.push(failure);
+    setFeedback({ message: parts.join(' '), failed: !!failure || !added.length });
   };
 
   const navigation = [
@@ -176,12 +188,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       </div>}
       {activeTab === 'availability' && <div className="space-y-6">
         <section className="surface"><div className="section-heading"><div><h2>Görüşme saatlerinizi belirleyin</h2><p>Velileriniz bu haftalık saatler arasından okulunuzun {settings.defaultSlotMinutes} dakikalık standart görüşme süresiyle randevu seçebilir.</p></div></div>
-          <form onSubmit={handleAddSlot} className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-            <label className="field col-span-2 lg:col-span-1" htmlFor="available-day">Gün<select id="available-day" value={newDay} onChange={(event) => setNewDay(Number(event.target.value))}>{AVAILABILITY_DAYS.map((day) => <option key={day.id} value={day.id}>{day.name}</option>)}</select></label>
-            <label className="field" htmlFor="available-start">Başlangıç<input id="available-start" type="time" value={newStartTime} onChange={(event) => setNewStartTime(event.target.value)} required /></label>
-            <label className="field" htmlFor="available-end">Bitiş<input id="available-end" type="time" value={newEndTime} onChange={(event) => setNewEndTime(event.target.value)} required /></label>
-            <Button type="submit" className="col-span-2 lg:col-span-1" disabled={busy}><Plus size={17} />Programa ekle</Button>
-          </form>
+          <AvailabilityForm durationMinutes={settings.defaultSlotMinutes} busy={busy} onSubmit={(days, start, end) => { void handleAddSlots(days, start, end); }} />
         </section>
         <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-3">{availabilityGroups.map((day) => <section key={day.id} className="availability-day" aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-2"><p className="text-sm font-semibold text-slate-700">{slot.startTime} – {slot.endTime}</p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
       </div>}
