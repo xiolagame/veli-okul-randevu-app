@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "7fd4ba57a01744c31313e14bf685c81b04d625e065f5fce228818fb7fe96bf43"
+      "sha256": "c57635047e4ba04d2ec66c02e6596a48a4cd516fabe3a5991e355a98331f2ad5"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "a3081158cc984092632d752504cb7af51cd67cabfc63a685a3c025c522e9da48"
+      "sha256": "5763e709b8d1766605298b28161031449c52f9e9281991f3b462c8c193c98723"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -562,7 +562,7 @@
     },
     {
       "path": "netlify/functions/appointment-reminders.ts",
-      "sha256": "fd2ac6412329616b8e14ba6e06885f34a44136209cfe96b99f902e528e4e105d"
+      "sha256": "1d3e0e89f8964f9818abf317d7b83c2378ea3707e08901d48cfa783fb429ad4c"
     },
     {
       "path": "ops/staff-otp/preflight.sql",
@@ -578,7 +578,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "0ab2226763af3a2a4ffb905d830e4dfee69d495f9fd2d6e1a07deed9e1b0e5f1"
+      "sha256": "02499f23b2aaaade1d377b2c40aaf7a1cd75dcd1a4af99004a555dddc3275314"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -725,6 +725,10 @@
       "sha256": "49ebfad702f9e219402e117edd9a7837a23397b3297cc1cea241db7fcf06c83c"
     },
     {
+      "path": "scripts/lib/test-dates.ts",
+      "sha256": "e77e49751673d085f44a4e13891914f1030579c7f5a3833cece439ffe2bc042f"
+    },
+    {
       "path": "scripts/migrate-store-to-supabase.ts",
       "sha256": "9df9a7d65df42fd20315b3cd31c37929d470009a52683dd45b8cbbcab03ee45e"
     },
@@ -826,7 +830,7 @@
     },
     {
       "path": "scripts/test-appointment-slot-visibility.ts",
-      "sha256": "cdd8fc73f5f3052e1a4c8f37e4da31ee84bad1fbf6d1e3d79dd4012af282de19"
+      "sha256": "58693aa69250a672cb64262353723056a9850e64af60719a25a5d5479a8e4888"
     },
     {
       "path": "scripts/test-auth-capabilities-client.mjs",
@@ -839,6 +843,10 @@
     {
       "path": "scripts/test-auth-performance-ui.mjs",
       "sha256": "6ee246e04cd0a6a8cd9bc6086dafe4a3b4f0f84bac937db1499f796602cc8234"
+    },
+    {
+      "path": "scripts/test-booking-window.ts",
+      "sha256": "5bbb69b59eb49a4461e79f606483fe6e02bdf5ccaec2f2f9833991bb26eda8db"
     },
     {
       "path": "scripts/test-class-card-colors.ts",
@@ -946,7 +954,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "e0ffd1d5e39857e0f7f73e4a238874d5101465199b60edf66e2aa886636dc2dc"
+      "sha256": "26ffe8431d279db4545a620e6b8eadfa2e78dc7abeca6337ac173de93036e47a"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1138,7 +1146,7 @@
     },
     {
       "path": "scripts/test-security-and-tenant-audit.ts",
-      "sha256": "1984f3d8ef1d0b221d45efc92a302f05c72d80c418037db6cba0dd1d1fce609a"
+      "sha256": "d9f1c8049d38edc7a5c5e18b2ea31e5d6e5ee9784e0d954adfd0adabb295249e"
     },
     {
       "path": "scripts/test-security-camera-lifecycle.ts",
@@ -1146,7 +1154,7 @@
     },
     {
       "path": "scripts/test-settings-email-reminders.ts",
-      "sha256": "693039ba9c679d21ea5ddf219fb4338ab4f9cb8da45b307fc15b157027a7aad7"
+      "sha256": "a6eb08d914576b32cc2131a0f1e83987a6beba3c1d60a1ee367923ca7787acf6"
     },
     {
       "path": "scripts/test-staff-excel-template.ts",
@@ -1186,7 +1194,7 @@
     },
     {
       "path": "scripts/test-student-removal-and-appointment-email.ts",
-      "sha256": "8b0d3eb22ae42b2327084a8ea0cf504cac6e20eb2ecf89e18cc30d14cf2ee49e"
+      "sha256": "a44f6238d8769fc67e0ad86ce41f81667e430be9f310afc1d913e30f56773c8f"
     },
     {
       "path": "scripts/test-support-conversations.ts",
@@ -1194,7 +1202,11 @@
     },
     {
       "path": "scripts/test-teacher-appointment-ownership.ts",
-      "sha256": "1195fa3cf40bca6763bd784905f9ec5dfa5ffa503b570bcb2b68de5db798f9de"
+      "sha256": "b8578dc7649b7199a70dfc237bca1dbef1a97ea4df87b97bda34b52a05eab552"
+    },
+    {
+      "path": "scripts/test-test-login.ts",
+      "sha256": "ef7a5c29712415652872dc06265c261abe928c7f583c66301ede76554501ccb3"
     },
     {
       "path": "scripts/test-theme-bootstrap.mjs",
@@ -1290,7 +1302,7 @@
     },
     {
       "path": "server/api.ts",
-      "sha256": "8ed2be5164fde586241481555ce0b09881abbb56836463e3b5b219a1f3a15a6e"
+      "sha256": "e165fcd7c5c6834ae91f9e4ee0b62040170ad0a3ba021ccbb2479c8bfadf0330"
     },
     {
       "path": "server/app.ts",
@@ -1310,7 +1322,7 @@
     },
     {
       "path": "server/auth.ts",
-      "sha256": "0e8ef20a39bba667eaf76867bd19b020da933a22c9c8a385dbd1d64869a5d135"
+      "sha256": "6ac04a6da5bbb39a69fa67a6bb003e1d687e51b951b7b03aa6b68067c12ed4ab"
     },
     {
       "path": "server/database/client.ts",
@@ -1498,7 +1510,7 @@
     },
     {
       "path": "server/repositories/index.ts",
-      "sha256": "03dbc3c63f8089badea338e762e7aa3a418a566d8e7578ce097ce107bc0655c9"
+      "sha256": "d889ff5c5e9d5f7371bcd57792fbcc3cfd9efdcc32d44b8ee2931d8e6ec64499"
     },
     {
       "path": "server/review-access.ts",
@@ -1565,8 +1577,12 @@
       "sha256": "4ed20753802392d97b3b2f40fa9b9d68e1741963917124df052815d7ddf017d4"
     },
     {
+      "path": "server/test-login.ts",
+      "sha256": "482a455b8ae98f2154231506b6e8decece941ddff56983acbf375a875ae6a989"
+    },
+    {
       "path": "server/whatsapp-auth.ts",
-      "sha256": "6734295474d6c956b68968cbd7f164f9a08c8eb0ab664e3a2dbc8007ff0571d5"
+      "sha256": "13ed4d36c90d95e79066e513155d85325dea4237a6c97f22ba663ee7ac9ab354"
     },
     {
       "path": "server/whatsapp-cloud.ts",
@@ -1598,7 +1614,7 @@
     },
     {
       "path": "src/components/AvailabilityCalendar.tsx",
-      "sha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51"
+      "sha256": "98cea06b9f02db898b73bef1f5e213a310723fe81624cc1adf310726a9afe9f3"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -1630,7 +1646,7 @@
     },
     {
       "path": "src/components/LicenseManagement.tsx",
-      "sha256": "fa33746f7938fca2c9bc7c031d6bb809aa5e9ab07f5b394ab65767f38be0c78a"
+      "sha256": "be31a4e98111855c2653015efbe8bf5de14f13613bbc8f75a780c4d4810b615d"
     },
     {
       "path": "src/components/LicenseWhatsAppPanel.tsx",
@@ -1646,7 +1662,7 @@
     },
     {
       "path": "src/components/Navbar.tsx",
-      "sha256": "f9d1638cbcf8177ca7efe8778a2aeb1cc5d2a7a6f77c8ccebb80689b268ad630"
+      "sha256": "f1b4b009abe64e7945552c17b8e567097c541d648e2dcf452f9a6ce981ca2aa4"
     },
     {
       "path": "src/components/NotificationsModal.tsx",
@@ -1662,15 +1678,15 @@
     },
     {
       "path": "src/components/ParentManagement.tsx",
-      "sha256": "fd1f9e6f8c3a5ee3565ed8a774b92752e23c473884a28458dc6abb346034b576"
+      "sha256": "38c5675bb91ca42961fe6dbd3d4c90bd685d3621d0919c4c38d4cd4d688563d3"
     },
     {
       "path": "src/components/ParentView.tsx",
-      "sha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d"
+      "sha256": "20407e27b75018f058e194d50ecdd83bd48ab299169e0d9696a0a11077424c15"
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
-      "sha256": "916c89bea3c0dfd7f04a186bde24549e24c2939b2548e1a0b0352f5e791d2a57"
+      "sha256": "0e8b34e592a42c3bb856dc1c1822867d3a69ca50037ad8b96ccd2180144e1564"
     },
     {
       "path": "src/components/PlatformPhoneBinding.tsx",
@@ -1694,7 +1710,7 @@
     },
     {
       "path": "src/components/QRCodePass.tsx",
-      "sha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e"
+      "sha256": "78a22b5caf7144361023e9f003b5407f87ad2cecaf0c3fc54351c922fb38eeb0"
     },
     {
       "path": "src/components/ReviewBanner.tsx",
@@ -1714,7 +1730,7 @@
     },
     {
       "path": "src/components/SchoolManagement.tsx",
-      "sha256": "746a385543a5aabc768e92d8430f4eb31c525f397caec24cde67cf9646b2bd93"
+      "sha256": "065a2ade0051d2e76d9bbf3089bfe55cccb5ce1d55a26b71585ff049ea73c55d"
     },
     {
       "path": "src/components/SchoolRequestCenter.tsx",
@@ -1722,15 +1738,15 @@
     },
     {
       "path": "src/components/SecurityView.tsx",
-      "sha256": "502f3272a4a968aaafa2f6eaee839090a911092a103d41d127a0ac84edc7eb70"
+      "sha256": "be2bbd9b3f52cb3690c6235a07facb4968aa896aedbf6e71fcd7f11356faa6dd"
     },
     {
       "path": "src/components/StaffManagement.tsx",
-      "sha256": "4ed34cf005ea09c7798e28977a69719aecbb89de3dd921b74b99926806573175"
+      "sha256": "b4866a46fc98f3a9678afafae23ee10f0948e837976c05f81b3fcd5c77d0dc91"
     },
     {
       "path": "src/components/StudentManagement.tsx",
-      "sha256": "85aa48c63be4ff6ac9a072e10dae2b6fc35041e8cfb80817c94008539d68f88e"
+      "sha256": "7a8b30a9e18b6ff03c75dc11c0bff43c36ed2038f04ad0ad2e075173c7037453"
     },
     {
       "path": "src/components/SupportConversation.tsx",
@@ -1738,7 +1754,7 @@
     },
     {
       "path": "src/components/TeacherView.tsx",
-      "sha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054"
+      "sha256": "7b18ca507d4ec3e6a23af0b3289c3d195ed01c94c788d5f691adfacbc47f93d1"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -1802,7 +1818,7 @@
     },
     {
       "path": "src/context/AppContext.tsx",
-      "sha256": "6de1ec7f723d2abef99b27a3b0dea0bf98638138ee8798d083c3dd79479b06eb"
+      "sha256": "a538a7989b550b407e21291ce8fdf383a3e49049a388d013d703d547de26b506"
     },
     {
       "path": "src/data/mockData.ts",
@@ -1814,7 +1830,11 @@
     },
     {
       "path": "src/main.tsx",
-      "sha256": "8c4b594d4686d30be50ade54cb94e410310fd0aa0e3a6e519c883bcc8a4644df"
+      "sha256": "18756caafdd77712d29baa6946e6b19669d83bf561882478a386b545dd2d9100"
+    },
+    {
+      "path": "src/mobile-compact.css",
+      "sha256": "06bc909b12fddbff83a55451eecd30783441aa3932c3fb7c5fd191b591dc0980"
     },
     {
       "path": "src/platform/NativeWebWelcome.tsx",
@@ -2021,6 +2041,10 @@
       "sha256": "6dd1420c0be2f6443da9bef2ea38020f5ae1b6d5df95e455fbbeb245ae143acc"
     },
     {
+      "path": "src/utils/booking-window.ts",
+      "sha256": "87a6c9decdab0982ef53dc94ffc789695857186acc0b06ea1e9ee573f012a66f"
+    },
+    {
       "path": "src/utils/class-card-colors.ts",
       "sha256": "b5a4f33a6a5bea6d1de415f0128d3d115629b7e3c5c9ca2093d963a2358a4108"
     },
@@ -2030,7 +2054,7 @@
     },
     {
       "path": "src/utils/dates.ts",
-      "sha256": "d340cbb076a19a2acfbefbfa631e9ad306d315138634242d264c450271e78a9e"
+      "sha256": "d4dc49c214f6d5b01bb13e6036171936201670b01afcb96464903fb0ca43770e"
     },
     {
       "path": "src/utils/excel-templates.ts",
@@ -2058,7 +2082,7 @@
     },
     {
       "path": "src/utils/phone.ts",
-      "sha256": "ce085e38d13956c82f878a9390548166bf2e04f4901631475712c466d094d652"
+      "sha256": "87b6aa13028a1bfa5a7d3320ebd57738285b8909fe49cb65ee192a9aeb9221b7"
     },
     {
       "path": "src/utils/platform-request-ui.ts",

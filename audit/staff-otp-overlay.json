@@ -24,7 +24,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "a3081158cc984092632d752504cb7af51cd67cabfc63a685a3c025c522e9da48"
+      "currentCanonicalSha256": "5763e709b8d1766605298b28161031449c52f9e9281991f3b462c8c193c98723"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -51,6 +51,12 @@
       "currentCanonicalSha256": "cee14ffc38f89b7a609ff00ca1df19c4c1cfd1a80b8a125e66cb8b5128d53ecf"
     },
     {
+      "path": "netlify/functions/appointment-reminders.ts",
+      "baselineCanonicalSha256": "fd2ac6412329616b8e14ba6e06885f34a44136209cfe96b99f902e528e4e105d",
+      "archivedProductionCanonicalSha256": "fd2ac6412329616b8e14ba6e06885f34a44136209cfe96b99f902e528e4e105d",
+      "currentCanonicalSha256": "1d3e0e89f8964f9818abf317d7b83c2378ea3707e08901d48cfa783fb429ad4c"
+    },
+    {
       "path": "ops/staff-otp/preflight.sql",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
@@ -66,7 +72,7 @@
       "path": "package.json",
       "baselineCanonicalSha256": "2f953b5ec9dc86960a62dfc28fc4868e1d1664c2a70c185f2d431c3dad4b0fe4",
       "archivedProductionCanonicalSha256": "39fd20d062c83303d01ee7ec3bf3106e46e51e4bd6ff902fbb4253b25ab8fedb",
-      "currentCanonicalSha256": "0ab2226763af3a2a4ffb905d830e4dfee69d495f9fd2d6e1a07deed9e1b0e5f1"
+      "currentCanonicalSha256": "02499f23b2aaaade1d377b2c40aaf7a1cd75dcd1a4af99004a555dddc3275314"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -147,6 +153,12 @@
       "currentCanonicalSha256": "f06be6748b10516e1a9a03919e9f2f9a6643d8d3487f1c4d5a5e3cdfd80d75c9"
     },
     {
+      "path": "scripts/lib/test-dates.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "e77e49751673d085f44a4e13891914f1030579c7f5a3833cece439ffe2bc042f"
+    },
+    {
       "path": "scripts/prune-native-web-only-assets.mjs",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
@@ -186,7 +198,7 @@
       "path": "scripts/test-appointment-slot-visibility.ts",
       "baselineCanonicalSha256": "7dc2a66f50e851a885269a2a3d1fff94a4fe016bf1bf52c4eecc018d2b62f900",
       "archivedProductionCanonicalSha256": "1cd86f775a101aed4d7f44a905ebbeb75d79ce1dd0883c1f82c48c92340accf9",
-      "currentCanonicalSha256": "cdd8fc73f5f3052e1a4c8f37e4da31ee84bad1fbf6d1e3d79dd4012af282de19"
+      "currentCanonicalSha256": "58693aa69250a672cb64262353723056a9850e64af60719a25a5d5479a8e4888"
     },
     {
       "path": "scripts/test-auth-capabilities-client.mjs",
@@ -199,6 +211,12 @@
       "baselineCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
       "archivedProductionCanonicalSha256": "ade608f97d715f7db63e21558af56a467c3c6f42675d74a493b678bcb0f26089",
       "currentCanonicalSha256": "2403ba1a886a0f4c80498bdf482ca8ac19bb43615062ce6ea688a968dc155007"
+    },
+    {
+      "path": "scripts/test-booking-window.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "5bbb69b59eb49a4461e79f606483fe6e02bdf5ccaec2f2f9833991bb26eda8db"
     },
     {
       "path": "scripts/test-compact-navbar.mjs",
@@ -276,7 +294,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "e0ffd1d5e39857e0f7f73e4a238874d5101465199b60edf66e2aa886636dc2dc"
+      "currentCanonicalSha256": "26ffe8431d279db4545a620e6b8eadfa2e78dc7abeca6337ac173de93036e47a"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -372,13 +390,13 @@
       "path": "scripts/test-security-and-tenant-audit.ts",
       "baselineCanonicalSha256": "5e2169aebbf4c4056f23c28aaaf50a2e9b87f9fbe2c04a66dbaa9cdeced16e8d",
       "archivedProductionCanonicalSha256": "5e2169aebbf4c4056f23c28aaaf50a2e9b87f9fbe2c04a66dbaa9cdeced16e8d",
-      "currentCanonicalSha256": "1984f3d8ef1d0b221d45efc92a302f05c72d80c418037db6cba0dd1d1fce609a"
+      "currentCanonicalSha256": "d9f1c8049d38edc7a5c5e18b2ea31e5d6e5ee9784e0d954adfd0adabb295249e"
     },
     {
       "path": "scripts/test-settings-email-reminders.ts",
       "baselineCanonicalSha256": "c5a63841ee28750d25c697bd76905161bd3f13605e7bdf09b016237d70e1d30c",
       "archivedProductionCanonicalSha256": "c5a63841ee28750d25c697bd76905161bd3f13605e7bdf09b016237d70e1d30c",
-      "currentCanonicalSha256": "693039ba9c679d21ea5ddf219fb4338ab4f9cb8da45b307fc15b157027a7aad7"
+      "currentCanonicalSha256": "a6eb08d914576b32cc2131a0f1e83987a6beba3c1d60a1ee367923ca7787acf6"
     },
     {
       "path": "scripts/test-staff-excel-template.ts",
@@ -420,7 +438,7 @@
       "path": "scripts/test-student-removal-and-appointment-email.ts",
       "baselineCanonicalSha256": "130ad3cfe047c653753cf79c3eb3d18cc2514172a2615aece8acfc21b2c1e260",
       "archivedProductionCanonicalSha256": "130ad3cfe047c653753cf79c3eb3d18cc2514172a2615aece8acfc21b2c1e260",
-      "currentCanonicalSha256": "8b0d3eb22ae42b2327084a8ea0cf504cac6e20eb2ecf89e18cc30d14cf2ee49e"
+      "currentCanonicalSha256": "a44f6238d8769fc67e0ad86ce41f81667e430be9f310afc1d913e30f56773c8f"
     },
     {
       "path": "scripts/test-support-conversations.ts",
@@ -432,7 +450,13 @@
       "path": "scripts/test-teacher-appointment-ownership.ts",
       "baselineCanonicalSha256": "8f3393cf2ab982a56990c7ae605fc3be0678792b8c703553ad2be91ba6c8eceb",
       "archivedProductionCanonicalSha256": "f97ff1c587985be3685a5ddd9788e7e8a1ade82704e262740d725f3f562a2a07",
-      "currentCanonicalSha256": "1195fa3cf40bca6763bd784905f9ec5dfa5ffa503b570bcb2b68de5db798f9de"
+      "currentCanonicalSha256": "b8578dc7649b7199a70dfc237bca1dbef1a97ea4df87b97bda34b52a05eab552"
+    },
+    {
+      "path": "scripts/test-test-login.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "ef7a5c29712415652872dc06265c261abe928c7f583c66301ede76554501ccb3"
     },
     {
       "path": "scripts/test-theme-bootstrap.mjs",
@@ -510,7 +534,7 @@
       "path": "server/api.ts",
       "baselineCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
       "archivedProductionCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
-      "currentCanonicalSha256": "8ed2be5164fde586241481555ce0b09881abbb56836463e3b5b219a1f3a15a6e"
+      "currentCanonicalSha256": "e165fcd7c5c6834ae91f9e4ee0b62040170ad0a3ba021ccbb2479c8bfadf0330"
     },
     {
       "path": "server/app.ts",
@@ -534,7 +558,7 @@
       "path": "server/auth.ts",
       "baselineCanonicalSha256": "227d1371d52cea3eb70067c1067b163947bef782067c094620ea2c332f55d3c0",
       "archivedProductionCanonicalSha256": "227d1371d52cea3eb70067c1067b163947bef782067c094620ea2c332f55d3c0",
-      "currentCanonicalSha256": "0e8ef20a39bba667eaf76867bd19b020da933a22c9c8a385dbd1d64869a5d135"
+      "currentCanonicalSha256": "6ac04a6da5bbb39a69fa67a6bb003e1d687e51b951b7b03aa6b68067c12ed4ab"
     },
     {
       "path": "server/database/migrations/20261031173726_staff_phone_activation.sql",
@@ -606,7 +630,7 @@
       "path": "server/repositories/index.ts",
       "baselineCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
       "archivedProductionCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
-      "currentCanonicalSha256": "03dbc3c63f8089badea338e762e7aa3a418a566d8e7578ce097ce107bc0655c9"
+      "currentCanonicalSha256": "d889ff5c5e9d5f7371bcd57792fbcc3cfd9efdcc32d44b8ee2931d8e6ec64499"
     },
     {
       "path": "server/route-param.ts",
@@ -627,10 +651,16 @@
       "currentCanonicalSha256": "e02b3d66510c72f8d728b0caa318c3e6e6b4bef63999e9ddf83969f378d355fa"
     },
     {
+      "path": "server/test-login.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "482a455b8ae98f2154231506b6e8decece941ddff56983acbf375a875ae6a989"
+    },
+    {
       "path": "server/whatsapp-auth.ts",
       "baselineCanonicalSha256": "83db89e19a1f942aa3dc1f0888b547a5196b0373aaeca3939074a23ea86babab",
       "archivedProductionCanonicalSha256": "83db89e19a1f942aa3dc1f0888b547a5196b0373aaeca3939074a23ea86babab",
-      "currentCanonicalSha256": "6734295474d6c956b68968cbd7f164f9a08c8eb0ab664e3a2dbc8007ff0571d5"
+      "currentCanonicalSha256": "13ed4d36c90d95e79066e513155d85325dea4237a6c97f22ba663ee7ac9ab354"
     },
     {
       "path": "src/App.tsx",
@@ -649,6 +679,12 @@
       "baselineCanonicalSha256": "a6c174602f4d6ac4e4d34a40399889588871f4eb38aaa3f4726415ffb66f9567",
       "archivedProductionCanonicalSha256": "5d1b30e4fb2cd6329cff648e67a52f2f1cd93316efa9a7a949e507b70e778c6a",
       "currentCanonicalSha256": "5e696692823eecdc767ff58ceec36f01d9507c08189f7eaf2643ca47a2b86530"
+    },
+    {
+      "path": "src/components/AvailabilityCalendar.tsx",
+      "baselineCanonicalSha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51",
+      "archivedProductionCanonicalSha256": "f41e8931d424f868029cb2ab5e36132cf644dd49a20377ccf287cd22eceb2f51",
+      "currentCanonicalSha256": "98cea06b9f02db898b73bef1f5e213a310723fe81624cc1adf310726a9afe9f3"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -687,6 +723,12 @@
       "currentCanonicalSha256": "0d5b898d973ce7c34b5018af425f645406520fd783026d0ec60a6ab999f0c1cf"
     },
     {
+      "path": "src/components/LicenseManagement.tsx",
+      "baselineCanonicalSha256": "fa33746f7938fca2c9bc7c031d6bb809aa5e9ab07f5b394ab65767f38be0c78a",
+      "archivedProductionCanonicalSha256": "cbf2a1d32d750e72549bae1068f2e61bb5a575d32d9f657e7900b0ea5be9e7fe",
+      "currentCanonicalSha256": "be31a4e98111855c2653015efbe8bf5de14f13613bbc8f75a780c4d4810b615d"
+    },
+    {
       "path": "src/components/ManagementActions.tsx",
       "baselineCanonicalSha256": "1e4cff545404ce3c1342741d05667ff892aab5e8d8139b7a77d8c3e824a1fdcf",
       "archivedProductionCanonicalSha256": "1e4cff545404ce3c1342741d05667ff892aab5e8d8139b7a77d8c3e824a1fdcf",
@@ -696,7 +738,7 @@
       "path": "src/components/Navbar.tsx",
       "baselineCanonicalSha256": "4ad6cc744ebbd874cb0115e084d47004766b4f5758b6883a53b5c26be131fc3d",
       "archivedProductionCanonicalSha256": "17f2a83e7ef424ef5fb11e62d5eb68eed1f53a4653531b0bd1269b08e2a40056",
-      "currentCanonicalSha256": "f9d1638cbcf8177ca7efe8778a2aeb1cc5d2a7a6f77c8ccebb80689b268ad630"
+      "currentCanonicalSha256": "f1b4b009abe64e7945552c17b8e567097c541d648e2dcf452f9a6ce981ca2aa4"
     },
     {
       "path": "src/components/OperationsCenter.tsx",
@@ -705,10 +747,22 @@
       "currentCanonicalSha256": "d8d2b596ab056f800b602992186a34b248d45b66182111501b7c67d942b4c703"
     },
     {
+      "path": "src/components/ParentManagement.tsx",
+      "baselineCanonicalSha256": "fd1f9e6f8c3a5ee3565ed8a774b92752e23c473884a28458dc6abb346034b576",
+      "archivedProductionCanonicalSha256": "fd1f9e6f8c3a5ee3565ed8a774b92752e23c473884a28458dc6abb346034b576",
+      "currentCanonicalSha256": "38c5675bb91ca42961fe6dbd3d4c90bd685d3621d0919c4c38d4cd4d688563d3"
+    },
+    {
+      "path": "src/components/ParentView.tsx",
+      "baselineCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
+      "archivedProductionCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
+      "currentCanonicalSha256": "20407e27b75018f058e194d50ecdd83bd48ab299169e0d9696a0a11077424c15"
+    },
+    {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
       "baselineCanonicalSha256": "f1c8f0bd63328df014e710d699f9af385bd52000654056ceac9e835bc53df50c",
       "archivedProductionCanonicalSha256": "9f4b1077343dc1bfac1ece97fc0862febd18389dfb34209270fca3efa61b7383",
-      "currentCanonicalSha256": "916c89bea3c0dfd7f04a186bde24549e24c2939b2548e1a0b0352f5e791d2a57"
+      "currentCanonicalSha256": "0e8b34e592a42c3bb856dc1c1822867d3a69ca50037ad8b96ccd2180144e1564"
     },
     {
       "path": "src/components/PlatformPricing.tsx",
@@ -729,6 +783,12 @@
       "currentCanonicalSha256": "56432c7ceb5ef30e6b298d6ae8660d7748c4ca3a1a014a3883aca0db41e5ec5b"
     },
     {
+      "path": "src/components/QRCodePass.tsx",
+      "baselineCanonicalSha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e",
+      "archivedProductionCanonicalSha256": "2b838cfe84b1a7beb57bd5f87b532ec796b0b13b47a126f61417d0da79c05e8e",
+      "currentCanonicalSha256": "78a22b5caf7144361023e9f003b5407f87ad2cecaf0c3fc54351c922fb38eeb0"
+    },
+    {
       "path": "src/components/SchoolAdminManagement.tsx",
       "baselineCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
       "archivedProductionCanonicalSha256": "22b93fc779f91119482a31546b5e6e003e146bc785f31ed2d7359041ab0994e9",
@@ -744,7 +804,7 @@
       "path": "src/components/SchoolManagement.tsx",
       "baselineCanonicalSha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d",
       "archivedProductionCanonicalSha256": "f4f9e702e3c500e66cf861d1c950ca36d329d3d243047eea8fec7b56adc1081d",
-      "currentCanonicalSha256": "746a385543a5aabc768e92d8430f4eb31c525f397caec24cde67cf9646b2bd93"
+      "currentCanonicalSha256": "065a2ade0051d2e76d9bbf3089bfe55cccb5ce1d55a26b71585ff049ea73c55d"
     },
     {
       "path": "src/components/SchoolRequestCenter.tsx",
@@ -753,16 +813,28 @@
       "currentCanonicalSha256": "3a3d0ea0b055521bf5af7cbb94cd72cb764f600b69251e29b4834d1cc703947b"
     },
     {
+      "path": "src/components/SecurityView.tsx",
+      "baselineCanonicalSha256": "502f3272a4a968aaafa2f6eaee839090a911092a103d41d127a0ac84edc7eb70",
+      "archivedProductionCanonicalSha256": "502f3272a4a968aaafa2f6eaee839090a911092a103d41d127a0ac84edc7eb70",
+      "currentCanonicalSha256": "be2bbd9b3f52cb3690c6235a07facb4968aa896aedbf6e71fcd7f11356faa6dd"
+    },
+    {
       "path": "src/components/StaffManagement.tsx",
       "baselineCanonicalSha256": "a16e695127e74923a7f09503ab423889404b2b7bdd8c0c141623693ee1df774c",
       "archivedProductionCanonicalSha256": "a16e695127e74923a7f09503ab423889404b2b7bdd8c0c141623693ee1df774c",
-      "currentCanonicalSha256": "4ed34cf005ea09c7798e28977a69719aecbb89de3dd921b74b99926806573175"
+      "currentCanonicalSha256": "b4866a46fc98f3a9678afafae23ee10f0948e837976c05f81b3fcd5c77d0dc91"
     },
     {
       "path": "src/components/StudentManagement.tsx",
       "baselineCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
       "archivedProductionCanonicalSha256": "cc06f73086d9f65e2d24cb14333b6c2228545317f5a448cfda3cb0e7c68dadb7",
-      "currentCanonicalSha256": "85aa48c63be4ff6ac9a072e10dae2b6fc35041e8cfb80817c94008539d68f88e"
+      "currentCanonicalSha256": "7a8b30a9e18b6ff03c75dc11c0bff43c36ed2038f04ad0ad2e075173c7037453"
+    },
+    {
+      "path": "src/components/TeacherView.tsx",
+      "baselineCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
+      "archivedProductionCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
+      "currentCanonicalSha256": "7b18ca507d4ec3e6a23af0b3289c3d195ed01c94c788d5f691adfacbc47f93d1"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -834,7 +906,7 @@
       "path": "src/context/AppContext.tsx",
       "baselineCanonicalSha256": "43c92babdc8d99008d82ab408cac8bd835201bc3b281eeaa2d861fe5eef4645a",
       "archivedProductionCanonicalSha256": "1302e0e3bea60335d4ffe080bce426311c2d063359b63563ae85ba6d3ddcc0cd",
-      "currentCanonicalSha256": "6de1ec7f723d2abef99b27a3b0dea0bf98638138ee8798d083c3dd79479b06eb"
+      "currentCanonicalSha256": "a538a7989b550b407e21291ce8fdf383a3e49049a388d013d703d547de26b506"
     },
     {
       "path": "src/index.css",
@@ -846,7 +918,13 @@
       "path": "src/main.tsx",
       "baselineCanonicalSha256": "44c81764d1c9c36b41601c32917b65e50cec6080343ba8ae059933a1703d4960",
       "archivedProductionCanonicalSha256": "6690b22ce8090911bc86f274cd60cc3fdd9760e1885ca82e0dd6adeb4c9b6473",
-      "currentCanonicalSha256": "8c4b594d4686d30be50ade54cb94e410310fd0aa0e3a6e519c883bcc8a4644df"
+      "currentCanonicalSha256": "18756caafdd77712d29baa6946e6b19669d83bf561882478a386b545dd2d9100"
+    },
+    {
+      "path": "src/mobile-compact.css",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "06bc909b12fddbff83a55451eecd30783441aa3932c3fb7c5fd191b591dc0980"
     },
     {
       "path": "src/platform/NativeWebWelcome.tsx",
@@ -909,6 +987,18 @@
       "currentCanonicalSha256": "fc3752d92a933c86c99d8d8645f5b63bb1f554eea25c73c7d5184905579dee11"
     },
     {
+      "path": "src/utils/booking-window.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "87a6c9decdab0982ef53dc94ffc789695857186acc0b06ea1e9ee573f012a66f"
+    },
+    {
+      "path": "src/utils/dates.ts",
+      "baselineCanonicalSha256": "d340cbb076a19a2acfbefbfa631e9ad306d315138634242d264c450271e78a9e",
+      "archivedProductionCanonicalSha256": "d340cbb076a19a2acfbefbfa631e9ad306d315138634242d264c450271e78a9e",
+      "currentCanonicalSha256": "d4dc49c214f6d5b01bb13e6036171936201670b01afcb96464903fb0ca43770e"
+    },
+    {
       "path": "src/utils/excel-templates.ts",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
@@ -919,6 +1009,12 @@
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "97f7941db222ae216ed72a808cee9058d5c761f17eb67eae0fc50d26fd69a2d3"
+    },
+    {
+      "path": "src/utils/phone.ts",
+      "baselineCanonicalSha256": "ce085e38d13956c82f878a9390548166bf2e04f4901631475712c466d094d652",
+      "archivedProductionCanonicalSha256": "ce085e38d13956c82f878a9390548166bf2e04f4901631475712c466d094d652",
+      "currentCanonicalSha256": "87b6aa13028a1bfa5a7d3320ebd57738285b8909fe49cb65ee192a9aeb9221b7"
     },
     {
       "path": "src/utils/roster-files.ts",
