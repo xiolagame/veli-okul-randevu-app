@@ -2,7 +2,7 @@ import React from 'react';
 import { calendarWeekday } from '../utils/appointment-slots';
 import { formatDate, getIstanbulDate } from '../utils/dates';
 
-export function AvailabilityCalendar({ month, onMonthChange, selectedDate, onSelectDate, weekdays, lastDate, lastDateHint }: {
+export function AvailabilityCalendar({ month, onMonthChange, selectedDate, onSelectDate, weekdays, lastDate, lastDateHint, isDateAvailable }: {
   month: string;
   onMonthChange: (month: string) => void;
   selectedDate: string;
@@ -11,6 +11,8 @@ export function AvailabilityCalendar({ month, onMonthChange, selectedDate, onSel
   // Seçilebilecek son gün (dahil). Bu günden sonrası ve sonraki aylar kapalı.
   lastDate?: string;
   lastDateHint?: string;
+  // Ek kontrol (ör. bugünün bütün saatleri geçtiyse bugün kapalı).
+  isDateAvailable?: (date: string) => boolean;
 }) {
   const [year, monthNumber] = month.split('-').map(Number);
   const first = new Date(Date.UTC(year, monthNumber - 1, 1));
@@ -27,7 +29,7 @@ export function AvailabilityCalendar({ month, onMonthChange, selectedDate, onSel
       {Array.from({ length: offset }, (_, index) => <span key={`blank-${index}`} />)}
       {Array.from({ length: dayCount }, (_, index) => {
         const date = `${month}-${String(index + 1).padStart(2, '0')}`;
-        const enabled = date >= today && (!lastDate || date <= lastDate) && weekdays.includes(calendarWeekday(date) ?? -1);
+        const enabled = date >= today && (!lastDate || date <= lastDate) && weekdays.includes(calendarWeekday(date) ?? -1) && (!isDateAvailable || isDateAvailable(date));
         return <button key={date} type="button" disabled={!enabled} aria-label={formatDate(date)} aria-pressed={selectedDate === date} onClick={() => onSelectDate(date)}>{index + 1}</button>;
       })}
     </div>
