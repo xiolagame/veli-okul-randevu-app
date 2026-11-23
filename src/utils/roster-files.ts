@@ -1,7 +1,8 @@
 import { DelimitedRosterParser, ROSTER_HEADERS, LEGACY_ROSTER_HEADERS, RosterDraft, parseDelimited, rowsToDrafts } from './roster-import';
+import { NOT_A_REAL_XLSX_ERROR, ROSTER_TEMPLATE, fetchTemplate, looksLikeHtml } from './excel-templates';
 
-export const ROSTER_TEMPLATE_FILENAME = 'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx';
-export const ROSTER_TEMPLATE_URL = '/ogrenci-veli-bilgi-formu.xlsx';
+export const ROSTER_TEMPLATE_FILENAME = ROSTER_TEMPLATE.filename;
+export const ROSTER_TEMPLATE_URL = ROSTER_TEMPLATE.path;
 
 export const XLSX_MEMORY_BUDGET = 128 * 1024 * 1024;
 function checkArchive(buffer: ArrayBuffer) {
@@ -26,11 +27,17 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
     return rowsToDrafts(parseDelimited(text, delimiter));
   }
   if (!/\.xlsx$/i.test(name)) throw new Error('Yalnız XLSX veya UTF-8 CSV dosyaları desteklenir.');
+  // A page saved as ".xlsx" (for example an old broken template download) is HTML, not a spreadsheet.
+  if (looksLikeHtml(buffer)) throw new Error(NOT_A_REAL_XLSX_ERROR);
   checkArchive(buffer);
   const { readSheet } = await import('read-excel-file/universal');
   let sheet: import('read-excel-file/universal').SheetData;
   try { sheet = await readSheet(buffer, 'Kayıtlar'); }
-  catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
+  catch {
+    // Other spreadsheet apps may rename the sheet; the header check below still guards the content.
+    try { sheet = await readSheet(buffer); }
+    catch { throw new Error('Excel dosyası okunamadı. Standart şablonu kullanın.'); }
+  }
   const columnCount = sheet[0]?.length || 0;
   if (![5, 6].includes(columnCount) || sheet.some(row => row.length > columnCount)) throw new Error('Kayıtlar sayfasında 5 sütun (eski dosyalarda 6) bulunmalı.');
   const rows: string[][] = [];
@@ -51,9 +58,7 @@ export async function readRosterFile(buffer: ArrayBuffer, name: string) {
 
 export async function rosterTemplate(load: typeof fetch = fetch) {
   // The reviewed workbook is the single source of truth, including its formatting.
-  const response = await load(ROSTER_TEMPLATE_URL);
-  if (!response.ok) throw new Error('Şablon indirilemedi. Lütfen tekrar deneyin.');
-  const buffer = await response.arrayBuffer();
+  const buffer = await fetchTemplate(ROSTER_TEMPLATE, load);
   checkArchive(buffer);
   return buffer;
 }

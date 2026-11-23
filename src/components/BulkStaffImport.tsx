@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Dialog } from './ui';
 import { api } from '../services/api';
+import { ExcelTemplateButton } from './ExcelTemplateButton';
+import { STAFF_TEMPLATE } from '../utils/excel-templates';
 import {
   readStaffImportFile,
   STAFF_IMPORT_MAX_ROWS,
@@ -130,12 +132,16 @@ export const BulkStaffImport: React.FC<Props> = ({
         {message && <Alert tone="success">{message}</Alert>}
 
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <ExcelTemplateButton template={STAFF_TEMPLATE} disabled={busy} onError={setError} />
+            <span className="text-xs text-slate-600">Önce şablonu indirip doldurun, sonra aşağıdan yükleyin.</span>
+          </div>
           <label className="field" htmlFor="bulk-staff-file">
             Personel Excel dosyası
             <input
               id="bulk-staff-file"
               type="file"
-              accept=".xlsx"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               disabled={busy}
               onChange={(event) => {
                 const file = event.target.files?.[0];

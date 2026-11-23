@@ -32,7 +32,7 @@ assert(cssFiles.length, 'Run npm run build before UI tests');
 const css = cssFiles.map((name)=>fs.readFileSync(path.join('dist/client/assets',name),'utf8')).join('\n');
 const server=http.createServer((req,res)=>{
   const template=decodeURIComponent(req.url||'');
-  if(['/PERSONEL_BİLGİ_FORMU.xlsx','/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx','/ogrenci-veli-bilgi-formu.xlsx'].includes(template)){
+  if(['/personel-bilgi-formu.xlsx','/ogrenci-veli-bilgi-formu.xlsx'].includes(template)){
     res.setHeader('content-type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     return res.end(fs.readFileSync('public'+template));
   }
@@ -67,17 +67,15 @@ try{
   await cards.first().focus();assert.equal(await cards.first().evaluate(b=>getComputedStyle(b).outlineWidth),'3px');
 
   assert.equal(await page.locator('.student-record-row').count(),25);
-  const download=page.getByRole('link',{name:'Excel Şablonu İndir'});
-  assert.equal(await download.getAttribute('download'),'PERSONEL_BİLGİ_FORMU.xlsx');
-  assert.equal(await download.getAttribute('href'),'/PERSONEL_BİLGİ_FORMU.xlsx');
+  const download=page.getByRole('button',{name:'Excel Şablonu İndir'});
   const [downloaded]=await Promise.all([page.waitForEvent('download'),download.click()]);
   assert.equal(downloaded.suggestedFilename(),'PERSONEL_BİLGİ_FORMU.xlsx');
-  assert.deepEqual(fs.readFileSync(await downloaded.path()),fs.readFileSync('public/PERSONEL_BİLGİ_FORMU.xlsx'));
+  assert.deepEqual(fs.readFileSync(await downloaded.path()),fs.readFileSync('public/personel-bilgi-formu.xlsx'));
   await page.getByRole('button',{name:'Kayıt ekle',exact:true}).click();
   await page.getByRole('tab',{name:'Toplu kayıt',exact:true}).click();
   const [studentDownload]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Excel Şablonunu İndir',exact:true}).click()]);
   assert.equal(studentDownload.suggestedFilename(),'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx');
-  assert.deepEqual(fs.readFileSync(await studentDownload.path()),fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'));
+  assert.deepEqual(fs.readFileSync(await studentDownload.path()),fs.readFileSync('public/ogrenci-veli-bilgi-formu.xlsx'));
   await page.keyboard.press('Escape');
   assert.equal(await download.locator('svg').count(),1);
   assert.equal(await page.getByRole('button',{name:'Toplu Personel Ekle'}).locator('svg').count(),1);

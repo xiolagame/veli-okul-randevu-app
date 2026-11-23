@@ -43,7 +43,7 @@ async function run() {
   stage = 'xlsx template and parsing';
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const { readSheet } = await import('read-excel-file/universal');
-  const template = await rosterTemplate(async () => new Response(new Uint8Array(fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'))));
+  const template = await rosterTemplate(async () => new Response(new Uint8Array(fs.readFileSync('public/ogrenci-veli-bilgi-formu.xlsx'))));
   assert.deepEqual((await readSheet(template, 'Kayıtlar')).filter((row) => row.some((cell) => cell != null && cell !== '')), [ROSTER_HEADERS]);
   const data: import('write-excel-file/universal').SheetData = [LEGACY_ROSTER_HEADERS, ['Test Student', '001', '5-A', 'Test Parent', 5334138206, { value: new Date('2014-03-14T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' }]];
   const arrayBuffer = await (await writeXlsxFile(data, { sheet: 'Kayıtlar' }).toBlob()).arrayBuffer();

@@ -6,8 +6,8 @@ import { readSheet } from 'read-excel-file/universal';
 import writeXlsxFile from 'write-excel-file/universal';
 import { readStaffImportFile } from '../src/utils/staff-import';
 
-const template = fs.readFileSync('public/PERSONEL_BİLGİ_FORMU.xlsx');
-assert.equal(createHash('sha256').update(template).digest('hex'), 'e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34', 'rename must preserve styles and validations byte-for-byte');
+const template = fs.readFileSync('public/personel-bilgi-formu.xlsx');
+assert.equal(createHash('sha256').update(template).digest('hex'), 'd7226fdf93c9e7f3050d706e59e2142330fb562de19724e96db14be61dbecd34', 'Template bytes changed: run node scripts/build-excel-templates.mjs, review the diff and update this hash');
 assert.deepEqual((await readSheet(new Uint8Array(template).buffer, 'Personel'))[0], ['Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'E-posta']);
 const xml: string[] = [];
 for (let i = 0; i + 46 < template.length; i++) {
@@ -18,7 +18,7 @@ for (let i = 0; i + 46 < template.length; i++) {
   const data = offset + 30 + template.readUInt16LE(offset + 26) + template.readUInt16LE(offset + 28);
   if (name.endsWith('.xml')) xml.push((template.readUInt16LE(i + 10) === 8 ? inflateRawSync(template.subarray(data, data + size)) : template.subarray(data, data + size)).toString());
 }
-assert(xml.some((value) => /dataValidation/.test(value) && /Öğretmen/.test(value) && /Güvenlik/.test(value)));
+assert(xml.some((value) => /dataValidation/.test(value) && /Öğretmen/.test(value) && /Güvenlik/.test(value) && /showErrorMessage="1"/.test(value)), 'Dropdown must block invalid roles');
 async function parse(rows: string[][]) {
   const blob = await writeXlsxFile([{ sheet: 'Personel', data: [
     ['Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'E-posta'].map((value) => ({ value, type: String })),

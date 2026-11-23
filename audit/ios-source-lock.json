@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "branch": "main",
+  "branch": "feature/excel-templates",
   "baseline": "651e46c40a359b0d645b4b22a42bcc5860820af5",
   "hashMode": "UTF-8 text LF normalized; binary exact; lock itself excluded",
   "files": [
@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "866e1f5e456b560b02324276f72303b48616b1b2e58acb8cc23dc6722c56c831"
+      "sha256": "7fd4ba57a01744c31313e14bf685c81b04d625e065f5fce228818fb7fe96bf43"
     },
     {
       "path": "bun.lock",
@@ -383,6 +383,10 @@
     {
       "path": "docs/ANDROID-STARTUP-REVIEW-ALIASES-20261030.md",
       "sha256": "36e15d92ab4151d647db4ad1221170fbff66c84b47aaec93a255913cad8d585f"
+    },
+    {
+      "path": "docs/EXCEL-TEMPLATES-20261123.md",
+      "sha256": "5c0edb31e7a46b140ed4957ba867827615a3ae8adca97592bbbd4b65f256c536"
     },
     {
       "path": "docs/HELP-DESIGN-RECOVERY-20261101.md",
@@ -550,7 +554,7 @@
     },
     {
       "path": "netlify.toml",
-      "sha256": "a6e14dd828d837cad3ffe89d1e2273581d1667fcb8c63705d9afdfaf709b179c"
+      "sha256": "cee14ffc38f89b7a609ff00ca1df19c4c1cfd1a80b8a125e66cb8b5128d53ecf"
     },
     {
       "path": "netlify/functions/api.ts",
@@ -574,11 +578,11 @@
     },
     {
       "path": "package.json",
-      "sha256": "b9e1834269cc36b02089d7d3d88e3fbe45cb7bae0a9effb76973832912496b26"
+      "sha256": "0ab2226763af3a2a4ffb905d830e4dfee69d495f9fd2d6e1a07deed9e1b0e5f1"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
-      "sha256": "e8280c90cef82fe652a2397b3bc79aca4e9f5bd8fa1ba275e5b5ac10be16ad34"
+      "sha256": "d7226fdf93c9e7f3050d706e59e2142330fb562de19724e96db14be61dbecd34"
     },
     {
       "path": "public/adaptive-icon.png",
@@ -618,11 +622,15 @@
     },
     {
       "path": "public/ogrenci-veli-bilgi-formu.xlsx",
-      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+      "sha256": "524625c0bfe6d747468727d9fb0b483e433f85818bf194951c4975b605699118"
     },
     {
       "path": "public/partial-react-logo.png",
       "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c"
+    },
+    {
+      "path": "public/personel-bilgi-formu.xlsx",
+      "sha256": "d7226fdf93c9e7f3050d706e59e2142330fb562de19724e96db14be61dbecd34"
     },
     {
       "path": "public/react-logo.png",
@@ -666,7 +674,7 @@
     },
     {
       "path": "public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx",
-      "sha256": "ea25ba4b21b18da44e58de4b40e65f1c63e33ca80911b36c8dbd58514f3a6bba"
+      "sha256": "524625c0bfe6d747468727d9fb0b483e433f85818bf194951c4975b605699118"
     },
     {
       "path": "scripts/audit-canonical-phone-collisions.ts",
@@ -683,6 +691,10 @@
     {
       "path": "scripts/build-android-client.mjs",
       "sha256": "184bf1ec2349218a155c4435189cba819e6d06b803f40a45ec3ee79fe93e16b5"
+    },
+    {
+      "path": "scripts/build-excel-templates.mjs",
+      "sha256": "3927c7399c7d20e195de4494b099936bfcc3f3b9b0bab6e23f81345e0cf1f600"
     },
     {
       "path": "scripts/build-ios-client.mjs",
@@ -847,6 +859,10 @@
     {
       "path": "scripts/test-email-presentation.ts",
       "sha256": "5ea91d8ec63b4b676e72d733ffcd363fa2c83b0144817b4ace1dccab447e1403"
+    },
+    {
+      "path": "scripts/test-excel-template-delivery.ts",
+      "sha256": "655bd31bb7428cdbdfe00fbae16a2cd3401b27e013d51c9eb5cc47b411b47f6c"
     },
     {
       "path": "scripts/test-first-student-empty-school.ts",
@@ -1050,7 +1066,7 @@
     },
     {
       "path": "scripts/test-record-entry-center-ui.mjs",
-      "sha256": "ccfdc86ca1b6f3525f102c72798e27e258d41500fc4b5ca104ed3c9ccfd251cd"
+      "sha256": "bf8bb13c14ee129c33ebb1b5205d01c5871820226046e676f20562ba5654ed82"
     },
     {
       "path": "scripts/test-release-artifacts.mjs",
@@ -1118,7 +1134,7 @@
     },
     {
       "path": "scripts/test-school-roster-ui.ts",
-      "sha256": "2676186a1178914005e728566fe4d1cea7343d1c19d0b0a4059b43a25ceae281"
+      "sha256": "8edb7981e990374ab97ee1f10e3bffb5828c974cf6489985e9878beace4ae3c3"
     },
     {
       "path": "scripts/test-security-and-tenant-audit.ts",
@@ -1134,7 +1150,7 @@
     },
     {
       "path": "scripts/test-staff-excel-template.ts",
-      "sha256": "be01466867f7b32213b9bf54580e3503c63d509529fbe6cba015a5369c54299d"
+      "sha256": "fe34a31f2b6dc82d40c52bf71743e2905b2f59c117d1ea0d3dde1227cb9080bd"
     },
     {
       "path": "scripts/test-staff-otp-master.ts",
@@ -1162,7 +1178,7 @@
     },
     {
       "path": "scripts/test-student-management-ui.mjs",
-      "sha256": "3633654c34ebd59b60a82bf01c78b8cd018807ae5d2673a5a2c0fe14a20fd403"
+      "sha256": "dc377e2ccadb6b1d9fe71958412cac1e8275df78a96dee8b097cd9ae55755d62"
     },
     {
       "path": "scripts/test-student-read-performance.ts",
@@ -1586,15 +1602,19 @@
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
-      "sha256": "2692ac081d703172638a452df81b2166c777d884a34cc266e4c8de3befd4334d"
+      "sha256": "b7ef8c274ae8e0bd5eeddc7807e78b95aa651116dbda16b4d92d16e097db17ab"
     },
     {
       "path": "src/components/BulkStaffImport.tsx",
-      "sha256": "ed9dda1f5129fe50a8b9c72733ebf4897d6405eef34b3a6833cb16f088a64d0e"
+      "sha256": "53afe5417c9ba578b30098b44b71a46dfc32f90559c7c11d098e317521e1b2e2"
     },
     {
       "path": "src/components/DeleteAccountDialog.tsx",
       "sha256": "3f6622203d028f281679c018a106858cdc8d4143a70f3b480a841f5839bfd7b2"
+    },
+    {
+      "path": "src/components/ExcelTemplateButton.tsx",
+      "sha256": "d61ecb6d10304b7249485b2409fd591e60849956b2f2c44b7239114c80be27ef"
     },
     {
       "path": "src/components/HelpCategoryArt.tsx",
@@ -1706,7 +1726,7 @@
     },
     {
       "path": "src/components/StaffManagement.tsx",
-      "sha256": "e530ea6346573fa396a268445166af3ebb383a68bce79369098a046d84873e4d"
+      "sha256": "4ed34cf005ea09c7798e28977a69719aecbb89de3dd921b74b99926806573175"
     },
     {
       "path": "src/components/StudentManagement.tsx",
@@ -2013,6 +2033,10 @@
       "sha256": "d340cbb076a19a2acfbefbfa631e9ad306d315138634242d264c450271e78a9e"
     },
     {
+      "path": "src/utils/excel-templates.ts",
+      "sha256": "f2caeb391d07c5583add84e7603b225491852226c3ff290c305977adb6262d59"
+    },
+    {
       "path": "src/utils/license-code.ts",
       "sha256": "0ae8c367a48b5b2430a21586654fe017633cddde74279329dd91cebbd2f86594"
     },
@@ -2050,7 +2074,7 @@
     },
     {
       "path": "src/utils/roster-files.ts",
-      "sha256": "abb9c56dedc99e4ef5a5eb939e135e562b0de458ed34133cff1b02820d036eac"
+      "sha256": "540d130dd15a530905f8d01c7c08c2adfe6c768507bfd5e142e38c4ecbe1904c"
     },
     {
       "path": "src/utils/roster-import.ts",
@@ -2078,7 +2102,7 @@
     },
     {
       "path": "src/utils/staff-import.ts",
-      "sha256": "8e7d1f1bcdc8847a54650b1ba6d6d0b199bf2876e0f4121fe68a3aad9509b64a"
+      "sha256": "31af6e7307f70f8403564c97c81f4383c8cc764476ff842bb9dfa70c3670ab75"
     },
     {
       "path": "src/utils/student-records.ts",

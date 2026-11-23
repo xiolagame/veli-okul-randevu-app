@@ -23,7 +23,7 @@ const bundle = await build({stdin:{contents:entry,resolveDir:root,loader:'tsx'},
 const worker = await build({entryPoints:['src/utils/roster-worker.ts'],bundle:true,write:false,format:'esm',platform:'browser',logLevel:'silent'});
 const css=fs.readdirSync('dist/client/assets').filter(name=>name.endsWith('.css')).map(name=>fs.readFileSync('dist/client/assets/'+name,'utf8')).join('\n');
 const server=http.createServer((req,res)=>{
- if(['/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx','/ogrenci-veli-bilgi-formu.xlsx'].includes(decodeURIComponent(req.url||''))){res.setHeader('content-type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return res.end(fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'));}
+ if(['/ogrenci-veli-bilgi-formu.xlsx'].includes(decodeURIComponent(req.url||''))){res.setHeader('content-type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return res.end(fs.readFileSync('public/ogrenci-veli-bilgi-formu.xlsx'));}
  const body=req.url==='/bundle.js'?bundle.outputFiles[0].text:req.url==='/roster-worker.js'?worker.outputFiles[0].text:req.url==='/style.css'?css:'<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script src="/bundle.js"></script></html>';
  res.setHeader('content-type',req.url?.endsWith('.js')?'text/javascript':req.url==='/style.css'?'text/css':'text/html');res.end(body);
 });
@@ -56,7 +56,7 @@ try{
  await open();await center.getByRole('tab',{name:'Toplu kayıt',exact:true}).click();
  for(const name of['Dosyadan aktar','Elle giriş / Yapıştır'])assert.equal(await center.getByRole('button',{name,exact:true}).count(),0);
  assert.equal(await center.getByText('Dosya ve aktarım yardımı',{exact:true}).count(),0);
- const[download]=await Promise.all([page.waitForEvent('download'),center.getByRole('button',{name:'Excel Şablonunu İndir',exact:true}).click()]);assert.equal(download.suggestedFilename(),'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx');assert.deepEqual(fs.readFileSync(await download.path()),fs.readFileSync('public/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx'));
+ const[download]=await Promise.all([page.waitForEvent('download'),center.getByRole('button',{name:'Excel Şablonunu İndir',exact:true}).click()]);assert.equal(download.suggestedFilename(),'ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx');assert.deepEqual(fs.readFileSync(await download.path()),fs.readFileSync('public/ogrenci-veli-bilgi-formu.xlsx'));
  await center.getByLabel('XLSX veya CSV dosyası yükle').setInputFiles({name:'legacy.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:syntheticWorkbook});await center.getByText('legacy.xlsx',{exact:true}).waitFor();await center.getByRole('button',{name:'Önizle',exact:true}).click();assert.equal(await center.locator('tbody tr').count(),1);
  const csv='Öğrenci Ad Soyad,Öğrenci No,Sınıf/Şube,Veli Ad Soyad,Veli Telefonu\n'+Array.from({length:501},(_,i)=>['ÖRNEK ÖĞRENCİ '+i,String(i).padStart(5,'0'),'5/A','ÖRNEK VELİ',i===0?'bad':'05551234567'].join(',')).join('\n');
  await center.getByLabel('XLSX veya CSV dosyası yükle').setInputFiles({name:'synthetic.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});await center.getByText('501 öğrenci okundu.',{exact:true}).waitFor();await center.getByRole('button',{name:'Önizle',exact:true}).click();assert.equal(await center.locator('tbody tr').count(),25);await center.getByText('Telefon numarası geçersiz.',{exact:true}).waitFor();

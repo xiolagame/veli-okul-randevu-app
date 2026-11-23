@@ -1,5 +1,6 @@
 import { normalizeTurkishPhone } from './phone';
 import { StaffDraft, validateStaffForm } from './staff-form';
+import { NOT_A_REAL_XLSX_ERROR, looksLikeHtml } from './excel-templates';
 
 export const STAFF_IMPORT_MAX_ROWS = 200;
 export const STAFF_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
@@ -49,6 +50,8 @@ export async function readStaffImportFile(
   if (!file.size) throw new Error('Excel dosyası boş.');
 
   const buffer = await file.arrayBuffer();
+  // A page saved as ".xlsx" (for example an old broken template download) is HTML, not a spreadsheet.
+  if (looksLikeHtml(buffer)) throw new Error(NOT_A_REAL_XLSX_ERROR);
   checkArchive(buffer);
 
   const { readSheet } = await import('read-excel-file/universal');
@@ -56,10 +59,15 @@ export async function readStaffImportFile(
   try {
     sheet = await readSheet(buffer, 'Personel');
   } catch {
-    throw new Error('Personel sayfası okunamadı. Standart Excel şablonunu kullanın.');
+    // Other spreadsheet apps may rename the sheet; the header check below still guards the content.
+    try {
+      sheet = await readSheet(buffer);
+    } catch {
+      throw new Error('Personel sayfası okunamadı. Standart Excel şablonunu kullanın.');
+    }
   }
 
-  if (!sheet.length || headers.some((header, index) => sheet[0]?.[index] !== header)) {
+  if (!sheet.length || headers.some((header, index) => String(sheet[0]?.[index] ?? '').trim() !== header)) {
     throw new Error('Excel sütun başlıkları farklı. Standart şablonu kullanın.');
   }
 

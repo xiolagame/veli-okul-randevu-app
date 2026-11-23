@@ -14,6 +14,29 @@
   status = 200
   force = true
 
+# Excel templates used to be linked with Turkish file names. Netlify did not serve those files, so the SPA
+# fallback below returned index.html (HTTP 200) and users saved an HTML page as ".xlsx". The app now links the
+# ASCII names; these redirects rescue pages that are still cached with the old links.
+[[redirects]]
+  from = "/PERSONEL_B%C4%B0LG%C4%B0_FORMU.xlsx"
+  to = "/personel-bilgi-formu.xlsx"
+  status = 301
+
+[[redirects]]
+  from = "/PERSONEL_BİLGİ_FORMU.xlsx"
+  to = "/personel-bilgi-formu.xlsx"
+  status = 301
+
+[[redirects]]
+  from = "/%C3%96%C4%9ERENC%C4%B0_VEL%C4%B0_B%C4%B0LG%C4%B0_FORMU.xlsx"
+  to = "/ogrenci-veli-bilgi-formu.xlsx"
+  status = 301
+
+[[redirects]]
+  from = "/ÖĞRENCİ_VELİ_BİLGİ_FORMU.xlsx"
+  to = "/ogrenci-veli-bilgi-formu.xlsx"
+  status = 301
+
 # Single Page Application (SPA) Client-Side Route Fallback
 [[redirects]]
   from = "/*"
