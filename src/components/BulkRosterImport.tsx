@@ -8,6 +8,7 @@ import { ROSTER_TEMPLATE, downloadTemplate } from '../utils/excel-templates';
 import { rosterManifest, RosterImportJob, RosterBatchReport, transferRoster } from '../utils/roster-transfer';
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 const keys=['studentName','studentNumber','className','parentName','parentPhone'] as const;
 type Field=typeof keys[number];
 const formatValue=(key:Field,value:string)=>key==='parentPhone'?formatTurkishPhoneInput(value):key==='studentName'||key==='parentName'?uppercasePersonNameInput(value):key==='className'?value.toLocaleUpperCase('tr-TR'):value;
@@ -77,8 +78,8 @@ export function BulkRosterImport({schoolId,onClose,onChanged}:{schoolId:string;o
  const download=async()=>{try{await downloadTemplate(ROSTER_TEMPLATE);}catch(cause){setError(cause instanceof Error&&cause.message?cause.message:'Şablon indirilemedi.');}};
  const currentPage=Math.min(page,Math.max(0,Math.ceil(records.length/25)-1));
  return <>
- <Dialog className="record-center" title="Kayıt ekle" description="Tek öğrenci kaydı oluşturun veya Excel / CSV ile toplu kayıt aktarın." onClose={close} dismissible={!busy}>
-  <div className="record-center-tabs" role="tablist" aria-label="Kayıt yöntemi">{(['single','bulk']as const).map(tab=><button type="button" role="tab" id={`record-tab-${tab}`} key={tab} aria-selected={mode===tab} aria-controls={`record-panel-${tab}`} disabled={busy} onClick={()=>switchMode(tab)} onKeyDown={event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const next=tab==='single'?'bulk':'single';switchMode(next);document.getElementById(`record-tab-${next}`)?.focus();}}}>{tab==='single'?'Tekli kayıt':'Toplu kayıt'}</button>)}</div>
+ <Dialog className="record-center" title="Kayıt ekle" description={getRuntimePlatform()==='WEB'?'Tek öğrenci kaydı oluşturun veya Excel / CSV ile toplu kayıt aktarın.':'Tek öğrenci kaydı oluşturun. Toplu kayıt web sürümünden yapılır.'} onClose={close} dismissible={!busy}>
+  <div className="record-center-tabs" role="tablist" aria-label="Kayıt yöntemi">{(getRuntimePlatform()==='WEB'?(['single','bulk']as const):(['single']as const)).map(tab=><button type="button" role="tab" id={`record-tab-${tab}`} key={tab} aria-selected={mode===tab} aria-controls={`record-panel-${tab}`} disabled={busy} onClick={()=>switchMode(tab)} onKeyDown={event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const next=tab==='single'?'bulk':'single';switchMode(next);document.getElementById(`record-tab-${next}`)?.focus();}}}>{tab==='single'?'Tekli kayıt':'Toplu kayıt'}</button>)}</div>
   <div className="record-center-content" role="tabpanel" id={`record-panel-${mode}`} aria-labelledby={`record-tab-${mode}`}>
   {error&&<Alert tone="danger">{error}</Alert>}{message&&<Alert tone="info">{message}</Alert>}
   {mode==='single'?singleSaved?<div className="record-center-result"><h3>Kayıt tamamlandı</h3><p>Yeni kayıt ekleyebilir veya öğrenci listesine dönebilirsiniz.</p></div>:

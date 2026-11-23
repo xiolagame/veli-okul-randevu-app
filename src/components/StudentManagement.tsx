@@ -109,12 +109,12 @@ export function StudentManagement({ schoolId, schoolName, onChanged = async () =
     <span className="student-class-icon" aria-hidden="true">{multiMode && selectedClasses.includes(className) ? <Check size={18} /> : <Users size={18} />}</span><strong>{className === ALL_CLASSES ? 'Tüm sınıflar' : label(className)}</strong><span className="student-class-count">{count} öğrenci</span>
   </button>;
   return <section className="management-section" aria-label="Öğrenci ve veli yönetimi">
-    <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{schoolName} · {records.length} öğrenci</p></div><Button onClick={onImport}><Plus size={18} aria-hidden="true" />Kayıt ekle</Button></div>
+    <div className="section-heading"><div><h3>Öğrenciler ve veliler</h3><p>{records.length} öğrenci</p></div><Button onClick={onImport}><Plus size={18} aria-hidden="true" />Kayıt ekle</Button></div>
     {error && <Alert tone="danger">{error}</Alert>}
     {success && <Toast tone="success" resetKey={success} onClose={() => setSuccess('')}>{success}</Toast>}
       <div className="student-list-filters">
-      <label className="field" htmlFor="student-record-search">Öğrenci veya veli ara<div className="field-icon"><Search size={18} aria-hidden="true" /><input id="student-record-search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, öğrenci numarası veya telefon" /></div></label>
-      <label className="field management-filter">Kayıt filtresi<select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(0); }}><option value="all">Tüm kayıtlar</option><option value="pending">Veli hesabı bekleyenler</option><option value="active">Aktif veli hesabı bulunanlar</option><option value="missing">Eksik bilgisi bulunanlar</option></select></label>
+      <label className="field" htmlFor="student-record-search">Öğrenci veya veli ara<div className="field-icon"><Search size={18} aria-hidden="true" /><input id="student-record-search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Ad, no veya telefon" /></div></label>
+      <label className="field management-filter">Kayıt filtresi<select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(0); }}><option value="all">Tüm kayıtlar</option><option value="pending">Hesap bekleyenler</option><option value="active">Aktif veliler</option><option value="missing">Eksik bilgililer</option></select></label>
       </div>
     {data && refreshing && <p role="status" className="panel-refresh">Kayıtlar güncelleniyor…</p>}
     {!data && !error ? <p role="status" className="panel-loading">Öğrenci kayıtları yükleniyor…</p> : <>

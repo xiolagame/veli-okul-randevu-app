@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Appointment } from '../types';
 import { Printer, QrCode } from 'lucide-react';
 import { Alert, Button, Dialog, StatusBadge } from './ui';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 
 interface QRCodePassProps {
   appointment: Appointment;
@@ -50,6 +51,6 @@ export const QRCodePass: React.FC<QRCodePassProps> = ({ appointment, schoolName,
       <div><dt>Saat</dt><dd>{appointment.startTime} – {appointment.endTime}</dd></div>
     </dl>
     <p className="field-hint text-center mt-6">Girişte randevu durumunuz ve saatiniz yeniden kontrol edilir.</p>
-    <div className="form-actions mt-4"><Button variant="secondary" onClick={() => window.print()}><Printer size={17} />Yazdır</Button><Button onClick={onClose}>Tamam</Button></div>
+    <div className="form-actions mt-4">{getRuntimePlatform() === 'WEB' && <Button variant="secondary" onClick={() => window.print()}><Printer size={17} />Yazdır</Button>}<Button onClick={onClose}>Tamam</Button></div>
   </Dialog>;
 };

@@ -10,6 +10,7 @@ import { ExcelTemplateButton } from './ExcelTemplateButton';
 import { STAFF_TEMPLATE } from '../utils/excel-templates';
 import { useApp } from '../context/AppContext';
 import { StaffDraft, validateStaffForm } from '../utils/staff-form';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 
 interface StaffManagementProps {
   teachers: TeacherProfile[];
@@ -93,7 +94,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
         const currentPage = Math.min(page[type], pages - 1);
         return (
           <section key={type} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="staff-import-actions"><ExcelTemplateButton template={STAFF_TEMPLATE} className="staff-template-download" /><Button className="staff-bulk-upload" variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}><Upload size={18} aria-hidden="true" />Toplu Personel Ekle</Button><Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Icon className="h-5 w-5 text-indigo-600" />{title} ({records.length})</h4>{type === 'teacher' && <div className="staff-import-actions">{getRuntimePlatform() === 'WEB' && <><ExcelTemplateButton template={STAFF_TEMPLATE} className="staff-template-download" /><Button className="staff-bulk-upload" variant="secondary" disabled={!currentSchool} onClick={() => setShowBulkStaffImport(true)}><Upload size={18} aria-hidden="true" />Toplu Personel Ekle</Button></>}<Button onClick={() => { setCreateTeacherError(''); setFieldErrors({}); setShowCreateTeacher(true); }}>+ Personel Ekle</Button></div>}</div>
             {filtered.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                 <Icon className="mx-auto mb-3 h-8 w-8 text-slate-400" />

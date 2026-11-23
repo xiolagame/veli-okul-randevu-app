@@ -12,6 +12,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NotificationSettingsPlugin.class);
         registerPlugin(CameraPermissionPlugin.class);
         super.onCreate(savedInstanceState);
+        // Sayfa kenara gelince sert durmasın: Android'in doğal kenar efekti (eski sürümlerde parıltı,
+        // Android 12+ esneme) içerik kayarken açık kalsın.
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setOverScrollMode(android.view.View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        }
         WindowCompat.enableEdgeToEdge(getWindow());
         AndroidSystemBarsPlugin.restore(this);
     }

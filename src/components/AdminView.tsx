@@ -23,6 +23,7 @@ import { SchoolAdminManagement } from './SchoolAdminManagement';
 import { validateDefaultSlotMinutes } from '../utils/school-settings';
 import { SchoolRequestCenter } from './SchoolRequestCenter';
 import { OperationsCenter } from './OperationsCenter';
+import { getRuntimePlatform } from '../platform/runtime-platform';
 
 interface AdminViewProps {
   onManageSchools?: () => void;
@@ -151,7 +152,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onManageSchools }) => {
         <nav className="admin-nav" aria-label="Yönetim bölümleri"><p className="eyebrow">{platformContextActive ? 'SEÇİLİ OKUL YÖNETİMİ' : 'OKUL YÖNETİMİ'}</p>{navigation.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? 'page' : undefined} onClick={() => setActiveTab(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
         <label className="admin-mobile-nav" htmlFor="admin-section"><span className="sr-only">Yönetim bölümü</span><select id="admin-section" aria-label="Yönetim bölümü" value={activeTab} onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}>{navigation.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <main id="main-content" className="admin-content">
-          {activeTab === 'dashboard' && currentSchool && <SchoolInfo compact key={currentSchool.id} schoolId={currentSchool.id} allowCodeChange={isPlatformAdmin} onCodeChanged={refreshPlatformSchools} />}
+          {/* Mobilde okul adı/kodu kartı gösterilmez (okul adı üst çubukta zaten var); platform yöneticisi kodu değiştirebilsin diye görür. */}
+          {activeTab === 'dashboard' && currentSchool && (getRuntimePlatform() === 'WEB' || isPlatformAdmin) && <SchoolInfo compact key={currentSchool.id} schoolId={currentSchool.id} allowCodeChange={isPlatformAdmin} onCodeChanged={refreshPlatformSchools} />}
           {onManageSchools && <Button variant="secondary" className="mb-5" onClick={onManageSchools}>Okul Yönetimi (Platform)</Button>}
           {activeTab === 'dashboard' && currentSchool && <><div className="dashboard-quick-actions"><Button variant="quiet" onClick={() => setActiveTab('roster')}>Öğrenci kayıtları</Button><Button variant="quiet" onClick={() => setActiveTab('users')}>Personeli yönet</Button><Button variant="quiet" onClick={() => setActiveTab('appointments')}>Randevuları aç</Button></div><OperationsCenter key={currentSchool.id} schoolId={currentSchool.id} onOpenRecords={(kind) => setActiveTab(kind === 'staff' ? 'users' : 'roster')} /></>}
           {sectionError && <Alert tone="danger">{sectionError}<Button variant="quiet" onClick={() => void refreshSchoolData(activeTab === 'appointments' ? 'appointments' : activeTab === 'audit' && isPlatformAdmin ? 'audit' : 'staff').then(() => setSectionError('')).catch(() => setSectionError('Kayıtlar yüklenemedi. Lütfen tekrar deneyin.'))}>Tekrar dene</Button></Alert>}
