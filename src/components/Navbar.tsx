@@ -26,12 +26,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
   const [pushSettingsRequired, setPushSettingsRequired] = useState(false);
   const [pushActionPending, setPushActionPending] = useState(false);
   const [pushError, setPushError] = useState('');
+  const [dismissedPushBanner, setDismissedPushBanner] = useState(false);
   const pushPrompt = pushPromptState(pushStatus, dismissedPushIntro);
+  // İlk girişte izin Hesabım menüsünün içinde kaldığı için kullanıcı fark etmiyordu: ana ekranda göster.
+  // Mağaza inceleme hesaplarında ve "kullanılamıyor" durumunda gösterilmez (orada Hesabım menüsü yeterli).
+  const showPushBanner = !!currentUser?.id && !currentUser.id.startsWith('review-') && canUseMobilePush(currentUser.role)
+    && !dismissedPushBanner && (pushStatus === 'off' || pushStatus === 'denied' || pushStatus === 'preparing' || !!pushError);
   const refreshMobileDataRef = useRef(refreshMobileData);
   refreshMobileDataRef.current = refreshMobileData;
   useEffect(() => {
     setPushStatus('off');
     setDismissedPushIntro(false);
+    setDismissedPushBanner(false);
     setPushSettingsRequired(false);
     setPushActionPending(false);
     setPushError('');
@@ -144,6 +150,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
           <button type="button" className="profile-trigger" onClick={() => setShowPersonaMenu(true)} aria-haspopup="dialog" aria-label="Hesap menüsü"><span className="avatar"><RoleIcon size={20} aria-hidden="true" /></span><span className="profile-label"><strong>{currentUser?.firstName} {currentUser?.lastName}</strong><small>{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'}</small></span></button>
         </div>
       </div>
+      {showPushBanner && <div className="push-banner mx-3 mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" role="region" aria-label="Bildirim izni">
+        {pushStatus === 'preparing'
+          ? <p className="text-slate-700" role="status">Bildirimler hazırlanıyor. Bu işlem birkaç saniye sürebilir.</p>
+          : <>
+            <p className="text-slate-700">{pushSettingsRequired ? 'Bildirim izni cihaz ayarlarından kapalı. Randevu bildirimlerini almak için ayarlardan izin verin.' : 'Randevu talepleri ve sonuçları için bildirim almak ister misiniz?'}</p>
+            <div className="flex gap-2 mt-2"><Button variant="secondary" disabled={pushActionPending} onClick={() => setDismissedPushBanner(true)}>Şimdi değil</Button><Button disabled={pushActionPending} onClick={() => void (pushSettingsRequired ? openPushNotificationSettings() : enablePushNotifications())}>{pushSettingsRequired ? 'Bildirim ayarlarını aç' : 'Bildirimleri aç'}</Button></div>
+            {pushError && <p role="alert" className="mt-2 text-sm text-red-700">{pushError}</p>}
+          </>}
+      </div>}
       {showSchoolMenu && canSwitchSchool && <Dialog title={isPlatformAdmin ? 'Platform Yönetimi · Okullar' : 'Okulunuz'} description={isPlatformAdmin ? 'Yöneteceğiniz aktif okulu seçin.' : 'Üyeliğiniz bulunan okulları görüntüleyin.'} onClose={() => setShowSchoolMenu(false)}>
         <div className="space-y-2">{schoolOptions.map((school) => { const disabled = 'disabledAt' in school && !!school.disabledAt; return <button type="button" key={school.id+':'+school.membershipRole} disabled={disabled} className="w-full text-left flex gap-3 items-center p-3 rounded-xl hover:bg-slate-50 border border-slate-200" onClick={() => { void switchSchool(school.id, school.membershipRole); setShowSchoolMenu(false); }}><Building2 size={20} className="text-blue-700" /><span className="flex-1 min-w-0"><strong className="block text-sm break-words">{school.name}</strong><span className="text-xs text-slate-500">{school.city}{disabled ? ' · Devre dışı' : isPlatformAdmin ? ' · Yönetilebilir okul' : ' · '+roleNames[school.membershipRole!]}</span></span>{currentSchool?.id === school.id && (!school.membershipRole || currentUser?.role === school.membershipRole) && <Check size={18} className="text-blue-700" />}</button>; })}</div>
         {isPlatformAdmin && !schoolOptions.length && <p className="text-sm text-slate-500">Henüz okul bulunmuyor. İlk okul kaydını Platform Yönetimi alanından oluşturabilirsiniz.</p>}
