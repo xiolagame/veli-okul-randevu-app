@@ -20,6 +20,7 @@ import {
 import { isPlatformAdmin } from './auth';
 import { getTurkishPhoneLookupDigits, normalizeTurkishPhone } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
+import { getTestLoginCode } from './test-login';
 import { SchoolMembership, User, UserRole } from '../src/types';
 import {
   attachIssuedEmailChallenge,
@@ -377,7 +378,9 @@ async function issueWhatsAppAuthChallenge(input: {
   }
 
   const challengeId = crypto.randomUUID();
-  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  // Süreli test numaraları sabit kod kullanır ve WhatsApp mesajı almaz (bkz. test-login.ts).
+  const testCode = getTestLoginCode(phone);
+  const code = testCode ?? String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
   const db = await getDb();
   let cooldownMasked = false;
   await db.transaction(async (tx) => {
@@ -415,7 +418,7 @@ async function issueWhatsAppAuthChallenge(input: {
   });
   if (cooldownMasked) return { challengeId: dummyId, expiresInSeconds: 300, resendAfterSeconds: 60 };
   const [sent, work] = await Promise.allSettled([
-    sendWhatsAppAuthenticationCode(phone, code),
+    testCode ? Promise.resolve() : sendWhatsAppAuthenticationCode(phone, code),
     input.concurrentWork
       ? input.concurrentWork({ challengeId, purpose, targetUserId: target.userId, knownUser: resolvedKnownUser })
       : Promise.resolve(),
