@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { userRepository, membershipRepository, schoolRepository, schoolLicenseRepository } from './repositories';
+import { userRepository, membershipRepository, schoolLicenseRepository } from './repositories';
 import { UserRole, SchoolMembership } from '../src/types';
 
 const configuredSecret = process.env.JWT_SECRET?.trim();
@@ -170,7 +170,8 @@ export function tenantGuard(allowedRoles?: UserRole[]) {
           membership = memberships.find((entry) =>
             entry.schoolId === schoolId && entry.status === 'active' && eligibleRoles.includes(entry.role)
             && (!requestedRole || entry.role === requestedRole) && (!allowedRoles?.length || allowedRoles.includes(entry.role))) || null;
-          if (membership && (!await schoolRepository.getById(schoolId) || !await schoolLicenseRepository.isAccessAllowed(schoolId))) membership = null;
+          // getMembershipsByUserId zaten yalnız açık (disabled_at boş) okulların üyeliklerini döndürür; ayrıca okul sorgusu gerekmez.
+          if (membership && !await schoolLicenseRepository.isAccessAllowed(schoolId)) membership = null;
         } else {
           membership = await requireSchoolMembership(req.user.id, schoolId);
         }
@@ -229,9 +230,8 @@ export function getAuthorizedSchool(req: AuthenticatedRequest): string {
  * Ensures user has an active membership in the school.
  */
 export async function requireSchoolMembership(userId: string, schoolId: string): Promise<SchoolMembership | null> {
-  if (!await schoolRepository.getById(schoolId)) return null;
-  if (!await schoolLicenseRepository.isAccessAllowed(schoolId)) return null;
-  return membershipRepository.getActiveMembership(userId, schoolId);
+  // Okul açık mı + lisans izin veriyor mu + aktif üyelik: tek sorgu (önceden 4 ardışık sorguydu).
+  return membershipRepository.getLicensedActiveMembership(userId, schoolId);
 }
 
 /**

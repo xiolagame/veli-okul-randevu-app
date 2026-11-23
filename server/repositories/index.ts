@@ -123,6 +123,18 @@ export const schoolLicenseRepository = {
       activatedAt: row.activated_at, expiresAt: row.expires_at } : null;
   },
 
+  // isAccessAllowed ile aynı kural, birçok okul için tek sorguda (okul başına bir sorgu yerine).
+  async allowedSchoolIds(schoolIds: string[], client?: TransactionClient): Promise<Set<string>> {
+    const unique = [...new Set(schoolIds)];
+    if (!unique.length) return new Set();
+    const result = await execQuery<{ id: string }>(
+      `SELECT x.id FROM unnest($1::text[]) AS x(id)
+       LEFT JOIN school_licenses l ON l.school_id = x.id
+       WHERE l.id IS NULL OR (l.status = 'active' AND (l.expires_at IS NULL OR l.expires_at > NOW()))`,
+      [unique], client);
+    return new Set(result.rows.map((row) => row.id));
+  },
+
   async isAccessAllowed(schoolId: string, client?: TransactionClient): Promise<boolean> {
     const license = await this.getBySchoolId(schoolId, client);
     if (!license) return true;
@@ -454,6 +466,39 @@ export const membershipRepository = {
       city: r.city,
       district: r.district,
     }));
+  },
+
+  // getActiveMembership + okul açık mı + lisans izin veriyor mu, tek sorguda (her istekte 4 gidiş-gelişin yerine 1).
+  // Kural, schoolRepository.getById ve schoolLicenseRepository.isAccessAllowed ile birebir aynıdır:
+  // lisans kaydı yoksa erişim serbest, varsa 'active' olmalı ve süresi dolmamış olmalı.
+  async getLicensedActiveMembership(userId: string, schoolId: string, client?: TransactionClient): Promise<SchoolMembership | null> {
+    const res = await execQuery<any>(
+      `SELECT sm.id, sm.school_id, sm.user_id, sm.role, sm.branch, sm.status, sm.joined_at,
+              s.name as school_name, s.code as school_code, s.city, s.district
+       FROM school_memberships sm
+       JOIN schools s ON s.id = sm.school_id
+       LEFT JOIN school_licenses l ON l.school_id = sm.school_id
+       WHERE sm.user_id = $1 AND sm.school_id = $2 AND sm.status = 'active' AND s.disabled_at IS NULL
+         AND (l.id IS NULL OR (l.status = 'active' AND (l.expires_at IS NULL OR l.expires_at > NOW())))
+       LIMIT 1;`,
+      [userId, schoolId],
+      client
+    );
+    if (res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      id: r.id,
+      schoolId: r.school_id,
+      userId: r.user_id,
+      role: r.role as UserRole,
+      branch: r.branch || undefined,
+      status: r.status,
+      joinedAt: r.joined_at,
+      schoolName: r.school_name,
+      schoolCode: r.school_code,
+      city: r.city,
+      district: r.district,
+    };
   },
 
   async getActiveMembership(userId: string, schoolId: string, client?: TransactionClient): Promise<SchoolMembership | null> {

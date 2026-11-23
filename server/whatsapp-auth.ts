@@ -137,12 +137,10 @@ async function withinRateLimits(scopes: { scope: string; maximum: number }[], wi
 
 async function eligibleMemberships(userId: string, client?: TransactionClient): Promise<SchoolMembership[]> {
   const memberships = await membershipRepository.getMembershipsByUserId(userId, client);
-  const eligible: SchoolMembership[] = [];
-  for (const membership of memberships) {
-    if (!ELIGIBLE_LOGIN_ROLES.includes(membership.role)) continue;
-    if (await schoolLicenseRepository.isAccessAllowed(membership.schoolId, client)) eligible.push(membership);
-  }
-  return eligible;
+  const candidates = memberships.filter((membership) => ELIGIBLE_LOGIN_ROLES.includes(membership.role));
+  // Tüm okulların lisansı tek sorguda kontrol edilir (okul başına sorgu yok).
+  const allowed = await schoolLicenseRepository.allowedSchoolIds(candidates.map((membership) => membership.schoolId), client);
+  return candidates.filter((membership) => allowed.has(membership.schoolId));
 }
 
 async function resolveTarget(input: {
@@ -209,12 +207,9 @@ async function resolveUnifiedTarget(phone: string, knownUser?: Awaited<ReturnTyp
   if (user) {
     const memberships = (await membershipRepository.getMembershipsByUserId(user.id))
       .filter((item) => item.status === 'active');
-    const valid: SchoolMembership[] = [];
-    for (const item of memberships) {
-      if (await schoolRepository.getById(item.schoolId) && await schoolLicenseRepository.isAccessAllowed(item.schoolId)) {
-        valid.push(item);
-      }
-    }
+    // getMembershipsByUserId yalnız açık okulları döndürür; lisans kontrolü tüm okullar için tek sorgu.
+    const allowedSchools = await schoolLicenseRepository.allowedSchoolIds(memberships.map((item) => item.schoolId));
+    const valid: SchoolMembership[] = memberships.filter((item) => allowedSchools.has(item.schoolId));
     const roles = new Set(valid.map((item) => item.role));
     if (roles.has('admin') && roles.size > 1) return null;
     if (roles.has('admin')) {
