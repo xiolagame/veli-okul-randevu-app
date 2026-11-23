@@ -102,7 +102,7 @@
     },
     {
       "path": "android/app/src/main/java/com/velirandevu/app/MainActivity.java",
-      "sha256": "51349d80eea8faa2336d804a912d58c989052e2e64891c2fda27272e6bee8a80"
+      "sha256": "97948b10c5672a3ff7b6a19019b43055518a7e6b8928b839739023fd2d763e22"
     },
     {
       "path": "android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java",
@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "388cc570e392aa765ea076108af8933e42161a4e4c789e868f49b9bae3fcf377"
+      "sha256": "9024b55f5abf1161e573390397a9619f91ab2fd39368bcaf97c569fe48b0d874"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "fbfa497747dbb476f987bbbfd269f0fbfc92b70cf37abf9bc1b9b1f868671e62"
+      "sha256": "6b9af4bae645553631e0f3bdf095d7ab65d4139b2e6b70be8bd03846c319d417"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -514,7 +514,7 @@
     },
     {
       "path": "ios/App/App/SceneDelegate.swift",
-      "sha256": "738b9b96bb71d34d80cd8c1183cf7f8f6f2e789c64e46fb5fe6777a35ae12dfd"
+      "sha256": "9c5ed3c025049e51dfda9b82dcea918e1b79438e3437e2d2c0c86865ab2311d8"
     },
     {
       "path": "ios/App/App/tr.lproj/InfoPlist.strings",
@@ -958,7 +958,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "e8a6a223a2de0dab9f3fd534e0c00499d2252bebfcc336c7e048c7cdbc3ed7ef"
+      "sha256": "f06d974bf8306c67587c9cf0e14b89ebd34a7bfe42428e819d0c9f2d9d1d6700"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1606,7 +1606,7 @@
     },
     {
       "path": "src/components/AdminView.tsx",
-      "sha256": "2f5d89ec4459dcceb9b7d59c23c5254f39d6b452fbb2b15e5f3949836adf63b2"
+      "sha256": "3324ddcf14961d3027b7c16e2fcac738f47cd352fd2aa019b14bb2d3ede81121"
     },
     {
       "path": "src/components/AppointmentEmailReview.tsx",
@@ -1630,7 +1630,7 @@
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
-      "sha256": "b7ef8c274ae8e0bd5eeddc7807e78b95aa651116dbda16b4d92d16e097db17ab"
+      "sha256": "09dffbd1aa0af6afb0c900e69120d458b4ca915b2f2aeee3815035fa53301e48"
     },
     {
       "path": "src/components/BulkStaffImport.tsx",
@@ -1678,7 +1678,7 @@
     },
     {
       "path": "src/components/NotificationsModal.tsx",
-      "sha256": "057393ca0ffe41dcb487ffd69b81c4cd4f05667df50bd950b8bdf5fd011532e9"
+      "sha256": "36f0f6586466b37fbf9548cf7d18a13d0b01b7b0267a8101e4fbe109825f7c3b"
     },
     {
       "path": "src/components/OnboardingModal.tsx",
@@ -1694,7 +1694,7 @@
     },
     {
       "path": "src/components/ParentView.tsx",
-      "sha256": "06b3d9e2524df5593982e49787614ea0f3959d149c5acd0a5591b8102c3f2b94"
+      "sha256": "c985b265a13a2509c873b0914528d26806c4ba636d731d53a15c9af2c6f762f8"
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
@@ -1722,7 +1722,7 @@
     },
     {
       "path": "src/components/QRCodePass.tsx",
-      "sha256": "78a22b5caf7144361023e9f003b5407f87ad2cecaf0c3fc54351c922fb38eeb0"
+      "sha256": "fafcf1893fa4292978d4d959b640d18793a725c51fc73231ac3a3006eda4f429"
     },
     {
       "path": "src/components/ReviewBanner.tsx",
@@ -1754,11 +1754,11 @@
     },
     {
       "path": "src/components/StaffManagement.tsx",
-      "sha256": "b4866a46fc98f3a9678afafae23ee10f0948e837976c05f81b3fcd5c77d0dc91"
+      "sha256": "97d393902150930ab9c085c119c401ece8dc01ee30bd5da261efb2661d29bb62"
     },
     {
       "path": "src/components/StudentManagement.tsx",
-      "sha256": "db5bd8bb3feb59a8fb028dacf93eed8752436505add6dabc9d6ea283f1a59730"
+      "sha256": "ef911678e4894f645684b0e84a54549bdd0a844a536ee15c362885c80c7b21cc"
     },
     {
       "path": "src/components/SupportConversation.tsx",
@@ -1766,7 +1766,7 @@
     },
     {
       "path": "src/components/TeacherView.tsx",
-      "sha256": "b51fb4c16cbc813c02f6147da88009ece79cde2ac19336e0c79d24c3fd65df4b"
+      "sha256": "edbbb95836037f391fa70cc684ed33f246ba6a2bb1290d8ab29f59416dea4f8b"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -1846,7 +1846,7 @@
     },
     {
       "path": "src/mobile-compact.css",
-      "sha256": "06bc909b12fddbff83a55451eecd30783441aa3932c3fb7c5fd191b591dc0980"
+      "sha256": "85d5e9f17cd8a278d97566053bdd79972e6b8c72259493c72f70f7713e19024d"
     },
     {
       "path": "src/platform/NativeWebWelcome.tsx",
