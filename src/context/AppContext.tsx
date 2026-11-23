@@ -56,6 +56,9 @@ interface AppContextType {
   isolationTestResults: TenantIsolationTestResult[];
   unreadNotificationCount: number;
   isLoading: boolean;
+  // Okul verileri (öğretmenler, randevular...) ilk kez yüklenirken true. Ekranlar bu sırada
+  // "randevunuz yok" gibi yanlış boş mesajlar yerine yükleniyor durumu gösterir.
+  schoolDataLoading: boolean;
   authStorageError: boolean;
   accountDeletionNotice: string | null;
   switchSchool: (schoolId: string, role?: SchoolMembership['role']) => Promise<void>;
@@ -171,6 +174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [roster, setRoster] = useState<SchoolRosterRecord[]>([]);
   const [isolationTestResults, setIsolationTestResults] = useState<TenantIsolationTestResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [schoolDataLoading, setSchoolDataLoading] = useState(false);
   const [authStorageError, setAuthStorageError] = useState(false);
   const [accountDeletionNotice, setAccountDeletionNotice] = useState<string | null>(null);
   const sessionRestore = useRef<Promise<SessionRestoreResult> | null>(null);
@@ -197,6 +201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuditLogs([]);
     setRoster([]);
     setIsolationTestResults([]);
+    setSchoolDataLoading(false);
   }, []);
 
   useEffect(() => authSession.subscribe(() => {
@@ -218,6 +223,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const role = platformContext ? 'admin' : membership?.role;
     const isAdmin = role === 'admin';
     setUsersLoading(isAdmin);
+    setSchoolDataLoading(true);
+    try {
     const [teachersRes, usersRes, studentsRes, availRes, aptsRes, notifsRes, settingsRes, auditRes, rosterRes] = await Promise.all([
       (isAdmin ? Promise.resolve({ teachers: [] }) : api.getTeachers(schoolId).catch(() => ({ teachers: [] }))),
       Promise.resolve({ users: [] }),
@@ -255,6 +262,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettings(settingsRes.settings);
     setAuditLogs(auditRes.auditLogs);
     setRoster(rosterRes.roster);
+    } finally {
+      if (sequence === schoolLoadSequence.current) setSchoolDataLoading(false);
+    }
   }, []);
 
   const applyAuthenticatedSession = useCallback((user: User, memberships: SchoolMembership[], access: SchoolAccess) => {
@@ -751,6 +761,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isolationTestResults,
         unreadNotificationCount,
         isLoading,
+        schoolDataLoading,
         authStorageError,
         accountDeletionNotice,
         switchSchool,

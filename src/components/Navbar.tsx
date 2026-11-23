@@ -10,6 +10,7 @@ import { appLifecycle } from '../platform/lifecycle';
 import { networkHint } from '../platform/network';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
 import { pushPromptState } from './push-prompt-state';
+import { displayTurkishPhone } from '../utils/phone';
 
 interface NavbarProps {
   onManageSchools?: () => void;
@@ -166,7 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNotifications, onOpenAdmin
         {!isPlatformAdmin && onOpenOnboarding && <Button variant="secondary" className="w-full mt-5" onClick={() => { setShowSchoolMenu(false); onOpenOnboarding(); }}><KeyRound size={18} />Yeni okula katılma hakkında</Button>}
       </Dialog>}
       {showPersonaMenu && <Dialog title="Hesabım" dismissible={!isLoggingOut} onClose={() => setShowPersonaMenu(false)}>
-        <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {currentUser?.phone}</p></div></div>
+        <div className="flex gap-4 items-center mb-6"><span className="avatar"><RoleIcon size={22} aria-hidden="true" /></span><div><h3 className="font-bold">{currentUser?.firstName} {currentUser?.lastName}</h3><p className="text-sm text-slate-500">{currentUser?.role ? roleLabel[currentUser.role] : 'Hesabım'} · {displayTurkishPhone(currentUser?.phone)}</p></div></div>
         {isLoggingOut ? <p role="status" aria-live="polite" className="text-sm text-slate-600">Oturum kapatılıyor…</p> : <>
         <Button variant="secondary" className="w-full mb-3" onClick={() => { setShowPersonaMenu(false); onOpenHelp(); }}><CircleHelp size={18} />Yardım ve Bilgilendirme</Button>
         {currentSchool&&!isPlatformAdmin&&currentUser?.role==='admin'&&<LicenseWhatsAppPreference key={currentSchool.id} schoolId={currentSchool.id}/>}

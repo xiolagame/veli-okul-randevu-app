@@ -29,6 +29,12 @@ export function formatTurkishPhoneInput(value: string): string {
   return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 9), digits.slice(9, 11)].filter(Boolean).join(' ');
 }
 
+// Ekranda gösterim için: geçerli numara "0500 000 10 02" biçiminde, geçersizse olduğu gibi.
+export function displayTurkishPhone(value: string | null | undefined): string {
+  if (!value) return '';
+  return normalizeTurkishPhone(value) ? formatTurkishPhoneInput(value) : value;
+}
+
 export function isValidTurkishPhoneInput(value: unknown): boolean {
   return normalizeTurkishPhone(value) !== null;
 }

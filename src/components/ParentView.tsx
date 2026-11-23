@@ -1,9 +1,10 @@
 import { formatDate, formatDateTime, formatDatesInText, getIstanbulDate } from '../utils/dates';
 import React, { useEffect, useRef, useState } from 'react';
 import { normalizePersonName, uppercasePersonNameInput } from '../utils/person-name';
+import { formatTurkishPhoneInput } from '../utils/phone';
 import { useApp } from '../context/AppContext';
 import { Appointment, TeacherProfile } from '../types';
-import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge, StepIndicator } from './ui';
+import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge, StepIndicator } from './ui';
 import { QRCodePass } from './QRCodePass';
 import { api } from '../services/api';
 import { calendarWeekday, generateAppointmentSlots, intervalsOverlap } from '../utils/appointment-slots';
@@ -54,6 +55,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
     clearParentHistory,
     getParentClasses,
     refreshMobileData,
+    schoolDataLoading,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'home' | 'teachers' | 'appointments' | 'notifications' | 'profile'>('home');
@@ -70,6 +72,9 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
     return () => cancelAnimationFrame(frame);
   }, [activeTab, pushAppointmentIntent?.sequence, appointments]);
   const [selectedPassAppointment, setSelectedPassAppointment] = useState<Appointment | null>(null);
+  // Randevu tek dokunuşla iptal edilmesin: önce onay penceresi.
+  const [cancelingAppointment, setCancelingAppointment] = useState<Appointment | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   // Booking Modal State
   const [bookingTeacher, setBookingTeacher] = useState<TeacherProfile | null>(null);
@@ -121,9 +126,10 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
     (a) => a.parentId === currentUser?.id || a.parentPhone === currentUser?.phone
   );
 
+  // En yakın tarih ve saat önce gelir; "Sıradaki görüşmeniz" gerçekten sıradakini göstersin.
   const upcomingAppointments = parentAppointments.filter(
     (a) => (a.status === 'booked' || a.status === 'pending' || a.status === 'checked_in') && a.date >= getIstanbulDate()
-  );
+  ).sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`));
   const pushedAppointment = pushAppointmentIntent
     ? parentAppointments.find((appointment) => appointment.id === pushAppointmentIntent.id)
     : undefined;
@@ -260,8 +266,10 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
         {appointment.rejectionReason && <p className="mt-3 text-red-700">{appointment.rejectionReason}</p>}
         {appointment.notes && <p className="mt-3">Notunuz: {appointment.notes}</p>}
         <div className="appointment-actions">
-          <Button variant="secondary" onClick={() => setSelectedPassAppointment(appointment)}><QrCode size={17} />Giriş kartı</Button>
-          {settings.allowParentCancel && (appointment.status === 'booked' || appointment.status === 'pending') && <Button variant="quiet" onClick={() => { setActionError(''); void cancelAppointment(appointment.id).catch(() => setActionError('Randevu iptal edilemedi. Lütfen tekrar deneyin.')); }}>Randevuyu iptal et</Button>}
+          {/* Giriş kartı yalnız onaylı görüşmede anlamlı; onay bekleyen kart giriş izni vermez. */}
+          {(appointment.status === 'booked' || appointment.status === 'checked_in') && <Button variant="secondary" onClick={() => setSelectedPassAppointment(appointment)}><QrCode size={17} />Giriş kartı</Button>}
+          {appointment.status === 'pending' && <p className="text-sm text-slate-600">Öğretmen onayladığında giriş kartınız burada açılır.</p>}
+          {settings.allowParentCancel && (appointment.status === 'booked' || appointment.status === 'pending') && <Button variant="quiet" onClick={() => { setActionError(''); setCancelingAppointment(appointment); }}>Randevuyu iptal et</Button>}
         </div>
       </div>
     </article>
@@ -277,15 +285,16 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
 
   return (
     <main id="main-content" className="page-shell" {...touchHandlers}>
-      <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={activeTab !== 'teachers' && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
+      <PageHeader eyebrow="VELİ ALANI" title={activeTab === 'home' ? `Merhaba, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Okul hayatına birlikte, bir adım daha yakın.' : settings.schoolName} action={(activeTab === 'home' || activeTab === 'appointments') && <Button onClick={() => setActiveTab('teachers')}><Plus size={18} />Yeni randevu al</Button>} />
       <RoleNavigation items={navigation} active={activeTab} onChange={setActiveTab} />
       {refreshControl}
       {actionError && <div className="mb-5"><Alert tone="danger">{actionError}</Alert></div>}
 
-      {activeTab === 'home' && <div className="space-y-7">
+      {activeTab !== 'profile' && schoolDataLoading && <Skeleton rows={3} />}
+      {activeTab === 'home' && !schoolDataLoading && <div className="space-y-7">
         {nextAppointment ? <section className="hero-card">
           <div><p className="eyebrow">SIRADAKİ GÖRÜŞMENİZ</p><StatusBadge status={nextAppointment.status} /><h2>{normalizePersonName(nextAppointment.teacherName)}</h2><p>{nextAppointment.teacherBranch} · {normalizePersonName(nextAppointment.studentName)}</p><div className="detail-row"><span><Calendar size={16} />{formatDate(nextAppointment.date)}</span><span><Clock size={16} />{nextAppointment.startTime} – {nextAppointment.endTime}</span></div></div>
-          <Button onClick={() => setSelectedPassAppointment(nextAppointment)}><QrCode size={19} />Giriş kartını aç</Button>
+          {nextAppointment.status === 'booked' || nextAppointment.status === 'checked_in' ? <Button onClick={() => setSelectedPassAppointment(nextAppointment)}><QrCode size={19} />Giriş kartını aç</Button> : <Button variant="secondary" onClick={() => setActiveTab('appointments')}>Randevularımı gör<ArrowRight size={18} /></Button>}
         </section> : <section className="hero-card"><div><h2>Öğretmeninizle görüşmek için size uygun bir zaman seçin.</h2><Button className="mt-6" onClick={() => setActiveTab('teachers')}>İlk randevunuzu planlayın<ArrowRight size={18} /></Button></div><span className="hero-symbol"><Calendar size={40} strokeWidth={1.5} /></span></section>}
         <div className="metric-grid parent-metric-grid"><Metric label="Aktif randevu" value={upcomingAppointments.length} icon={Calendar} /><Metric label="Öğrencilerim" value={currentUser?.students?.length || 0} icon={Users} /></div>
         <section>
@@ -293,7 +302,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
         </section>
       </div>}
 
-      {activeTab === 'teachers' && <section>
+      {activeTab === 'teachers' && !schoolDataLoading && <section>
         <div className="filter-bar">
           <label className="field" htmlFor="teacher-search">Öğretmen veya branş ara<div className="field-icon"><Search size={18} /><input id="teacher-search" value={teacherSearch} onChange={(event) => setTeacherSearch(event.target.value)} placeholder="İsim veya branş yazın" /></div></label>
           <label className="field" htmlFor="teacher-branch">Branş<select id="teacher-branch" value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}>{branches.map((branch) => <option key={branch}>{branch}</option>)}</select></label>
@@ -301,7 +310,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
         {filteredTeachers.length ? <div className="teacher-grid">{filteredTeachers.map(teacherCard)}</div> : <div className="surface"><EmptyState icon={Search} title="Öğretmen bulunamadı" description="Farklı bir isim veya branş ile aramayı deneyin." /></div>}
       </section>}
 
-      {activeTab === 'appointments' && <div className="space-y-8">
+      {activeTab === 'appointments' && !schoolDataLoading && <div className="space-y-8">
         {pushedAppointment && !upcomingAppointments.some((appointment) => appointment.id === pushedAppointment.id)
           && <section><div className="section-heading"><h2>Bildirimdeki randevu</h2></div>{appointmentCard(pushedAppointment)}</section>}
         <section><div className="section-heading"><h2>Yaklaşan görüşmeler <span className="text-slate-500">({upcomingAppointments.length})</span></h2></div>
@@ -309,13 +318,13 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
         </section>
       </div>}
 
-      {activeTab === 'notifications' && <section className="surface">
+      {activeTab === 'notifications' && !schoolDataLoading && <section className="surface">
         <div className="section-heading"><h2>Okulunuzdan haberler</h2><div className="flex flex-wrap gap-2"><Button variant="quiet" onClick={markNotificationsAsRead}>Tümünü okundu işaretle</Button><Button variant="quiet" onClick={() => { if (window.confirm('Tüm bildirimleriniz listeden kaldırılacak. Bu işlem sistem kayıtlarını etkilemez.')) void clearParentNotifications().catch(() => setActionError('Bildirimler temizlenemedi.')); }}>Tüm bildirimleri sil</Button></div></div>
         {notifications.filter((notification) => notification.userId === currentUser?.id).length ? <div className="divide-y divide-slate-200">{notifications.filter((notification) => notification.userId === currentUser?.id).map((notification) => <article className="py-5 flex gap-4 items-start" key={notification.id}><span className="avatar"><Bell size={20} /></span><div className="flex-1 min-w-0"><div className="notification-title-row"><div className="min-w-0"><h3 className="font-bold text-sm">{notification.title}</h3>{!notification.read && <span className="text-blue-700 text-xs">Yeni</span>}</div><button type="button" className="notification-delete-button" aria-label={`${notification.title} bildirimini sil`} disabled={deletingNotificationId !== null} onClick={() => { setActionError(''); setDeletingNotificationId(notification.id); void deleteNotification(notification.id).catch(() => setActionError('Bildirim silinemedi. Lütfen tekrar deneyin.')).finally(() => setDeletingNotificationId(null)); }}><Trash2 size={17} aria-hidden="true" /><span>Sil</span></button></div><p className="text-sm text-slate-600 mt-2">{formatDatesInText(notification.message)}</p><p className="text-xs text-slate-500 mt-2">{formatDateTime(notification.date)}</p>{notification.appointmentId && <Button variant="quiet" className="mt-2" onClick={() => { const appointment = appointments.find((item) => item.id === notification.appointmentId); if (appointment) setSelectedPassAppointment(appointment); }}>Giriş kartını gör<QrCode size={16} /></Button>}</div></article>)}</div> : <EmptyState icon={Bell} title="Şimdilik her şey güncel" description="Randevularınızla ilgili gelişmeler burada görünecek." />}
       </section>}
 
       {activeTab === 'profile' && <div className="max-w-2xl space-y-6">
-        <section className="surface flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="text-xl font-bold">{normalizePersonName(`${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`)}</h2><p className="text-sm text-slate-500 mt-1">{currentUser?.phone}</p></div></section>
+        <section className="surface flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="text-xl font-bold">{normalizePersonName(`${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`)}</h2><p className="text-sm text-slate-500 mt-1">{formatTurkishPhoneInput(currentUser?.phone || '')}</p></div></section>
         <section className="surface"><div className="section-heading"><div><h2>Öğrencilerim</h2><p>Görüşmelerinizde bu öğrencilerden seçim yapabilirsiniz.</p></div></div>
           <div className="space-y-3">{currentUser?.students?.map((student) => <div key={student.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50"><div><h3 className="font-semibold text-sm">{normalizePersonName(student.name)}</h3><p className="text-xs text-slate-500">{student.className}</p></div>{currentUser.students && currentUser.students.length > 1 && <button type="button" className="icon-button" onClick={() => removeStudentFromProfile(student.id)} aria-label={`${student.name} öğrencisini kaldır`}><Trash2 size={18} /></button>}</div>)}</div>
           <div className="form-stack mt-6 pt-6 border-t border-slate-200"><h3 className="font-semibold">Öğrenci ekle</h3><label className="field" htmlFor="student-name">Öğrenci adı soyadı<input id="student-name" value={newStudentName} onChange={(event) => setNewStudentName(uppercasePersonNameInput(event.target.value))} placeholder="Adı soyadı" /></label><label className="field" htmlFor="student-class">Sınıf<select id="student-class" value={newStudentClass} onChange={(event) => setNewStudentClass(event.target.value)} disabled={classesLoading || !schoolClasses.length}><option value="">Sınıf seçin</option>{schoolClasses.map((schoolClass) => <option key={schoolClass} value={schoolClass}>{schoolClass}</option>)}</select></label>{!classesLoading && !schoolClasses.length && <p className="field-hint">Henüz okul yönetimi tarafından sınıf tanımlanmamış.</p>}<Button disabled={!newStudentName.trim() || !newStudentClass} onClick={() => { void addStudentToProfile({ name: newStudentName, className: newStudentClass }).then(() => { setNewStudentName(''); setNewStudentClass(''); }).catch((error: Error) => setActionError(error.message)); }}><Plus size={17} />Öğrenci ekle</Button></div>
@@ -337,6 +346,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
           <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy || occupiedSlots?.key !== occupiedKey || !!slotsError}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
         </form>}
       </Dialog>}
+      {cancelingAppointment && <Dialog title="Randevuyu iptal et" description={`${normalizePersonName(cancelingAppointment.teacherName)} · ${formatDate(cancelingAppointment.date)} ${cancelingAppointment.startTime}`} onClose={() => setCancelingAppointment(null)} dismissible={!cancelBusy}><div className="form-stack"><p className="text-sm text-slate-600">Bu randevu iptal edilecek ve öğretmeninize bilgi verilecek. Emin misiniz?</p><div className="form-actions"><Button variant="secondary" disabled={cancelBusy} onClick={() => setCancelingAppointment(null)}>Vazgeç</Button><Button variant="danger" disabled={cancelBusy} onClick={() => { const target = cancelingAppointment; setCancelBusy(true); void cancelAppointment(target.id).then(() => setCancelingAppointment(null)).catch(() => { setCancelingAppointment(null); setActionError('Randevu iptal edilemedi. Lütfen tekrar deneyin.'); }).finally(() => setCancelBusy(false)); }}>{cancelBusy ? 'İptal ediliyor…' : 'Randevuyu iptal et'}</Button></div></div></Dialog>}
       {selectedPassAppointment && <QRCodePass appointment={selectedPassAppointment} schoolName={settings.schoolName} onClose={() => setSelectedPassAppointment(null)} />}
     </main>
   );

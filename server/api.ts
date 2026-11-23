@@ -1396,14 +1396,25 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
         return res.status(403).json({ error: 'Bu okulda öğretmen profiliniz bulunamadı.' });
       }
 
-      const slot = await availabilityRepository.createSlot({
-        schoolId,
-        teacherId: teacher.id,
-        dayOfWeek: Number(dayOfWeek),
-        startTime,
-        endTime,
-        slotDurationMinutes: duration,
+      // Aynı gün çakışan aralık eklenmesin (ör. 09:00-17:00 varken 09:30-11:30). Saatler "SS:DD" metni olduğu
+      // için metin karşılaştırması doğru sıralar. Aynı öğretmen+gün için kilit, eşzamanlı iki eklemeyi de engeller.
+      const slot = await (await getDb()).transaction(async (tx) => {
+        await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`availability:${schoolId}:${teacher.id}:${Number(dayOfWeek)}`]);
+        const overlap = await tx.query(
+          `SELECT 1 FROM availability_slots
+           WHERE school_id=$1 AND teacher_id=$2 AND day_of_week=$3 AND start_time < $5 AND end_time > $4 LIMIT 1`,
+          [schoolId, teacher.id, Number(dayOfWeek), startTime, endTime]);
+        if (overlap.rows.length) return null;
+        return availabilityRepository.createSlot({
+          schoolId,
+          teacherId: teacher.id,
+          dayOfWeek: Number(dayOfWeek),
+          startTime,
+          endTime,
+          slotDurationMinutes: duration,
+        }, tx);
       });
+      if (!slot) return res.status(409).json({ error: 'Bu saat aralığı o gün için eklediğiniz başka bir aralıkla çakışıyor.' });
 
       res.json({ success: true, slot });
     } catch (err: any) {
@@ -1922,6 +1933,29 @@ apiRouter.post(
           },
           tx
         );
+
+        // Karşı tarafa uygulama içi bildirim: veli iptal ederse öğretmene, öğretmen/yönetim iptal ederse veliye.
+        const when = `${updatedApt.date} saat ${updatedApt.startTime}`;
+        if (req.membership!.role === 'parent') {
+          const teacherProfile = await teacherRepository.getTeacherById(schoolId, updatedApt.teacherId, tx);
+          if (teacherProfile?.userId) {
+            await notificationRepository.createNotification({
+              schoolId,
+              userId: teacherProfile.userId,
+              title: 'Randevu İptal Edildi',
+              message: `${updatedApt.parentName} (${updatedApt.studentName} - ${updatedApt.className}) ${when} randevusunu iptal etti.`,
+              appointmentId: updatedApt.id,
+            }, tx);
+          }
+        } else if (updatedApt.parentId) {
+          await notificationRepository.createNotification({
+            schoolId,
+            userId: updatedApt.parentId,
+            title: 'Randevunuz İptal Edildi',
+            message: `${updatedApt.teacherName} ile ${updatedApt.studentName} için ${when} randevusu iptal edildi.`,
+            appointmentId: updatedApt.id,
+          }, tx);
+        }
 
         return updatedApt;
       });

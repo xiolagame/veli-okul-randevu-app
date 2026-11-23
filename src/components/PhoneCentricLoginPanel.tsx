@@ -32,6 +32,14 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
   const pending = useRef(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  // 6 hane yazılınca kod kendiliğinden doğrulanır (aynı kod hatalıysa tekrar tekrar gönderilmez).
+  const formRef = useRef<HTMLFormElement>(null);
+  const autoSubmitted = useRef('');
+  useEffect(() => {
+    if (step !== 'WHATSAPP_CODE' || code.length !== 6 || pending.current || autoSubmitted.current === code) return;
+    autoSubmitted.current = code;
+    formRef.current?.requestSubmit();
+  }, [code, step]);
 
   useEffect(() => {
     if (getRuntimePlatform() === 'IOS') return;
@@ -162,7 +170,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     </div>
     {message && <Alert tone="info">{message}</Alert>}
     {checkingCapabilities && <p role="status">Güvenli giriş bağlantısı doğrulanıyor…</p>}
-    <form onSubmit={submit} className="form-stack">
+    <form ref={formRef} onSubmit={submit} className="form-stack">
       <label className="field" htmlFor="phone-centric-phone">Telefon numaranız
         <div className="field-icon"><Phone size={18} aria-hidden="true" />
           <input id="phone-centric-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={14}
@@ -173,7 +181,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
       {error && <div id="phone-centric-error"><Alert tone="danger">{error}</Alert></div>}
       {step === 'WHATSAPP_CODE' && <label className="field" htmlFor="phone-centric-code">WhatsApp doğrulama kodu
         <div className="field-icon"><ShieldCheck size={18} aria-hidden="true" />
-          <input id="phone-centric-code" type="text" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go"
+          <input id="phone-centric-code" type="text" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go" autoFocus
             maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="6 haneli kod" required />
         </div>

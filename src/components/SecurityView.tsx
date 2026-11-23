@@ -262,7 +262,8 @@ export const SecurityView: React.FC<SecurityViewProps> = ({
         <p>Velinin randevu kartındaki QR kodu kameraya gösterin.</p>
       </>}
       <div className={`camera-preview ${verifyResult || error || busy ? `camera-preview-result tone-${resultTone}` : cameraActive ? 'camera-preview-active' : ''}`}>
-        <video ref={videoRef} autoPlay playsInline muted aria-label="QR kodu kamera görüntüsü" hidden={!!(verifyResult || error || busy)} />
+        {/* Şeffaf poster: Android WebView kamera açılmadan önce videonun yerine büyük gri "oynat" simgesi çiziyordu. */}
+        <video ref={videoRef} autoPlay playsInline muted poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" aria-label="QR kodu kamera görüntüsü" hidden={!!(verifyResult || error || busy)} />
         {verifyResult || error || busy ? <div className="camera-result-panel" role="status" aria-live="polite">
           <button type="button" className="camera-result-close" aria-label="Sonucu kapat" disabled={busy} onClick={resetResult}><X size={21} /></button>
           {busy && !verifyResult && !error ? <><QrCode className="camera-result-icon" /><h2>QR KOD DOĞRULANIYOR</h2><p>Lütfen bekleyin.</p></> : verifyResult ? <>

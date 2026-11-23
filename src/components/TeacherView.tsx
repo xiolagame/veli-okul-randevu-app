@@ -2,7 +2,9 @@ import { formatDate, getIstanbulDate } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
-import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, StatusBadge } from './ui';
+import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge } from './ui';
+import { ApiError } from '../platform/api-error';
+import { formatTurkishPhoneInput } from '../utils/phone';
 import { AVAILABILITY_DAYS, groupAvailabilityByDay } from '../utils/availability';
 import {
   Calendar,
@@ -30,6 +32,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
     addAvailabilitySlot,
     removeAvailabilitySlot,
     refreshMobileData,
+    schoolDataLoading,
   } = useApp();
 
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
@@ -54,6 +57,8 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'today' | 'pending' | 'approved'>('all');
   const [rejectingAptId, setRejectingAptId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  // Onaylanmış randevu tek dokunuşla iptal edilmesin: önce onay penceresi.
+  const [cancelingApt, setCancelingApt] = useState<Appointment | null>(null);
 
   // New Availability Slot State
   const [newDay, setNewDay] = useState<number>(1);
@@ -64,13 +69,14 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   const teacherAppointments = appointments;
   const teacherProfileId = teachers.find((teacher) => teacher.userId === currentUser?.id)?.id;
 
-  const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending');
+  const byDateTime = (a: Appointment, b: Appointment) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`);
+  const pendingAppointments = teacherAppointments.filter((a) => a.status === 'pending').sort(byDateTime);
   const bookedAppointments = teacherAppointments.filter(
     (a) => a.status === 'booked' || a.status === 'checked_in'
-  );
+  ).sort(byDateTime);
   const completedAppointments = teacherAppointments.filter(
     (a) => a.status === 'checked_out' || a.status === 'cancelled' || a.status === 'rejected'
-  );
+  ).sort((a, b) => byDateTime(b, a));
 
   const teacherAvailability = availability.filter((av) => av.teacherId === teacherProfileId);
   const availabilityGroups = groupAvailabilityByDay(teacherAvailability);
@@ -82,8 +88,10 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       await action();
       setFeedback({ message, failed: false });
       return true;
-    } catch {
-      setFeedback({ message: 'İşlem tamamlanamadı. Lütfen tekrar deneyin.', failed: true });
+    } catch (cause) {
+      // Sunucunun açıklayıcı mesajı (ör. "saat aralığı çakışıyor") varsa onu göster.
+      const message = cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && cause.message ? cause.message : 'İşlem tamamlanamadı. Lütfen tekrar deneyin.';
+      setFeedback({ message, failed: true });
       return false;
     } finally {
       setBusy(false);
@@ -101,6 +109,14 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
 
   const handleAddSlot = (event: React.FormEvent) => {
     event.preventDefault();
+    if (!newStartTime || !newEndTime || newStartTime >= newEndTime) {
+      setFeedback({ message: 'Bitiş saati başlangıç saatinden sonra olmalı.', failed: true });
+      return;
+    }
+    if (teacherAvailability.some((slot) => slot.dayOfWeek === newDay && slot.startTime < newEndTime && slot.endTime > newStartTime)) {
+      setFeedback({ message: 'Bu saat aralığı o gün için eklediğiniz başka bir aralıkla çakışıyor.', failed: true });
+      return;
+    }
     void perform(() => addAvailabilitySlot({
       dayOfWeek: newDay,
       startTime: newStartTime,
@@ -126,28 +142,29 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       <div className="appointment-time"><strong>{appointment.startTime}</strong><span>{appointment.endTime}</span></div>
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{appointment.studentName}</h3><p>{appointment.className} · Veli: {appointment.parentName}</p></div><StatusBadge status={appointment.status} /></div>
-        <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><span><Phone size={15} />{appointment.parentPhone}</span></div>
+        <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><a className="inline-flex items-center gap-1" href={`tel:${appointment.parentPhone}`} aria-label={`Veliyi ara: ${formatTurkishPhoneInput(appointment.parentPhone)}`}><Phone size={15} />{formatTurkishPhoneInput(appointment.parentPhone)}</a></div>
         {appointment.notes && <p className="mt-4 p-3 bg-slate-50 rounded-xl">Veli notu: {appointment.notes}</p>}
         {appointment.rejectionReason && <p className="mt-3">Ret gerekçesi: {appointment.rejectionReason}</p>}
-        {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : appointment.status === 'booked' && <div className="appointment-actions"><Button variant="quiet" disabled={busy} onClick={() => { void perform(() => cancelAppointment(appointment.id), 'Randevu iptal edildi.'); }}>İptal et</Button></div>}
+        {appointment.status === 'pending' ? <div className="appointment-actions"><Button disabled={busy} onClick={() => { void handleApprove(appointment.id); }}><Check size={17} />Onayla</Button><Button variant="danger" disabled={busy} onClick={() => setRejectingAptId(appointment.id)}>Reddet</Button></div> : appointment.status === 'booked' && <div className="appointment-actions"><Button variant="quiet" disabled={busy} onClick={() => setCancelingApt(appointment)}>İptal et</Button></div>}
       </div>
     </article>
   );
 
   return (
     <main id="main-content" className="page-shell" {...touchHandlers}>
-      <PageHeader eyebrow={`ÖĞRETMEN ALANI · ${currentUser?.branch || 'GÖRÜŞME PROGRAMI'}`} title={activeTab === 'home' ? `İyi günler, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description="Görüşmelerinizi planlayın. Velilerinizle bağınızı güçlendirin." />
+      <PageHeader eyebrow={`ÖĞRETMEN ALANI · ${currentUser?.branch || 'GÖRÜŞME PROGRAMI'}`} title={activeTab === 'home' ? `İyi günler, ${currentUser?.firstName}.` : navigation.find((item) => item.id === activeTab)?.label} description={activeTab === 'home' ? 'Görüşmelerinizi planlayın. Velilerinizle bağınızı güçlendirin.' : settings.schoolName} />
       <RoleNavigation items={navigation} active={activeTab} onChange={(tab) => { if (tab === 'appointments') setAppointmentFilter('all'); setActiveTab(tab); }} />
       {refreshControl}
       {feedback && <div className="mb-6"><Alert tone={feedback.failed ? 'danger' : 'success'}>{feedback.message}</Alert></div>}
-      {activeTab === 'home' && <div className="space-y-7">
+      {(activeTab === 'home' || activeTab === 'appointments') && schoolDataLoading && <Skeleton rows={3} />}
+      {activeTab === 'home' && !schoolDataLoading && <div className="space-y-7">
         <section className="hero-card"><div><p className="eyebrow">GÜNÜNÜZÜ PLANLAYIN</p><h2>{pendingAppointments.length ? `${pendingAppointments.length} görüşme talebi sizi bekliyor.` : 'Görüşme programınız güncel.'}</h2><p>{pendingAppointments.length ? 'Velilerinizin taleplerini inceleyerek görüşme planınızı netleştirin.' : 'Yeni talepler geldiğinde burada görebilirsiniz.'}</p></div><Button onClick={() => pendingAppointments.length ? showAppointments('pending') : setActiveTab('availability')}>{pendingAppointments.length ? 'Talepleri incele' : 'Müsaitlik programı'}<Calendar size={18} /></Button></section>
         <div className="metric-grid"><Metric icon={Calendar} label="Bugünkü görüşme" value={todayAppointments.length} onClick={() => showAppointments('today')} /><Metric icon={Clock} label="Onay bekleyen" value={pendingAppointments.length} onClick={() => showAppointments('pending')} /><Metric icon={CheckCircle2} label="Onaylanan" value={bookedAppointments.length} onClick={() => showAppointments('approved')} /></div>
         <section><div className="section-heading"><div><h2>Bugünkü programınız</h2><p className="teacher-today-date">{formatDate(getIstanbulDate())}</p></div><Button variant="quiet" onClick={() => showAppointments('all')}>Tüm randevular</Button></div>
           {todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşmeniz yok" description="Yaklaşan görüşmelerinizi Randevular ekranında bulabilirsiniz." /></div>}
         </section>
       </div>}
-      {activeTab === 'appointments' && <div className="space-y-8">
+      {activeTab === 'appointments' && !schoolDataLoading && <div className="space-y-8">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Randevu filtresi">{([['all', 'Tümü'], ['today', 'Bugün'], ['pending', 'Onay bekleyen'], ['approved', 'Onaylanan']] as const).map(([filter, label]) => <Button key={filter} variant={appointmentFilter === filter ? 'primary' : 'secondary'} aria-pressed={appointmentFilter === filter} onClick={() => setAppointmentFilter(filter)}>{label}</Button>)}</div>
         {appointmentFilter === 'today' && <section><div className="section-heading"><h2>Bugünkü görüşmeler ({todayAppointments.length})</h2></div>{todayAppointments.length ? <div className="space-y-4">{todayAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={Calendar} title="Bugün için planlı görüşme yok" /></div>}</section>}
         {(appointmentFilter === 'all' || appointmentFilter === 'pending') && <section><div className="section-heading"><h2>Onay bekleyenler ({pendingAppointments.length})</h2></div>{pendingAppointments.length ? <div className="space-y-4">{pendingAppointments.map(appointmentCard)}</div> : <div className="surface"><EmptyState icon={CheckCircle2} title="Bekleyen talep bulunmuyor" description="Yeni görüşme talepleri burada görünecek." /></div>}</section>}
@@ -165,7 +182,8 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
         </section>
         <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-6">{availabilityGroups.map((day) => <section key={day.id} aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-4"><p className="text-sm text-slate-600">{slot.startTime} – {slot.endTime}<span className="block sm:inline sm:ml-4 text-xs text-slate-500">{slot.slotDurationMinutes} dakika / görüşme</span></p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
       </div>}
-      {activeTab === 'profile' && <section className="surface max-w-xl"><div className="flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="font-bold text-xl">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-blue-700 mt-1 text-sm">{currentUser?.branch}</p></div></div><dl className="pass-details mt-7"><div><dt>Telefon</dt><dd>{currentUser?.phone}</dd></div><div><dt>Okul</dt><dd>{settings.schoolName}</dd></div></dl></section>}
+      {activeTab === 'profile' && <section className="surface max-w-xl"><div className="flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="font-bold text-xl">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-blue-700 mt-1 text-sm">{currentUser?.branch}</p></div></div><dl className="pass-details mt-7"><div><dt>Telefon</dt><dd>{formatTurkishPhoneInput(currentUser?.phone || '')}</dd></div><div><dt>Okul</dt><dd>{settings.schoolName}</dd></div></dl></section>}
+      {cancelingApt && <Dialog title="Randevuyu iptal et" description={`${cancelingApt.studentName} · ${formatDate(cancelingApt.date)} ${cancelingApt.startTime}`} onClose={() => setCancelingApt(null)} dismissible={!busy}><div className="form-stack"><p className="text-sm text-slate-600">Bu onaylı görüşme iptal edilecek ve veliye bildirim gidecek. Emin misiniz?</p><div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setCancelingApt(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={() => { const target = cancelingApt; void perform(() => cancelAppointment(target.id), 'Randevu iptal edildi.').then((ok) => { if (ok) setCancelingApt(null); }); }}>{busy ? 'İptal ediliyor…' : 'Randevuyu iptal et'}</Button></div></div></Dialog>}
       {rejectingAptId && <Dialog title="Randevuyu reddet" description="Dilerseniz veliye iletilecek kısa bir açıklama ekleyin." onClose={() => setRejectingAptId(null)} dismissible={!busy}><div className="form-stack">{feedback?.failed && <Alert tone="danger">{feedback.message}</Alert>}<label className="field" htmlFor="rejection-reason">Ret gerekçesi <span className="field-hint">İsteğe bağlı</span><textarea id="rejection-reason" rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Bu saatte görüşme yapamama nedeniniz…" /></label><div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setRejectingAptId(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={handleConfirmReject}>{busy ? 'Kaydediliyor…' : 'Randevuyu reddet'}</Button></div></div></Dialog>}
     </main>
   );

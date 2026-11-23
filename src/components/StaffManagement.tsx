@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Shield, GraduationCap, CheckCircle2, Clock, AlertCircle, Upload } from 'lucide-react';
 import { Alert, Button, Dialog } from './ui';
 import { TeacherProfile, User } from '../types';
-import { formatTurkishPhoneInput, normalizeTurkishPhone } from '../utils/phone';
+import { formatTurkishPhoneInput, normalizeTurkishPhone, displayTurkishPhone } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
 import { ManagementActions } from './ManagementActions';
 import { BulkStaffImport } from './BulkStaffImport';
@@ -107,7 +107,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ teachers, secu
                 const actionable = !!phone && (status === 'pending' || status === 'active');
                 const label = `${record.firstName} ${record.lastName}`.trim();
                 return (
-                  <tr key={record.id} className="staff-record-row"><td data-label="Ad Soyad"><strong>{label}</strong></td><td data-label="Görev / Branş">{type === 'teacher' ? `Öğretmen · ${record.branch || 'Branş eksik'}` : 'Güvenlik'}</td><td data-label="Telefon">{record.phone || 'Telefon tanımlı değil'}</td>{type === 'teacher' && <td data-label="Bildirim e-postası">{record.email || '—'}</td>}<td data-label="Durum"><span className={`status-badge tone-${!phone ? 'danger' : status === 'active' ? 'success' : 'warning'}`}>
+                  <tr key={record.id} className="staff-record-row"><td data-label="Ad Soyad"><strong>{label}</strong></td><td data-label="Görev / Branş">{type === 'teacher' ? `Öğretmen · ${record.branch || 'Branş eksik'}` : 'Güvenlik'}</td><td data-label="Telefon">{displayTurkishPhone(record.phone) || 'Telefon tanımlı değil'}</td>{type === 'teacher' && <td data-label="Bildirim e-postası">{record.email || '—'}</td>}<td data-label="Durum"><span className={`status-badge tone-${!phone ? 'danger' : status === 'active' ? 'success' : 'warning'}`}>
                       {!phone ? <AlertCircle size={15} /> : status === 'active' ? <CheckCircle2 size={15} /> : <Clock size={15} />}{!phone ? 'Telefon eksik veya geçersiz' : status === 'active' ? 'Aktif hesap' : status === 'pending' ? 'Aktivasyon bekliyor' : 'Üyelik aktif değil / Durum doğrulanamadı'}
                     </span></td><td data-label="İşlemler"><div className="record-actions">
                     {currentSchool && <ManagementActions compact schoolId={currentSchool.id} kind={type} id={record.id}
