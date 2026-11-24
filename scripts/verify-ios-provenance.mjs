@@ -29,7 +29,10 @@ allowed.add('src/platform/android-notification-settings.ts');
 allowed.add('src/platform/android-push.ts');
 allowed.add('android/app/src/main/java/com/velirandevu/app/NotificationSettingsPlugin.java');
 const changes=[],unchanged=[],normalized=[];
+// Reviewed removals (kullanıcı onaylı): okul/lisans kodu ve parola tabanlı eski giriş ekranları kaldırıldı; yalnız WhatsApp girişi.
+const reviewedRemovals=new Set(['scripts/test-parent-self-service-auth.ts','src/components/SchoolInfo.tsx','src/components/UnifiedWhatsAppLoginPanel.tsx','src/components/WhatsAppAuthPanel.tsx']);
 for(const file of manifest.files) {
+  if(reviewedRemovals.has(file.path)&&!fs.existsSync(file.path)){changes.push({path:file.path,productionSha256:file.sha256,iosSha256:'removed'});continue;}
   // Local source access is optional on CI. The archived manifest remains mandatory.
   if(!process.argv.includes('--archived-baseline-only')&&fs.existsSync(manifest.source)) assert.equal(sha(path.join(manifest.source,file.path)),file.sha256,`Production source changed: ${file.path}`);
   const current=sha(file.path);
