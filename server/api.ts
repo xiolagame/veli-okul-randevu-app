@@ -663,8 +663,11 @@ apiRouter.get('/user/me', authMiddleware, async (req: AuthenticatedRequest, res)
 apiRouter.get('/schools/:schoolId/teachers', authMiddleware, tenantGuard(), async (req: AuthenticatedRequest, res) => {
   try {
     const schoolId = req.membership!.schoolId;
-    const teachers = await teacherRepository.getTeachers(schoolId, req.membership!.role === 'admin');
-    res.json({ teachers });
+    const isAdmin = req.membership!.role === 'admin';
+    const teachers = await teacherRepository.getTeachers(schoolId, isAdmin);
+    // Veli, güvenlik ve diğer öğretmenler öğretmenlerin telefon/e-posta bilgisini görmez; öğretmen yalnız kendi bilgisini görür.
+    res.json({ teachers: isAdmin ? teachers : teachers.map((teacher) => (teacher.userId === req.user!.id
+      ? teacher : { ...teacher, email: undefined, phone: '' })) });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/teachers Error]:', err);
     res.status(500).json({ error: 'Öğretmenler listelenemedi' });

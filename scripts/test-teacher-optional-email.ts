@@ -58,7 +58,7 @@ async function run() {
     assert.equal((await db.query('SELECT email FROM teacher_profiles WHERE id=$1', [profile.id])).rows[0].email, null);
 
     // 3) Öğretmenin kendi profilinden ekleme / düzenleme / kaldırma.
-    const teacher = await userRepository.create({ phone: phone(), firstName: 'Kendi', lastName: 'Ogretmen' });
+    const teacher = await userRepository.create({ phone: phone(), firstName: 'Kendi', lastName: 'Ogretmen', isPhoneVerified: true });
     userIds.push(teacher.id);
     await db.query('INSERT INTO teacher_profiles(id,school_id,user_id,first_name,last_name,branch,phone) VALUES($1,$2,$3,$4,$5,$6,$7)', [`tch-self-${suffix}`, schoolId, teacher.id, 'Kendi', 'Ogretmen', 'Fen', teacher.phone]);
     await membershipRepository.createOrActivate({ schoolId, userId: teacher.id, role: 'teacher' });
@@ -70,6 +70,15 @@ async function run() {
     assert.equal((await db.query('SELECT email FROM teacher_profiles WHERE user_id=$1', [teacher.id])).rows[0].email, 'ogretmen@example.test');
     assert.equal((await request('PUT', path, teacherToken, { email: 'yeni@example.test' })).status, 200);
     assert.equal((await db.query('SELECT email FROM teacher_profiles WHERE user_id=$1', [teacher.id])).rows[0].email, 'yeni@example.test');
+    type ListedTeacher = { userId?: string; email?: string; phone?: string };
+    const ownList = (await request('GET', `/schools/${schoolId}/teachers`, teacherToken)).body.teachers as ListedTeacher[];
+    assert.equal(ownList.find((entry) => entry.userId === teacher.id)?.email, 'yeni@example.test');
+    const parent = await userRepository.create({ phone: phone(), firstName: 'Bir', lastName: 'Veli' });
+    userIds.push(parent.id);
+    await membershipRepository.createOrActivate({ schoolId, userId: parent.id, role: 'parent' });
+    const parentList = (await request('GET', `/schools/${schoolId}/teachers`, await tokenFor(parent.id))).body.teachers as ListedTeacher[];
+    assert(parentList.length > 0);
+    assert(parentList.every((entry) => !entry.email && !entry.phone), 'parents must not see teacher contact details');
     assert.equal((await request('PUT', path, teacherToken, { email: '' })).status, 200);
     assert.equal((await db.query('SELECT email FROM teacher_profiles WHERE user_id=$1', [teacher.id])).rows[0].email, null);
     // Yönetici bu ucu kullanamaz; veli de kullanamaz.
