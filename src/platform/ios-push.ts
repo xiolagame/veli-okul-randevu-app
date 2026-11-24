@@ -349,9 +349,20 @@ export class IosPushManager {
   private async performTokenRegistration(token: string, owner: string, generation: number): Promise<void> {
     this.activationStage = 'device-registration';
     this.emitStatus('preparing');
+    const registerOnce = () => this.deviceApi.registerPushDevice({ installationId: this.getInstallationId(), registrationGeneration: this.getRegistrationGeneration(), platform: 'IOS', provider: 'FCM',
+      targetKind: 'REGISTRATION_TOKEN', providerTarget: token, appId: APP_ID });
     try {
-      await this.deviceApi.registerPushDevice({ installationId: this.getInstallationId(), registrationGeneration: this.getRegistrationGeneration(), platform: 'IOS', provider: 'FCM',
-        targetKind: 'REGISTRATION_TOKEN', providerTarget: token, appId: APP_ID });
+      try {
+        await registerOnce();
+      } catch (error) {
+        // Sunucu 409 ("cihaz kaydı artık geçerli değil") derse bu telefon daha önce başka bir hesaba bağlanmıştır
+        // ve yerel kayıt sayacı geride kalmıştır (aynı telefonda hesap değiştirme). Sayaç ilerletilip bir kez daha
+        // denenir; eski ve geç kalmış istekler sunucuda yine reddedilir.
+        if ((error as { status?: number } | null)?.status !== 409) throw error;
+        if (this.userId !== owner || this.closing || generation !== this.activationGeneration) return;
+        this.advanceRegistrationGeneration();
+        await registerOnce();
+      }
       if (this.userId !== owner || this.closing || !this.permissionGranted || generation !== this.activationGeneration || token !== this.currentFcmToken) return;
       setCleanupPending(false);
       this.registeredFcmToken = token;

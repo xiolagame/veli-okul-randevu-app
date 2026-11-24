@@ -84,6 +84,7 @@ function createManager(options: {
   platform?: 'IOS' | 'ANDROID' | 'WEB';
   initialPermission?: 'prompt' | 'granted' | 'denied';
   failFirstRegistration?: boolean;
+  conflictFirstRegistration?: boolean;
   registrationGate?: Promise<void>;
   registrationGates?: Promise<void>[];
   deactivationGate?: Promise<void>;
@@ -124,6 +125,7 @@ function createManager(options: {
       const registrationGate = options.registrationGates?.[registrationAttempts - 1] ?? options.registrationGate;
       if (registrationGate) await registrationGate;
       if (options.failFirstRegistration && registrationAttempts === 1) throw new Error('offline');
+      if (options.conflictFirstRegistration && registrationAttempts === 1) throw Object.assign(new Error('Cihaz kaydı artık geçerli değil.'), { status: 409 });
       registrations.push({ platform: input.platform, provider: input.provider, providerTarget: input.providerTarget });
     },
     deactivatePushDevice: async (_installationId, generation) => {
@@ -145,6 +147,19 @@ function createManager(options: {
     waitForAttempts,
     settingsOpened: () => settingsOpened,
   };
+}
+
+async function testStaleGenerationConflictAdvancesCounterAndRetriesOnce() {
+  // Aynı telefonda başka hesaba geçince sunucu eski nesil numarasını 409 ile reddeder: sayaç ilerler, bir kez yeniden denenir.
+  const fixture = createManager({ conflictFirstRegistration: true });
+  const statuses: string[] = [];
+  await fixture.manager.start('ios-teacher', 'teacher', () => {}, (status) => statuses.push(status));
+  assert.equal(await fixture.manager.enable(), 'ready');
+  await fixture.waitForAttempts(2);
+  assert.deepEqual(fixture.registrationGenerations, [1, 2], 'ikinci deneme ilerlemiş nesil numarasıyla gider');
+  assert.equal(fixture.registrations.length, 1, 'ikinci deneme kabul edilir');
+  assert.equal(statuses.at(-1), 'ready');
+  await fixture.manager.beforeLogout();
 }
 
 async function testCapacitorPluginProxyIsNotAwaited() {
@@ -894,6 +909,7 @@ async function run() {
   await testAccountSwitchQuarantinesLateRegistration();
   await testRegistrationGenerationSurvivesAppRestart();
   await testIosEmptyDeleteResponseAllowsNextLoginToEnablePush();
+  await testStaleGenerationConflictAdvancesCounterAndRetriesOnce();
   for (const [name, test] of [
     ['never-enabled logout', testNeverEnabledLogoutDoesNotCreateCleanupBarrier],
     ['classified cleanup', testCleanupFailuresAreClassifiedAfterPermissionWithoutRegistration],
