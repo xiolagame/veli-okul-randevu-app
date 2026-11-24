@@ -36,7 +36,6 @@ async function run() {
   assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'bad' }).email);
   assert(validateStaffForm({ ...draft, role: 'teacher' }).branch);
   assert.deepEqual(auditDisplay('parent.removed', '{"id":"private-user"}'), { label: 'Veli okuldan kaldırıldı.', tone: 'rose', summary: '' });
-  assert.deepEqual(auditDisplay('school.code_changed', JSON.stringify({ oldCode: 'OLD123', newCode: 'NEW123' })), { label: 'Okul kodu değiştirildi.', tone: 'info', summary: '' });
   assert.equal(auditDisplay('teacher_deleted', '{"id":"private","deletedAppointments":2,"reason":"private"}').summary, 'Silinen randevu: 2');
   assert.deepEqual(auditDisplay('private-action', '{"secret":"private"}'), { label: 'Sistem işlemi gerçekleştirildi.', tone: 'neutral', summary: '' });
   for (const action of ['__proto__', 'constructor', 'toString']) assert.equal(auditDisplay(action, '{}').label, 'Sistem işlemi gerçekleştirildi.');
@@ -96,50 +95,29 @@ async function run() {
       assert.equal(list.status, 200);
       assert.deepEqual((list.body.schools as { id: string }[]).map((entry) => entry.id), [schoolA]);
       assert.equal((await request('GET', '/platform/schools', user.token)).status, 403);
-      assert.equal((await request('GET', '/schools/' + schoolB + '/info', user.token)).status, 403);
     }
-    assert.equal((await request('GET', '/schools/' + schoolA + '/info', admin.token)).status, 200);
     assert.equal((await request('POST', '/platform/schools', admin.token, { name: 'Unauthorized', code: 'DENIED', city: 'Local', district: 'Local' })).status, 403);
     await membershipRepository.createOrActivate({ schoolId: schoolB, userId: parent.id, role: 'parent' });
     const parentSchools = (await request('GET', '/public/schools', parent.token)).body.schools as {id: string}[];
     assert.deepEqual(parentSchools.map((entry) => entry.id).sort(), [schoolA, schoolB].sort());
-    assert.equal((await request('PATCH', '/schools/' + schoolA + '/info', admin.token, { code: 'REPLACED' })).status, 404);
     assert.equal((await db.query('SELECT code FROM schools WHERE id=$1',[schoolA])).rows[0].code, schoolCode);
-    stage = 'platform school code ownership';
+    stage = 'school creation without codes';
     process.env.PLATFORM_ADMIN_USER_IDS = admin.id;
-    const preflight = await fetch(base + '/platform/schools/' + schoolA + '/code', { method: 'OPTIONS', headers: { origin: 'https://local.test', 'access-control-request-method': 'PATCH', 'access-control-request-headers': 'authorization,content-type' } });
-    assert.equal(preflight.status, 200);
-    assert.match(preflight.headers.get('access-control-allow-methods') || '', /PATCH/);
     assert.equal((await request('GET', '/platform/security', admin.token)).status, 200);
-    assert.equal((await request('GET', '/platform-target/' + schoolA + '/schools/' + schoolA + '/info', admin.token)).status, 200);
-    assert.equal((await request('GET', '/platform-target/' + schoolB + '/schools/' + schoolA + '/info', admin.token)).status, 403);
-    for (const user of [schoolAdmin, parent, teacher, security]) {
-      assert.equal((await request('GET', '/platform/security', user.token)).status, 403);
-      assert.equal((await request('GET', '/platform-target/' + schoolA + '/schools/' + schoolA + '/info', user.token)).status, 403);
-      assert.equal((await request('PATCH', '/platform/schools/' + schoolA + '/code', user.token, { code: 'DENIED' })).status, 403);
-    }
-    const initialSchoolId = schoolA;
-    const initialMembershipCount = (await db.query('SELECT id FROM school_memberships WHERE school_id=$1', [schoolA])).rows.length;
-    const initialUserVersions = (await db.query('SELECT id,auth_version FROM users ORDER BY id')).rows;
-    const updatedCode = 'NEW' + crypto.randomBytes(6).toString('hex').toUpperCase();
-    assert.equal((await request('PATCH', '/platform/schools/' + schoolA + '/code', admin.token, { code: '!' })).status, 400);
-    assert.equal((await request('PATCH', '/platform/schools/' + schoolA + '/code', admin.token, { code: 'B' + schoolCode })).status, 409);
-    assert.equal((await request('PATCH', '/platform/schools/' + schoolA + '/code', admin.token, { code: updatedCode.toLowerCase() })).status, 200);
-    activeSchoolCode = updatedCode;
-    assert.equal((await request('GET', '/public/school-context?code=' + encodeURIComponent(updatedCode))).body.school?.id, schoolA);
-    assert.notEqual((await request('GET', '/public/school-context?code=' + encodeURIComponent(schoolCode))).status, 200);
-    assert.equal((await db.query('SELECT id FROM schools WHERE id=$1', [schoolA])).rows[0].id, initialSchoolId);
-    assert.equal((await db.query('SELECT id FROM school_memberships WHERE school_id=$1', [schoolA])).rows.length, initialMembershipCount);
-    assert.deepEqual((await db.query('SELECT id,auth_version FROM users ORDER BY id')).rows, initialUserVersions);
-    assert.equal((await db.query("SELECT COUNT(*)::int AS count FROM audit_logs WHERE school_id=$1 AND action='school.code_changed'", [schoolA])).rows[0].count, 1);
-    for (const code of ['CUSTOM' + crypto.randomBytes(6).toString('hex'), '', '']) {
-      const created = await request('POST','/platform/schools',admin.token,{name:'Generated Fixture',code,city:'Local',district:'Local'});
+    for (const user of [schoolAdmin, parent, teacher, security]) assert.equal((await request('GET', '/platform/security', user.token)).status, 403);
+    for (let i = 0; i < 2; i++) {
+      const created = await request('POST','/platform/schools',admin.token,{name:'Generated Fixture',city:'Local',district:'Local'});
       assert.equal(created.status,201);
-      const school = created.body.school as {id:string;code:string};
+      const school = created.body.school as {id:string;code?:string;licenseCode?:string;licenseStatus:string};
       createdSchools.push(school.id);
-      assert(code ? school.code === code.toUpperCase() : /^[A-F0-9]{10}$/.test(school.code));
-      assert.equal((await request('POST','/platform/schools',admin.token,{name:'Duplicate',code:school.code,city:'Local',district:'Local'})).status,409);
+      assert.equal(school.code,undefined);
+      assert.equal(school.licenseCode,undefined);
+      assert.equal(school.licenseStatus,'active');
+      const stored = (await db.query('SELECT code FROM schools WHERE id=$1',[school.id])).rows[0] as {code:string};
+      assert(/^[A-F0-9]{10,}$/i.test(stored.code));
     }
+    assert.equal((await request('PATCH', '/platform/schools/' + schoolA + '/code', admin.token, { code: 'NEWCODE1' })).status, 404);
+    assert.equal((await request('GET', '/public/school-context?code=' + encodeURIComponent(schoolCode))).status, 404);
     stage = 'bulk validation and transaction';
     const path = '/schools/' + schoolA + '/roster/bulk-upload';
     const rosterPhone = '+905334138206';
@@ -178,33 +156,15 @@ async function run() {
     assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1',[schoolB])).rows.length,0);
     const logs = await db.query("SELECT details FROM audit_logs WHERE school_id=$1 AND action='roster.bulk_imported'",[schoolA]);
     for (const log of logs.rows) assert.deepEqual(Object.keys(JSON.parse(log.details)).sort(),['addedCount','classNames']);
-    stage = 'self registration from imported roster';
-    const activationCode = String(crypto.randomInt(100000, 1000000));
-    await invitationRepository.createAuthCode({ schoolId: schoolA, targetPhone: rosterPhone, targetRole: 'parent', purpose: 'ACCOUNT_ACTIVATION',
-      codeHash: hashActivationCode(activationCode), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), token: crypto.randomUUID() });
-    const challenge = await request('POST','/auth/parent/registration-challenge',undefined,{schoolCode: activeSchoolCode,phone:rosterPhone,code:activationCode});
-    if (challenge.status !== 200) {
-      const lookupDigits = getTurkishPhoneLookupDigits(normalizeTurkishPhone(rosterPhone)) || [];
-      const schoolExists = (await db.query('SELECT id FROM schools WHERE id=$1 AND code=$2', [schoolA, activeSchoolCode])).rows.length === 1;
-      const matchingRosterCount = (await db.query(`SELECT COUNT(*)::int AS count FROM school_roster
-        WHERE school_id=$1 AND birth_date=$2::date AND is_claimed=FALSE AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($3,$4,$5)`,
-      [schoolA, '2014-03-14', ...lookupDigits])).rows[0].count;
-      const existingUser = !!await userRepository.getByPhone(normalizeTurkishPhone(rosterPhone));
-      console.error(`Registration challenge diagnostic: HTTP ${challenge.status}; school match=${schoolExists}; eligible roster rows=${matchingRosterCount}; existing phone account=${existingUser}; response keys=${Object.keys(challenge.body).join(',')}`);
-    }
-    assert.equal(challenge.status,200,`Registration challenge expected HTTP 200, got ${challenge.status}; response keys: ${Object.keys(challenge.body).join(',')}`);
-    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA,phone:rosterPhone,challenge:challenge.body.challenge,password:crypto.randomBytes(24).toString('base64url')})).status,200);
-    const newParent = await userRepository.getByPhone(rosterPhone);
-    assert(newParent); userIds.push(newParent.id);
-    assert.equal((await db.query('SELECT id FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE',[schoolA])).rows.length,6);
+    stage = 'legacy registration closed';
+    assert.equal((await request('POST','/auth/parent/registration-complete',undefined,{schoolId:schoolA})).status,404);
     stage = 'disabled school enforcement';
     assert.equal((await request('PATCH','/platform/schools/' + schoolA + '/status',admin.token,{active:false})).status,200);
-    assert.equal((await request('GET','/schools/' + schoolA + '/info',admin.token)).status,403);
     assert.equal((await request('POST',path,admin.token,payload)).status,403);
     assert.equal((await request('GET','/public/schools',teacher.token)).body.schools instanceof Array,true);
     assert.equal(((await request('GET','/public/schools',teacher.token)).body.schools as unknown[]).length,0);
     assert.equal((await request('PATCH','/platform/schools/' + schoolA + '/status',admin.token,{active:true})).status,200);
-    console.log('School info, scoped directory, codes, bulk rollback/validation/self-registration, XLSX/CSV, staff validation and audit display PASS.');
+    console.log('School info, scoped directory, codes, bulk rollback/validation/XLSX/CSV, staff validation and audit display PASS.');
   } finally {
     if (previousPlatform === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS; else process.env.PLATFORM_ADMIN_USER_IDS = previousPlatform;
     await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -6,7 +6,7 @@ import express from 'express';
 import { generateAppointmentSlots } from '../src/utils/appointment-slots';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { renderBrandedEmail } from '../server/email-template';
-import { schoolAdminEmail } from '../server/school-admin-email';
+import { schoolAdminInvitationEmail } from '../server/school-admin-email';
 import { getPublicOrigin } from '../server/public-origin';
 import { sameWeekdayInWindow } from './lib/test-dates';
 
@@ -125,9 +125,9 @@ async function run() {
     assert(!unsafe.html.includes('<script>alert(1)</script>'));
     assert.match(unsafe.html, /<img src="(?:https:\/\/|http:\/\/localhost(?::\d+)?)/);
     assert(unsafe.text.includes('VELİ RANDEVU'));
-    const adminEmail = schoolAdminEmail('School <A>', 'ABC123', 'Admin & One', '123456');
+    const adminEmail = schoolAdminInvitationEmail('School <A>', 'Admin & One');
     assert(adminEmail.html.includes('School &lt;A&gt;'));
-    assert(adminEmail.text.includes('E-posta Doğrulama Kodu: 123456'));
+    assert(!/d{6}/.test(adminEmail.text));
     const adminSource = fs.readFileSync('src/components/AdminView.tsx', 'utf8');
     assert(!adminSource.includes('setDefaultSlotInput(Number(event.target.value))'));
     for (const file of ['server/api.ts', 'server/appointment-email.ts', 'server/school-admin-email.ts', 'server/appointment-reminders.ts']) {

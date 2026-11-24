@@ -29,15 +29,14 @@ export const helpGuides = {
           'Birleşik giriş etkinse kayıtlı telefon numaranızla WhatsApp kodunu doğrulayın.',
           'İlk okul yöneticisi aktivasyonunda kayıtlı e-posta adresinize gönderilen 6 haneli ikinci doğrulama kodunu da girin.',
           'Sonraki girişlerde kayıtlı telefonunuza gönderilen tek kullanımlık WhatsApp kodunu kullanın. Platform Yönetimi hesabı ayrı parola girişiyle çalışır.',
-          'Geçiş süresince eski mobil sürümlerdeki “Okul Yöneticisi İlk Giriş” ve parola kurtarma akışları kullanılabilir.',
-        ],
+                  ],
       },
       {
         title: 'Personel yönetimi',
         bullets: [
           'Yönetim panelindeki Personel alanından Öğretmen veya Güvenlik rolüyle yeni personel ekleyebilirsiniz.',
           'Öğretmen kaydında ad soyad, branş, telefon ve bildirim e-postası; güvenlik kaydında ad soyad ve telefon gerekir.',
-          'WhatsApp doğrulaması etkin olduğunda personel, birleşik giriş ekranında kayıtlı telefonuyla tek kullanımlık kod alarak hesabını etkinleştirir. Personel için okul kodu, aktivasyon e-postası ve parola gerekmez.',
+          'WhatsApp doğrulaması etkin olduğunda personel, birleşik giriş ekranında kayıtlı telefonuyla tek kullanımlık kod alarak hesabını etkinleştirir. Personel için okul kodu veya parola gerekmez.',
           'Personel bilgilerini düzenleyebilir ve yalnız kendi okulunuzdaki personel kayıtlarını yönetebilirsiniz.',
         ],
       },
@@ -46,7 +45,7 @@ export const helpGuides = {
         bullets: [
           'Öğrenci ve veliler alanında sınıfa göre kayıtları görüntüleyebilir, arayabilir ve yönetebilirsiniz.',
           'Toplu kayıt ekleme aracıyla öğrenci-veli kayıtlarını Excel dosyasından içeri aktarabilirsiniz.',
-          'Veli hesabı, okul kodu ve kayıtlı veli telefonu WhatsApp ile doğrulandığında ilgili okul kaydıyla bağlanır. Doğum tarihi giriş doğrulaması olarak kullanılmaz.',
+          'Veli hesabı, okul kaydındaki veli telefonu WhatsApp ile doğrulandığında ilgili okul kaydıyla bağlanır. Doğum tarihi giriş doğrulaması olarak kullanılmaz.',
         ],
       },
       {
@@ -62,7 +61,7 @@ export const helpGuides = {
         bullets: [
           'İşlem günlüğü okulunuzdaki yönetim ve randevu işlemlerinin kayıtlarını gösterir.',
           'Destek / Lisans alanından teknik destek veya yıllık lisans talebi oluşturabilir, yalnız kendi okulunuzun taleplerini takip edebilirsiniz.',
-          'Parolanızı unuttuğunuzda giriş ekranındaki okul yönetimi parola sıfırlama akışını kullanın. Kod kayıtlı e-posta adresinize gönderilir.',
+          'Parola kullanılmaz; giriş ekranında kayıtlı telefonunuzla yeni bir WhatsApp kodu isteyin.',
         ],
       },
     ],
@@ -112,8 +111,8 @@ export const helpGuides = {
       {
         title: 'Veli hesabı oluşturma',
         steps: [
-          'Giriş ekranından “Veli ilk giriş” seçeneğini açın.',
-          'Okul kodunu ve okul kayıtlarında bulunan telefon numaranızı girin.',
+          'Giriş ekranına telefon numaranızı yazın.',
+          'Okul kayıtlarında bulunan telefon numaranızı girin.',
           'Telefonunuz okulun öğrenci-veli kaydıyla eşleşirse WhatsApp üzerinden gelen 6 haneli kodu doğrulayın.',
           'Hesap etkinleştikten sonra kayıtlı telefonunuza gönderilen tek kullanımlık WhatsApp koduyla giriş yapın.',
         ],
@@ -193,7 +192,7 @@ export const helpGuides = {
     sections: [
       {
         title: 'Veli',
-        paragraphs: ['“Veli ilk giriş” alanında okul kodu ve kayıtlı telefonunuzu girin; WhatsApp üzerinden gelen tek kullanımlık kodla okul kaydınızı doğrulayın.'],
+        paragraphs: ['Giriş ekranına okul kaydındaki telefonunuzu yazın; WhatsApp üzerinden gelen tek kullanımlık kodla giriş yapın.'],
       },
       {
         title: 'Öğretmen ve güvenlik personeli',
@@ -220,7 +219,7 @@ export const helpGuides = {
       },
       {
         title: 'Okul yöneticisi parolası',
-        paragraphs: ['Okul Yöneticisi parola sıfırlama alanında okul kodu ve telefonu girin. Kayıt uygunsa kod, okul yöneticisinin kayıtlı e-posta adresine gönderilir. Bu kurtarma yolu WhatsApp ile aktive edilmiş parolasız okul yöneticisi hesabında da güvenli geri dönüş için kullanılabilir.'],
+        paragraphs: ['Okul yöneticisi hesabında parola yoktur. Kayıtlı telefonunuzla WhatsApp kodu isteyerek giriş yapın.'],
       },
     ],
   },
@@ -264,7 +263,7 @@ export const helpGuides = {
       {
         title: 'Kurum / Okul Yöneticisi',
         bullets: [
-          'Hesap oluşturma ve aktivasyon sürecinde okul kodu, telefon, e-posta ve aktivasyon bilgileri kullanılır.',
+          'Hesap oluşturma ve giriş sürecinde telefon, e-posta ve doğrulama bilgileri kullanılır.',
           'Yetkilendirme; kullanıcı hesabı, aktif okul üyeliği ve okul yöneticisi rolü üzerinden uygulanır.',
           'Okul, personel, öğrenci-veli kayıtları, randevu ayarları ve destek talepleri okul kapsamı içinde yönetilir.',
           'Hesap ve yönetim işlemleri güvenlik ve izlenebilirlik amacıyla işlem kayıtlarına konu olabilir.',
@@ -282,7 +281,7 @@ export const helpGuides = {
       {
         title: 'Veli ve Öğrenci',
         bullets: [
-          'Veli hesabı; okul kodu ve veli telefonu okul kaydıyla eşleştirilip WhatsApp tek kullanımlık koduyla doğrulanır.',
+          'Veli hesabı; veli telefonu okul kaydıyla eşleştirilip WhatsApp tek kullanımlık koduyla doğrulanır.',
           'Veli-öğrenci ilişkisi, velinin yalnız ilişkili olduğu öğrenci ve randevu süreçlerine erişebilmesi için kullanılır.',
           'Öğretmen seçimi, randevu talebi, randevu durumu ve onaylı randevuya ait QR giriş kartı uygulama içinde gösterilir.',
           'Veli erişimi yalnız okul kütüğünde aynı telefonla doğrulanan gerçek veli-öğrenci ilişkilerine açılır.',
@@ -314,7 +313,7 @@ export const helpGuides = {
       { title: 'Gizlilik yaklaşımımız', paragraphs: ['Veli Randevu, kullanıcıların yalnız görevleri ve okul ilişkileri için gerekli verilere erişmesini hedefleyen rol ve okul kapsamlı bir yapı kullanır. Erişim kararları istemciden gelen okul bilgisine değil, sunucuda doğrulanan kullanıcı, üyelik ve rol bilgilerine dayanır.'] },
       { title: 'Hesap ve kimlik doğrulama verileri', paragraphs: ['Telefon, e-posta, parola özeti ve tek kullanımlık doğrulama süreçlerine ait güvenlik verileri hesap oluşturma, giriş ve hesap kurtarma işlemlerinde kullanılır. Parolalar ve tek kullanımlık kodlar açık metin olarak saklanmamalıdır.'] },
       { title: 'Okul ve rol bilgileri', paragraphs: ['Okul üyeliği ve rol bilgileri, okul yöneticisi, öğretmen, veli ve güvenlik personelinin hangi ekranlara ve kayıtlara erişebileceğini belirlemek için kullanılır.'] },
-      { title: 'Öğrenci-veli ilişkisinde veri minimizasyonu', paragraphs: ['Veli hesabı oluşturulurken okul kodu ve kayıtlı telefon gerçek okul kaydıyla eşleştirilir; telefon WhatsApp koduyla doğrulanır. Veli erişimi yalnız doğrulanmış öğrenci-veli ilişkileriyle sınırlandırılır.'] },
+      { title: 'Öğrenci-veli ilişkisinde veri minimizasyonu', paragraphs: ['Veli hesabı oluşturulurken kayıtlı telefon gerçek okul kaydıyla eşleştirilir; telefon WhatsApp koduyla doğrulanır. Veli erişimi yalnız doğrulanmış öğrenci-veli ilişkileriyle sınırlandırılır.'] },
       { title: 'Randevu verileri', paragraphs: ['Öğrenci, veli, öğretmen, tarih, saat, durum ve kullanıcı tarafından eklenen randevu notu gibi bilgiler görüşmenin oluşturulması, yönetilmesi ve görüntülenmesi için kullanılır.'] },
       { title: 'QR doğrulama', paragraphs: ['Onaylanan randevunun QR verisi, okul girişinde güvenlik rolüne sahip kullanıcı tarafından sunucuya gönderilir. Sunucu; okul kapsamını, randevu durumunu ve giriş zaman penceresini doğrular.'] },
       { title: 'Kamera kullanımı', paragraphs: ['Kamera QR kodunun okunması için kullanılır. Veli Randevu uygulaması fotoğraf veya video kaydı oluşturmaz ve kamera görüntüsünü doğrulama servisine yüklemez; doğrulama için çözülen QR verisi kullanılır.'] },

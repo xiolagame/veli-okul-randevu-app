@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
-import { normalizeSchoolCodeInput } from '../src/utils/school-code';
 
 let stage = 'setup';
 
@@ -53,14 +52,10 @@ async function run() {
   };
 
   try {
-    assert.equal(normalizeSchoolCodeInput('aea-123_test'), 'AEA-123_TEST');
     const schoolManagement = fs.readFileSync('src/components/SchoolManagement.tsx', 'utf8');
     const authView = fs.readFileSync('src/components/AuthView.tsx', 'utf8');
-    const schoolInfo = fs.readFileSync('src/components/SchoolInfo.tsx', 'utf8');
     const stylesheet = fs.readFileSync('src/index.css', 'utf8');
-  assert(schoolManagement.includes("school.disabledAt && <Button variant=\"danger\"") && schoolManagement.includes('deleteConfirmation !== normalizeSchoolCodeInput(deleteTarget.code)'));
-    assert(authView.includes('normalizeSchoolCodeInput(event.target.value)'));
-    assert(schoolInfo.includes('school-info-list') && schoolInfo.includes("copied ? 'Kopyalandı ✓' : 'Kopyala'"));
+  assert(schoolManagement.includes("school.disabledAt && <Button variant=\"danger\"") && schoolManagement.includes('deleteConfirmation !== "SİL"'));
     assert(stylesheet.includes('.platform-nav button') && stylesheet.includes('min-height: 44px'));
 
     stage = 'fixtures';

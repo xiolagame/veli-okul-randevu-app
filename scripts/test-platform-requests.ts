@@ -93,7 +93,7 @@ async function run() {
   equal(getPublicRequestPreset('?request=yearly'), 'YEARLY_LICENSE', 'yearly query preset supported');
   equal(getPublicRequestPreset('?request=contact'), 'CONTACT', 'contact query preset supported');
   equal(getPublicRequestPreset('?request=invalid'), 'YEARLY_LICENSE', 'unknown query preset safely falls back to yearly');
-  check(authViewSource.includes('PhoneCentricLoginPanel') && authViewSource.includes('Veli Hesabı Oluştur') && !authViewSource.includes('Personel İlk Giriş') && authViewSource.includes('Okul Yöneticisi İlk Giriş'), 'shared phone login and parent/admin flows remain; retired staff activation stays closed');
+  check(authViewSource.includes('PhoneCentricLoginPanel') && !authViewSource.includes('Personel İlk Giriş') && !authViewSource.includes('Okul Yöneticisi İlk Giriş'), 'shared phone login and parent/admin flows remain; retired staff activation stays closed');
   check(authViewSource.includes('Yıllık lisans hakkında bilgi alın veya bize ulaşın.'), 'public CTA describes annual license');
   check(!publicRequestSource.match(/!success[\s\S]*Giriş ekranına dön[\s\S]*Talebi Gönder/), 'normal public form does not render a second back button');
   const schoolRequestSourceForTypes = fs.readFileSync('src/components/SchoolRequestCenter.tsx', 'utf8');

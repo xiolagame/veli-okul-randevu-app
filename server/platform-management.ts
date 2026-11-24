@@ -6,10 +6,8 @@ import { auditLogRepository, invitationRepository, membershipRepository, schoolR
 import { generateStaffCode, hashActivationCode } from './activation-codes';
 import { normalizeUserPhoneInput } from '../src/utils/phone';
 import { normalizePersonName } from '../src/utils/person-name';
-import { normalizeSchoolCodeInput } from '../src/utils/school-code';
-import { deliverSchoolAdminCode } from './school-admin-email';
+import { deliverSchoolAdminInvitation } from './school-admin-email';
 import { generateSchoolLicenseCode } from './school-license';
-import { isValidLicenseCode, normalizeLicenseCode } from '../src/utils/license-code';
 import { platformRequestRouter } from './platform-requests';
 import { platformPricingRouter } from './platform-pricing';
 import { platformLicenseRouter } from './platform-licenses';
@@ -74,8 +72,8 @@ platformManagementRouter.use('/licenses', platformLicenseRouter);
 platformManagementRouter.get('/schools', async (_req, res) => {
   try {
     const db = await getDb();
-    const result = await db.query(`SELECT s.id,s.name,s.code,s.city,s.district,s.disabled_at AS "disabledAt",
-      sl.license_code AS "licenseCode",COALESCE(sl.status,'legacy') AS "licenseStatus",sl.expires_at AS "licenseExpiresAt",
+    const result = await db.query(`SELECT s.id,s.name,s.city,s.district,s.disabled_at AS "disabledAt",
+      COALESCE(sl.status,'legacy') AS "licenseStatus",sl.expires_at AS "licenseExpiresAt",
       CASE WHEN active_admin.user_id IS NOT NULL THEN 'active'
            WHEN pending_admin.user_id IS NOT NULL THEN 'pending' ELSE 'unassigned' END AS "adminStatus",
       COALESCE(active_admin.full_name,pending_admin.full_name) AS "adminName"
@@ -263,52 +261,37 @@ platformManagementRouter.delete('/audit-logs', async (req: AuthenticatedRequest,
 
 platformManagementRouter.post('/schools', async (req: AuthenticatedRequest, res) => {
   const { name, city, district } = req.body;
-  let code = typeof req.body.code === 'string' ? normalizeSchoolCodeInput(req.body.code.trim()) : '';
-  const automatic = !code;
-  let licenseCode = normalizeLicenseCode(req.body.licenseCode);
-  const automaticLicense = !licenseCode;
-  if ((req.body.code !== undefined && typeof req.body.code !== 'string') || typeof name !== 'string' || !name.trim() || name.trim().length > 255 ||
-      (!automatic && !/^[A-Z0-9_-]{3,50}$/.test(code)) ||
-      (req.body.licenseCode !== undefined && typeof req.body.licenseCode !== 'string') ||
-      (!automaticLicense && !isValidLicenseCode(licenseCode)) ||
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 255 ||
       typeof city !== 'string' || !city.trim() || city.trim().length > 100 ||
       typeof district !== 'string' || !district.trim() || district.trim().length > 100) {
-    return res.status(400).json({ error: 'Okul adı, okul kodu, lisans kodu, il ve ilçeyi kontrol edin.' });
+    return res.status(400).json({ error: 'Okul adı, il ve ilçeyi kontrol edin.' });
   }
   try {
     const db = await getDb();
     const school = await db.transaction(async (tx) => {
       await tx.query('LOCK TABLE schools IN SHARE ROW EXCLUSIVE MODE');
       await tx.query('LOCK TABLE school_licenses IN SHARE ROW EXCLUSIVE MODE');
-      if (automatic) {
-        do { code = randomBytes(5).toString('hex').toUpperCase(); }
-        while ((await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code])).rows.length);
-      }
-      const duplicate = await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code]);
-      if (duplicate.rows.length) return null;
-      if (automaticLicense) {
-        do { licenseCode = generateSchoolLicenseCode(); }
-        while ((await tx.query('SELECT id FROM school_licenses WHERE license_code=$1', [licenseCode])).rows.length);
-      } else if ((await tx.query('SELECT id FROM school_licenses WHERE license_code=$1', [licenseCode])).rows.length) {
-        throw new Error('LICENSE_CODE_DUPLICATE');
-      }
+      // Okul kodu ve lisans kodu artık kullanıcıya gösterilmez; veritabanındaki benzersiz iç tanımlayıcılar kendiliğinden üretilir.
+      let code = '';
+      do { code = randomBytes(5).toString('hex').toUpperCase(); }
+      while ((await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1', [code])).rows.length);
+      let licenseCode = '';
+      do { licenseCode = generateSchoolLicenseCode(); }
+      while ((await tx.query('SELECT id FROM school_licenses WHERE license_code=$1', [licenseCode])).rows.length);
       const id = 'sch-' + randomUUID();
       const settings = { schoolName: name.trim(), appName: 'Veli Randevu', defaultSlotMinutes: 15,
         minSlotMinutes: 10, maxBookingDaysAhead: 30, allowParentCancel: true };
       const result = await tx.query(`INSERT INTO schools(id,name,code,city,district,settings)
-        VALUES($1,$2,$3,$4,$5,$6::jsonb) RETURNING id,name,code,city,district,disabled_at AS "disabledAt"`,
-        [id,name.trim(),code,city.trim(),district.trim(),JSON.stringify(settings)]);
+        VALUES($1,$2,$3,$4,$5,$6::jsonb) RETURNING id,name,city,district,disabled_at AS "disabledAt"`,
+        [id, name.trim(), code, city.trim(), district.trim(), JSON.stringify(settings)]);
       await tx.query(`INSERT INTO school_licenses(id,school_id,license_code,status,activated_at)
         VALUES($1,$2,$3,'active',NOW())`, [`lic-${randomUUID()}`, id, licenseCode]);
       await auditLogRepository.createAuditLog({ schoolId: id, action: 'school.created', actorName: 'Platform yönetimi',
         actorUserId: req.user!.id, details: JSON.stringify({ actorId: req.user!.id }), auditScope: 'PLATFORM' }, tx);
-      return { ...result.rows[0], licenseCode, licenseStatus: 'active', licenseExpiresAt: null };
+      return { ...result.rows[0], licenseStatus: 'active', licenseExpiresAt: null };
     });
-    if (!school) return res.status(409).json({ error: 'Bu okul kodu zaten kullanılıyor.' });
     res.status(201).json({ school });
-  } catch (cause) {
-    if (cause instanceof Error && cause.message === 'LICENSE_CODE_DUPLICATE') return res.status(409).json({ error: 'Bu lisans kodu başka bir okulda kullanılıyor.' });
-    if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === '23505') return res.status(409).json({ error: 'Okul veya lisans kodu zaten kullanılıyor.' });
+  } catch {
     res.status(500).json({ error: 'Okul oluşturulamadı.' });
   }
 });
@@ -324,12 +307,11 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
 
   const [firstName, ...lastName] = fullName.split(' ');
   const code = generateStaffCode();
-  let invitation: { schoolName: string; schoolCode: string; licenseCode?: string; email: string; fullName: string };
+  let invitation: { schoolName: string; email: string; fullName: string };
   try {
     const db = await getDb();
     invitation = await db.transaction(async (tx) => {
-      const school = await tx.query<{ name: string; code: string; license_code: string | null }>(`SELECT s.name,s.code,sl.license_code
-        FROM schools s LEFT JOIN school_licenses sl ON sl.school_id=s.id
+      const school = await tx.query<{ name: string }>(`SELECT s.name FROM schools s
         WHERE s.id=$1 AND s.disabled_at IS NULL FOR UPDATE OF s`, [schoolId]);
       if (!school.rows[0]) throw new Error('SCHOOL_NOT_AVAILABLE');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
@@ -365,13 +347,13 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
       const otherPending = await tx.query(`SELECT id FROM invitations WHERE target_user_id=$1 AND school_id<>$2
         AND purpose='school_admin_activation' AND is_active=TRUE AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [candidate.id, schoolId]);
       if (otherPending.rows.length) throw new Error('ADMIN_IDENTITY_IN_USE');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      // Yönetici, e-postadaki koda değil telefon numarasına ve WhatsApp koduna güvenir: davet 7 gün geçerlidir.
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       await invitationRepository.createAuthCode({ schoolId, targetPhone: phone, targetUserId: candidate.id, targetRole: 'admin',
         purpose: 'school_admin_activation', codeHash: hashActivationCode(code), createdBy: req.user!.id, expiresAt, token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_invited', actorName: 'Platform yönetimi',
         actorUserId: req.user!.id, details: `Okul yöneticisi ${candidate.id} için aktivasyon daveti oluşturuldu.`, auditScope: 'PLATFORM' }, tx);
-      return { schoolName: school.rows[0].name, schoolCode: school.rows[0].code,
-        licenseCode: school.rows[0].license_code || undefined, email, fullName };
+      return { schoolName: school.rows[0].name, email, fullName };
     });
   } catch (cause) {
     if (cause instanceof PhoneIdentityAmbiguityError) return res.status(409).json({ error: 'Telefon numarasıyla eşleşen hesap güvenli biçimde doğrulanamadı.' });
@@ -381,8 +363,8 @@ platformManagementRouter.post('/schools/:id/admin-invitation', async (req: Authe
     if (cause instanceof Error && cause.message === 'ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş. Farklı bir yönetici bilgisi kullanın.' });
     return res.status(500).json({ error: 'Okul yöneticisi daveti oluşturulamadı.' });
   }
-  const emailSent = await deliverSchoolAdminCode(invitation.email, invitation.schoolName, invitation.schoolCode, invitation.fullName, code, false, invitation.licenseCode);
-  return res.status(201).json({ success: true, emailSent, message: emailSent ? 'Aktivasyon e-postası gönderildi.' : 'Yönetici daveti kaydedildi ancak e-posta gönderilemedi. Okul listesinden yeniden gönderebilirsiniz.' });
+  const emailSent = await deliverSchoolAdminInvitation(invitation.email, invitation.schoolName, invitation.fullName);
+  return res.status(201).json({ success: true, emailSent, message: emailSent ? 'Yönetici eklendi. Bilgilendirme e-postası gönderildi.' : 'Yönetici eklendi ancak bilgilendirme e-postası gönderilemedi. Okul listesinden yeniden gönderebilirsiniz.' });
 });
 
 platformManagementRouter.post('/schools/:id/admin-invitation/resend', async (req: AuthenticatedRequest, res) => {
@@ -391,8 +373,7 @@ platformManagementRouter.post('/schools/:id/admin-invitation/resend', async (req
   try {
     const db = await getDb();
     const invitation = await db.transaction(async (tx) => {
-      const school = await tx.query<{ name: string; code: string; license_code: string | null }>(`SELECT s.name,s.code,sl.license_code
-        FROM schools s LEFT JOIN school_licenses sl ON sl.school_id=s.id
+      const school = await tx.query<{ name: string }>(`SELECT s.name FROM schools s
         WHERE s.id=$1 AND s.disabled_at IS NULL FOR UPDATE OF s`, [schoolId]);
       if (!school.rows[0]) throw new Error('SCHOOL_NOT_AVAILABLE');
       await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
@@ -409,15 +390,14 @@ platformManagementRouter.post('/schools/:id/admin-invitation/resend', async (req
       if (activeMembership.rows.length) throw new Error('ADMIN_ALREADY_ACTIVE');
       await invitationRepository.createAuthCode({ schoolId, targetPhone: target.target_phone, targetUserId: target.target_user_id, targetRole: 'admin',
         purpose: 'school_admin_activation', codeHash: hashActivationCode(code), createdBy: req.user!.id,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_resent', actorName: 'Platform yönetimi',
         actorUserId: req.user!.id, details: `Okul yöneticisi ${target.target_user_id} için aktivasyon daveti yeniden oluşturuldu.`, auditScope: 'PLATFORM' }, tx);
-      return { schoolName: school.rows[0].name, schoolCode: school.rows[0].code, email: user.rows[0].email,
-        licenseCode: school.rows[0].license_code || undefined,
+      return { schoolName: school.rows[0].name, email: user.rows[0].email,
         fullName: `${user.rows[0].first_name} ${user.rows[0].last_name}`.trim() };
     });
-    const emailSent = await deliverSchoolAdminCode(invitation.email, invitation.schoolName, invitation.schoolCode, invitation.fullName, code, false, invitation.licenseCode);
-    return res.json({ success: true, emailSent, message: emailSent ? 'Aktivasyon e-postası yeniden gönderildi.' : 'Yeni kod kaydedildi ancak e-posta gönderilemedi. Biraz bekleyip yeniden deneyin.' });
+    const emailSent = await deliverSchoolAdminInvitation(invitation.email, invitation.schoolName, invitation.fullName);
+    return res.json({ success: true, emailSent, message: emailSent ? 'Bilgilendirme e-postası yeniden gönderildi.' : 'Davet yenilendi ancak e-posta gönderilemedi. Biraz bekleyip yeniden deneyin.' });
   } catch (cause) {
     if (cause instanceof Error && cause.message === 'SCHOOL_NOT_AVAILABLE') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
     if (cause instanceof Error && cause.message === 'ADMIN_INVITATION_COOLDOWN') return res.status(429).json({ error: 'Yeni e-posta göndermeden önce kısa süre bekleyin.' });
@@ -505,25 +485,3 @@ platformManagementRouter.delete('/schools/:id', async (req: AuthenticatedRequest
   }
 });
 
-platformManagementRouter.patch('/schools/:id/code', async (req: AuthenticatedRequest, res) => {
-  const code = typeof req.body?.code === 'string' ? normalizeSchoolCodeInput(req.body.code.trim()) : '';
-  if (!/^[A-Z0-9_-]{3,50}$/.test(code)) return res.status(400).json({ error: 'Okul kodu 3–50 harf, rakam, tire veya alt çizgiden oluşmalıdır.' });
-  const schoolId = String(req.params.id);
-  try {
-    const db = await getDb();
-    const result = await db.transaction(async (tx) => {
-      await tx.query('LOCK TABLE schools IN SHARE ROW EXCLUSIVE MODE');
-      const current = await tx.query<{ code: string }>('SELECT code FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
-      if (!current.rows[0]) return 'missing' as const;
-      const duplicate = await tx.query('SELECT id FROM schools WHERE UPPER(code)=$1 AND id<>$2 LIMIT 1', [code, schoolId]);
-      if (duplicate.rows.length) return 'duplicate' as const;
-      if (current.rows[0].code.toUpperCase() === code) return 'unchanged' as const;
-      await tx.query('UPDATE schools SET code=$2,updated_at=NOW() WHERE id=$1', [schoolId, code]);
-      await auditLogRepository.createAuditLog({ schoolId, action: 'school.code_changed', actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(), actorUserId: req.user!.id, details: JSON.stringify({ oldCode: current.rows[0].code, newCode: code }), auditScope: 'PLATFORM' }, tx);
-      return 'updated' as const;
-    });
-    if (result === 'missing') return res.status(404).json({ error: 'Aktif okul bulunamadı.' });
-    if (result === 'duplicate') return res.status(409).json({ error: 'Bu okul kodu başka bir okul tarafından kullanılıyor.' });
-    return res.json({ success: true, code });
-  } catch { return res.status(500).json({ error: 'Okul kodu değiştirilemedi.' }); }
-});

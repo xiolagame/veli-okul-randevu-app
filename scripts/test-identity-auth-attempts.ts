@@ -246,6 +246,7 @@ async function run() {
     );
 
     process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
     process.env.WHATSAPP_PILOT_ENABLED = 'true';
     process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'false';
     process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
@@ -433,7 +434,6 @@ async function run() {
       });
       assert.equal(platformPhoneVerified.status, 200);
       assert.equal(platformPhoneVerified.body.pendingEmail, true);
-      assert.equal(platformPhoneVerified.body.requiresSchoolCode, false);
       assert.match(deliveredEmailCode, /^\d{6}$/);
       assert.notEqual(deliveredEmailCode, platformPhoneCode);
       assert.equal('token' in platformPhoneVerified.body, false, 'platform authority requires the email factor');

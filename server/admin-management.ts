@@ -9,7 +9,7 @@ import { normalizeClassName } from '../src/utils/class-name';
 import { isPlatformAdmin } from './auth';
 import { parseBirthDateInputToIso } from '../src/utils/birth-date';
 import { generateStaffCode, hashActivationCode } from './activation-codes';
-import { deliverSchoolAdminCode } from './school-admin-email';
+import { deliverSchoolAdminInvitation } from './school-admin-email';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
 import { revokeStaffProofs } from './staff-session-security';
 import { removeSingleStudent, StudentRecordError, studentRecordsRouter } from './student-records';
@@ -164,14 +164,14 @@ adminManagementRouter.post('/admins', async (req: AuthenticatedRequest, res) => 
       }
       await invitationRepository.createAuthCode({ schoolId, targetPhone: identity.phone, targetUserId: userId,
         targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
-        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
+        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_invited', actorName: 'Okul yönetimi',
         actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} için aktivasyon daveti oluşturuldu.` }, tx);
-      return { userId, schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
+      return { userId, schoolName: school.rows[0].name };
     });
-    const emailSent = await deliverSchoolAdminCode(identity.email, target.schoolName, target.schoolCode, identity.fullName, code);
+    const emailSent = await deliverSchoolAdminInvitation(identity.email, target.schoolName, identity.fullName);
     return res.status(201).json({ success: true, emailSent, message: emailSent
-      ? 'Yönetici eklendi ve aktivasyon e-postası gönderildi.'
+      ? 'Yönetici eklendi ve bilgilendirme e-postası gönderildi.'
       : 'Yönetici eklendi ancak e-posta gönderilemedi. Yeniden göndermeyi deneyin.' });
   } catch (cause) {
     if (cause instanceof PhoneIdentityAmbiguityError) {
@@ -205,17 +205,17 @@ adminManagementRouter.post('/admins/:id/resend', async (req: AuthenticatedReques
       if (recent.rows.length) throw new ManagementError(429, 'Yeni e-posta göndermeden önce kısa süre bekleyin.');
       await invitationRepository.createAuthCode({ schoolId, targetPhone: user.rows[0].phone, targetUserId: userId,
         targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code),
-        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
+        createdBy: req.user!.id, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), token: randomUUID() }, tx);
       await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_resent', actorName: 'Okul yönetimi',
         actorUserId: req.user!.id, details: `Okul yöneticisi ${userId} için aktivasyon daveti yeniden oluşturuldu.` }, tx);
-      return { ...user.rows[0], schoolName: school.rows[0].name, schoolCode: school.rows[0].code };
+      return { ...user.rows[0], schoolName: school.rows[0].name };
     });
-    const emailSent = await deliverSchoolAdminCode(target.email!, target.schoolName, target.schoolCode,
-      `${target.first_name} ${target.last_name}`.trim(), code);
-    return res.json({ success: true, emailSent, message: emailSent ? 'Aktivasyon e-postası yeniden gönderildi.' : 'Yeni kod kaydedildi ancak e-posta gönderilemedi.' });
+    const emailSent = await deliverSchoolAdminInvitation(target.email!, target.schoolName,
+      `${target.first_name} ${target.last_name}`.trim());
+    return res.json({ success: true, emailSent, message: emailSent ? 'Bilgilendirme e-postası yeniden gönderildi.' : 'Davet yenilendi ancak e-posta gönderilemedi.' });
   } catch (cause) {
     if (cause instanceof ManagementError) return res.status(cause.status).json({ error: cause.message });
-    return res.status(500).json({ error: 'Aktivasyon e-postası gönderilemedi.' });
+    return res.status(500).json({ error: 'Bilgilendirme e-postası gönderilemedi.' });
   }
 });
 

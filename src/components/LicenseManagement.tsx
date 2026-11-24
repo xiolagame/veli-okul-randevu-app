@@ -74,9 +74,8 @@ export function LicenseManagement() {
     </div>
     {loading && <p role="status">Lisans bilgileri güncelleniyor…</p>}
     {!data && loading ? <Skeleton/> : data && <>
-      <div className="license-table-wrap"><table className="license-table"><thead><tr>{['Okul adı','Lisans referansı','Lisans başlangıcı','Lisans bitişi','Kalan süre','Durum','İşlemler'].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{data.items.map(license=><tr key={license.schoolId}>
-        <td data-label="Okul adı"><button className="license-school" onClick={()=>setSelected(license)}><School size={18} aria-hidden="true"/><span><strong>{license.schoolName}</strong><small>{license.schoolCode}{license.schoolDisabledAt?' · Okul pasif':''}</small></span></button></td>
-        <td data-label="Lisans referansı"><code>{license.licenseCode||'Lisans kaydı yok'}</code></td>
+      <div className="license-table-wrap"><table className="license-table"><thead><tr>{['Okul adı','Lisans başlangıcı','Lisans bitişi','Kalan süre','Durum','İşlemler'].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{data.items.map(license=><tr key={license.schoolId}>
+        <td data-label="Okul adı"><button className="license-school" onClick={()=>setSelected(license)}><School size={18} aria-hidden="true"/><span><strong>{license.schoolName}</strong>{license.schoolDisabledAt&&<small>Okul pasif</small>}</span></button></td>
         <td data-label="Başlangıç">{displayTime(license.activatedAt)}</td><td data-label="Bitiş">{license.expiresAt?displayTime(license.expiresAt):license.licenseId?'Süresiz':'—'}</td>
         <td data-label="Kalan süre">{remaining(license)}</td><td data-label="Durum">{badge(license)}</td><td data-label="İşlemler">{actions(license)}</td>
       </tr>)}</tbody></table></div>
@@ -84,7 +83,7 @@ export function LicenseManagement() {
       <nav className="license-pagination" aria-label="Lisans sayfaları"><Button variant="secondary" disabled={loading||filters.page===0} onClick={()=>setFilters(value=>({...value,page:Math.max(0,value.page-1)}))}>Önceki</Button><span>{data.total} okul · {filters.page+1} / {Math.max(1,Math.ceil(data.total/data.pageSize))}</span><Button variant="secondary" disabled={loading||(filters.page+1)*data.pageSize>=data.total} onClick={()=>setFilters(value=>({...value,page:value.page+1}))}>Sonraki</Button></nav>
     </>}
     {selected && <Dialog title="Lisans ayrıntıları" onClose={()=>setSelected(null)}><div className="form-stack"><h3>{selected.schoolName}</h3>{badge(selected)}
-      <dl className="license-details"><dt>Lisans referansı</dt><dd>{selected.licenseCode||'Legacy — lisans kaydı yok'}</dd><dt>Başlangıç</dt><dd>{displayTime(selected.activatedAt)}</dd><dt>Bitiş (Türkiye)</dt><dd>{selected.expiresAt?displayTime(selected.expiresAt):'Süresiz / kayıt yok'}</dd><dt>Kalan süre</dt><dd>{remaining(selected)}</dd><dt>Son güncelleme (UTC)</dt><dd>{selected.updatedAt||'—'}</dd></dl>
+      <dl className="license-details"><dt>Başlangıç</dt><dd>{displayTime(selected.activatedAt)}</dd><dt>Bitiş (Türkiye)</dt><dd>{selected.expiresAt?displayTime(selected.expiresAt):'Süresiz / kayıt yok'}</dd><dt>Kalan süre</dt><dd>{remaining(selected)}</dd><dt>Son güncelleme (UTC)</dt><dd>{selected.updatedAt||'—'}</dd></dl>
       {selected.expired && <Alert tone="warning">Bitiş zamanı geçmiş. Yeniden etkinleştirme süreyi uzatmaz.</Alert>}
       {selected.schoolDisabledAt && <Alert tone="warning">Okul ayrıca pasifleştirilmiş. Lisans düzenlemek okulu yeniden etkinleştirmez.</Alert>}
       {!selected.licenseId && <Alert>Mevcut legacy erişim politikası korunur. Bu panel eksik lisans kaydı oluşturmaz.</Alert>}

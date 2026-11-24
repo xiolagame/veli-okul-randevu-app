@@ -20,7 +20,6 @@ export interface SchoolSettings {
 export interface School {
   id: string;
   name: string;
-  code: string; // Context code, e.g. KAZAN2025 (does not grant membership alone)
   city: string;
   district: string;
   logoUrl?: string;
@@ -30,7 +29,6 @@ export interface School {
 
 export interface SchoolMembership {
   schoolName?: string;
-  schoolCode?: string;
   city?: string;
   district?: string;
   id: string;

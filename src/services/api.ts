@@ -129,7 +129,6 @@ export const api = {
     request<{ success: boolean }>('/api/mobile/push/devices', { method: 'POST', body: JSON.stringify(data) }),
   deactivatePushDevice: (installationId: string, registrationGeneration?: number) =>
     request<{ success: boolean }>(`/api/mobile/push/devices/${encodeURIComponent(installationId)}${registrationGeneration === undefined ? '' : `?registrationGeneration=${registrationGeneration}`}`, { method: 'DELETE' }),
-  getSchoolInfo: (schoolId: string) => request<{ school: Pick<School, 'id' | 'name' | 'code'> }>(`/api/schools/${schoolId}/info`),
   startRosterImport: (schoolId:string,id:string,manifestHash:string,totalRows:number)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports`,{method:'POST',body:JSON.stringify({id,manifestHash,totalRows})}),
   getRosterImport: (schoolId:string,id:string)=>request<import('../utils/roster-transfer').RosterImportJob>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}`),
   sendRosterBatch: (schoolId:string,id:string,index:number,records:import('../utils/roster-import').RosterDraft[])=>request<{job:import('../utils/roster-transfer').RosterImportJob;batch:import('../utils/roster-transfer').RosterBatchReport}>(`/api/schools/${schoolId}/roster/imports/${encodeURIComponent(id)}/batches`,{method:'POST',body:JSON.stringify({index,records})}),
@@ -145,7 +144,7 @@ export const api = {
   getPlatformPricing: () => request<{ plans: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string }[] }>('/api/platform/pricing'),
   updatePlatformPricing: (planCode: string, amountMinor: number) =>
     request<{ plan: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string } }>(`/api/platform/pricing/${encodeURIComponent(planCode)}`, { method: 'PATCH', body: JSON.stringify({ amountMinor }) }),
-  createSchool: (data: { name: string; code: string; licenseCode: string; city: string; district: string }) =>
+  createSchool: (data: { name: string; city: string; district: string }) =>
     request<{ school: import('../types/platform').ManagedSchool }>('/api/platform/schools', { method: 'POST', body: JSON.stringify(data) }),
   createSchoolAdminInvitation: (schoolId: string, data: { fullName: string; phone: string; email: string }) =>
     request<{ success: boolean; emailSent: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(schoolId)}/admin-invitation`, { method: 'POST', body: JSON.stringify(data) }),
@@ -155,8 +154,6 @@ export const api = {
     request<{ success: boolean }>(`/api/platform/schools/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteSchool: (id: string) =>
     request<{ success: boolean; message: string }>(`/api/platform/schools/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  updateSchoolCode: (id: string, code: string) =>
-    request<{ success: boolean; code: string }>(`/api/platform/schools/${encodeURIComponent(id)}/code`, { method: 'PATCH', body: JSON.stringify({ code }) }),
   getPlatformSecurity: () => request<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' }>('/api/platform/security'),
   getPlatformPhoneBindingStatus: () => request<{ whatsappPhoneBound: boolean; emailConfigured: boolean; passwordReauthAvailable: boolean }>('/api/platform/phone-binding'),
   startPlatformEmailBinding: (email: string, password: string) => request<{ success: boolean; bindingId: string; expiresInSeconds: number; message: string }>('/api/platform/email-binding/start', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -257,80 +254,24 @@ export const api = {
   getPublicSchools: () => request<{ schools: School[] }>('/api/public/schools'),
   getPublicPricing: (signal?: AbortSignal) =>
     request<{ plans: { code: string; amountMinor: number; currency: string; revision: number; updatedAt: string }[] }>('/api/public/pricing', { cache: 'no-store', signal }),
-  getSchoolContext: (code: string) =>
-    request<{ school: School }>(`/api/public/school-context?code=${encodeURIComponent(code)}`),
   getAuthCapabilities: (signal?: AbortSignal) =>
     request<{ whatsappAuthEnabled: boolean; unifiedLoginEnabled?: boolean; phoneCentricAuthEnabled?: boolean }>('/api/public/auth-capabilities', { cache: 'no-store', signal }),
 
   // Authentication
-  resetPasswordWithCode: (schoolId: string, phone: string, code: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/reset-password-with-code', {
-      method: 'POST',
-      body: JSON.stringify({ schoolId, phone, code, password }),
-    }),
-  parentRegistrationChallenge: (schoolCode: string, phone: string, code: string) =>
-    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/registration-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, code }) }),
-  parentRegistrationComplete: (schoolId: string, phone: string, challenge: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/parent/registration-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, challenge, password }) }),
-  parentResetChallenge: (schoolCode: string, phone: string, code: string) =>
-    request<{ success: boolean; schoolId: string; challenge: string }>('/api/auth/parent/reset-challenge', { method: 'POST', body: JSON.stringify({ schoolCode, phone, code }) }),
-  parentResetComplete: (schoolId: string, phone: string, challenge: string, password: string) =>
-    request<{ success: boolean; message: string }>('/api/auth/parent/reset-complete', { method: 'POST', body: JSON.stringify({ schoolId, phone, challenge, password }) }),
-  verifyStaffActivation: (schoolCode: string, phone: string, code: string) =>
-    request<{success:boolean;setupToken:string;schoolId:string;role:'teacher'|'security'}>('/api/auth/staff/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
-  completeStaffActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
-    request<{success:boolean;message:string}>('/api/auth/staff/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
-  requestStaffReset: (schoolCode:string,phone:string) =>
-    request<{success:boolean;message:string}>('/api/auth/staff/reset-request',{method:'POST',body:JSON.stringify({schoolCode,phone})}),
-  verifyStaffReset: (schoolCode:string,phone:string,code:string) =>
-    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/staff/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
-  completeStaffReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
-    request<{success:boolean;message:string}>('/api/auth/staff/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
-  verifySchoolAdminActivation: (schoolCode:string,phone:string,licenseCode:string,code:string) =>
-    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/activation-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,licenseCode,code})}),
-  completeSchoolAdminActivation: (schoolId:string,phone:string,setupToken:string,password:string) =>
-    request<{success:boolean;message:string}>('/api/auth/school-admin/activation-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
-  requestSchoolAdminReset: (schoolCode:string,phone:string) =>
-    request<{success:boolean;message:string}>('/api/auth/school-admin/reset-request',{method:'POST',body:JSON.stringify({schoolCode,phone})}),
-  verifySchoolAdminReset: (schoolCode:string,phone:string,code:string) =>
-    request<{success:boolean;setupToken:string;schoolId:string}>('/api/auth/school-admin/reset-verify',{method:'POST',body:JSON.stringify({schoolCode,phone,code})}),
-  completeSchoolAdminReset: (schoolId:string,phone:string,setupToken:string,password:string) =>
-    request<{success:boolean;message:string}>('/api/auth/school-admin/reset-complete',{method:'POST',body:JSON.stringify({schoolId,phone,setupToken,password})}),
-
-  login: (phone: string, password: string, role?: string) =>
-    request<{
-      success: boolean;
-      token: string;
-      user: User;
-      memberships: SchoolMembership[];
-    }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ phone, password, role }),
-    }),
-  requestWhatsappCode: (data: { purpose: 'login' | 'parent_registration' | 'staff_activation' | 'auto'; phone: string; schoolCode?: string }) =>
+  requestWhatsappCode: (data: { purpose: 'login' | 'auto'; phone: string }) =>
     request<{ success: boolean; message: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
       '/api/auth/whatsapp/request-code', { method: 'POST', body: JSON.stringify(data) }),
   verifyWhatsappCode: (data: { challengeId: string; phone: string; code: string }) =>
-    request<{ success: boolean; token?: string; user?: User; memberships?: SchoolMembership[]; pendingEmail?: boolean; handle?: string; message?: string }>(
+    request<{ success: boolean; token?: string; user?: User; memberships?: SchoolMembership[]; message?: string }>(
       '/api/auth/whatsapp/verify-code', { method: 'POST', body: JSON.stringify(data) }),
 
-  completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) =>
-    request<{ success: boolean; token: string; user: User; memberships: SchoolMembership[] }>(
-      '/api/auth/whatsapp/complete-admin-email', { method: 'POST', body: JSON.stringify(data) }),
-
-  requestPhoneCentricCode: (phone: string, registration?: { schoolCode: string }) =>
-    request<
-      | { success: boolean; message: string; legacyFallbackRequired: true }
-      | { success: boolean; message: string; legacyFallbackRequired?: false; attemptId: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }
-    >(
-      '/api/auth/phone/request-code', {
-        method: 'POST',
-        body: JSON.stringify(registration ? { phone, flow: 'parent_registration', ...registration } : { phone }),
-      }),
+  requestPhoneCentricCode: (phone: string) =>
+    request<{ success: boolean; message: string; attemptId: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }>(
+      '/api/auth/phone/request-code', { method: 'POST', body: JSON.stringify({ phone }) }),
   verifyPhoneCentricCode: (data: { attemptId: string; challengeId: string; phone: string; code: string }) =>
-    request<{ success: boolean; token?: string; user?: User; memberships?: SchoolMembership[]; pendingEmail?: boolean; attemptId?: string; requiresSchoolCode?: boolean; message?: string }>(
+    request<{ success: boolean; token?: string; user?: User; memberships?: SchoolMembership[]; pendingEmail?: boolean; attemptId?: string; message?: string }>(
       '/api/auth/phone/verify-code', { method: 'POST', body: JSON.stringify(data) }),
-  verifyPhoneCentricEmail: (data: { attemptId: string; phone: string; emailCode: string; schoolCode?: string }) =>
+  verifyPhoneCentricEmail: (data: { attemptId: string; phone: string; emailCode: string }) =>
     request<{ success: boolean; token: string; user: User; memberships: SchoolMembership[] }>(
       '/api/auth/phone/verify-email', { method: 'POST', body: JSON.stringify(data) }),
 
@@ -350,7 +291,6 @@ export const api = {
       user: User;
       memberships: (SchoolMembership & {
         schoolName: string;
-        schoolCode: string;
         city: string;
         district: string;
       })[];

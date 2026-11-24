@@ -9,6 +9,7 @@ async function run() {
   process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.AUTH_CODE_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
   process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
@@ -152,23 +153,8 @@ async function run() {
       code: phoneWhatsAppCode,
     });
     assert.equal(phoneVerified.status, 200);
-    assert.equal(phoneVerified.body.pendingEmail, true);
-    assert.equal(phoneVerified.body.requiresSchoolCode, true);
-    assert.equal('token' in phoneVerified.body, false);
-    const phoneEmailCode = emailCodes.at(-1)!;
-    assert.equal((await request('POST', '/auth/phone/verify-email', {
-      attemptId: phoneStart.body.attemptId,
-      phone: phoneAdminPhone,
-      emailCode: phoneEmailCode,
-      schoolCode: 'YANLIS',
-    })).status, 401);
-    const phoneActivation = await request('POST', '/auth/phone/verify-email', {
-      attemptId: phoneStart.body.attemptId,
-      phone: phoneAdminPhone,
-      emailCode: phoneEmailCode,
-      schoolCode: phoneSchoolCode,
-    });
-    assert.equal(phoneActivation.status, 200);
+    assert.equal(typeof phoneVerified.body.token, 'string', 'first school admin login needs only the WhatsApp code');
+    assert.equal('pendingEmail' in phoneVerified.body, false);
     assert.equal((await membershipRepository.getActiveMembership(phoneAdmin.id, phoneSchoolId))?.role, 'admin');
 
     for (let loginIndex = 0; loginIndex < 2; loginIndex += 1) {
@@ -184,14 +170,15 @@ async function run() {
       assert.equal('pendingEmail' in laterResult.body, false);
     }
 
-    const phoneA = await requestAuto(adminPhoneA);
-    const phoneB = await requestAuto(adminPhoneB);
-    const emailA = await verifyPhone(adminPhoneA, phoneA.challengeId, phoneA.code);
-    const emailB = await verifyPhone(adminPhoneB, phoneB.challengeId, phoneB.code);
-    const activationResults = await Promise.all([
-      request('POST', '/auth/whatsapp/complete-admin-email', { handle: emailA.handle, phone: adminPhoneA, emailCode: emailA.emailCode }),
-      request('POST', '/auth/whatsapp/complete-admin-email', { handle: emailB.handle, phone: adminPhoneB, emailCode: emailB.emailCode }),
-    ]);
+    async function phoneLogin(phone: string) {
+      const start = await request('POST', '/auth/phone/request-code', { phone });
+      assert.equal(start.status, 200);
+      const code = whatsappCodes.at(-1)!;
+      return () => request('POST', '/auth/phone/verify-code', { attemptId: start.body.attemptId, challengeId: start.body.challengeId, phone, code });
+    }
+    const verifyA = await phoneLogin(adminPhoneA);
+    const verifyB = await phoneLogin(adminPhoneB);
+    const activationResults = await Promise.all([verifyA(), verifyB()]);
     assert.deepEqual(activationResults.map((result) => result.status).sort(), [200, 409]);
     const realAdmins = await db.query<{ user_id: string }>(
       "SELECT user_id FROM school_memberships WHERE school_id=$1 AND role='admin' AND status='active'",
@@ -202,14 +189,11 @@ async function run() {
     const activeAdmin = activeAdminId === adminA.id ? adminA : adminB;
     assert.equal((await db.query('SELECT password_hash FROM users WHERE id=$1', [activeAdmin.id])).rows[0].password_hash, null);
 
-    const later = await requestAuto(activeAdmin.phone);
-    const laterLogin = await request('POST', '/auth/whatsapp/verify-code', { phone: activeAdmin.phone, challengeId: later.challengeId, code: later.code });
-    assert.equal(laterLogin.status, 200);
-    assert.equal(laterLogin.body.memberships.length, 1);
-    assert.equal(laterLogin.body.memberships[0].role, 'admin');
-    const adminToken = String(laterLogin.body.token);
-    assert.equal((await request('GET', `/schools/${schoolId}/info`, undefined, adminToken)).status, 200);
-    assert.equal((await request('GET', `/schools/${otherSchoolId}/info`, undefined, adminToken)).status, 403);
+    const laterAdmin = await (await phoneLogin(activeAdmin.phone))();
+    assert.equal(laterAdmin.status, 200);
+    const adminToken = String(laterAdmin.body.token);
+    assert.equal((await request('GET', `/schools/${schoolId}/settings`, undefined, adminToken)).status, 200);
+    assert.equal((await request('GET', `/schools/${otherSchoolId}/settings`, undefined, adminToken)).status, 403);
     assert.equal((await request('GET', '/platform/capabilities', undefined, adminToken)).body.manageSchools, false);
 
     const deliveriesBeforePlatform = whatsappCodes.length;
@@ -218,51 +202,18 @@ async function run() {
     assert.equal(whatsappCodes.length, deliveriesBeforePlatform, 'platform authority must not receive unified WhatsApp login');
 
     await db.query('UPDATE schools SET disabled_at=NOW() WHERE id=$1', [schoolId]);
-    assert.equal((await request('GET', `/schools/${schoolId}/info`, undefined, adminToken)).status, 403);
+    assert.equal((await request('GET', `/schools/${schoolId}/settings`, undefined, adminToken)).status, 403);
     const deliveriesBeforeDisabled = whatsappCodes.length;
     assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'auto', phone: activeAdmin.phone })).status, 200);
     assert.equal(whatsappCodes.length, deliveriesBeforeDisabled, 'disabled school must not issue a WhatsApp challenge');
     await db.query('UPDATE schools SET disabled_at=NULL WHERE id=$1', [schoolId]);
 
-    const emailsBeforeReset = emailCodes.length;
-    assert.equal((await request('POST', '/auth/school-admin/reset-request', { schoolCode, phone: activeAdmin.phone })).status, 200);
-    assert.equal(emailCodes.length, emailsBeforeReset + 1, 'passwordless admin recovery must send a reset code');
-    const resetVerify = await request('POST', '/auth/school-admin/reset-verify', { schoolCode, phone: activeAdmin.phone, code: emailCodes.at(-1) });
-    assert.equal(resetVerify.status, 200);
-    assert.equal((await request('POST', '/auth/school-admin/reset-complete', {
-      schoolId,
-      phone: activeAdmin.phone,
-      setupToken: resetVerify.body.setupToken,
-      password: 'Recovered-admin-pass-184!abc',
-    })).status, 200);
-    assert.equal((await request('POST', '/auth/login', { phone: activeAdmin.phone, password: 'Recovered-admin-pass-184!abc' })).status, 200);
+    // Parola ve e-posta kodlu eski okul yöneticisi akışları tamamen kaldırıldı.
+    for (const path of ['/auth/school-admin/reset-request', '/auth/school-admin/activation-verify', '/auth/school-admin/activation-complete', '/auth/whatsapp/complete-admin-email']) {
+      assert.equal((await request('POST', path, { phone: activeAdmin.phone })).status, 404, path + ' must be removed');
+    }
 
-    const legacyCode = '654321';
-    await invitationRepository.createAuthCode({
-      schoolId: legacySchoolId,
-      targetPhone: legacyPhone,
-      targetUserId: legacy.id,
-      targetRole: 'admin',
-      purpose: 'school_admin_activation',
-      codeHash: hashActivationCode(legacyCode),
-      expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
-      token: crypto.randomUUID(),
-    });
-    const legacyVerify = await request('POST', '/auth/school-admin/activation-verify', {
-      schoolCode: legacySchoolCode,
-      phone: legacyPhone,
-      code: legacyCode,
-    });
-    assert.equal(legacyVerify.status, 200, 'legacy mobile activation verify endpoint must remain available');
-    assert.equal((await request('POST', '/auth/school-admin/activation-complete', {
-      schoolId: legacySchoolId,
-      phone: legacyPhone,
-      setupToken: legacyVerify.body.setupToken,
-      password: 'Legacy-admin-pass-184!abc',
-    })).status, 200, 'legacy mobile activation complete endpoint must remain available');
-    assert.equal((await membershipRepository.getActiveMembership(legacy.id, legacySchoolId))?.role, 'admin');
-
-    console.log('Unified WhatsApp login: first activation, admin race lock, later login, disabled-school/tenant/platform guards, passwordless recovery and legacy mobile compatibility PASS.');
+    console.log('Unified WhatsApp login: code-only first activation, admin race lock, later login, disabled-school/tenant/platform guards and removed legacy admin flows PASS.');
   } finally {
     globalThis.fetch = originalFetch;
     process.env.PLATFORM_ADMIN_USER_IDS = originalPlatformIds;

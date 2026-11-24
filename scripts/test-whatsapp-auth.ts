@@ -9,6 +9,8 @@ async function run() {
   process.env.JWT_SECRET = 'local-whatsapp-jwt-secret-at-least-32-characters';
   process.env.AUTH_CODE_SECRET = 'local-whatsapp-code-secret-at-least-32-characters';
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
+  process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-token-not-a-real-credential';
@@ -71,7 +73,7 @@ async function run() {
     }
   }
   async function requestCode(purpose: 'login' | 'parent_registration' | 'staff_activation', phone: string, schoolCode?: string) {
-    const response = await request('POST', '/auth/whatsapp/request-code', { purpose, phone, schoolCode });
+    const response = await request('POST', '/auth/whatsapp/request-code', { purpose: 'auto', phone });
     assert.equal(response.status, 200);
     assert.equal(response.body.success, true);
     assert.match(response.body.challengeId, /^[0-9a-f-]{36}$/i);
@@ -84,9 +86,6 @@ async function run() {
     const parent = await userRepository.create({ phone: parentPhone, firstName: 'Ortak', lastName: 'Hesap', isPhoneVerified: false });
     createdUsers.push(parent.id);
     await userRepository.updatePasswordHash(parent.id, hashPassword('Aa12345'));
-    await membershipRepository.createOrActivate({ schoolId: schoolA, userId: parent.id, role: 'admin' });
-    await membershipRepository.createOrActivate({ schoolId: schoolC, userId: parent.id, role: 'admin' });
-    process.env.PLATFORM_ADMIN_USER_IDS = parent.id;
     await db.query(`INSERT INTO school_roster(school_id,parent_phone,parent_name,student_name,class_name,student_number,is_claimed)
       VALUES($1,$2,$3,$4,$5,$6,FALSE),($1,$2,$3,$7,$8,$9,FALSE)`,
       [schoolA, parentPhone, 'Ortak Hesap', 'Birinci Çocuk', '5-A', '101', 'İkinci Çocuk', '3-B', '202']);
@@ -95,8 +94,8 @@ async function run() {
     const unknown = await request('POST', '/auth/whatsapp/request-code', { purpose: 'login', phone: unknownPhone });
     assert.equal(unknown.status, 200);
     assert.equal(deliveredCodes.length, callsBeforeUnknown);
-    assert.notEqual((await request('POST', '/auth/parent/registration-challenge', { schoolCode: codeA, phone: parentPhone, code: '000000' })).status, 404,
-      'legacy mobile parent activation endpoint must remain available during WhatsApp rollout');
+    assert.equal((await request('POST', '/auth/parent/registration-challenge', { phone: parentPhone, code: '000000' })).status, 404, 'legacy parent registration endpoint is removed');
+    assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'parent_registration', phone: parentPhone })).status, 400, 'explicit legacy purposes are rejected');
 
     const registration = await requestCode('parent_registration', parentPhone, codeA);
     assert.match(registration.code, /^\d{6}$/);
@@ -115,15 +114,12 @@ async function run() {
     assert.equal((await request('GET', `/schools/${schoolB}/teachers`, undefined, parentToken)).status, 403);
     assert.equal((await request('GET', `/schools/${schoolC}/students`, undefined, parentToken)).status, 403);
 
-    await db.query(`INSERT INTO school_roster(school_id,parent_phone,parent_name,student_name,class_name,student_number,is_claimed)
-      VALUES($1,$2,$3,$4,$5,$6,FALSE)`, [schoolB, parentPhone, 'Ortak Hesap', 'Üçüncü Çocuk', '6-C', '303']);
-    const secondSchool = await requestCode('parent_registration', parentPhone, codeB);
-    const secondSchoolLogin = await request('POST', '/auth/whatsapp/verify-code', { challengeId: secondSchool.challengeId, phone: parentPhone, code: secondSchool.code });
-    assert.equal(secondSchoolLogin.status, 200);
-    assert.deepEqual(secondSchoolLogin.body.memberships.map((entry: { schoolId: string; role: string }) => `${entry.schoolId}:${entry.role}`).sort(),
-      [`${schoolA}:parent`, `${schoolB}:parent`].sort());
-    const visibleSchools = (await request('GET', '/public/schools', undefined, secondSchoolLogin.body.token as string)).body.schools as Array<{ id: string }>;
-    assert.deepEqual(visibleSchools.map((entry) => entry.id).sort(), [schoolA, schoolB].sort());
+    const secondLogin = await requestCode('login', parentPhone);
+    const secondLoginResult = await request('POST', '/auth/whatsapp/verify-code', { challengeId: secondLogin.challengeId, phone: parentPhone, code: secondLogin.code });
+    assert.equal(secondLoginResult.status, 200);
+    assert.deepEqual(secondLoginResult.body.memberships.map((entry: { schoolId: string; role: string }) => `${entry.schoolId}:${entry.role}`), [`${schoolA}:parent`]);
+    const visibleSchools = (await request('GET', '/public/schools', undefined, secondLoginResult.body.token as string)).body.schools as Array<{ id: string }>;
+    assert.deepEqual(visibleSchools.map((entry) => entry.id), [schoolA]);
 
     const expired = await requestCode('login', parentPhone);
     await db.query("UPDATE whatsapp_auth_challenges SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [expired.challengeId]);
@@ -139,7 +135,9 @@ async function run() {
     await db.query(`INSERT INTO teacher_profiles(id,school_id,first_name,last_name,branch,phone,email)
       VALUES($1,$2,$3,$4,$5,$6,$7)`, [teacherId, schoolA, 'Test', 'Öğretmen', 'Türkçe', teacherPhone, 'teacher@example.test']);
     const staff = await requestCode('staff_activation', teacherPhone, codeA);
-    assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'staff_activation', phone: teacherPhone, schoolCode: codeA })).status, 429);
+    const deliveredBeforeCooldown = deliveredCodes.length;
+    assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'auto', phone: teacherPhone })).status, 200);
+    assert.equal(deliveredCodes.length, deliveredBeforeCooldown, 'cooldown must not send a second message');
     await db.query("UPDATE whatsapp_auth_challenges SET resend_available_at=NOW()-INTERVAL '1 second' WHERE id=$1", [staff.challengeId]);
     const resentStaff = await requestCode('staff_activation', teacherPhone, codeA);
     assert.equal((await request('POST', '/auth/whatsapp/verify-code', { challengeId: staff.challengeId, phone: teacherPhone, code: staff.code })).status, 401);
@@ -208,7 +206,7 @@ async function run() {
     delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
     assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'login', phone: parentPhone })).status, 503);
     assert.equal((await request('POST', '/auth/login', { phone: parentPhone, password: 'Aa12345' })).status, 200);
-    assert.equal((await request('POST', '/auth/parent/registration-challenge', {})).status, 400);
+    assert.equal((await request('POST', '/auth/parent/registration-challenge', {})).status, 404);
     console.log('WhatsApp auth: feature flag, anti-enumeration, parent multi-child/multi-school activation, teacher/security activation, one-school teacher invariant, resend/attempt limits, passwordless deletion, tenant/admin isolation and JWT hardening PASS.');
   } finally {
     globalThis.fetch = realFetch;

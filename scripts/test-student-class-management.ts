@@ -19,7 +19,8 @@ async function main() {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = crypto.randomBytes(48).toString('base64url');
   process.env.AUTH_CODE_SECRET = crypto.randomBytes(48).toString('base64url');
-  process.env.WHATSAPP_AUTH_ENABLED = 'true'; process.env.WHATSAPP_PILOT_ENABLED = 'true';
+  process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1'; process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.PHONE_CENTRIC_AUTH_ENABLED = 'false';
   delete process.env.CLASS_BULK_DELETE_ENABLED;
   process.env.WHATSAPP_PHONE_NUMBER_ID = '123456'; process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-only';

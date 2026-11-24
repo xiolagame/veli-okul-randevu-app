@@ -116,7 +116,7 @@ function safeEqual(left: string, right: string): boolean {
 }
 
 function requiresEmailFactor(flowType: IdentityAuthFlowType): boolean {
-  return flowType === 'SCHOOL_ADMIN_ACTIVATION' || flowType === 'PLATFORM_LOGIN';
+  return flowType === 'PLATFORM_LOGIN';
 }
 
 async function persistExpiration(attemptId: string): Promise<void> {

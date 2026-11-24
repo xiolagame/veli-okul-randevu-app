@@ -23,7 +23,6 @@ import { normalizePersonName } from '../src/utils/person-name';
 import { getTestLoginCode } from './test-login';
 import { SchoolMembership, User, UserRole } from '../src/types';
 import {
-  attachIssuedEmailChallenge,
   consumeAuthenticatedAttempt,
   createIdentityAuthAttempt,
   getIdentityAuthAttempt,
@@ -65,18 +64,6 @@ export type WhatsAppAuthResult = {
   user: User & { authVersion: number };
   memberships: SchoolMembership[];
   purpose: Exclude<WhatsAppAuthPurpose, 'account_deletion'>;
-};
-
-export type PendingAdminEmail = {
-  pendingEmail: true;
-  handle: string;
-  schoolId: string;
-  email: string;
-  schoolName: string;
-  schoolCode: string;
-  licenseCode?: string;
-  fullName: string;
-  code: string;
 };
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -146,10 +133,8 @@ async function eligibleMemberships(userId: string, client?: TransactionClient): 
 async function resolveTarget(input: {
   purpose: WhatsAppAuthPurpose;
   phone: string;
-  schoolCode?: string;
   authenticatedUserId?: string;
 }): Promise<ChallengeTarget | null> {
-  const db = await getDb();
   const user = await userRepository.getByPhone(input.phone);
   if (input.purpose === 'account_deletion') {
     return user && input.authenticatedUserId === user.id
@@ -160,42 +145,7 @@ async function resolveTarget(input: {
     if (!user || !(await eligibleMemberships(user.id)).length) return null;
     return { schoolId: null, userId: user.id, role: null, profileId: null };
   }
-  const school = input.schoolCode ? await schoolRepository.getByCode(input.schoolCode) : null;
-  if (!school) return null;
-  const digits = getTurkishPhoneLookupDigits(input.phone);
-  if (!digits) return null;
-
-  if (input.purpose === 'parent_registration') {
-    if (user && (await membershipRepository.getMembershipsByUserId(user.id)).some((entry) => entry.schoolId === school.id && entry.role === 'parent')) return null;
-    const roster = await db.query<{ parent_name: string }>(
-      `SELECT parent_name FROM school_roster
-       WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
-         AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4)`,
-      [school.id, ...digits],
-    );
-    const names = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
-    if (!roster.rows.length || names.size !== 1) return null;
-    return { schoolId: school.id, userId: user?.id || null, role: 'parent', profileId: null };
-  }
-
-  const teacher = await db.query<{ id: string; user_id: string | null }>(
-    `SELECT id,user_id FROM teacher_profiles
-     WHERE school_id=$1 AND account_deleted_at IS NULL
-       AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)`,
-    [school.id, ...digits],
-  );
-  const security = await db.query<{ id: string }>(
-    `SELECT id FROM pending_staff
-     WHERE school_id=$1 AND role='security'
-       AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)`,
-    [school.id, ...digits],
-  );
-  if (teacher.rows.length === 1 && !teacher.rows[0].user_id && security.rows.length === 0) {
-    return { schoolId: school.id, userId: user?.id || null, role: 'teacher', profileId: teacher.rows[0].id };
-  }
-  if (security.rows.length === 1 && teacher.rows.length === 0) {
-    return { schoolId: school.id, userId: user?.id || null, role: 'security', profileId: security.rows[0].id };
-  }
+  // Okul koduna dayalı eski amaçlar (parent_registration, staff_activation) kaldırıldı: giriş yalnız telefonla çözülür.
   return null;
 }
 
@@ -305,7 +255,6 @@ async function resolvePhoneCentricTarget(phone: string): Promise<{ purpose: What
 export async function requestWhatsAppAuthChallenge(input: {
   purpose: WhatsAppAuthPurpose | 'auto';
   phone: unknown;
-  schoolCode?: unknown;
   authenticatedUserId?: string;
   requesterKey: string;
   phoneCentric?: boolean;
@@ -320,7 +269,6 @@ type ChallengeIssueContext = { challengeId: string; purpose: WhatsAppAuthPurpose
 async function issueWhatsAppAuthChallenge(input: {
   purpose: WhatsAppAuthPurpose | 'auto';
   phone: unknown;
-  schoolCode?: unknown;
   authenticatedUserId?: string;
   requesterKey: string;
   phoneCentric?: boolean;
@@ -334,7 +282,6 @@ async function issueWhatsAppAuthChallenge(input: {
   }
   assertWhatsAppDeliveryConfigured();
   const phone = normalizeTurkishPhone(input.phone);
-  const schoolCode = typeof input.schoolCode === 'string' ? input.schoolCode.trim() : undefined;
   const allowed = !!phone && await withinRateLimits([
     { scope: `${input.requesterKey}:${input.purpose}:requester`, maximum: 30 },
     { scope: `${input.requesterKey}:${input.purpose}:${phone}`, maximum: 6 },
@@ -356,7 +303,6 @@ async function issueWhatsAppAuthChallenge(input: {
   const target = input.purpose === 'auto' ? (resolved?.target || null) : await resolveTarget({
     purpose,
     phone,
-    schoolCode,
     authenticatedUserId: input.authenticatedUserId,
   });
   if (!target) {
@@ -618,151 +564,47 @@ async function activateAdditionalStaff(tx: TransactionClient, challenge: Challen
   }
 }
 
-async function queueAdminEmailAfterPhoneVerification(tx: TransactionClient, challenge: ChallengeRow): Promise<PendingAdminEmail> {
+// Okul yöneticisi ilk girişi yalnız telefon (WhatsApp kodu) kanıtıyla tamamlanır. Yetki, platform yöneticisinin
+// oluşturduğu etkin davettir. Yönetici e-postası yalnız lisans hatırlatmaları içindir; doğrulama adımı değildir.
+async function activateSchoolAdmin(tx: TransactionClient, challenge: ChallengeRow): Promise<User & { authVersion: number }> {
   if (!challenge.school_id || !challenge.target_user_id || challenge.target_role !== 'admin') throw new Error('INVALID_ADMIN_ACTIVATION');
   if (isPlatformAdmin(challenge.target_user_id)) throw new Error('INVALID_ADMIN_ACTIVATION');
-  const school = await tx.query<{ name: string; code: string; license_code: string | null }>(
-    `SELECT s.name,s.code,sl.license_code FROM schools s LEFT JOIN school_licenses sl ON sl.school_id=s.id
-     WHERE s.id=$1 AND s.disabled_at IS NULL FOR SHARE OF s`,
-    [challenge.school_id],
-  );
-  if (!school.rows[0] || !await schoolLicenseRepository.isAccessAllowed(challenge.school_id, tx)) {
-    throw new Error('INVALID_ADMIN_ACTIVATION');
-  }
-  const user = await tx.query<{ first_name: string; last_name: string; email: string | null }>(
-    'SELECT first_name,last_name,email FROM users WHERE id=$1 AND phone=$2 FOR UPDATE',
-    [challenge.target_user_id, challenge.target_phone],
-  );
-  if (!user.rows[0]?.email) throw new Error('INVALID_ADMIN_ACTIVATION');
-  const memberships = await membershipRepository.getMembershipsByUserId(challenge.target_user_id, tx);
-  if (memberships.length) throw new Error('INVALID_ADMIN_ACTIVATION');
-  const invitation = await tx.query<{ id: string }>(
+  const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [challenge.school_id]);
+  if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(challenge.school_id, tx)) throw new Error('INVALID_ADMIN_ACTIVATION');
+  const owner = await tx.query('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [challenge.target_user_id, challenge.target_phone]);
+  if (!owner.rows.length) throw new Error('INVALID_ADMIN_ACTIVATION');
+  if ((await membershipRepository.getMembershipsByUserId(challenge.target_user_id, tx)).length) throw new Error('INVALID_ADMIN_ACTIVATION');
+  const invitation = await tx.query(
     `SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2 AND target_role='admin'
      AND purpose='school_admin_activation' AND is_active=TRUE AND consumed_at IS NULL AND revoked_at IS NULL
      AND expires_at>NOW() FOR UPDATE`,
     [challenge.school_id, challenge.target_user_id],
   );
   if (invitation.rows.length !== 1) throw new Error('INVALID_ADMIN_ACTIVATION');
-  const code = generateStaffCode();
-  const handle = crypto.randomUUID();
-  await invitationRepository.createAuthCode({
+  await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
+  const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+  const activeAdmins = await tx.query(
+    `SELECT user_id FROM school_memberships WHERE school_id=$1 AND role='admin' AND status='active'
+       AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
+    [challenge.school_id, platformAdminIds],
+  );
+  if (activeAdmins.rows.length) throw new WhatsAppAuthError(409, 'Bu okulda etkin bir okul yöneticisi bulunuyor.');
+  await userRepository.verifyPhone(challenge.target_user_id, tx);
+  await membershipRepository.createOrActivate({ schoolId: challenge.school_id, userId: challenge.target_user_id, role: 'admin' }, tx);
+  await tx.query(
+    `UPDATE invitations SET is_active=FALSE,revoked_at=NOW()
+     WHERE school_id=$1 AND target_user_id=$2 AND purpose='school_admin_activation' AND is_active=TRUE AND consumed_at IS NULL`,
+    [challenge.school_id, challenge.target_user_id],
+  );
+  await auditLogRepository.createAuditLog({
     schoolId: challenge.school_id,
-    targetPhone: challenge.target_phone,
-    targetUserId: challenge.target_user_id,
-    targetRole: 'admin',
-    purpose: 'school_admin_activation_setup',
-    codeHash: hashSetupToken(`unified-admin-email:${user.rows[0].email.trim().toLowerCase()}:${code}`),
-    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
-    token: handle,
+    action: 'school_admin_whatsapp_activation',
+    actorName: 'Sistem',
+    details: `Okul yöneticisi ${challenge.target_user_id} WhatsApp doğrulamasıyla etkinleştirildi.`,
   }, tx);
-  await tx.query('UPDATE whatsapp_auth_challenges SET consumed_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challenge.id]);
-  return {
-    pendingEmail: true,
-    handle,
-    schoolId: challenge.school_id,
-    email: user.rows[0].email,
-    schoolName: school.rows[0].name,
-    schoolCode: school.rows[0].code,
-    licenseCode: school.rows[0].license_code || undefined,
-    fullName: `${user.rows[0].first_name} ${user.rows[0].last_name}`.trim(),
-    code,
-  };
-}
-
-export async function completeUnifiedAdminEmailActivation(input: {
-  handle: unknown;
-  phone: unknown;
-  emailCode: unknown;
-  requesterKey: string;
-  phoneCentric?: boolean;
-}): Promise<WhatsAppAuthResult | null> {
-  if (input.phoneCentric ? !isPhoneCentricAuthEnabled() : !isUnifiedWhatsAppLoginEnabled()) return null;
-  const handle = typeof input.handle === 'string' ? input.handle.trim() : '';
-  const phone = normalizeTurkishPhone(input.phone);
-  const emailCode = typeof input.emailCode === 'string' ? input.emailCode.trim() : '';
-  if (!phone || !/^[0-9a-f-]{36}$/i.test(handle) || !/^\d{6}$/.test(emailCode)) return null;
-  if (!await withinRateLimit(`${input.requesterKey}:admin-email:${phone}`, 6, 15)) {
-    throw new WhatsAppAuthError(429, 'Çok fazla deneme yapıldı.');
-  }
-  if (!isWhatsAppPhoneEnabled(phone)) return null;
-
-  return (await getDb()).transaction(async (tx) => {
-    const row = await tx.query<{ school_id: string; target_user_id: string; target_phone: string }>(
-      `SELECT school_id,target_user_id,target_phone FROM invitations WHERE token=$1
-       AND purpose='school_admin_activation_setup' AND target_role='admin' AND is_active=TRUE
-       AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() FOR UPDATE`,
-      [handle],
-    );
-    const record = row.rows[0];
-    if (!record || record.target_phone !== phone || isPlatformAdmin(record.target_user_id)) return null;
-
-    const recipient = await tx.query<{ email: string | null }>(
-      'SELECT email FROM users WHERE id=$1 AND phone=$2 FOR UPDATE',
-      [record.target_user_id, phone],
-    );
-    const candidateEmail = recipient.rows[0]?.email?.trim().toLowerCase();
-    if (!candidateEmail) return null;
-
-    const match = await invitationRepository.consumeAuthCode({
-      schoolId: record.school_id,
-      targetPhone: phone,
-      targetUserId: record.target_user_id,
-      targetRole: 'admin',
-      purpose: 'school_admin_activation_setup',
-      codeHash: hashSetupToken(`unified-admin-email:${candidateEmail}:${emailCode}`),
-    }, tx);
-    if (!match) {
-      await invitationRepository.recordFailedAuthCodeAttempt(record.school_id, phone, 'school_admin_activation_setup', tx);
-      return null;
-    }
-
-    const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [record.school_id]);
-    if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(record.school_id, tx)) {
-      throw new Error('INVALID_ADMIN_ACTIVATION');
-    }
-
-    await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
-    const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
-    const activeAdmins = await tx.query(
-      `SELECT user_id FROM school_memberships
-       WHERE school_id=$1 AND role='admin' AND status='active'
-         AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
-      [record.school_id, platformAdminIds],
-    );
-    if (activeAdmins.rows.length) throw new WhatsAppAuthError(409, 'Bu okulda etkin bir okul yöneticisi bulunuyor.');
-
-    const originalInvite = await tx.query(
-      `SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2
-       AND target_role='admin' AND purpose='school_admin_activation' AND is_active=TRUE
-       AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() FOR UPDATE`,
-      [record.school_id, record.target_user_id],
-    );
-    if (originalInvite.rows.length !== 1) throw new Error('INVALID_ADMIN_ACTIVATION');
-    const otherMemberships = await membershipRepository.getMembershipsByUserId(record.target_user_id, tx);
-    if (otherMemberships.length) throw new Error('INVALID_ADMIN_ACTIVATION');
-
-    await userRepository.verifyPhone(record.target_user_id, tx);
-    await membershipRepository.createOrActivate({ schoolId: record.school_id, userId: record.target_user_id, role: 'admin' }, tx);
-    await tx.query(
-      `UPDATE invitations SET is_active=FALSE,revoked_at=NOW()
-       WHERE school_id=$1 AND target_user_id=$2 AND purpose='school_admin_activation'
-         AND is_active=TRUE AND consumed_at IS NULL`,
-      [record.school_id, record.target_user_id],
-    );
-    await auditLogRepository.createAuditLog({
-      schoolId: record.school_id,
-      action: 'school_admin_whatsapp_email_activation',
-      actorName: 'Sistem',
-      details: `Okul yöneticisi ${record.target_user_id} çift kanallı doğrulamayla etkinleştirildi.`,
-    }, tx);
-    const user = await userRepository.getById(record.target_user_id, tx);
-    if (!user) throw new Error('INVALID_ADMIN_ACTIVATION');
-    return {
-      user,
-      memberships: await membershipRepository.getMembershipsByUserId(user.id, tx),
-      purpose: 'school_admin_activation',
-    };
-  });
+  const user = await userRepository.getById(challenge.target_user_id, tx);
+  if (!user) throw new Error('INVALID_ADMIN_ACTIVATION');
+  return user;
 }
 
 export async function verifyWhatsAppAuthChallenge(input: {
@@ -771,7 +613,7 @@ export async function verifyWhatsAppAuthChallenge(input: {
   code: unknown;
   requesterKey: string;
   phoneCentric?: boolean;
-}): Promise<WhatsAppAuthResult | PendingAdminEmail | null> {
+}): Promise<WhatsAppAuthResult | null> {
   assertWhatsAppDeliveryConfigured();
   const challengeId = typeof input.challengeId === 'string' ? input.challengeId.trim() : '';
   const phone = normalizeTurkishPhone(input.phone);
@@ -790,9 +632,11 @@ export async function verifyWhatsAppAuthChallenge(input: {
     }
     if ((challenge.purpose === 'school_admin_login' || challenge.purpose === 'school_admin_activation')
       && (input.phoneCentric ? !isPhoneCentricAuthEnabled() : !isUnifiedWhatsAppLoginEnabled())) return null;
-    if (challenge.purpose === 'school_admin_activation') return queueAdminEmailAfterPhoneVerification(tx, challenge);
+    const adminFlow = challenge.purpose === 'school_admin_login' || challenge.purpose === 'school_admin_activation';
     let user: (User & { authVersion: number }) | null = null;
-    if (challenge.purpose === 'school_admin_login') {
+    if (challenge.purpose === 'school_admin_activation') {
+      user = await activateSchoolAdmin(tx, challenge);
+    } else if (challenge.purpose === 'school_admin_login') {
       if (!challenge.target_user_id || !challenge.school_id || isPlatformAdmin(challenge.target_user_id)) return null;
       const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [challenge.school_id]);
       if (!activeSchool.rows.length) return null;
@@ -813,27 +657,23 @@ export async function verifyWhatsAppAuthChallenge(input: {
     await userRepository.verifyPhone(user.id, tx);
     user = { ...user, isPhoneVerified: true };
     if (challenge.purpose === 'login' || challenge.purpose === 'staff_activation') await activateAdditionalStaff(tx, challenge, user);
-    const memberships = challenge.purpose === 'school_admin_login'
+    const memberships = adminFlow
       ? (await membershipRepository.getMembershipsByUserId(user.id, tx)).filter((membership) =>
         membership.role === 'admin' && membership.status === 'active' && membership.schoolId === challenge.school_id)
       : await eligibleMemberships(user.id, tx);
     if (!memberships.length) return null;
     await tx.query('UPDATE whatsapp_auth_challenges SET consumed_at=NOW() WHERE id=$1 AND consumed_at IS NULL', [challenge.id]);
-    return { user, memberships, purpose: challenge.purpose };
+    return { user, memberships, purpose: adminFlow ? 'school_admin_login' : challenge.purpose };
   });
 }
 
+// Yalnız ana platform yöneticisinin girişinde ikinci doğrulama olarak kullanılır.
 export type PhoneCentricPendingEmail = {
   pendingEmail: true;
   attemptId: string;
-  requiresSchoolCode: boolean;
   email: string;
-  schoolName?: string;
-  schoolCode?: string;
-  licenseCode?: string;
   fullName: string;
   code: string;
-  handle?: string;
 };
 
 function flowTypeForChallenge(challenge: Pick<ChallengeRow, 'purpose' | 'target_user_id'>): IdentityAuthFlowType {
@@ -848,7 +688,6 @@ function flowTypeForChallenge(challenge: Pick<ChallengeRow, 'purpose' | 'target_
 export async function requestPhoneCentricAuthChallenge(input: {
   phone: unknown;
   requesterKey: string;
-  parentRegistration?: { schoolCode: unknown };
 }): Promise<
   | { legacyFallbackRequired: true }
   | { legacyFallbackRequired?: false; attemptId: string; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }
@@ -857,35 +696,11 @@ export async function requestPhoneCentricAuthChallenge(input: {
   const phone = normalizeTurkishPhone(input.phone);
   if (!phone) throw new WhatsAppAuthError(400, 'Geçerli bir Türkiye GSM numarası girin.');
   assertWhatsAppDeliveryConfigured();
-  const registration = input.parentRegistration;
-  const schoolCode = typeof registration?.schoolCode === 'string' ? registration.schoolCode.trim() : '';
-  if (registration) {
-    const school = schoolCode ? await schoolRepository.getByCode(schoolCode) : null;
-    const digits = getTurkishPhoneLookupDigits(phone);
-    const existing = await userRepository.getByPhone(phone);
-    const existingMembership = school && existing
-      ? await membershipRepository.getActiveMembership(existing.id, school.id)
-      : null;
-    const roster = school && digits
-      ? await (await getDb()).query<{ parent_name: string }>(
-        `SELECT parent_name FROM school_roster
-         WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
-           AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4)`,
-        [school.id, ...digits],
-      )
-      : { rows: [] as { parent_name: string }[] };
-    const parentNames = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
-    if (!school || !digits || existingMembership?.role === 'parent' ||
-        parentNames.size !== 1 || !await schoolLicenseRepository.isAccessAllowed(school.id)) {
-      throw new WhatsAppAuthError(400, 'Bu numarayla giriş yapılamıyor. Okul yönetiminizle iletişime geçin.');
-    }
-  }
   let attemptId: string | null = null;
   try {
     const challenge = await issueWhatsAppAuthChallenge({
-      purpose: registration ? 'parent_registration' : 'auto',
+      purpose: 'auto',
       phone,
-      schoolCode: registration ? schoolCode : undefined,
       requesterKey: input.requesterKey,
       phoneCentric: true,
       // Runs while the WhatsApp message is being delivered; no extra latency for the user.
@@ -962,7 +777,6 @@ export async function verifyPhoneCentricAuthChallenge(input: {
     return {
       pendingEmail: true,
       attemptId,
-      requiresSchoolCode: false,
       email: platform.email,
       fullName: `${platform.user.firstName} ${platform.user.lastName}`.trim(),
       code: issued.code,
@@ -978,15 +792,6 @@ export async function verifyPhoneCentricAuthChallenge(input: {
   });
   if (!result) return null;
   await markPhoneVerified(attemptId, challengeId);
-  if ('pendingEmail' in result) {
-    await attachIssuedEmailChallenge({
-      attemptId,
-      email: result.email,
-      code: result.code,
-      challengeId: result.handle,
-    });
-    return { ...result, attemptId, requiresSchoolCode: true };
-  }
   if (attempt.targetUserId && attempt.targetUserId !== result.user.id) return null;
   await consumeAuthenticatedAttempt(attemptId);
   return result;
@@ -996,7 +801,6 @@ export async function completePhoneCentricEmailVerification(input: {
   attemptId: unknown;
   phone: unknown;
   emailCode: unknown;
-  schoolCode?: unknown;
   requesterKey: string;
 }): Promise<WhatsAppAuthResult | null> {
   if (!isPhoneCentricAuthEnabled()) return null;
@@ -1015,29 +819,6 @@ export async function completePhoneCentricEmailVerification(input: {
   const recipient = await (await getDb()).query<{ email: string | null }>('SELECT email FROM users WHERE id=$1', [user.id]);
   const email = recipient.rows[0]?.email?.trim().toLowerCase();
   if (!email) return null;
-
-  if (attempt.flowType === 'SCHOOL_ADMIN_ACTIVATION') {
-    const schoolCode = typeof input.schoolCode === 'string' ? input.schoolCode.trim().toUpperCase() : '';
-    const binding = await (await getDb()).query<{ school_code: string }>(
-      `SELECT s.code AS school_code FROM identity_auth_attempts a
-       JOIN whatsapp_auth_challenges w ON w.id=a.whatsapp_challenge_id
-       JOIN schools s ON s.id=w.school_id AND s.disabled_at IS NULL
-       WHERE a.id=$1 AND a.target_user_id=$2`,
-      [attemptId, user.id],
-    );
-    if (!schoolCode || binding.rows[0]?.school_code.toUpperCase() !== schoolCode) return null;
-    await verifyEmailChallenge({ attemptId, email, code: emailCode });
-    const result = await completeUnifiedAdminEmailActivation({
-      handle: attempt.emailChallengeId || '',
-      phone,
-      emailCode,
-      requesterKey: input.requesterKey,
-      phoneCentric: true,
-    });
-    if (!result || result.user.id !== user.id) return null;
-    await consumeAuthenticatedAttempt(attemptId);
-    return result;
-  }
 
   if (attempt.flowType !== 'PLATFORM_LOGIN' || !isPlatformAdmin(user.id)) return null;
   await verifyEmailChallenge({ attemptId, email, code: emailCode });

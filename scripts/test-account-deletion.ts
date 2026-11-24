@@ -14,6 +14,7 @@ async function run() {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'local-account-deletion-test-secret-at-least-32-chars';
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-access-token';

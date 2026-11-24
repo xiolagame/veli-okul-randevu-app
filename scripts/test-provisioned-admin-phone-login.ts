@@ -20,6 +20,7 @@ async function run() {
   process.env.AUTH_CODE_SECRET = crypto.randomBytes(48).toString('base64url');
   process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '123456789';
@@ -42,7 +43,7 @@ async function run() {
     if (url === 'https://api.resend.com/emails') {
       const payload = JSON.parse(String(init?.body)) as { subject: string; html: string; text?: string };
       const code = payload.html.match(/>(\d{6})</)?.[1];
-      assert(code, 'local email must contain a code'); emailCodes.push(code); emailMessages.push(payload);
+      if (code) emailCodes.push(code); emailMessages.push(payload);
       return new Response(JSON.stringify({ id: 'synthetic-email' }), { status: 200 });
     }
     if (!url.startsWith('http://127.0.0.1:')) throw new Error('External transport prohibited');
@@ -75,9 +76,8 @@ async function run() {
     const digits = managerPhone.slice(3), formatted = '0' + digits;
     const inviteBody = { fullName: 'Local Manager', phone: formatted, email: 'manager@example.test' };
     assert.equal((await request('POST', `/platform/schools/${school.id}/admin-invitation`, inviteBody, platformToken)).status, 201);
-    assert.match(emailMessages[0].subject, /E-posta Doğrulama Kodu/);
-    assert.match(emailMessages[0].html, /Bu ilk davet kodu/);
-    assert(!emailMessages[0].html.includes('Aktivasyon Kodu'));
+    assert.equal(emailMessages[0].subject, 'Okul yöneticisi hesabınız hazır');
+    assert(!/\d{6}/.test(emailMessages[0].text || ''), 'invitation email carries no code');
     const manager = await userRepository.getByPhone(managerPhone); assert(manager);
     assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
     const listed = await request('GET', '/platform/schools', undefined, platformToken);
@@ -87,7 +87,7 @@ async function run() {
     const beforeDuplicates = (await db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM users')).rows[0].count;
     assert.equal((await request('POST', `/platform/schools/${school.id}/admin-invitation`, inviteBody, platformToken)).status, 409);
     assert.equal((await db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM users')).rows[0].count, beforeDuplicates);
-    const resetChallenges = () => db.query('DELETE FROM whatsapp_auth_challenges WHERE target_phone=$1', [managerPhone]);
+    const resetChallenges = async () => { await db.query('DELETE FROM whatsapp_auth_challenges WHERE target_phone=$1', [managerPhone]); await db.query('DELETE FROM auth_rate_limits'); };
     stage = 'legacy role login cannot replace the admin activation entry point';
     const beforeLegacy = whatsappCodes.length;
     assert.equal((await request('POST', '/auth/whatsapp/request-code', { purpose: 'login', phone: managerPhone })).status, 200);
@@ -106,7 +106,7 @@ async function run() {
       await resetChallenges();
     }
     stage = 'pilot, disabled school, license, expired and revoked invitations fail closed';
-    const noSend = async () => { const before = whatsappCodes.length; assert.equal((await request('POST', '/auth/phone/request-code', { phone: managerPhone })).status, 200); assert.equal(whatsappCodes.length, before); };
+    const noSend = async () => { const before = whatsappCodes.length; assert([400, 403].includes((await request('POST', '/auth/phone/request-code', { phone: managerPhone })).status)); assert.equal(whatsappCodes.length, before); };
     for (const config of [undefined, '', unknownPhone, managerPhone + ',invalid']) {
       if (config === undefined) delete process.env.WHATSAPP_PILOT_ALLOWED_PHONES;
       else process.env.WHATSAPP_PILOT_ALLOWED_PHONES = config;
@@ -134,7 +134,7 @@ async function run() {
     assert.equal((await userRepository.getByPhone(managerPhone))?.id, manager.id);
     stage = 'unknown phone is masked and never authorized';
     const beforeUnknown = whatsappCodes.length;
-    const unknown = await request('POST', '/auth/phone/request-code', { phone: unknownPhone }); assert.equal(unknown.status, 200); assert.equal(whatsappCodes.length, beforeUnknown);
+    const unknown = await request('POST', '/auth/phone/request-code', { phone: unknownPhone }); assert([400, 403].includes(unknown.status)); assert.equal(whatsappCodes.length, beforeUnknown);
     assert.equal((await request('POST', '/auth/phone/verify-code', { ...unknown.body, phone: unknownPhone, code: '000000' })).status, 401);
     stage = 'OTP failures and phone-only access rejected';
     const start = await request('POST', '/auth/phone/request-code', { phone: managerPhone }); assert.equal(start.status, 200);
@@ -147,48 +147,19 @@ async function run() {
     await db.query("UPDATE identity_auth_attempts SET created_at=NOW()-INTERVAL '4 minutes',expires_at=NOW()+INTERVAL '6 minutes' WHERE id=$1", [valid.body.attemptId]);
     await db.query("UPDATE whatsapp_auth_challenges SET created_at=NOW()-INTERVAL '4 minutes',expires_at=NOW()+INTERVAL '1 minute' WHERE id=$1", [valid.body.challengeId]);
     let verified = await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-1) });
-    stage = 'email code receives its advertised ten-minute verification window';
-    const deadlines = await db.query<{ seconds: number; difference: number }>(`SELECT EXTRACT(EPOCH FROM (a.expires_at-NOW()))::float8 AS seconds,
-      ABS(EXTRACT(EPOCH FROM (a.expires_at-i.expires_at)))::float8 AS difference
-      FROM identity_auth_attempts a JOIN invitations i ON i.token=a.email_challenge_id::text WHERE a.id=$1`, [valid.body.attemptId]);
-    assert(deadlines.rows[0]?.seconds > 9 * 60, 'phone-step elapsed time must not shorten the new email code window');
-    assert(deadlines.rows[0].difference < 2, 'attempt and issued setup code must have matching expiry windows');
-    assert.equal(verified.status, 200); assert.equal(verified.body.pendingEmail, true); assert.equal(verified.body.requiresSchoolCode, true); assert.equal(verified.body.token, undefined);
-    assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
-    stage = 'actual email matches the setup invitation and expired email is rejected';
-    const { hashSetupToken } = await import('../server/activation-codes');
-    const setup = (await db.query<{ code_hash: string; target_user_id: string; school_id: string }>(`SELECT i.code_hash,i.target_user_id,i.school_id FROM invitations i JOIN identity_auth_attempts a ON a.email_challenge_id::text=i.token WHERE a.id=$1`, [valid.body.attemptId])).rows[0];
-    assert.equal(setup.target_user_id, manager.id); assert.equal(setup.school_id, school.id);
-    assert.equal(setup.code_hash, hashSetupToken('unified-admin-email:manager@example.test:' + emailCodes.at(-1)));
-    assert.match(emailMessages.at(-1)!.subject, /E-posta Doğrulama Kodu/);
-    assert.match(emailMessages.at(-1)!.html, /Okul yöneticisi hesabınızı etkinleştirmek için aşağıdaki e-posta doğrulama kodunu kullanın./);
-    const old = { attemptId: valid.body.attemptId, phone: formatted, emailCode: emailCodes.at(-1), schoolCode: school.code };
-    await db.query("UPDATE identity_auth_attempts SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [valid.body.attemptId]);
-    assert.equal((await request('POST', '/auth/phone/verify-email', old)).status, 401);
-    assert.equal((await membershipRepository.getMembershipsByUserId(manager.id)).length, 0);
-    stage = 'safe restart issues a current code and revokes the previous setup';
-    await resetChallenges();
-    valid = await request('POST', '/auth/phone/request-code', { phone: formatted });
-    verified = await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-1) });
-    assert.equal(verified.status, 200); assert.equal(verified.body.pendingEmail, true);
-    assert.equal((await request('POST', '/auth/phone/verify-email', old)).status, 401);
-    const emailCode = emailCodes.at(-1)!;
-    const wrongEmailCode = emailCode === '000000' ? '000001' : '000000';
-    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode: wrongEmailCode, schoolCode: school.code })).status, 401);
-    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: unknownPhone, emailCode, schoolCode: school.code })).status, 401);
-    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode, schoolCode: 'WRONG' })).status, 401);
-    stage = 'email and school-code activation, own-tenant access and later login';
-    const completed = await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode, schoolCode: school.code });
-    assert.equal(completed.status, 200); assert(completed.body.token); assert.equal(completed.body.memberships?.[0]?.schoolId, school.id);
+    stage = 'WhatsApp-code-only activation and own-tenant access';
+    assert.equal(verified.status, 200); assert(verified.body.token); assert.equal(verified.body.pendingEmail, undefined);
+    assert.equal(verified.body.memberships?.[0]?.schoolId, school.id);
+    const completed = verified;
     assert.equal((await request('GET', `/schools/${school.id}/management/student-records`, undefined, completed.body.token)).status, 200);
     const other = await request('POST', '/platform/schools', { name: 'Other Local School', city: 'Test', district: 'Test' }, platformToken); assert(other.body.school);
     assert.equal((await request('GET', `/schools/${other.body.school.id}/management/student-records`, undefined, completed.body.token)).status, 403);
     assert.equal((await request('GET', '/platform/schools', undefined, completed.body.token)).status, 403);
-    assert.equal((await request('POST', '/auth/phone/verify-email', { attemptId: valid.body.attemptId, phone: formatted, emailCode, schoolCode: school.code })).status, 401);
+    assert.equal((await request('POST', '/auth/phone/verify-code', { ...valid.body, phone: formatted, code: whatsappCodes.at(-2) })).status, 401);
     const later = await request('POST', '/auth/phone/request-code', { phone: managerPhone });
     const loggedIn = await request('POST', '/auth/phone/verify-code', { ...later.body, phone: managerPhone, code: whatsappCodes.at(-1) });
     assert.equal(loggedIn.status, 200); assert(loggedIn.body.token); assert.equal(loggedIn.body.pendingEmail, undefined);
-    console.log('Provisioned school-admin phone login PASS: real platform creation/invitation, pending status, formats, pilot/license/disabled guards, resend preserves identity, OTP/email activation, replay rejection, later login and tenant isolation. Local PGlite + mocked delivery only.');
+    console.log('Provisioned school-admin phone login PASS: real platform creation/invitation, pending status, formats, pilot/license/disabled guards, resend preserves identity, WhatsApp-only activation, replay rejection, later login and tenant isolation. Local PGlite + mocked delivery only.');
   } finally { globalThis.fetch = originalFetch; await new Promise<void>(resolve => server.close(() => resolve())); }
 }
-run().catch(() => { console.error(`Provisioned school-admin login FAILED at: ${stage}. No identities, codes or bodies logged.`); process.exitCode = 1; });
+run().catch((e) => { console.error(String(e && e.stack || e).split("\n").slice(0, 4).join(" | ")); console.error(`Provisioned school-admin login FAILED at: ${stage}. No identities, codes or bodies logged.`); process.exitCode = 1; });

@@ -7,8 +7,8 @@ import type { PlatformLicense, LicenseViewStatus } from '../src/types/licenses';
 
 class LicenseError extends Error { constructor(public status: number, message: string) { super(message); } }
 type Row = Omit<PlatformLicense, 'viewStatus' | 'remainingDays' | 'expired' | 'revision'>;
-const source = `SELECT s.id AS "schoolId",s.name AS "schoolName",s.code AS "schoolCode",s.disabled_at::text AS "schoolDisabledAt",
-  l.id AS "licenseId",l.license_code AS "licenseCode",l.status,l.activated_at::text AS "activatedAt",l.expires_at::text AS "expiresAt",
+const source = `SELECT s.id AS "schoolId",s.name AS "schoolName",s.disabled_at::text AS "schoolDisabledAt",
+  l.id AS "licenseId",l.status,l.activated_at::text AS "activatedAt",l.expires_at::text AS "expiresAt",
   to_char(l.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
   FROM schools s LEFT JOIN school_licenses l ON l.school_id=s.id`;
 function revision(row: Row) { return hashSetupToken(JSON.stringify([row.licenseId, row.status, row.activatedAt, row.expiresAt, row.updatedAt])); }

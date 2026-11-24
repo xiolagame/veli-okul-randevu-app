@@ -7,8 +7,6 @@ import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Tr
 import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
-import { normalizeSchoolCodeInput } from '../utils/school-code';
-import { formatLicenseCodeInput } from '../utils/license-code';
 import { PlatformRequestCenter } from './PlatformRequestCenter';
 import { PlatformPhoneBinding } from './PlatformPhoneBinding';
 import { LicenseManagement } from './LicenseManagement';
@@ -35,7 +33,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
   const [adminDraft, setAdminDraft] = useState({ fullName: '', phone: '', email: '' });
   const [adminInvitePending, setAdminInvitePending] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
-  const [draft, setDraft] = useState({ name: '', code: '', licenseCode: '', city: '', district: '' });
+  const [draft, setDraft] = useState({ name: '', city: '', district: '' });
   const [section, setSection] = useState<PlatformManagementSection>(initialSection);
   const [unseenRequests, setUnseenRequests] = useState(0);
   const [security, setSecurity] = useState<{ database: 'connected' | 'unavailable'; authConfiguration: 'ready' | 'incomplete'; codeSigning: 'ready' | 'incomplete' } | null>(null);
@@ -102,18 +100,16 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       {changed && <Toast tone="success" resetKey={changeMessage} onClose={() => setChanged(false)}>{changeMessage}</Toast>}
       {section === 'overview' && <><div className="metric-grid"><article className="metric-card"><strong>{schools.length}</strong><p>Toplam okul</p></article><article className="metric-card"><strong>{schools.filter((school) => !school.disabledAt).length}</strong><p>Aktif</p></article><article className="metric-card"><strong>{schools.filter((school) => !!school.disabledAt).length}</strong><p>Devre dışı</p></article></div><section className="surface platform-overview-action"><div><h2>Okul yönetimi</h2><p>Okul oluşturma, yöneticisini atama ve mevcut okulları yönetme işlemlerine buradan devam edin.</p></div><Button variant="secondary" onClick={() => setSection('schools')}>Okulları Görüntüle</Button></section></>}
       {section === 'schools' && !schoolFormOpen && <Button onClick={() => setSchoolFormOpen(true)}>+ Yeni okul ekle</Button>}
-      {section === 'schools' && schoolFormOpen && <form className="form-stack platform-school-form surface" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', code: '', licenseCode: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); setSchoolFormOpen(false); }); }}>
+      {section === 'schools' && schoolFormOpen && <form className="form-stack platform-school-form surface" onSubmit={(event) => { event.preventDefault(); void mutate(async () => { const result = await api.createSchool(draft); setDraft({ name: '', city: '', district: '' }); setAdminTarget(result.school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage('Okul oluşturuldu. Devam etmek için gerçek okul yöneticisini atayın.'); setSchoolFormOpen(false); }); }}>
         <div className="flex items-center justify-between gap-3"><h3>Yeni okul ekle</h3><Button variant="quiet" disabled={busy} onClick={() => setSchoolFormOpen(false)}>Kapat</Button></div>
-        <div className="platform-school-fields">{(['name', 'code', 'licenseCode', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', code: 'Okul kodu', licenseCode: 'Lisans Kodu', city: 'İl', district: 'İlçe' })[key]}
-          <input required={key !== 'code' && key !== 'licenseCode'} placeholder={key === 'code' || key === 'licenseCode' ? 'Boş bırakılırsa otomatik üretilir' : undefined} disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : key === 'code' ? 50 : key === 'licenseCode' ? 64 : 100} pattern={key === 'code' ? '[A-Z0-9_-]{3,50}' : key === 'licenseCode' ? '[A-Z0-9]+(?:-[A-Z0-9]+)*' : undefined}
-            autoCapitalize={key === 'licenseCode' ? 'characters' : undefined} autoCorrect={key === 'licenseCode' ? 'off' : undefined} spellCheck={key === 'licenseCode' ? false : undefined}
-            onChange={(event) => setDraft({ ...draft, [key]: key === 'code' ? normalizeSchoolCodeInput(event.target.value) : key === 'licenseCode' ? formatLicenseCodeInput(event.target.value) : event.target.value })} />{key === 'licenseCode' && <span className="field-hint">Boş bırakırsanız sistem otomatik oluşturur.</span>}</label>)}</div>
-        <p className="field-hint">Okul kodu ve lisans kodu boş bırakılırsa benzersiz değerler backend tarafından üretilir. Okul yöneticisi ayrı bir aktivasyonla atanır.</p>
+        <div className="platform-school-fields">{(['name', 'city', 'district'] as const).map((key) => <label className="field" key={key}>{({ name: 'Okul adı', city: 'İl', district: 'İlçe' })[key]}
+          <input required disabled={busy} value={draft[key]} maxLength={key === 'name' ? 255 : 100} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /></label>)}</div>
+        <p className="field-hint">Okul kodu veya lisans kodu girmeniz gerekmez. Okul yöneticisi bir sonraki adımda telefon numarasıyla atanır ve WhatsApp koduyla giriş yapar.</p>
         <Button type="submit" disabled={busy}>Okul oluştur</Button>
       </form>}
       {section === 'schools' && (loading ? <Skeleton /> : <section className="platform-school-list" aria-label="Okullar">{schools.map((school) => <article className="surface platform-school-row" key={school.id}>
-        <h3>{school.name}</h3><p>{school.code} · {school.city} / {school.district}</p>
-        <p><strong>Lisans Kodu:</strong> {school.licenseCode || 'Henüz atanmadı'} · <strong>Durum:</strong> {school.licenseStatus === 'active' ? 'Aktif' : school.licenseStatus === 'legacy' ? 'Lisans kaydı yok' : school.licenseStatus === 'suspended' ? 'Askıya alındı' : 'İptal edildi'}</p>
+        <h3>{school.name}</h3><p>{school.city} / {school.district}</p>
+        <p><strong>Lisans durumu:</strong> {school.licenseStatus === 'active' ? 'Aktif' : school.licenseStatus === 'legacy' ? 'Lisans kaydı yok' : school.licenseStatus === 'suspended' ? 'Askıya alındı' : 'İptal edildi'}</p>
         <p><span className={`status-badge tone-${school.disabledAt ? 'warning' : 'success'}`}>{school.disabledAt ? `Devre dışı · ${formatDateTime(school.disabledAt)}` : 'Aktif'}</span></p>
         <p><span className={`status-badge tone-${school.adminStatus === 'active' ? 'success' : 'warning'}`}>{school.adminStatus === 'active' ? `Okul Yönetimi Aktif${school.adminName ? ` · ${school.adminName}` : ''}` : school.adminStatus === 'pending' ? `Yönetici Aktivasyonu Bekliyor${school.adminName ? ` · ${school.adminName}` : ''}` : 'Okul yöneticisi atanmamış'}</span></p>
         {school.adminStatus === 'unassigned' && <Button variant="secondary" disabled={busy || !!school.disabledAt} onClick={() => { setAdminTarget(school); setAdminDraft({ fullName: '', phone: '', email: '' }); setAdminInvitePending(false); setAdminMessage(''); }}>Okul Yöneticisi Ata</Button>}
@@ -139,11 +135,11 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
     {deleteTarget && <Dialog title="Okulu kalıcı olarak sil" description={`${deleteTarget.name} ve okula bağlı veriler silinecektir.`} onClose={() => { setDeleteTarget(null); setDeleteConfirmation(''); }} dismissible={!busy}>
       <div className="form-stack">
         <Alert tone="danger"><strong>Bu işlem geri alınamaz.</strong><p className="mt-2">Bu okula ait öğrenciler, personel ilişkileri, randevular ve diğer okul verileri kalıcı olarak silinecektir.</p></Alert>
-        <label className="field" htmlFor="permanent-school-delete-code">Kalıcı silme işlemini onaylamak için <strong>{normalizeSchoolCodeInput(deleteTarget.code)}</strong> yazın.
-          <input id="permanent-school-delete-code" autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(normalizeSchoolCodeInput(event.target.value))} />
+        <label className="field" htmlFor="permanent-school-delete-code">Kalıcı silme işlemini onaylamak için <strong>SİL</strong> yazın.
+          <input id="permanent-school-delete-code" autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value.trim().toLocaleUpperCase("tr-TR"))} />
         </label>
         {error && <Alert tone="danger">{error}</Alert>}
-        <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => { setDeleteTarget(null); setDeleteConfirmation(''); }}>Vazgeç</Button><Button variant="danger" disabled={busy || deleteConfirmation !== normalizeSchoolCodeInput(deleteTarget.code)} onClick={() => { void mutate(async () => { await api.deleteSchool(deleteTarget.id); setDeleteTarget(null); setDeleteConfirmation(''); }, 'Okul ve okula bağlı veriler kalıcı olarak silindi.'); }}>{busy ? 'Siliniyor…' : 'KALICI OLARAK SİL'}</Button></div>
+        <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => { setDeleteTarget(null); setDeleteConfirmation(''); }}>Vazgeç</Button><Button variant="danger" disabled={busy || deleteConfirmation !== "SİL"} onClick={() => { void mutate(async () => { await api.deleteSchool(deleteTarget.id); setDeleteTarget(null); setDeleteConfirmation(''); }, 'Okul ve okula bağlı veriler kalıcı olarak silindi.'); }}>{busy ? 'Siliniyor…' : 'KALICI OLARAK SİL'}</Button></div>
       </div>
     </Dialog>}
     {adminTarget && <Dialog title={adminInvitePending ? 'Okul yöneticisi aktivasyonu' : 'Okul Yöneticisi Ata'} description={`${adminTarget.name} için yönetici hesabı, e-posta aktivasyonu tamamlanınca etkinleşir.`} onClose={() => { if (!busy) setAdminTarget(null); }} dismissible={!busy}>

@@ -11,6 +11,7 @@ async function run() {
   process.env.JWT_SECRET = crypto.randomBytes(48).toString('base64url');
   process.env.AUTH_CODE_SECRET = crypto.randomBytes(48).toString('base64url');
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
   process.env.WHATSAPP_UNIFIED_LOGIN_ENABLED = 'true';
   process.env.PHONE_CENTRIC_AUTH_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '123456789';

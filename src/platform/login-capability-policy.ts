@@ -1,14 +1,8 @@
-import type { RuntimePlatform } from './runtime-platform';
-
-export type LoginEntry = 'loading' | 'error' | 'unavailable' | 'phone' | 'legacy';
+export type LoginEntry = 'loading' | 'error' | 'unavailable' | 'phone';
 
 // No platform may guess an authentication form before capabilities are known.
-export function resolveLoginEntry(platform: RuntimePlatform, status: 'loading' | 'ready' | 'error', phoneEnabled: boolean, passwordSelected: boolean): LoginEntry {
+// Giriş yalnız telefon numarası + WhatsApp koduyla yapılır; parola girişi yoktur.
+export function resolveLoginEntry(status: 'loading' | 'ready' | 'error', phoneEnabled: boolean): LoginEntry {
   if (status !== 'ready') return status;
-  if (platform !== 'ANDROID') {
-    return phoneEnabled ? 'phone' : 'unavailable';
-  }
-  return phoneEnabled && !passwordSelected ? 'phone' : 'legacy';
+  return phoneEnabled ? 'phone' : 'unavailable';
 }
-
-export const allowLegacyPhoneFallback = (platform: RuntimePlatform): boolean => platform === 'ANDROID';

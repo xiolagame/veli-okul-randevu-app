@@ -3,7 +3,6 @@ import { ArrowLeft, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
-import { normalizeSchoolCodeInput } from '../utils/school-code';
 import { Alert, Button } from './ui';
 import { getRuntimePlatform } from '../platform/runtime-platform';
 import { appLifecycle } from '../platform/lifecycle';
@@ -11,9 +10,7 @@ import { remainingResendSeconds } from '../platform/otp-resend-clock';
 
 type Step = 'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE';
 
-export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback = true, requestEnabled = true, checkingCapabilities = false }: {
-  onLegacyFallback: (phone: string) => void;
-  allowLegacyFallback?: boolean;
+export function PhoneCentricLoginPanel({ requestEnabled = true, checkingCapabilities = false }: {
   requestEnabled?: boolean;
   checkingCapabilities?: boolean;
 }) {
@@ -24,8 +21,6 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
   const [challengeId, setChallengeId] = useState('');
   const [code, setCode] = useState('');
   const [emailCode, setEmailCode] = useState('');
-  const [schoolCode, setSchoolCode] = useState('');
-  const [requiresSchoolCode, setRequiresSchoolCode] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -70,8 +65,6 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     setChallengeId('');
     setCode('');
     setEmailCode('');
-    setSchoolCode('');
-    setRequiresSchoolCode(false);
     setCooldown(0);
     setResendAvailableAt(0);
     setError('');
@@ -83,11 +76,6 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
     const canonicalPhone = normalizeUserPhoneInput(phone);
     if (!canonicalPhone) throw new Error('Geçerli bir Türkiye GSM numarası girin.');
     const response = await api.requestPhoneCentricCode(canonicalPhone);
-    if (response.legacyFallbackRequired) {
-      if (!allowLegacyFallback) throw new Error('WhatsApp girişi bu telefon için şu anda kullanılamıyor. Doğrulama kodu gönderilmedi. Erişim ayarlarını kontrol etmesi için okul yönetiminizle iletişime geçin.');
-      onLegacyFallback(canonicalPhone);
-      return;
-    }
     setAttemptId(response.attemptId);
     setChallengeId(response.challengeId);
     setCooldown(response.resendAfterSeconds);
@@ -116,7 +104,6 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
           code,
         });
         if (verified.pendingEmail) {
-          setRequiresSchoolCode(!!verified.requiresSchoolCode);
           setMessage(verified.message || 'Kayıtlı e-posta adresinize gönderilen kodu girin.');
           setStep('EMAIL_CODE');
         } else if (verified.token && verified.user && verified.memberships) {
@@ -130,8 +117,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
         }
       } else {
         if (!/^\d{6}$/.test(emailCode)) throw new Error('E-postadaki 6 haneli kodu girin.');
-        if (requiresSchoolCode && !schoolCode.trim()) throw new Error('E-postadaki okul kodunu girin.');
-        const verified = await api.verifyPhoneCentricEmail({ attemptId, phone, emailCode, schoolCode });
+        const verified = await api.verifyPhoneCentricEmail({ attemptId, phone, emailCode });
         const result = await whatsappLogin(
           { challengeId, phone, code },
           { token: verified.token, user: verified.user, memberships: verified.memberships },
@@ -195,10 +181,7 @@ export function PhoneCentricLoginPanel({ onLegacyFallback, allowLegacyFallback =
               placeholder="6 haneli kod" required />
           </div>
         </label>
-        {requiresSchoolCode && <label className="field" htmlFor="phone-centric-school-code">Okul kodu
-          <input id="phone-centric-school-code" autoComplete="off" value={schoolCode}
-            onChange={(event) => setSchoolCode(normalizeSchoolCodeInput(event.target.value))} required />
-        </label>}
+
       </>}
       <Button type="submit" disabled={busy || !requestEnabled}>{busy ? 'İşleniyor…' : step === 'PHONE' ? 'WhatsApp Kodu Gönder' : step === 'WHATSAPP_CODE' ? 'Kodu Doğrula' : 'Aktivasyonu Tamamla'}</Button>
       {step !== 'PHONE' && <div className="whatsapp-auth-actions">

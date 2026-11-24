@@ -24,7 +24,6 @@ import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
-import { normalizeLicenseCode } from '../src/utils/license-code';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
 import { generateActivationCode, generateSetupToken, generateStaffCode, hashActivationCode, hashSetupToken } from './activation-codes';
 import { sendEmail } from './email';
@@ -33,14 +32,13 @@ import { findAppointmentReview, matchesReviewBinding, sendAppointmentRequestEmai
 import {
   requestWhatsAppAuthChallenge,
   verifyWhatsAppAuthChallenge,
-  completeUnifiedAdminEmailActivation,
   completePhoneCentricEmailVerification,
   requestPhoneCentricAuthChallenge,
   verifyPhoneCentricAuthChallenge,
   WhatsAppAuthError,
   WhatsAppAuthPurpose,
 } from './whatsapp-auth';
-import { deliverPlatformLoginEmail, deliverUnifiedAdminActivationEmail } from './school-admin-email';
+import { deliverPlatformLoginEmail } from './school-admin-email';
 import { isWhatsAppAuthEnabled, isUnifiedWhatsAppLoginEnabled, WhatsAppConfigurationError, WhatsAppDeliveryError } from './whatsapp-cloud';
 import { IdentityAuthAttemptError, isPhoneCentricAuthEnabled } from './identity-auth-attempts';
 import { PhoneIdentityAmbiguityError } from './phone-identity-audit';
@@ -82,6 +80,20 @@ const withoutQrToken = (appointment: Appointment): Omit<Appointment, 'qrToken'> 
 };
 
 export const apiRouter = Router();
+async function withinAuthRateLimit(scope: string, maximum: number, windowMinutes: number): Promise<boolean> {
+  const key = hashSetupToken(scope);
+  const result = await (await getDb()).query<{ attempts: number; blocked_until: string | null }>(
+    `INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at,blocked_until) VALUES($1,1,NOW(),NULL)
+     ON CONFLICT(scope_hash) DO UPDATE SET
+       attempts=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN 1 ELSE auth_rate_limits.attempts + 1 END,
+       window_started_at=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NOW() ELSE auth_rate_limits.window_started_at END,
+       blocked_until=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NULL
+         WHEN auth_rate_limits.attempts + 1 >= $2 THEN NOW() + make_interval(mins => $3) ELSE auth_rate_limits.blocked_until END
+     RETURNING attempts,blocked_until`, [key,maximum,windowMinutes]);
+  const row = result.rows[0];
+  return !!row && Number(row.attempts) < maximum && (!row.blocked_until || new Date(row.blocked_until).getTime() <= Date.now());
+}
+
 apiRouter.post('/auth/logout', authMiddleware, async (req: AuthenticatedRequest, res) => {
   await (await getDb()).transaction(tx => revokeStaffProofs(tx, req.user!.phone, req.user!.id));
   res.json({ success: true });
@@ -187,25 +199,6 @@ apiRouter.get('/public/schools', authMiddleware, async (req: AuthenticatedReques
 });
 
 // Resolve school context by code or QR payload
-apiRouter.get('/public/school-context', async (req, res) => {
-  const code = ((req.query.code as string) || '').trim();
-  if (!code) {
-    return res.status(400).json({ error: 'Okul kodu belirtilmelidir' });
-  }
-
-  try {
-    const school = await schoolRepository.getByCode(code);
-    if (!school) {
-      return res.status(404).json({ error: 'Geçersiz okul kodu veya okul bulunamadı' });
-    }
-
-    res.json({ school });
-  } catch (err: any) {
-    console.error('[GET /public/school-context Error]:', err);
-    res.status(500).json({ error: 'Okul bağlamı sorgulanırken hata oluştu' });
-  }
-});
-
 apiRouter.get('/public/auth-capabilities', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
@@ -229,9 +222,6 @@ apiRouter.post('/auth/phone/request-code', async (req, res) => {
     const result = await requestPhoneCentricAuthChallenge({
       phone: req.body?.phone,
       requesterKey: String(req.ip || 'unknown'),
-      parentRegistration: req.body?.flow === 'parent_registration'
-        ? { schoolCode: req.body?.schoolCode }
-        : undefined,
     });
     return res.json({ success: true, deliveryStatus: 'accepted', message: 'WhatsApp doğrulama kodunuz gönderildi.', ...result });
   } catch (error) {
@@ -254,36 +244,20 @@ apiRouter.post('/auth/phone/verify-code', async (req, res) => {
     });
     if (!result) return res.status(401).json({ error: 'Kod geçersiz veya süresi dolmuş olabilir.' });
     if ('pendingEmail' in result) {
-      const sent = result.requiresSchoolCode
-        ? await deliverUnifiedAdminActivationEmail(
-          result.email,
-          result.schoolName || 'Okulunuz',
-          result.schoolCode || '',
-          result.fullName,
-          result.code,
-          result.licenseCode,
-        )
-        : await deliverPlatformLoginEmail(result.email, result.fullName, result.code);
+      // Telefon-merkezli girişte e-posta doğrulaması yalnız ana platform yöneticisi içindir.
+      const sent = await deliverPlatformLoginEmail(result.email, result.fullName, result.code);
       if (!sent) {
         await (await getDb()).query(
           `UPDATE identity_auth_attempts SET status='REVOKED',revoked_at=NOW(),updated_at=NOW()
            WHERE id=$1 AND consumed_at IS NULL`,
           [result.attemptId],
         );
-        if (result.handle) {
-          await (await getDb()).query(
-            `UPDATE invitations SET revoked_at=NOW(),is_active=FALSE
-             WHERE token=$1 AND purpose='school_admin_activation_setup' AND consumed_at IS NULL`,
-            [result.handle],
-          );
-        }
         return res.status(503).json({ error: 'E-posta doğrulaması tamamlanamadı. Lütfen daha sonra yeniden deneyin.' });
       }
       return res.json({
         success: true,
         pendingEmail: true,
         attemptId: result.attemptId,
-        requiresSchoolCode: result.requiresSchoolCode,
         message: 'Telefon doğrulandı. Kayıtlı e-posta adresinize doğrulama kodu gönderildi.',
       });
     }
@@ -313,7 +287,6 @@ apiRouter.post('/auth/phone/verify-email', async (req, res) => {
       attemptId: req.body?.attemptId,
       phone: req.body?.phone,
       emailCode: req.body?.emailCode,
-      schoolCode: req.body?.schoolCode,
       requesterKey: String(req.ip || 'unknown'),
     });
     if (!result) return res.status(401).json({ error: 'Doğrulama kodu veya hesap bilgileri doğrulanamadı.' });
@@ -338,14 +311,13 @@ apiRouter.post('/auth/phone/verify-email', async (req, res) => {
 
 apiRouter.post('/auth/whatsapp/request-code', async (req, res) => {
   const purpose = req.body?.purpose as WhatsAppAuthPurpose | 'auto';
-  if (!['login', 'parent_registration', 'staff_activation', 'auto'].includes(purpose)) {
+  if (!['login', 'auto'].includes(purpose)) {
     return res.status(400).json({ error: 'Geçersiz doğrulama isteği.' });
   }
   try {
     const result = await requestWhatsAppAuthChallenge({
       purpose,
       phone: req.body?.phone,
-      schoolCode: req.body?.schoolCode,
       requesterKey: String(req.ip || 'unknown'),
     });
     return res.json({ success: true, deliveryStatus: 'unconfirmed', message: WHATSAPP_AUTH_GENERIC, ...result });
@@ -367,30 +339,6 @@ apiRouter.post('/auth/whatsapp/verify-code', async (req, res) => {
       requesterKey: String(req.ip || 'unknown'),
     });
     if (!result) return res.status(401).json({ error: 'Kod geçersiz veya süresi dolmuş olabilir.' });
-    if ('pendingEmail' in result) {
-      const sent = await deliverUnifiedAdminActivationEmail(
-        result.email,
-        result.schoolName,
-        result.schoolCode,
-        result.fullName,
-        result.code,
-        result.licenseCode,
-      );
-      if (!sent) {
-        await (await getDb()).query(
-          `UPDATE invitations SET revoked_at=NOW(),is_active=FALSE
-           WHERE token=$1 AND purpose='school_admin_activation_setup' AND consumed_at IS NULL`,
-          [result.handle],
-        );
-        return res.status(503).json({ error: 'E-posta doğrulaması tamamlanamadı. Lütfen daha sonra yeniden deneyin.' });
-      }
-      return res.json({
-        success: true,
-        pendingEmail: true,
-        handle: result.handle,
-        message: 'Telefon doğrulandı. Yönetici aktivasyon kodu kayıtlı e-posta adresinize gönderildi.',
-      });
-    }
     const token = createToken({
       userId: result.user.id,
       phone: result.user.phone,
@@ -418,250 +366,6 @@ apiRouter.post('/auth/whatsapp/verify-code', async (req, res) => {
   }
 });
 
-apiRouter.post('/auth/whatsapp/complete-admin-email', async (req, res) => {
-  if (!isUnifiedWhatsAppLoginEnabled()) return res.status(404).json({ error: 'Bu giriş yöntemi kullanılamıyor.' });
-  try {
-    const result = await completeUnifiedAdminEmailActivation({
-      handle: req.body?.handle,
-      phone: req.body?.phone,
-      emailCode: req.body?.emailCode,
-      requesterKey: String(req.ip || 'unknown'),
-    });
-    if (!result) return res.status(401).json({ error: 'E-posta doğrulaması başarısız veya kodun süresi dolmuş.' });
-    const token = createToken({
-      userId: result.user.id,
-      phone: result.user.phone,
-      auth_version: result.user.authVersion,
-      auth_method: 'whatsapp_admin',
-    });
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: result.user.id,
-        phone: result.user.phone,
-        firstName: result.user.firstName,
-        lastName: result.user.lastName,
-        isPhoneVerified: result.user.isPhoneVerified,
-        deletionVerification: result.user.deletionVerification,
-      },
-      memberships: result.memberships,
-    });
-  } catch (error) {
-    if (error instanceof WhatsAppAuthError) return res.status(error.status).json({ error: error.message });
-    return res.status(401).json({ error: 'E-posta doğrulaması tamamlanamadı.' });
-  }
-});
-
-function splitParentName(name: string): { firstName: string; lastName: string } {
-  const parts = name.trim().split(/\s+/);
-  return { firstName: parts[0] || 'Veli', lastName: parts.slice(1).join(' ') };
-}
-
-async function recordFailedAuthCodeAttempt(schoolId: string, phone: string, purpose: AuthCodePurpose): Promise<void> {
-  await invitationRepository.recordFailedAuthCodeAttempt(schoolId, phone, purpose).catch(() => undefined);
-}
-
-async function withinAuthRateLimit(scope: string, maximum: number, windowMinutes: number): Promise<boolean> {
-  const key = hashSetupToken(scope);
-  const result = await (await getDb()).query<{ attempts: number; blocked_until: string | null }>(
-    `INSERT INTO auth_rate_limits(scope_hash,attempts,window_started_at,blocked_until) VALUES($1,1,NOW(),NULL)
-     ON CONFLICT(scope_hash) DO UPDATE SET
-       attempts=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN 1 ELSE auth_rate_limits.attempts + 1 END,
-       window_started_at=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NOW() ELSE auth_rate_limits.window_started_at END,
-       blocked_until=CASE WHEN auth_rate_limits.window_started_at < NOW() - make_interval(mins => $3) THEN NULL
-         WHEN auth_rate_limits.attempts + 1 >= $2 THEN NOW() + make_interval(mins => $3) ELSE auth_rate_limits.blocked_until END
-     RETURNING attempts,blocked_until`, [key,maximum,windowMinutes]);
-  const row = result.rows[0];
-  return !!row && Number(row.attempts) < maximum && (!row.blocked_until || new Date(row.blocked_until).getTime() <= Date.now());
-}
-
-async function createParentChallenge(
-  schoolId: string,
-  phone: string,
-  purpose: 'parent_self_registration' | 'parent_password_reset',
-  userId: string | undefined,
-  client: TransactionClient,
-) {
-  const token = generateSetupToken();
-  await invitationRepository.createAuthCode({
-    schoolId,
-    targetPhone: phone,
-    targetUserId: userId,
-    targetRole: 'parent',
-    purpose,
-    codeHash: hashSetupToken(token),
-    createdBy: userId,
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    token: crypto.randomUUID(),
-  }, client);
-  return token;
-}
-
-apiRouter.post('/auth/parent/registration-challenge', async (req, res) => {
-  if (legacyCredentialFlowUnavailable(res)) return;
-  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeUserPhoneInput(req.body?.phone);
-  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
-  if (!await withinAuthRateLimit(`parent-register:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
-  try {
-    const school = await schoolRepository.getByCode(schoolCode);
-    if (!school) return res.status(400).json({ error: PARENT_AUTH_ERROR });
-    const db = await getDb();
-    const challenge = await db.transaction(async (tx) => {
-      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone);
-      if (!digits) return null;
-      const matches = await tx.query<{ parent_name: string }>(
-        `SELECT parent_name FROM school_roster
-         WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
-           AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4)
-         FOR UPDATE`,
-        [school.id, ...digits],
-      );
-      const parentNames = new Set(matches.rows.map((row) => normalizePersonName(row.parent_name)));
-      const existing = await userRepository.getByPhone(phone, tx);
-      const existingMembership = existing ? await membershipRepository.getActiveMembership(existing.id, school.id, tx) : null;
-      if (!matches.rows.length || parentNames.size !== 1 || existingMembership?.role === 'parent') return null;
-      const consumed = await invitationRepository.consumeAuthCode({
-        schoolId: school.id,
-        targetPhone: phone,
-        targetUserId: existing?.id,
-        targetRole: 'parent',
-        purpose: 'ACCOUNT_ACTIVATION',
-        codeHash: hashActivationCode(code),
-      }, tx);
-      if (!consumed) return null;
-      return createParentChallenge(school.id, phone, 'parent_self_registration', existing?.id, tx);
-    });
-    if (!challenge) {
-      await recordFailedAuthCodeAttempt(school.id, phone, 'ACCOUNT_ACTIVATION');
-      return res.status(400).json({ error: PARENT_AUTH_ERROR });
-    }
-    return res.json({ success: true, schoolId: school.id, challenge });
-  } catch {
-    return res.status(400).json({ error: PARENT_AUTH_ERROR });
-  }
-});
-
-apiRouter.get('/schools/:schoolId/info', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
-  try {
-    const school = await schoolRepository.getById(req.membership!.schoolId);
-    if (!school) return res.status(403).json({ error: 'Okul bilgilerine erişilemiyor.' });
-    return res.json({ school: { id: school.id, name: school.name, code: school.code } });
-  } catch { return res.status(500).json({ error: 'Okul bilgileri alınamadı.' }); }
-});
-
-apiRouter.post('/auth/parent/registration-complete', async (req, res) => {
-  if (legacyCredentialFlowUnavailable(res)) return;
-  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
-  const password = req.body?.password;
-  const passwordError = validatePassword(password);
-  if (!schoolId || !phone || !challenge || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
-  if (!await withinAuthRateLimit(`parent-register-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
-  try {
-    await (await getDb()).transaction(async (tx) => {
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_PARENT_CHALLENGE');
-      const existing = await userRepository.getByPhone(phone, tx);
-      const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: existing?.id, targetRole: 'parent', purpose: 'parent_self_registration', codeHash: hashSetupToken(challenge) }, tx);
-      if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
-      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone);
-      if (!digits) throw new Error('INVALID_PARENT_CHALLENGE');
-      const roster = await tx.query<{ id: string; parent_name: string; student_name: string; class_name: string; student_number: string | null; birth_date: string | null }>(
-        `SELECT id,parent_name,student_name,class_name,student_number,birth_date::text AS birth_date FROM school_roster
-         WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
-           AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`, [schoolId, ...digits]);
-      const parentNames = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
-      if (!roster.rows.length || parentNames.size !== 1) throw new Error('INVALID_PARENT_CHALLENGE');
-      const user = existing || await userRepository.create({ phone, firstName: splitParentName(roster.rows[0].parent_name).firstName, lastName: splitParentName(roster.rows[0].parent_name).lastName }, tx);
-      const active = await membershipRepository.getActiveMembership(user.id, schoolId, tx);
-      if (active?.role === 'parent') throw new Error('INVALID_PARENT_CHALLENGE');
-      if (existing) await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(password as string), tx);
-      else await userRepository.updatePasswordHash(user.id, hashPassword(password as string), tx);
-      await membershipRepository.createOrActivate({ schoolId, userId: user.id, role: 'parent' }, tx);
-      let claimed = 0;
-      for (const entry of roster.rows) {
-        const birthDate = entry.birth_date ? String(entry.birth_date).slice(0, 10) : undefined;
-        const student = await studentRepository.findOrCreateStudent(schoolId, { name: entry.student_name, className: entry.class_name, studentNumber: entry.student_number || undefined, birthDate }, tx);
-        if (birthDate) await tx.query('UPDATE students SET birth_date=$3::date WHERE school_id=$1 AND id=$2 AND birth_date IS NULL', [schoolId, student.id, birthDate]);
-        await relationRepository.createRelation({ schoolId, studentId: student.id, parentUserId: user.id }, tx);
-        await rosterRepository.claimRosterRecord(schoolId, entry.id, tx);
-        claimed++;
-      }
-      if (!claimed) throw new Error('INVALID_PARENT_CHALLENGE');
-      await auditLogRepository.createAuditLog({ schoolId, action: 'parent_self_registration_completed', actorName: 'Sistem', details: `Veli hesabı ${user.id} oluşturuldu.` }, tx);
-    });
-    return res.json({ success: true, message: 'Hesabınız oluşturuldu. Oluşturduğunuz şifre ile giriş yapabilirsiniz.' });
-  } catch {
-    return res.status(400).json({ error: PARENT_AUTH_ERROR });
-  }
-});
-
-apiRouter.post('/auth/parent/reset-challenge', async (req, res) => {
-  if (legacyCredentialFlowUnavailable(res)) return;
-  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: PARENT_AUTH_ERROR });
-  if (!await withinAuthRateLimit(`parent-reset:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: PARENT_AUTH_ERROR });
-  try {
-    const school = await schoolRepository.getByCode(schoolCode);
-    const user = await userRepository.getByPhone(phone);
-    if (!school || !user || !(await membershipRepository.getActiveMembership(user.id, school.id))?.role ||
-        (await membershipRepository.getActiveMembership(user.id, school.id))?.role !== 'parent') return res.status(400).json({ error: PARENT_AUTH_ERROR });
-    const db = await getDb();
-    const token = await db.transaction(async (tx) => {
-      const relation = await tx.query(
-        `SELECT 1 FROM student_parent_relations
-         WHERE school_id=$1 AND parent_user_id=$2 LIMIT 1 FOR UPDATE`,
-        [school.id, user.id],
-      );
-      if (!relation.rows.length) return null;
-      const consumed = await invitationRepository.consumeAuthCode({
-        schoolId: school.id,
-        targetPhone: phone,
-        targetUserId: user.id,
-        targetRole: 'parent',
-        purpose: 'PASSWORD_RESET',
-        codeHash: hashActivationCode(code),
-      }, tx);
-      if (!consumed) return null;
-      return createParentChallenge(school.id, phone, 'parent_password_reset', user.id, tx);
-    });
-    if (!token) {
-      await recordFailedAuthCodeAttempt(school.id, phone, 'PASSWORD_RESET');
-      return res.status(400).json({ error: PARENT_AUTH_ERROR });
-    }
-    return res.json({ success: true, schoolId: school.id, challenge: token });
-  } catch { return res.status(400).json({ error: PARENT_AUTH_ERROR }); }
-});
-
-apiRouter.post('/auth/parent/reset-complete', async (req, res) => {
-  if (legacyCredentialFlowUnavailable(res)) return;
-  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : '';
-  const passwordError = validatePassword(req.body?.password);
-  if (!schoolId || !phone || !challenge || passwordError) return res.status(400).json({ error: passwordError || PARENT_AUTH_ERROR });
-  if (!await withinAuthRateLimit(`parent-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({error:PARENT_AUTH_ERROR});
-  try {
-    await (await getDb()).transaction(async (tx) => {
-      const user = await userRepository.getByPhone(phone, tx);
-      if (!user) throw new Error('INVALID_PARENT_CHALLENGE');
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE',[schoolId]);
-      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_PARENT_CHALLENGE');
-      const consumed = await invitationRepository.consumeAuthCode({ schoolId,targetPhone:phone,targetUserId:user.id,targetRole:'parent',purpose:'parent_password_reset',codeHash:hashSetupToken(challenge) },tx);
-      if (!consumed) throw new Error('INVALID_PARENT_CHALLENGE');
-      await userRepository.updatePasswordHashAndInvalidateSessions(user.id,hashPassword(req.body.password as string),tx);
-      await auditLogRepository.createAuditLog({ schoolId,action:'parent_password_reset_completed',actorName:'Sistem',details:`Veli hesabı ${user.id} için parola sıfırlandı.` },tx);
-    });
-    return res.json({ success:true,message:'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
-  } catch { return res.status(400).json({ error:PARENT_AUTH_ERROR }); }
-});
-
 apiRouter.post('/auth/staff/activation-verify', (_req, res) => res.status(404).json({ error: 'Personel girişi için WhatsApp doğrulamasını kullanın.' }));
 
 apiRouter.post('/auth/staff/activation-complete', (_req, res) => res.status(404).json({ error: 'Personel girişi için WhatsApp doğrulamasını kullanın.' }));
@@ -674,283 +378,13 @@ apiRouter.post('/auth/staff/reset-verify', (_req, res) => res.status(404).json({
 
 apiRouter.post('/auth/staff/reset-complete', (_req, res) => res.status(404).json({ error: 'Personel girişi için WhatsApp doğrulamasını kullanın.' }));
 
-const SCHOOL_ADMIN_RESET_GENERIC = 'Eğer bilgileriniz sistemde kayıtlıysa sıfırlama kodu e-posta adresinize gönderilecektir.';
-const SCHOOL_ADMIN_ACTIVATION_ERROR = 'Okul, lisans veya aktivasyon bilgileri doğrulanamadı.';
-
-apiRouter.post('/auth/school-admin/activation-verify', async (req, res) => {
-  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const licenseCode = normalizeLicenseCode(req.body?.licenseCode);
-  const code = typeof req.body?.code === 'string' ? req.body.code : '';
-  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
-  if (!await withinAuthRateLimit(`school-admin-activate:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
-  try {
-    const school = await schoolRepository.getByCode(schoolCode);
-    const candidate = school ? await userRepository.getByPhone(phone) : null;
-    if (!school || !candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-    const setupToken = generateSetupToken();
-    await (await getDb()).transaction(async (tx) => {
-      const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
-      if (!activeSchool.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-      const license = await schoolLicenseRepository.getBySchoolId(school.id, tx);
-      if (!await schoolLicenseRepository.isAccessAllowed(school.id, tx)) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
-      const activeAdmins = await tx.query(`SELECT user_id FROM school_memberships WHERE school_id=$1
-        AND role='admin' AND status='active' AND NOT (user_id=ANY($2::text[])) LIMIT 1`, [school.id, platformAdminIds]);
-      if (!activeAdmins.rows.length && license && license.licenseCode !== licenseCode) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-      const user = await tx.query('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [candidate.id, phone]);
-      if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-      const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: candidate.id,
-        targetRole: 'admin', purpose: 'school_admin_activation', codeHash: hashActivationCode(code) }, tx);
-      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== candidate.id) throw new Error('INVALID_SCHOOL_ADMIN_CODE');
-      await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: candidate.id, targetRole: 'admin',
-        purpose: 'school_admin_activation_setup', codeHash: hashSetupToken(setupToken), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        token: crypto.randomUUID() }, tx);
-    });
-    return res.json({ success: true, setupToken, schoolId: school.id });
-  } catch {
-    const school = await schoolRepository.getByCode(schoolCode);
-    if (school) await recordFailedAuthCodeAttempt(school.id, phone, 'school_admin_activation');
-    return res.status(400).json({ error: SCHOOL_ADMIN_ACTIVATION_ERROR });
-  }
-});
-
-apiRouter.post('/auth/school-admin/activation-complete', async (req, res) => {
-  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
-  const passwordError = validatePassword(req.body?.password);
-  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
-  if (!await withinAuthRateLimit(`school-admin-activate-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
-  try {
-    await (await getDb()).transaction(async (tx) => {
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      await tx.query('LOCK TABLE school_memberships IN SHARE ROW EXCLUSIVE MODE');
-      const candidate = await userRepository.getByPhone(phone, tx);
-      if (!candidate || isPlatformAdmin(candidate.id)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
-      const activeAdmins = await tx.query(
-        `SELECT user_id FROM school_memberships
-         WHERE school_id=$1 AND role='admin' AND status='active'
-           AND NOT (user_id=ANY($2::text[])) LIMIT 1`,
-        [schoolId, platformAdminIds],
-      );
-      if (activeAdmins.rows.length) throw new Error('SCHOOL_ADMIN_ALREADY_ACTIVE');
-      const setup = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: candidate.id, purpose: 'school_admin_activation_setup',
-        targetRole: 'admin', codeHash: hashSetupToken(setupToken) }, tx);
-      if (!setup || setup.targetRole !== 'admin' || !setup.targetUserId) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      const user = await tx.query<{ id: string }>('SELECT id FROM users WHERE id=$1 AND phone=$2 FOR UPDATE', [setup.targetUserId, phone]);
-      if (!user.rows.length) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      const memberships = await tx.query('SELECT school_id,role,status FROM school_memberships WHERE user_id=$1 LIMIT 1', [setup.targetUserId]);
-      if (memberships.rows.length) throw new Error('SCHOOL_ADMIN_IDENTITY_IN_USE');
-      const hashedPassword = hashPassword(req.body.password as string);
-      await userRepository.updatePasswordHashAndInvalidateSessions(setup.targetUserId, hashedPassword, tx);
-      await membershipRepository.createOrActivate({ schoolId, userId: setup.targetUserId, role: 'admin' }, tx);
-      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_activation_completed', actorName: 'Sistem',
-        details: `Okul yöneticisi ${setup.targetUserId} etkinleştirildi.` }, tx);
-    });
-    return res.json({ success: true, message: 'Hesap aktivasyonunuz tamamlanmıştır. Oluşturduğunuz şifre ile giriş yapabilirsiniz.' });
-  } catch (cause) {
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_ALREADY_ACTIVE') {
-      return res.status(409).json({ error: 'Bu okulda etkin bir okul yöneticisi bulunuyor.' });
-    }
-    if (cause instanceof Error && cause.message === 'SCHOOL_ADMIN_IDENTITY_IN_USE') return res.status(409).json({ error: 'Bu hesap başka bir okul veya kullanıcı rolüyle ilişkilendirilmiş.' });
-    return res.status(400).json({ error: AUTH_CODE_ERROR });
-  }
-});
-
-apiRouter.post('/auth/school-admin/reset-request', async (req, res) => {
-  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  try {
-    if (schoolCode && phone && await withinAuthRateLimit(`school-admin-reset-request:${req.ip}:${phone}`, 3, 60)) {
-      const school = await schoolRepository.getByCode(schoolCode);
-      const user = school ? await userRepository.getByPhone(phone) : null;
-      const membership = school && user ? await membershipRepository.getActiveMembership(user.id, school.id) : null;
-      if (school && user && !isPlatformAdmin(user.id) && membership?.role === 'admin') {
-        const db = await getDb();
-        const candidate = await db.query<{ email: string | null; first_name: string; last_name: string }>('SELECT email,first_name,last_name FROM users WHERE id=$1', [user.id]);
-        const recent = await db.query(`SELECT id FROM invitations WHERE school_id=$1 AND target_user_id=$2 AND purpose='school_admin_password_reset'
-          AND created_at>NOW()-INTERVAL '60 seconds' LIMIT 1`, [school.id, user.id]);
-        if (candidate.rows[0]?.email && !recent.rows.length) {
-          const code = generateStaffCode();
-          await db.transaction(async (tx) => {
-            const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
-            const activeMembership = await membershipRepository.getActiveMembership(user.id, school.id, tx);
-            if (!activeSchool.rows.length || !await schoolLicenseRepository.isAccessAllowed(school.id, tx) || isPlatformAdmin(user.id) || activeMembership?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
-            await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
-              purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code), expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-              token: crypto.randomUUID() }, tx);
-          });
-          const fullName = `${candidate.rows[0].first_name} ${candidate.rows[0].last_name}`.trim();
-          await sendEmail({ to: candidate.rows[0].email, subject: verificationEmailSubject(code), ...renderBrandedEmail({
-            subtitle: 'Okul Yönetimi Parola Sıfırlama', greeting: fullName,
-            intro: [`${school.name} okul yönetimi hesabınız için parola sıfırlama talebi alındı.`],
-            verificationCode: { label: 'Parola Sıfırlama Kodu', value: code, tone: 'accent' },
-            notice: 'Kod 15 dakika içinde sona erer. Bu kod tek kullanımlıktır.',
-          }) });
-          await auditLogRepository.createAuditLog({ schoolId: school.id, action: 'school_admin_password_reset_email_sent', actorName: 'Sistem',
-            details: `Okul yöneticisi ${user.id} için parola sıfırlama e-postası gönderildi.` });
-        }
-      }
-    }
-  } catch {
-    // Public response intentionally does not disclose account or email delivery state.
-  }
-  return res.json({ success: true, message: SCHOOL_ADMIN_RESET_GENERIC });
-});
-
-apiRouter.post('/auth/school-admin/reset-verify', async (req, res) => {
-  const schoolCode = typeof req.body?.schoolCode === 'string' ? req.body.schoolCode.trim() : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const code = typeof req.body?.code === 'string' ? req.body.code : '';
-  if (!schoolCode || !phone || !/^\d{6}$/.test(code)) return res.status(400).json({ error: AUTH_CODE_ERROR });
-  if (!await withinAuthRateLimit(`school-admin-reset-verify:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
-  try {
-    const school = await schoolRepository.getByCode(schoolCode);
-    if (!school) throw new Error('INVALID_SCHOOL_ADMIN_RESET');
-    const setupToken = generateSetupToken();
-    await (await getDb()).transaction(async (tx) => {
-      const activeSchool = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [school.id]);
-      const user = await userRepository.getByPhone(phone, tx);
-      if (!activeSchool.rows.length || !await schoolLicenseRepository.isAccessAllowed(school.id, tx) || !user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, school.id, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_RESET');
-      const consumed = await invitationRepository.consumeAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
-        purpose: 'school_admin_password_reset', codeHash: hashActivationCode(code) }, tx);
-      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== user.id) throw new Error('INVALID_SCHOOL_ADMIN_RESET');
-      await invitationRepository.createAuthCode({ schoolId: school.id, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
-        purpose: 'school_admin_password_setup', codeHash: hashSetupToken(setupToken), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        token: crypto.randomUUID() }, tx);
-    });
-    return res.json({ success: true, setupToken, schoolId: school.id });
-  } catch {
-    const school = await schoolRepository.getByCode(schoolCode);
-    if (school) await recordFailedAuthCodeAttempt(school.id, phone, 'school_admin_password_reset');
-    return res.status(400).json({ error: AUTH_CODE_ERROR });
-  }
-});
-
-apiRouter.post('/auth/school-admin/reset-complete', async (req, res) => {
-  const schoolId = typeof req.body?.schoolId === 'string' ? req.body.schoolId : '';
-  const phone = normalizeTurkishPhone(req.body?.phone);
-  const setupToken = typeof req.body?.setupToken === 'string' ? req.body.setupToken : '';
-  const passwordError = validatePassword(req.body?.password);
-  if (!schoolId || !phone || !setupToken || passwordError) return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
-  if (!await withinAuthRateLimit(`school-admin-reset-complete:${req.ip}:${phone}`, 6, 15)) return res.status(429).json({ error: AUTH_CODE_ERROR });
-  try {
-    await (await getDb()).transaction(async (tx) => {
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      const user = await userRepository.getByPhone(phone, tx);
-      if (!user || isPlatformAdmin(user.id) || (await membershipRepository.getActiveMembership(user.id, schoolId, tx))?.role !== 'admin') throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      const consumed = await invitationRepository.consumeAuthCode({ schoolId, targetPhone: phone, targetUserId: user.id, targetRole: 'admin',
-        purpose: 'school_admin_password_setup', codeHash: hashSetupToken(setupToken) }, tx);
-      if (!consumed || consumed.targetRole !== 'admin' || consumed.targetUserId !== user.id) throw new Error('INVALID_SCHOOL_ADMIN_SETUP');
-      await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(req.body.password as string), tx);
-      await auditLogRepository.createAuditLog({ schoolId, action: 'school_admin_password_reset_completed', actorName: 'Sistem',
-        details: `Okul yöneticisi ${user.id} için parola sıfırlandı.` }, tx);
-    });
-    return res.json({ success: true, message: 'Parolanız güncellendi. Yeni parolanızla giriş yapabilirsiniz.' });
-  } catch { return res.status(400).json({ error: AUTH_CODE_ERROR }); }
-});
-
 apiRouter.post('/auth/activate-account', (_req, res) => res.status(404).json({ error: 'Personel girişi için WhatsApp doğrulamasını kullanın.' }));
 
-apiRouter.post('/auth/reset-password-with-code', async (req, res) => {
-  if (legacyCredentialFlowUnavailable(res)) return;
-  const { schoolId, phone, code, password } = req.body;
-  const cleanPhone = normalizeTurkishPhone(phone);
-  const codeHash = typeof code === 'string' ? hashActivationCode(code) : '';
-  const passwordError = validatePassword(password);
-
-  if (!schoolId || !cleanPhone || !codeHash || passwordError) {
-    return res.status(400).json({ error: passwordError || AUTH_CODE_ERROR });
-  }
-
-  try {
-    const db = await getDb();
-    await db.transaction(async (tx) => {
-      const user = await userRepository.getByPhone(cleanPhone, tx);
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [schoolId]);
-      if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) throw new Error('INVALID_AUTH_CODE');
-      if (!user) throw new Error('INVALID_AUTH_CODE');
-      const consumed = await invitationRepository.consumeAuthCode(
-        { schoolId, targetPhone: cleanPhone, targetUserId: user.id, purpose: 'PASSWORD_RESET', codeHash },
-        tx
-      );
-      if (!consumed) throw new Error('INVALID_AUTH_CODE');
-      await userRepository.updatePasswordHashAndInvalidateSessions(user.id, hashPassword(password), tx);
-      await auditLogRepository.createAuditLog(
-        { schoolId, action: 'Parola Sıfırlama', actorName: 'Sistem', details: `Veli hesabı ${user.id} için parola sıfırlandı.` },
-        tx
-      );
-    });
-    return res.json({ success: true, message: 'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
-  } catch (err: any) {
-    if (err?.message === 'INVALID_AUTH_CODE') {
-      await recordFailedAuthCodeAttempt(schoolId, cleanPhone, 'PASSWORD_RESET');
-      return res.status(400).json({ error: AUTH_CODE_ERROR });
-    }
-    console.error('[POST /auth/reset-password-with-code] İşlem tamamlanamadı.');
-    return res.status(500).json({ error: 'Şifre güncellenemedi.' });
-  }
-});
-
-apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
-  const schoolId = req.membership!.schoolId;
-  const role = req.body?.role;
-  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
-  const phone = normalizeUserPhoneInput(req.body?.phone);
-  const email = role === 'teacher' && typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
-  if (!['teacher', 'security'].includes(role) || fullName.split(' ').length < 2 || fullName.length > 150 || !phone || (role === 'teacher' && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150)) || (role === 'teacher' && (!branch || branch.length > 100))) {
-    return res.status(400).json({ error: 'Personel bilgilerini kontrol edin.' });
-  }
-  const [firstName, ...last] = normalizePersonName(fullName).split(' ');
-  if (firstName.length > 100 || last.join(' ').length > 100) return res.status(400).json({error:'Ad veya soyad çok uzun.'});
-  try {
-    const db = await getDb();
-    await db.transaction(async (tx) => {
-      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
-      if (!school.rows.length) throw new Error('SCHOOL_NOT_FOUND');
-      const recordCreated = (id:string) => auditLogRepository.createAuditLog({schoolId,action:'admin_staff_created',actorName:`${req.user!.firstName} ${req.user!.lastName}`.trim(),actorUserId:req.user!.id,details:`${role} ${id} oluşturuldu; ilk WhatsApp doğrulaması bekleniyor.`},tx);
-      await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
-      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
-      const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`, digits);
-      if (role === 'teacher' && duplicate.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
-      if (role === 'teacher') {
-        const existingTeacherMembership = await tx.query(`SELECT sm.id FROM school_memberships sm JOIN users u ON u.id=sm.user_id
-          WHERE sm.role='teacher' AND sm.status='active' AND regexp_replace(u.phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`,digits);
-        if (existingTeacherMembership.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
-      }
-      const sameSchool = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)
-        UNION ALL SELECT id FROM pending_staff WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)
-        UNION ALL SELECT u.id FROM users u JOIN school_memberships sm ON sm.user_id=u.id
-          WHERE sm.school_id=$1 AND sm.role=$5 AND regexp_replace(u.phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`, [schoolId,...digits,role]);
-      if (sameSchool.rows.length) throw new Error('STAFF_PHONE_EXISTS');
-      if (role === 'teacher') {
-        const created = await teacherRepository.createPending(schoolId, { firstName, lastName: last.join(' '), branch, phone, email }, tx);
-        await recordCreated(created.id);
-        return { id: created.id, email, firstName, lastName: last.join(' '), phone, userId: created.userId };
-      }
-      const id = `pending-sec-${crypto.randomUUID()}`;
-      await tx.query(`INSERT INTO pending_staff(id,school_id,role,first_name,last_name,phone,email,created_by) VALUES($1,$2,'security',$3,$4,$5,$6,$7)`, [id,schoolId,firstName,last.join(' '),phone,null,req.user!.id]);
-      await recordCreated(id);
-      return { id,email,firstName,lastName:last.join(' '),phone };
-    });
-    return res.status(201).json({ success: true, message: 'Personel eklendi. İlk başarılı WhatsApp girişinde otomatik etkinleşir.' });
-  } catch (cause) {
-    if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu öğretmen başka bir okulda kayıtlı.' });
-    if (cause instanceof Error && cause.message === 'STAFF_PHONE_EXISTS') return res.status(409).json({ error: 'Bu telefon okulda kayıtlı.' });
-    if (cause instanceof Error && cause.message === 'SCHOOL_NOT_FOUND') return res.status(404).json({error:'Aktif okul bulunamadı.'});
-    return res.status(500).json({ error: 'Personel eklenemedi.' });
-  }
-});
-
-apiRouter.post('/schools/:schoolId/staff/:role/:id/resend-activation', authMiddleware, tenantGuard(['admin']), (_req, res) => res.status(410).json({ error: 'Personel aktivasyonu ilk başarılı WhatsApp girişinde otomatik tamamlanır.' }));
-
-// Standard password/role login
 apiRouter.post('/auth/login', async (req, res) => {
+  // Parola ile giriş kaldırıldı: WhatsApp girişi açıkken hiçbir rol için kabul edilmez.
+  // Yalnız yerel testlerde (NODE_ENV production değilken) eski parola düzenekleri için açılabilir.
+  const legacyTestLogin = process.env.NODE_ENV !== 'production' && process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS === '1';
+  if (isWhatsAppAuthEnabled() && !legacyTestLogin) return res.status(404).json({ error: 'Bu kimlik doğrulama yöntemi kullanılamıyor.' });
   const { phone, password } = req.body;
   const cleanPhone = normalizeTurkishPhone(phone);
 

@@ -63,9 +63,7 @@ interface AppContextType {
   accountDeletionNotice: string | null;
   switchSchool: (schoolId: string, role?: SchoolMembership['role']) => Promise<void>;
   returnToPlatform: () => Promise<void>;
-  login: (phone: string, password: string, role?: UserRole) => Promise<LoginResult>;
   whatsappLogin: (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }) => Promise<LoginResult>;
-  completeUnifiedAdminEmail: (data: { handle: string; phone: string; emailCode: string }) => Promise<LoginResult>;
   logout: () => Promise<void>;
   deleteAccount: (data: { password?: string; whatsappChallengeId?: string; whatsappCode?: string; confirmation: 'HESABIMI SİL'; requestId: string }) => Promise<void>;
   switchUser: (userId: string) => Promise<void>;
@@ -414,23 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Login
-  const login = async (phone: string, password: string, role?: UserRole): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: () => api.login(phone, password, role),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
-    if (result.ok) setAccountDeletionNotice(null);
-    return result;
-  };
-
+  // Giriş: yalnız telefon + WhatsApp kodu (parola yok)
   const whatsappLogin = async (data: { challengeId: string; phone: string; code: string }, verified?: { token: string; user: User; memberships: SchoolMembership[] }): Promise<LoginResult> => {
     const result = await performLogin({
       authenticate: async () => {
@@ -449,21 +431,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     if (result.ok) setAuthStorageError(false);
     if (result.ok) setAccountDeletionNotice(null);
-    return result;
-  };
-
-  const completeUnifiedAdminEmail = async (data: { handle: string; phone: string; emailCode: string }): Promise<LoginResult> => {
-    const result = await performLogin({
-      authenticate: () => api.completeUnifiedAdminEmail(data),
-      session: authSession,
-      clearRuntimeSession,
-      bootstrap: async (response) => {
-        const access = await fetchSchoolAccess(response.memberships, null, null);
-        if (await authSession.getToken() !== response.token) throw new Error('Session changed during bootstrap');
-        applyAuthenticatedSession(response.user, response.memberships, access);
-      },
-    });
-    if (result.ok) setAuthStorageError(false);
     return result;
   };
 
@@ -766,9 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         accountDeletionNotice,
         switchSchool,
         returnToPlatform,
-        login,
         whatsappLogin,
-        completeUnifiedAdminEmail,
         logout,
         deleteAccount,
         switchUser,

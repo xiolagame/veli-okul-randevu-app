@@ -150,7 +150,6 @@ export const schoolRepository = {
     return res.rows.map((r) => ({
       id: r.id,
       name: r.name,
-      code: r.code,
       city: r.city,
       district: r.district,
       settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
@@ -168,7 +167,6 @@ export const schoolRepository = {
     return {
       id: r.id,
       name: r.name,
-      code: r.code,
       city: r.city,
       district: r.district,
       settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
@@ -190,7 +188,6 @@ export const schoolRepository = {
     return {
       id: r.id,
       name: r.name,
-      code: r.code,
       city: r.city,
       district: r.district,
       settings: normalizeSchoolSettings(typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings, r.name),
@@ -462,7 +459,6 @@ export const membershipRepository = {
       status: r.status,
       joinedAt: r.joined_at,
       schoolName: r.school_name,
-      schoolCode: r.school_code,
       city: r.city,
       district: r.district,
     }));
@@ -495,7 +491,6 @@ export const membershipRepository = {
       status: r.status,
       joinedAt: r.joined_at,
       schoolName: r.school_name,
-      schoolCode: r.school_code,
       city: r.city,
       district: r.district,
     };
@@ -523,7 +518,6 @@ export const membershipRepository = {
       status: r.status,
       joinedAt: r.joined_at,
       schoolName: r.school_name,
-      schoolCode: r.school_code,
       city: r.city,
       district: r.district,
     };

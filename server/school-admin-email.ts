@@ -1,80 +1,28 @@
 import { sendEmail } from './email';
 import { renderBrandedEmail, verificationEmailSubject } from './email-template';
 
-export function schoolAdminEmail(
+// Okul yöneticisi eklendiğinde giden bilgilendirme e-postası. Kod, okul kodu veya parola içermez:
+// yönetici telefon numarasıyla girer ve WhatsApp koduyla doğrulanır. E-posta adresi yalnız lisans hatırlatmaları içindir.
+export function schoolAdminInvitationEmail(
   schoolName: string,
-  schoolCode: string,
   fullName: string,
-  code: string,
-  reset = false,
-  licenseCode?: string
 ): { subject: string; html: string; text: string } {
-  const codeLabel = reset ? 'Parola Sıfırlama Kodu' : 'E-posta Doğrulama Kodu';
-  const instructions = reset
-    ? 'Veli Randevu giriş ekranında “Şifremi unuttum” seçeneğini, ardından “Okul yöneticisi” seçimini kullanın.'
-    : `Okul yöneticisi hesabınızı etkinleştirmek için yukarıdaki e-posta doğrulama kodunu kullanın. Bu ilk davet kodu “Okul Yöneticisi İlk Giriş” akışına aittir. WhatsApp ile giriş yapıyorsanız bu kodu kullanmayın; telefon doğrulamasından sonra gönderilen yeni e-postadaki güncel kodu girin. Eski ilk giriş akışında okul kodunuz, telefon numaranız${licenseCode ? ', lisans kodunuz' : ''} ve bu davet kodu kullanılır.`;
   const rendered = renderBrandedEmail({
-    subtitle: `Okul Yönetimi ${reset ? 'Parola Sıfırlama' : 'Hesabınız Hazır'}`,
+    subtitle: 'Okul Yönetimi — Hesabınız Hazır',
     greeting: fullName,
-    verificationCode: { label: codeLabel, value: code, tone: 'accent' },
-    intro: [`${schoolName} için ${reset ? 'parola sıfırlama' : 'ilk hesap aktivasyonu'} bilgileri aşağıdadır.`, instructions],
-    infoCards: [
-      { label: 'Okul Kodu', value: schoolCode.toUpperCase() },
-      ...(licenseCode ? [{ label: 'Lisans Kodunuz', textLabel: 'Lisans Kodu', value: licenseCode.toUpperCase() }] : []),
+    intro: [
+      `${schoolName} için okul yöneticisi hesabınız oluşturuldu.`,
+      'Veli Randevu uygulamasını açın, bu bilgilendirmenin gönderildiği telefon numaranızı yazın ve WhatsApp ile gelen 6 haneli kodu girin. Parola, okul kodu veya lisans kodu gerekmez.',
+      'Bu e-posta adresi yalnızca lisans hatırlatmaları ve bilgilendirmeler için kullanılır.',
     ],
-    notice: reset
-      ? 'Kod 15 dakika içinde sona erer. Bu kod tek kullanımlıktır.'
-      : 'Kod 24 saat içinde sona erer ve tek kullanımlıdır.',
+    notice: 'Hesabınız 7 gün içinde ilk girişinizle etkinleşir.',
   });
-  return {
-    subject: verificationEmailSubject(code),
-    ...rendered,
-  };
+  return { subject: 'Okul yöneticisi hesabınız hazır', ...rendered };
 }
 
-export async function deliverSchoolAdminCode(
-  to: string,
-  schoolName: string,
-  schoolCode: string,
-  fullName: string,
-  code: string,
-  reset = false,
-  licenseCode?: string
-): Promise<boolean> {
+export async function deliverSchoolAdminInvitation(to: string, schoolName: string, fullName: string): Promise<boolean> {
   try {
-    await sendEmail({ to, ...schoolAdminEmail(schoolName, schoolCode, fullName, code, reset, licenseCode) });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function deliverUnifiedAdminActivationEmail(
-  to: string,
-  schoolName: string,
-  schoolCode: string,
-  fullName: string,
-  emailCode: string,
-  licenseCode?: string,
-): Promise<boolean> {
-  try {
-    const content = renderBrandedEmail({
-      subtitle: 'Okul Yönetimi — E-posta Doğrulaması',
-      greeting: fullName,
-      verificationCode: { label: 'E-posta Doğrulama Kodu', value: emailCode, tone: 'accent' },
-      intro: [
-        `${schoolName} için WhatsApp telefon doğrulamanız tamamlandı.`,
-        'Okul yöneticisi hesabınızı etkinleştirmek için yukarıdaki e-posta doğrulama kodunu kullanın.',
-        'Giriş ekranındaki e-posta doğrulama alanına bu güncel 6 haneli kodu ve istendiğinde okul kodunuzu girin. İlk davet e-postasındaki kodu kullanmayın.',
-        'Lisans kodunuz bilgilendirme amaçlıdır; giriş parolası değildir.',
-      ],
-      infoCards: [
-        { label: 'Okul Kodu', value: schoolCode.toUpperCase() },
-        ...(licenseCode ? [{ label: 'Lisans Kodu', value: licenseCode.toUpperCase() }] : []),
-      ],
-      notice: 'Doğrulama kodu 10 dakika geçerli ve yalnızca bir kez kullanılabilir.',
-    });
-    await sendEmail({ to, subject: verificationEmailSubject(emailCode), ...content });
+    await sendEmail({ to, ...schoolAdminInvitationEmail(schoolName, fullName) });
     return true;
   } catch {
     return false;

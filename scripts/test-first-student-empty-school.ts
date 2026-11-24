@@ -107,25 +107,10 @@ async function run() {
     assert.equal((await request('POST', `/schools/${existingSchool}/roster/bulk-upload`, existingSchoolAdmin.token, { records: [existingRecord] })).status, 200);
     assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM school_roster WHERE school_id=$1 AND class_name=$2', [existingSchool, '5-A'])).rows[0].count, 2);
 
-    stage = 'parent self-registration compatibility';
-    const emptySchoolCode = `EMPTY${suffix}`.toUpperCase();
-    const activationCode = String(crypto.randomInt(100000, 1000000));
-    await invitationRepository.createAuthCode({ schoolId: emptySchool, targetPhone: emptyPhone, targetRole: 'parent', purpose: 'ACCOUNT_ACTIVATION',
-      codeHash: hashActivationCode(activationCode), expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), token: crypto.randomUUID() });
-    const challenge = await request('POST', '/auth/parent/registration-challenge', undefined, { schoolCode: emptySchoolCode, phone: displayStoredTurkishPhone(emptyPhone), code: activationCode });
-    assert.equal(challenge.status, 200);
-    const password = `Local-${crypto.randomBytes(18).toString('base64url')}9`;
-    const completed = await request('POST', '/auth/parent/registration-complete', undefined, { schoolId: emptySchool, phone: displayStoredTurkishPhone(emptyPhone), challenge: challenge.body.challenge, password });
-    assert.equal(completed.status, 200);
-    const parent = await userRepository.getByPhone(emptyPhone);
-    assert(parent);
-    userIds.push(parent.id);
-    assert.equal((await db.query("SELECT COUNT(*)::int AS count FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='parent' AND status='active'", [emptySchool, parent.id])).rows[0].count, 1);
-    assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM students WHERE school_id=$1 AND class_name=$2', [emptySchool, '8-C'])).rows[0].count, 1);
-    assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM student_parent_relations WHERE school_id=$1 AND parent_user_id=$2', [emptySchool, parent.id])).rows[0].count, 1);
-    assert.equal((await db.query('SELECT COUNT(*)::int AS count FROM school_roster WHERE school_id=$1 AND is_claimed=TRUE', [emptySchool])).rows[0].count, 1);
+    stage = 'legacy parent registration is closed';
+    assert.equal((await request('POST', '/auth/parent/registration-challenge', undefined, { phone: displayStoredTurkishPhone(emptyPhone) })).status, 404);
 
-    console.log('First-student empty-school import, platform target, existing-school regression, parent registration and tenant isolation PASS.');
+    console.log('First-student empty-school import, platform target, existing-school regression, closed legacy registration and tenant isolation PASS.');
   } finally {
     if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
     if (previousPlatformAdmins === undefined) delete process.env.PLATFORM_ADMIN_USER_IDS;

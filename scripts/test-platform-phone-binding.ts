@@ -35,6 +35,7 @@ async function main() {
   process.env.JWT_SECRET = 'local-platform-phone-binding-jwt-secret-123456789';
   process.env.AUTH_CODE_SECRET = 'local-platform-phone-binding-code-secret-123456';
   process.env.WHATSAPP_AUTH_ENABLED = 'true';
+  process.env.LEGACY_PASSWORD_LOGIN_FOR_TESTS = '1';
   process.env.WHATSAPP_PILOT_ENABLED = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID = '1234567890';
   process.env.WHATSAPP_ACCESS_TOKEN = 'local-test-token';
