@@ -2,6 +2,7 @@ import { formatDate, getIstanbulDate } from '../utils/dates';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Appointment } from '../types';
+import { api } from '../services/api';
 import { Alert, Button, Dialog, EmptyState, Metric, PageHeader, RoleNavigation, Skeleton, StatusBadge, Toast } from './ui';
 import { ApiError } from '../platform/api-error';
 import { formatTurkishPhoneInput } from '../utils/phone';
@@ -36,7 +37,10 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
     removeAvailabilitySlot,
     refreshMobileData,
     schoolDataLoading,
+    currentSchool,
   } = useApp();
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState('');
 
   const [feedback, setFeedback] = useState<{ message: string; failed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +72,21 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
   // The API already scopes teacher appointments from the authenticated user.
   const teacherAppointments = appointments;
   const teacherProfileId = teachers.find((teacher) => teacher.userId === currentUser?.id)?.id;
+  const myEmail = teachers.find((teacher) => teacher.userId === currentUser?.id)?.email || '';
+  const saveEmail = async () => {
+    const value = (emailDraft || '').trim();
+    if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) { setEmailError('Geçerli bir e-posta adresi girin.'); return; }
+    if (!currentSchool) return;
+    setBusy(true); setEmailError('');
+    try {
+      await api.updateMyTeacherEmail(currentSchool.id, value);
+      await refreshMobileData();
+      setEmailDraft(null);
+      setFeedback({ message: value ? 'E-posta adresi kaydedildi.' : 'E-posta adresi kaldırıldı.', failed: false });
+    } catch (cause) {
+      setEmailError(cause instanceof Error && cause.message ? cause.message : 'E-posta adresi kaydedilemedi.');
+    } finally { setBusy(false); }
+  };
 
   const byDateTime = (a: Appointment, b: Appointment) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`);
   // Saati geçmiş ama onaylanmamış talep artık onaylanamaz; "Onay bekleyen" yerine geçmişte görünür.
@@ -193,7 +212,8 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
         </section>
         <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-3">{availabilityGroups.map((day) => <section key={day.id} className="availability-day" aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-2"><p className="text-sm font-semibold text-slate-700">{slot.startTime} – {slot.endTime}</p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
       </div>}
-      {activeTab === 'profile' && <section className="surface max-w-xl"><div className="flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="font-bold text-xl">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-blue-700 mt-1 text-sm">{currentUser?.branch}</p></div></div><dl className="pass-details mt-7"><div><dt>Telefon</dt><dd>{formatTurkishPhoneInput(currentUser?.phone || '')}</dd></div><div><dt>Okul</dt><dd>{settings.schoolName}</dd></div></dl></section>}
+      {activeTab === 'profile' && <section className="surface max-w-xl"><div className="flex items-center gap-4"><span className="avatar">{currentUser?.firstName[0]}{currentUser?.lastName[0]}</span><div><h2 className="font-bold text-xl">{currentUser?.firstName} {currentUser?.lastName}</h2><p className="text-blue-700 mt-1 text-sm">{currentUser?.branch}</p></div></div><dl className="pass-details mt-7"><div><dt>Telefon</dt><dd>{formatTurkishPhoneInput(currentUser?.phone || '')}</dd></div><div><dt>Okul</dt><dd>{settings.schoolName}</dd></div><div><dt>Bildirim e-postası</dt><dd>{myEmail || 'Eklenmedi'}</dd></div></dl><Button variant="secondary" className="mt-4" onClick={() => { setEmailError(''); setEmailDraft(myEmail); }}>{myEmail ? 'E-posta adresini düzenle' : 'E-posta adresi ekle'}</Button><p className="field-hint mt-2">Randevu bildirimleri bu adrese gönderilir. İsteğe bağlıdır.</p></section>}
+      {emailDraft !== null && <Dialog title={myEmail ? 'E-posta adresini düzenle' : 'E-posta adresi ekle'} description="Randevu bildirimleri bu adrese gönderilir. Boş bırakıp kaydederseniz adres kaldırılır." onClose={() => setEmailDraft(null)} dismissible={!busy}><form className="form-stack" onSubmit={(event) => { event.preventDefault(); void saveEmail(); }}>{emailError && <Alert tone="danger">{emailError}</Alert>}<label className="field" htmlFor="teacher-own-email">E-posta<input id="teacher-own-email" type="email" autoComplete="email" maxLength={150} placeholder="ornek@eposta.com" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} /></label><div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setEmailDraft(null)}>Vazgeç</Button><Button type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Kaydet'}</Button></div></form></Dialog>}
       {cancelingApt && <Dialog title="Randevuyu iptal et" description={`${cancelingApt.studentName} · ${formatDate(cancelingApt.date)} ${cancelingApt.startTime}`} onClose={() => setCancelingApt(null)} dismissible={!busy}><div className="form-stack"><p className="text-sm text-slate-600">Bu onaylı görüşme iptal edilecek ve veliye bildirim gidecek. Emin misiniz?</p><div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setCancelingApt(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={() => { const target = cancelingApt; void perform(() => cancelAppointment(target.id), 'Randevu iptal edildi.').then((ok) => { if (ok) setCancelingApt(null); }); }}>{busy ? 'İptal ediliyor…' : 'Randevuyu iptal et'}</Button></div></div></Dialog>}
       {rejectingAptId && <Dialog title="Randevuyu reddet" description="Dilerseniz veliye iletilecek kısa bir açıklama ekleyin." onClose={() => setRejectingAptId(null)} dismissible={!busy}><div className="form-stack">{feedback?.failed && <Alert tone="danger">{feedback.message}</Alert>}<label className="field" htmlFor="rejection-reason">Ret gerekçesi <span className="field-hint">İsteğe bağlı</span><textarea id="rejection-reason" rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Bu saatte görüşme yapamama nedeniniz…" /></label><div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setRejectingAptId(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={handleConfirmReject}>{busy ? 'Kaydediliyor…' : 'Randevuyu reddet'}</Button></div></div></Dialog>}
     </main>

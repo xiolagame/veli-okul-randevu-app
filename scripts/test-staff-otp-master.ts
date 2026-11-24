@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { bookableDate } from './lib/test-dates';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -67,7 +68,9 @@ try{
  try {assert.equal((await req('POST',staffPath,admin.token,{role:'security',fullName:'Atomik Kontrol',phone:'+905551110098'})).status,500);}
  finally{auditLogRepository.createAuditLog=auditWriter;}
  assert.equal((await db.query("SELECT 1 FROM pending_staff WHERE phone='+905551110098'")).rows.length,0,'Audit failure must roll back staff creation');
- assert.equal((await req('POST',staffPath,admin.token,{...teacherInput,email:''})).status,400);
+ assert.equal((await req('POST',staffPath,admin.token,{...teacherInput,phone:'+905551110097',email:''})).status,201,'teacher email is optional');
+ assert.equal((await db.query("SELECT email FROM teacher_profiles WHERE phone='+905551110097'")).rows[0].email,null);
+ await db.query("DELETE FROM teacher_profiles WHERE phone='+905551110097'");
  assert.equal((await req('POST',staffPath,admin.token,{...teacherInput,email:'bad'})).status,400);
  assert.equal((await req('POST',staffPath,foreignAdmin.token,teacherInput)).status,403);
  assert.equal((await req('POST',staffPath,admin.token,teacherInput)).status,201);
@@ -132,7 +135,7 @@ try{
  assert.equal((await req('GET',`/schools/${school}/appointments`,teacherToken,undefined,'admin')).status,403);
  assert.equal((await req('GET',`/schools/${other}/appointments`,teacherToken)).status,403);
  const password=crypto.randomBytes(16).toString('hex');await userRepository.updatePasswordHash(userId,hashPassword(password));
- assert.equal((await req('POST','/auth/login',undefined,{phone:teacherPhone,password})).status,401);
+ assert.equal((await req('POST','/auth/login',undefined,{phone:teacherPhone,password})).status,404);
  const oldPasswordToken=createToken({userId,phone:teacherPhone,auth_version:0,auth_method:'password'});
  assert.equal((await req('GET',`/schools/${school}/appointments`,oldPasswordToken)).status,403);
  for(const route of ['activation-verify','activation-complete','reset-request','reset-verify','reset-complete'])assert.equal((await req('POST','/auth/staff/'+route,undefined,{})).status,404);
@@ -146,15 +149,18 @@ try{
  assert.equal((await db.query<any>('SELECT auth_version FROM users WHERE id=$1',[userId])).rows[0].auth_version,versionBefore);
  assert.equal((await db.query<any>('SELECT email FROM users WHERE id=$1',[userId])).rows[0].email,null);
  assert.equal((await req('GET',`/schools/${school}/appointments`,teacherToken)).status,200);
- assert.equal((await req('PATCH',`/schools/${school}/management/teacher/${teacherId}`,admin.token,{...updated,email:''})).status,400);
- ok('notification email change preserves identity and current session; empty email denied');
+ // E-posta artık isteğe bağlı: boş değer adresi kaldırır.
+ assert.equal((await req('PATCH',`/schools/${school}/management/teacher/${teacherId}`,admin.token,{...updated,email:''})).status,200);
+ assert.equal((await req('PATCH',`/schools/${school}/management/teacher/${teacherId}`,admin.token,updated)).status,200);
+ ok('notification email change preserves identity and current session; empty email removes the optional address');
 
  stage='appointment notifications';
  await db.query("INSERT INTO students(id,school_id,name,class_name,student_number) VALUES('child',$1,'SENTETİK ÖĞRENCİ','5-A','1')",[school]);
  await db.query("INSERT INTO student_parent_relations(school_id,student_id,parent_user_id) VALUES($1,'child',$2)",[school,parent.id]);
- await db.query("INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration) VALUES($1,$2,EXTRACT(DOW FROM DATE '2090-01-02'),'10:00','14:00',15)",[school,teacherId]);
+ const bookDate=bookableDate(3);
+ await db.query("INSERT INTO availability_slots(school_id,teacher_id,day_of_week,start_time,end_time,slot_duration) VALUES($1,$2,$3,'10:00','14:00',15)",[school,teacherId,new Date(bookDate+'T00:00:00Z').getUTCDay()]);
  assert(await registerPushDevice(userId,{installationId:crypto.randomUUID(),platform:'ANDROID',provider:'FCM',targetKind:'REGISTRATION_TOKEN',providerTarget:'fixture-registration-token-long-enough',appId:'com.velirandevu.app'}));
- const booking={teacherId,studentId:'child',studentName:'SENTETİK ÖĞRENCİ',className:'5-A',date:'2090-01-02',startTime:'10:00',endTime:'10:15'};
+ const booking={teacherId,studentId:'child',studentName:'SENTETİK ÖĞRENCİ',className:'5-A',date:bookDate,startTime:'10:00',endTime:'10:15'};
  const booked=await req('POST',`/schools/${school}/appointments`,parent.token,booking);assert.equal(booked.status,200);
  assert.deepEqual(emails.at(-1).to,[updated.email]);const emailCount=emails.length;
  let pushCount=0;const provider={send:async()=>{pushCount++;return{status:'SENT' as const,messageId:'fixture-push'};}};

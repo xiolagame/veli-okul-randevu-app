@@ -353,7 +353,10 @@ export const api = {
   getTeachers: (schoolId: string) =>
     request<{ teachers: TeacherProfile[] }>(`/api/schools/${schoolId}/teachers`),
 
-  createTeacher: (schoolId: string, data: { fullName: string; branch: string; phone: string }) =>
+  updateMyTeacherEmail: (schoolId: string, email: string) =>
+    request<{ success: boolean; email: string }>(`/api/schools/${schoolId}/teachers/me/email`, { method: 'PUT', body: JSON.stringify({ email }) }),
+
+  createTeacher: (schoolId: string, data: { fullName: string; branch: string; phone: string; email?: string }) =>
     request<{ teacher: TeacherProfile }>(`/api/schools/${schoolId}/teachers`, {
       method: 'POST', body: JSON.stringify(data),
     }),

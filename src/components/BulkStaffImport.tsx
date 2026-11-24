@@ -166,7 +166,7 @@ export const BulkStaffImport: React.FC<Props> = ({
               <table className="w-full min-w-[780px] text-left text-sm">
                 <thead className="sticky top-0 bg-slate-100">
                   <tr>
-                    {['Satır', 'Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'Bildirim e-postası (öğretmen)', 'Durum'].map(
+                    {['Satır', 'Ad Soyad', 'Görevi', 'Branş', 'Telefon', 'Bildirim e-postası (isteğe bağlı)', 'Durum'].map(
                       (title) => <th key={title} className="p-3">{title}</th>,
                     )}
                   </tr>

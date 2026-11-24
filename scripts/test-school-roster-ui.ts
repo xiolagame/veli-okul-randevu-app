@@ -32,7 +32,7 @@ async function run() {
   assert.deepEqual(validateStaffForm(draft), {});
   assert(validateStaffForm({ ...draft, role: '' }).role);
   assert.equal(validateStaffForm({ ...draft, email: '' }).email, undefined);
-  assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'' }).email);
+  assert.equal(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'' }).email, undefined);
   assert(validateStaffForm({ ...draft, role:'teacher',branch:'Test',email:'bad' }).email);
   assert(validateStaffForm({ ...draft, role: 'teacher' }).branch);
   assert.deepEqual(auditDisplay('parent.removed', '{"id":"private-user"}'), { label: 'Veli okuldan kaldırıldı.', tone: 'rose', summary: '' });

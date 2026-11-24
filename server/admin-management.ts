@@ -527,7 +527,8 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
           // Teacher email belongs to this profile's notifications, not the global login identity.
           // Existing security email is retained as legacy data and never requested or rewritten.
           const emailProvided = kind !== 'security' && req.body.email !== undefined;
-          const email = kind === 'teacher' ? emailField(emailProvided ? req.body.email : oldEmail)
+          const rawTeacherEmail = emailProvided && typeof req.body.email === 'string' ? req.body.email.trim() : null;
+          const email = kind === 'teacher' ? (!emailProvided ? oldEmail : rawTeacherEmail ? emailField(rawTeacherEmail) : '')
             : emailProvided ? emailField(req.body.email) : oldEmail;
           const phoneChanged = normalizeTurkishPhone(oldPhone) !== phone;
           const emailChanged = emailProvided && oldEmail.trim().toLowerCase() !== email;
@@ -589,7 +590,7 @@ async function mutate(req: AuthenticatedRequest, res: import('express').Response
               if (duplicate.rows.length) throw new ManagementError(409, 'Bu telefon okulda başka bir öğretmene bağlı.');
             }
             await tx.query(`UPDATE teacher_profiles SET first_name=$3,last_name=$4,phone=$5,branch=$6,
-              email=CASE WHEN $8::boolean THEN $7::varchar(150) ELSE email END,updated_at=NOW()
+              email=CASE WHEN $8::boolean THEN NULLIF($7,'')::varchar(150) ELSE email END,updated_at=NOW()
               WHERE school_id=$1 AND id=$2`, [schoolId, id, firstName, lastName, phone, branch, email, emailProvided]);
             if (userId) await tx.query(`UPDATE school_memberships SET branch=$3,updated_at=NOW()
               WHERE school_id=$1 AND user_id=$2 AND role='teacher'`, [schoolId, userId, branch]);

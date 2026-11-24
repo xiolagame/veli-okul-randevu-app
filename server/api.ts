@@ -671,6 +671,83 @@ apiRouter.get('/schools/:schoolId/teachers', authMiddleware, tenantGuard(), asyn
   }
 });
 
+apiRouter.post('/schools/:schoolId/staff', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const role = req.body?.role;
+  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
+  const phone = normalizeUserPhoneInput(req.body?.phone);
+  const email = role === 'teacher' && typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const branch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
+  if (!['teacher', 'security'].includes(role) || fullName.split(' ').length < 2 || fullName.length > 150 || !phone || (role === 'teacher' && email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150)) || (role === 'teacher' && (!branch || branch.length > 100))) {
+    return res.status(400).json({ error: 'Personel bilgilerini kontrol edin.' });
+  }
+  const [firstName, ...last] = normalizePersonName(fullName).split(' ');
+  if (firstName.length > 100 || last.join(' ').length > 100) return res.status(400).json({error:'Ad veya soyad çok uzun.'});
+  try {
+    const db = await getDb();
+    await db.transaction(async (tx) => {
+      const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR UPDATE', [schoolId]);
+      if (!school.rows.length) throw new Error('SCHOOL_NOT_FOUND');
+      const recordCreated = (id:string) => auditLogRepository.createAuditLog({schoolId,action:'admin_staff_created',actorName:`${req.user!.firstName} ${req.user!.lastName}`.trim(),actorUserId:req.user!.id,details:`${role} ${id} oluşturuldu; ilk WhatsApp doğrulaması bekleniyor.`},tx);
+      await tx.query('LOCK TABLE teacher_profiles IN SHARE ROW EXCLUSIVE MODE');
+      const digits = (await import('../src/utils/phone')).getTurkishPhoneLookupDigits(phone)!;
+      const duplicate = await tx.query(`SELECT id FROM teacher_profiles WHERE regexp_replace(phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`, digits);
+      if (role === 'teacher' && duplicate.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
+      if (role === 'teacher') {
+        const existingTeacherMembership = await tx.query(`SELECT sm.id FROM school_memberships sm JOIN users u ON u.id=sm.user_id
+          WHERE sm.role='teacher' AND sm.status='active' AND regexp_replace(u.phone,'[^0-9]','','g') IN ($1,$2,$3) LIMIT 1`,digits);
+        if (existingTeacherMembership.rows.length) throw new Error('TEACHER_ALREADY_ASSIGNED');
+      }
+      const sameSchool = await tx.query(`SELECT id FROM teacher_profiles WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)
+        UNION ALL SELECT id FROM pending_staff WHERE school_id=$1 AND regexp_replace(phone,'[^0-9]','','g') IN ($2,$3,$4)
+        UNION ALL SELECT u.id FROM users u JOIN school_memberships sm ON sm.user_id=u.id
+          WHERE sm.school_id=$1 AND sm.role=$5 AND regexp_replace(u.phone,'[^0-9]','','g') IN ($2,$3,$4) LIMIT 1`, [schoolId,...digits,role]);
+      if (sameSchool.rows.length) throw new Error('STAFF_PHONE_EXISTS');
+      if (role === 'teacher') {
+        const created = await teacherRepository.createPending(schoolId, { firstName, lastName: last.join(' '), branch, phone, email }, tx);
+        await recordCreated(created.id);
+        return { id: created.id, email, firstName, lastName: last.join(' '), phone, userId: created.userId };
+      }
+      const id = `pending-sec-${crypto.randomUUID()}`;
+      await tx.query(`INSERT INTO pending_staff(id,school_id,role,first_name,last_name,phone,email,created_by) VALUES($1,$2,'security',$3,$4,$5,$6,$7)`, [id,schoolId,firstName,last.join(' '),phone,null,req.user!.id]);
+      await recordCreated(id);
+      return { id,email,firstName,lastName:last.join(' '),phone };
+    });
+    return res.status(201).json({ success: true, message: 'Personel eklendi. İlk başarılı WhatsApp girişinde otomatik etkinleşir.' });
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === 'TEACHER_ALREADY_ASSIGNED') return res.status(409).json({ error: 'Bu öğretmen başka bir okulda kayıtlı.' });
+    if (cause instanceof Error && cause.message === 'STAFF_PHONE_EXISTS') return res.status(409).json({ error: 'Bu telefon okulda kayıtlı.' });
+    if (cause instanceof Error && cause.message === 'SCHOOL_NOT_FOUND') return res.status(404).json({error:'Aktif okul bulunamadı.'});
+    return res.status(500).json({ error: 'Personel eklenemedi.' });
+  }
+});
+
+apiRouter.post('/schools/:schoolId/staff/:role/:id/resend-activation', authMiddleware, tenantGuard(['admin']), (_req, res) => res.status(410).json({ error: 'Personel aktivasyonu ilk başarılı WhatsApp girişinde otomatik tamamlanır.' }));
+
+// Öğretmen kendi bildirim e-postasını ekler, değiştirir veya (boş göndererek) kaldırır.
+apiRouter.put('/schools/:schoolId/teachers/me/email', authMiddleware, tenantGuard(['teacher']), async (req: AuthenticatedRequest, res) => {
+  const schoolId = req.membership!.schoolId;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150)) {
+    return res.status(400).json({ error: 'Geçerli bir e-posta adresi girin.' });
+  }
+  try {
+    const result = await (await getDb()).query(
+      `UPDATE teacher_profiles SET email=NULLIF($3,'')::varchar(150),updated_at=NOW()
+       WHERE school_id=$1 AND user_id=$2 AND account_deleted_at IS NULL RETURNING id`,
+      [schoolId, req.user!.id, email],
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Öğretmen profili bulunamadı.' });
+    await auditLogRepository.createAuditLog({
+      schoolId, action: 'teacher.email_updated', actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim(),
+      details: JSON.stringify({ teacherId: result.rows[0].id, hasEmail: !!email }),
+    });
+    return res.json({ success: true, email });
+  } catch {
+    return res.status(500).json({ error: 'E-posta adresi kaydedilemedi.' });
+  }
+});
+
 apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admin']), async (req: AuthenticatedRequest, res) => {
   const schoolId = req.membership!.schoolId;
   const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().replace(/\s+/g, ' ') : '';
@@ -686,7 +763,8 @@ apiRouter.post('/schools/:schoolId/teachers', authMiddleware, tenantGuard(['admi
   if (!phone) {
     return res.status(400).json({ error: 'Geçerli bir Türkiye GSM numarası girin.' });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150) return res.status(400).json({error:'Geçerli e-posta adresi girin.'});
+  // E-posta isteğe bağlıdır; girilirse geçerli olmalıdır.
+  if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 150)) return res.status(400).json({error:'Geçerli e-posta adresi girin.'});
 
   try {
     const db = await getDb();
