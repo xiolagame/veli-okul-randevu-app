@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "9024b55f5abf1161e573390397a9619f91ab2fd39368bcaf97c569fe48b0d874"
+      "sha256": "ea240c27e4999a21e485823bd6d23d169e6c6ce6662bb2f8240698be0a0f8a35"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "6b9af4bae645553631e0f3bdf095d7ab65d4139b2e6b70be8bd03846c319d417"
+      "sha256": "cdccdaaea7e0b3160dcf4bea34f18775a2806630dfadc5c8240e157cb977c3eb"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -930,7 +930,7 @@
     },
     {
       "path": "scripts/test-ios-push.ts",
-      "sha256": "f89aedc9aa51adfae69ea39c41e3462faa7a0ea2cc54596263ff162d63901ab8"
+      "sha256": "65fa93b08c876a0b8ee759d85a2374598fa86c0a01c300b2a8e107412a61d2c5"
     },
     {
       "path": "scripts/test-ios-qr-boundaries.ts",
@@ -958,7 +958,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "f06d974bf8306c67587c9cf0e14b89ebd34a7bfe42428e819d0c9f2d9d1d6700"
+      "sha256": "c5052312b489a279eaa908a67e3bd750d80c8085acb0e6b428aaebe0386af2da"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1910,7 +1910,7 @@
     },
     {
       "path": "src/platform/ios-push.ts",
-      "sha256": "08a0f926ab03c5221f0e4c44addd7cc2872ec278e08366567bff7492798caf7b"
+      "sha256": "29d67f0e38066dad70b2f14f6e7f1a3cc875f58bb23c904aadce2f2cbe0e142b"
     },
     {
       "path": "src/platform/lifecycle.ts",

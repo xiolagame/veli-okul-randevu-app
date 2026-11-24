@@ -30,7 +30,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "6b9af4bae645553631e0f3bdf095d7ab65d4139b2e6b70be8bd03846c319d417"
+      "currentCanonicalSha256": "cdccdaaea7e0b3160dcf4bea34f18775a2806630dfadc5c8240e157cb977c3eb"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -300,7 +300,7 @@
       "path": "scripts/test-ios-push.ts",
       "baselineCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
       "archivedProductionCanonicalSha256": "f7f3889b96a1a3ca71983b963a4d668732ce0c646b8a9aac51a18f9462628554",
-      "currentCanonicalSha256": "f89aedc9aa51adfae69ea39c41e3462faa7a0ea2cc54596263ff162d63901ab8"
+      "currentCanonicalSha256": "65fa93b08c876a0b8ee759d85a2374598fa86c0a01c300b2a8e107412a61d2c5"
     },
     {
       "path": "scripts/test-ios-release-safety.mjs",
@@ -312,7 +312,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "f06d974bf8306c67587c9cf0e14b89ebd34a7bfe42428e819d0c9f2d9d1d6700"
+      "currentCanonicalSha256": "c5052312b489a279eaa908a67e3bd750d80c8085acb0e6b428aaebe0386af2da"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -985,6 +985,12 @@
       "baselineCanonicalSha256": "1faed070e0dd98373689c29ab0b927ef26238600b6497b8d2d39f47002bed9dd",
       "archivedProductionCanonicalSha256": "1faed070e0dd98373689c29ab0b927ef26238600b6497b8d2d39f47002bed9dd",
       "currentCanonicalSha256": "ce8926d4e896815155a88babde21182f4aa7a9146ec7d88d8bba5b771030b45c"
+    },
+    {
+      "path": "src/platform/ios-push.ts",
+      "baselineCanonicalSha256": "08a0f926ab03c5221f0e4c44addd7cc2872ec278e08366567bff7492798caf7b",
+      "archivedProductionCanonicalSha256": "08a0f926ab03c5221f0e4c44addd7cc2872ec278e08366567bff7492798caf7b",
+      "currentCanonicalSha256": "29d67f0e38066dad70b2f14f6e7f1a3cc875f58bb23c904aadce2f2cbe0e142b"
     },
     {
       "path": "src/platform/remote-logout.ts",
