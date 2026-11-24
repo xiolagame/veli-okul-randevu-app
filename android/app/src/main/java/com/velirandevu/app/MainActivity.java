@@ -17,8 +17,16 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().setOverScrollMode(android.view.View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         }
+        capTextZoom();
         WindowCompat.enableEdgeToEdge(getWindow());
         AndroidSystemBarsPlugin.restore(this);
+    }
+
+    // Sistem yazı boyutu çok büyükse arayüz taşmasın: WebView yazı büyütmesi en çok %110 ile sınırlanır.
+    private void capTextZoom() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        int zoom = Math.round(getResources().getConfiguration().fontScale * 100f);
+        getBridge().getWebView().getSettings().setTextZoom(Math.max(85, Math.min(zoom, 110)));
     }
 
     @Override
@@ -30,6 +38,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);
+        capTextZoom();
         AndroidSystemBarsPlugin.restore(this);
     }
 }

@@ -203,3 +203,50 @@ html, body { overscroll-behavior-y: auto; }
   .student-class-card strong { font-size: 13px; }
   .student-class-all .student-class-card { width: auto; display: inline-grid; min-width: 120px; }
 }
+
+/* Giriş ekranı (Android/iOS/dar web): daha küçük ölçüler, kod adımında yalnız gerekli öğeler. */
+@media (max-width: 767px) {
+  .auth-form-side-phone { align-items: flex-start; }
+  .auth-form-wrap-phone { padding: 14px 16px; }
+  .auth-form-wrap-phone .auth-mobile-brand { margin-bottom: 4px; }
+  .auth-form-wrap-phone .auth-mobile-brand .brand { font-size: 19px; }
+  .auth-form-wrap-phone .auth-mobile-brand .brand-logo { width: 28px; height: 28px; }
+  .auth-form-wrap-phone > .eyebrow { display: none; }
+  .auth-form-wrap-phone > h2 { margin: 2px 0 8px; font-size: 20px; line-height: 1.2; }
+  .auth-form-wrap-phone .form-stack { gap: 8px; }
+  .auth-form-wrap-phone .whatsapp-auth-heading { gap: 8px; }
+  .auth-form-wrap-phone .whatsapp-auth-heading > span { flex-basis: 30px; width: 30px; height: 30px; }
+  .auth-form-wrap-phone .whatsapp-auth-heading p { font-size: 12.5px; line-height: 1.35; }
+  .auth-form-wrap-phone .field { gap: 4px; font-size: 12px; }
+  .auth-form-wrap-phone input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; padding-block: 8px; }
+  .auth-form-wrap-phone .field-icon > svg { top: 13px; width: 17px; height: 17px; }
+  .auth-form-wrap-phone .ui-button { min-height: 48px; padding-block: 8px; }
+  .auth-form-wrap-phone .ui-alert { gap: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.35; }
+  .auth-form-wrap-phone .ui-alert svg { width: 16px; height: 16px; margin-top: 1px; }
+  .auth-form-wrap-phone .whatsapp-auth-actions button { min-height: 40px; font-size: 13px; }
+  .auth-form-wrap-phone .auth-help-link { min-height: 48px; margin-top: 2px; padding-block: 6px; font-size: 13px; }
+  .auth-form-wrap-phone .public-request-cta { margin-top: 2px; padding-top: 6px; }
+
+  /* Kod adımı: açıklama, yardım bağlantısı ve lisans kartı gizlenir; klavye açıkken taşma olmaz. */
+  .auth-form-wrap-code .whatsapp-auth-heading,
+  .auth-form-wrap-code .auth-help-link,
+  .auth-form-wrap-code .public-request-cta { display: none; }
+  .auth-form-wrap-code .phone-centric-login .field:first-of-type input { min-height: 40px; }
+}
+@media (max-width: 767px) {
+  .auth-form-wrap-phone .whatsapp-auth-actions { flex-wrap: nowrap; gap: 8px; }
+  .auth-form-wrap-phone .whatsapp-auth-actions button { white-space: nowrap; padding-inline: 4px; }
+  .auth-form-wrap-code .phone-centric-login .field:first-of-type { gap: 0; font-size: 0; }
+  .auth-form-wrap-code .phone-centric-login .field:first-of-type input { font-size: 16px; }
+  .auth-form-wrap-code > h2 { font-size: 18px; margin-bottom: 6px; }
+}
+@media (max-width: 767px) {
+  /* Kod adımında marka satırı ve tema düğmesi gizlenir; klavye açıkken yer kazanılır. */
+  .auth-form-wrap-code .auth-mobile-brand { display: none; }
+  .auth-form-wrap-code > h2 { margin-top: 0; }
+
+}
+@media (max-width: 767px) {
+  .auth-form-side-phone:has(.auth-form-wrap-code) { padding-top: max(8px, env(safe-area-inset-top, 0px)); }
+  html[data-runtime-platform="android"] .auth-form-wrap-code { padding: .625rem .875rem; }
+}

@@ -89,7 +89,7 @@ async function capture(page, name) {
   assert.equal(metrics.brandControlOverlap, false, 'brand/theme overlap: ' + name);
   assert.equal(metrics.heading, 'Okulunuza Hoş Geldiniz');
   assert(metrics.photo.includes('04-Mobil.png'));
-  assert(metrics.targets.every(height => height >= 48), 'touch target smaller than 48: ' + name);
+  assert(metrics.targets.filter(height => height > 0).every(height => height >= 48), 'touch target smaller than 48: ' + name);
   await page.screenshot({ path: output + '/' + name + '.png', fullPage: true, animations: 'disabled', mask: [page.locator('input[type=password]')] });
   return metrics;
 }

@@ -24,6 +24,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
   const [capabilitiesStatus, setCapabilitiesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
   const authSideRef = useRef<HTMLElement>(null);
+  const [loginStep, setLoginStep] = useState<'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE'>('PHONE');
   const loginEntry = resolveLoginEntry(capabilitiesStatus, phoneCentricAuthEnabled);
   // iOS may collect the phone while capabilities load; sending remains gated.
   const usePhoneCentricLogin = loginEntry === 'phone' || (getRuntimePlatform() === 'IOS' && (capabilitiesStatus === 'loading' || capabilitiesStatus === 'error'));
@@ -111,7 +112,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
         <div className="auth-footnote"><ShieldCheck size={18} />Okulunuzla güvenli ve düzenli iletişim.</div>
       </aside>
       <main className={`auth-form-side${getRuntimePlatform() === 'IOS' ? ' auth-form-side-ios' : ''}${usePhoneCentricLogin ? ' auth-form-side-phone' : ''}`} ref={authSideRef}>
-        <div className={`auth-form-wrap${usePhoneCentricLogin ? ' auth-form-wrap-phone' : ''}`}>
+        <div className={`auth-form-wrap${usePhoneCentricLogin ? ' auth-form-wrap-phone' : ''}${loginStep !== 'PHONE' ? ' auth-form-wrap-code' : ''}`}>
           <div className="auth-mobile-brand"><Brand /></div>
           <span className="eyebrow">VELİ RANDEVU'YA HOŞ GELDİNİZ</span>
           <h2 id="auth-heading">Okulunuza Hoş Geldiniz</h2>
@@ -122,7 +123,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onOpenPublicRequest, onOpenH
             ? <p role="status">Giriş seçenekleri yükleniyor…</p>
             : <Alert tone="danger">Giriş seçenekleri alınamadı. <button type="button" onClick={() => setCapabilitiesRetry((value) => value + 1)}>Tekrar dene</button></Alert>)
             : usePhoneCentricLogin
-              ? <PhoneCentricLoginPanel requestEnabled={getRuntimePlatform() !== 'IOS' || (capabilitiesStatus === 'ready' && whatsappAuthEnabled && phoneCentricAuthEnabled)} checkingCapabilities={getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'loading'} />
+              ? <PhoneCentricLoginPanel onStepChange={setLoginStep} requestEnabled={getRuntimePlatform() !== 'IOS' || (capabilitiesStatus === 'ready' && whatsappAuthEnabled && phoneCentricAuthEnabled)} checkingCapabilities={getRuntimePlatform() === 'IOS' && capabilitiesStatus === 'loading'} />
               : <Alert tone="danger">WhatsApp ile giriş şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.</Alert>}
           {import.meta.env?.VITE_REVIEW_API_ORIGIN && (getRuntimePlatform() !== "IOS") && <ReviewLogin/>}
           <button type="button" className="auth-help-link" onClick={onOpenHelp} aria-label="Yardım, Kullanım Rehberi ve Yasal Bilgiler"><span className="auth-help-label-full">Yardım, Kullanım Rehberi ve Yasal Bilgiler</span><span className="auth-help-label-android" aria-hidden="true">Yardım ve yasal bilgiler</span><ArrowRight size={16} aria-hidden="true" /></button>

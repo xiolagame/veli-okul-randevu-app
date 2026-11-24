@@ -10,9 +10,10 @@ import { remainingResendSeconds } from '../platform/otp-resend-clock';
 
 type Step = 'PHONE' | 'WHATSAPP_CODE' | 'EMAIL_CODE';
 
-export function PhoneCentricLoginPanel({ requestEnabled = true, checkingCapabilities = false }: {
+export function PhoneCentricLoginPanel({ requestEnabled = true, checkingCapabilities = false, onStepChange }: {
   requestEnabled?: boolean;
   checkingCapabilities?: boolean;
+  onStepChange?: (step: Step) => void;
 }) {
   const { whatsappLogin } = useApp();
   const [step, setStep] = useState<Step>('PHONE');
@@ -25,6 +26,7 @@ export function PhoneCentricLoginPanel({ requestEnabled = true, checkingCapabili
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  useEffect(() => { onStepChange?.(step); }, [step]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   // 6 hane yazılınca kod kendiliğinden doğrulanır (aynı kod hatalıysa tekrar tekrar gönderilmez).
@@ -149,7 +151,7 @@ export function PhoneCentricLoginPanel({ requestEnabled = true, checkingCapabili
     }
   };
 
-  return <div className="form-stack phone-centric-login" aria-labelledby="auth-heading" aria-describedby="phone-centric-description">
+  return <div className="form-stack phone-centric-login" data-step={step} aria-labelledby="auth-heading" aria-describedby="phone-centric-description">
     <div className="whatsapp-auth-heading">
       <span className="whatsapp-login-logo"><img src="/whatsapp-login-icon.png" alt="" aria-hidden="true" /></span>
       <p id="phone-centric-description">Doğrulama kodunuz WhatsApp üzerinden gönderilecektir.</p>
