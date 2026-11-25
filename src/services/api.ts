@@ -378,7 +378,7 @@ export const api = {
 
   addAvailabilitySlot: (
     schoolId: string,
-    slot: { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number }
+    slot: { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number; customDurationMinutes?: number | null }
   ) =>
     request<{ success: boolean; slot: AvailabilitySlot }>(`/api/schools/${schoolId}/availability`, {
       method: 'POST',

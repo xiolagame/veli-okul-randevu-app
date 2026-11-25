@@ -29,6 +29,7 @@
     "test:test-login": "tsx scripts/test-test-login.ts",
     "test:teacher-email": "tsx scripts/test-teacher-optional-email.ts",
     "test:booking-window": "tsx scripts/test-booking-window.ts",
+    "test:availability-duration": "tsx scripts/test-availability-duration.ts",
     "test:availability-form": "tsx scripts/test-availability-form.ts",
     "test:whatsapp-unified": "tsx scripts/test-unified-whatsapp-login.ts",
     "test:whatsapp-login-ui": "tsx scripts/test-whatsapp-login-ui.ts",

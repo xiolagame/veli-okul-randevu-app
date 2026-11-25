@@ -108,7 +108,8 @@ export interface AvailabilitySlot {
   dayOfWeek: number; // 1 = Pazartesi, 5 = Cuma
   startTime: string; // "09:00"
   endTime: string;   // "11:30"
-  slotDurationMinutes: number; // 15
+  slotDurationMinutes: number; // Etkin süre: öğretmenin seçtiği süre, yoksa okul süresi
+  customDurationMinutes?: number | null; // null = okul süresi
   isBlocked?: boolean;
 }
 

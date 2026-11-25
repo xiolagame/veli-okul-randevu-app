@@ -242,7 +242,11 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
 
     // If teacher has defined hours for this day
     // Bugün için geçmiş saatler listelenmez.
-    const slots = generateAppointmentSlots(teacherAvail, settings.defaultSlotMinutes).filter((slot) => isSlotInFuture(dateStr, slot.time));
+    // Her müsaitlik bloğu kendi süresiyle bölünür (öğretmen 20–60 dk seçebilir; seçmediyse okul süresi).
+    const slots = teacherAvail
+      .flatMap((window) => generateAppointmentSlots([window], window.slotDurationMinutes || settings.defaultSlotMinutes))
+      .filter((slot) => isSlotInFuture(dateStr, slot.time))
+      .sort((left, right) => left.time.localeCompare(right.time));
 
     const intervals = occupiedSlots?.key === occupiedKey ? occupiedSlots.intervals : [];
     return [...new Map(slots.map((slot) => [slot.time, slot])).values()].map((slot) => ({

@@ -158,6 +158,8 @@ CREATE TABLE IF NOT EXISTS availability_slots (
     start_time VARCHAR(10) NOT NULL,
     end_time VARCHAR(10) NOT NULL,
     slot_duration INT DEFAULT 15 NOT NULL,
+    custom_duration_minutes INT CONSTRAINT availability_slots_custom_duration_check
+      CHECK (custom_duration_minutes IS NULL OR custom_duration_minutes IN (20, 30, 40, 50, 60)),
     is_recurring BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,

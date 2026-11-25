@@ -38,6 +38,13 @@ export function meetingCount(start: string, end: string, durationMinutes: number
   return Math.max(0, Math.floor((toMinutes(end) - toMinutes(start)) / durationMinutes));
 }
 
+// Aralık süreye tam bölünmüyorsa sonda kullanılmayan dakika.
+export function unusedMinutes(start: string, end: string, durationMinutes: number): number {
+  if (durationMinutes < 1) return 0;
+  const span = toMinutes(end) - toMinutes(start);
+  return span > 0 ? span % durationMinutes : 0;
+}
+
 // Seçilen günlerden hangilerine eklenebilir, hangilerinde mevcut bir aralıkla çakışır.
 export function planAvailabilityAdditions(existing: Pick<AvailabilitySlot, 'dayOfWeek' | 'startTime' | 'endTime'>[], days: number[], start: string, end: string): { add: number[]; conflicts: number[] } {
   const add: number[] = [];

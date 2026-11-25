@@ -1004,7 +1004,7 @@ export const teacherRepository = {
 // ==============================================================================
 export const availabilityRepository = {
   async getAvailability(schoolId: string, teacherId?: string): Promise<AvailabilitySlot[]> {
-    let sql = `SELECT id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration, is_recurring
+    let sql = `SELECT id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration, custom_duration_minutes, is_recurring
                FROM availability_slots
                WHERE school_id = $1`;
     const params: any[] = [schoolId];
@@ -1024,13 +1024,14 @@ export const availabilityRepository = {
       startTime: r.start_time,
       endTime: r.end_time,
       slotDurationMinutes: r.slot_duration,
+      customDurationMinutes: r.custom_duration_minutes ?? null,
       isBlocked: false,
     }));
   },
 
   async getSlotById(schoolId: string, slotId: string): Promise<AvailabilitySlot | null> {
     const res = await execQuery<any>(
-      `SELECT id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration
+      `SELECT id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration, custom_duration_minutes
        FROM availability_slots
        WHERE school_id = $1 AND id = $2;`,
       [schoolId, slotId]
@@ -1045,6 +1046,7 @@ export const availabilityRepository = {
       startTime: r.start_time,
       endTime: r.end_time,
       slotDurationMinutes: r.slot_duration,
+      customDurationMinutes: r.custom_duration_minutes ?? null,
     };
   },
 
@@ -1057,6 +1059,7 @@ export const availabilityRepository = {
       startTime: string;
       endTime: string;
       slotDurationMinutes?: number;
+      customDurationMinutes?: number | null;
     },
     client?: TransactionClient
   ): Promise<AvailabilitySlot> {
@@ -1064,10 +1067,10 @@ export const availabilityRepository = {
     const duration = slot.slotDurationMinutes || 15;
 
     const res = await execQuery<any>(
-      `INSERT INTO availability_slots (id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration;`,
-      [id, slot.schoolId, slot.teacherId, slot.dayOfWeek, slot.startTime, slot.endTime, duration],
+      `INSERT INTO availability_slots (id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration, custom_duration_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, school_id, teacher_id, day_of_week, start_time, end_time, slot_duration, custom_duration_minutes;`,
+      [id, slot.schoolId, slot.teacherId, slot.dayOfWeek, slot.startTime, slot.endTime, duration, slot.customDurationMinutes ?? null],
       client
     );
     const r = res.rows[0];
@@ -1079,6 +1082,7 @@ export const availabilityRepository = {
       startTime: r.start_time,
       endTime: r.end_time,
       slotDurationMinutes: r.slot_duration,
+      customDurationMinutes: r.custom_duration_minutes ?? null,
     };
   },
 

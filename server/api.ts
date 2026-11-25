@@ -22,6 +22,7 @@ import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
+import { effectiveMeetingDuration, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
@@ -884,7 +885,8 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
       schoolRepository.getById(schoolId),
     ]);
     if (!school) return res.status(404).json({ error: 'Okul bulunamadı.' });
-    res.json({ availability: slots.map((slot) => ({ ...slot, slotDurationMinutes: school.settings.defaultSlotMinutes })) });
+    res.json({ availability: slots.map((slot) => ({ ...slot,
+      slotDurationMinutes: effectiveMeetingDuration(slot.customDurationMinutes, school.settings.defaultSlotMinutes) })) });
   } catch (err: any) {
     console.error('[GET /schools/:schoolId/availability Error]:', err);
     res.status(500).json({ error: 'Uygunluk saatleri alınamadı' });
@@ -902,12 +904,21 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
       const { dayOfWeek, startTime, endTime } = req.body;
       const school = await schoolRepository.getById(schoolId);
       if (!school) return res.status(404).json({ error: 'Okul bulunamadı.' });
-      const duration = school.settings.defaultSlotMinutes;
+      // Öğretmen 20/30/40/50/60 dk seçebilir; seçmezse okul süresi geçerlidir.
+      const customDuration = parseCustomMeetingDuration(req.body?.customDurationMinutes);
+      if (customDuration === 'invalid') {
+        return res.status(400).json({ error: 'Görüşme süresi 20, 30, 40, 50 veya 60 dakika olmalıdır.' });
+      }
+      const duration = effectiveMeetingDuration(customDuration, school.settings.defaultSlotMinutes);
 
       if (!Number.isInteger(Number(dayOfWeek)) || Number(dayOfWeek) < 1 || Number(dayOfWeek) > 6 ||
           !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) ||
           startTime >= endTime || !Number.isInteger(duration) || duration < 1) {
         return res.status(400).json({ error: 'Geçerli gün ve saat aralığı seçin.' });
+      }
+      const toMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+      if (toMinutes(endTime) - toMinutes(startTime) < duration) {
+        return res.status(400).json({ error: `Seçilen saat aralığına ${duration} dakikalık en az bir görüşme sığmalıdır.` });
       }
 
       const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
@@ -931,6 +942,7 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
           startTime,
           endTime,
           slotDurationMinutes: duration,
+          customDurationMinutes: customDuration,
         }, tx);
       });
       if (!slot) return res.status(409).json({ error: 'Bu saat aralığı o gün için eklediğiniz başka bir aralıkla çakışıyor.' });
@@ -1126,12 +1138,12 @@ apiRouter.post(
           Object.assign(unavailable, { code: 'TEACHER_UNAVAILABLE' });
           throw unavailable;
         }
-        const weeklySlots = await tx.query<{ day_of_week: number; start_time: string; end_time: string }>(
-          `SELECT day_of_week,start_time,end_time FROM availability_slots
+        const weeklySlots = await tx.query<{ day_of_week: number; start_time: string; end_time: string; custom_duration_minutes: number | null }>(
+          `SELECT day_of_week,start_time,end_time,custom_duration_minutes FROM availability_slots
            WHERE school_id=$1 AND teacher_id=$2`, [schoolId, teacher.id]);
         if (!weeklySlots.rows.some((slot) => slotMatchesAvailability({
           dayOfWeek: slot.day_of_week, startTime: slot.start_time,
-          endTime: slot.end_time, slotDurationMinutes: meetingDuration,
+          endTime: slot.end_time, slotDurationMinutes: effectiveMeetingDuration(slot.custom_duration_minutes, meetingDuration),
         }, date, startTime, endTime))) {
           const unavailable = new Error('Öğretmen bu gün ve saatte randevu kabul etmiyor.');
           Object.assign(unavailable, { code: 'SLOT_UNAVAILABLE' });
