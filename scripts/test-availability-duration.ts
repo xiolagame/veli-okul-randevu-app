@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import { bookableDate } from './lib/test-dates';
-import { CUSTOM_MEETING_DURATIONS, effectiveMeetingDuration, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
+import { CUSTOM_MEETING_DURATIONS, customDurationChoices, effectiveMeetingDuration, isCustomDurationAllowed, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
 import { meetingCount, unusedMinutes } from '../src/utils/availability-form';
 
 // Öğretmenin müsaitlik bloğu için seçtiği görüşme süresi (20/30/40/50/60 dk) veya okul süresi.
@@ -19,13 +19,25 @@ async function run() {
   assert.equal(effectiveMeetingDuration(null, 15), 15);
   assert.equal(effectiveMeetingDuration(50, 15), 50);
   assert.equal(effectiveMeetingDuration(25, 15), 15, 'izinsiz değer okul süresine düşer');
+  // Okul süresinden kısa seçenek sunulmaz: 15 -> 15(okul),20..60; 30 -> 30(okul),40,50,60; 60 ve üstü -> yalnız okul süresi.
+  assert.deepEqual(customDurationChoices(15), [20, 30, 40, 50, 60]);
+  assert.deepEqual(customDurationChoices(20), [30, 40, 50, 60]);
+  assert.deepEqual(customDurationChoices(25), [30, 40, 50, 60]);
+  assert.deepEqual(customDurationChoices(30), [40, 50, 60]);
+  assert.deepEqual(customDurationChoices(55), [60]);
+  assert.deepEqual(customDurationChoices(60), []);
+  assert.deepEqual(customDurationChoices(90), []);
+  assert.equal(isCustomDurationAllowed(20, 30), false);
+  assert.equal(isCustomDurationAllowed(30, 30), true);
+  assert.equal(isCustomDurationAllowed(40, 30), true);
+  assert.equal(isCustomDurationAllowed(25, 15), false);
   assert.equal(meetingCount('09:00', '12:00', 40), 4);
   assert.equal(unusedMinutes('09:00', '12:00', 40), 20);
   assert.equal(unusedMinutes('09:00', '12:00', 30), 0);
 
   stage = 'source contracts';
   const form = fs.readFileSync('src/components/AvailabilityForm.tsx', 'utf8');
-  assert(form.includes('id="availability-duration"') && form.includes('Okul süresi ({durationMinutes} dk)'));
+  assert(form.includes('id="availability-duration"') && form.includes('Okul süresi ({durationMinutes} dk)') && form.includes('customDurationChoices(durationMinutes)'));
   const parent = fs.readFileSync('src/components/ParentView.tsx', 'utf8');
   assert(parent.includes('window.slotDurationMinutes || settings.defaultSlotMinutes'), 'veli saatleri blok süresiyle üretilmeli');
 
@@ -99,6 +111,17 @@ async function run() {
         VALUES($1,$2,$3,$4,'19:00','20:00',25,25)`, [`slot-bad-${suffix}`, schoolId, teacherId, bookDay]);
     } catch (cause) { constraintCode = String((cause as { code?: string }).code || ''); }
     assert.equal(constraintCode, '23514', 'veritabanı izinsiz süreyi reddetmeli');
+
+    stage = 'durations shorter than the school duration are rejected';
+    await db.query(`UPDATE schools SET settings=jsonb_set(settings,'{defaultSlotMinutes}','30') WHERE id=$1`, [schoolId]);
+    const day2 = bookDay === 6 ? 5 : bookDay + 1;
+    const tooShort = await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '08:00', endTime: '09:00', customDurationMinutes: 20 });
+    assert.equal(tooShort.status, 400, 'okul süresi 30 iken 20 dk reddedilmeli');
+    assert.match(String(tooShort.body.error), /30 dk/);
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '08:00', endTime: '09:00', customDurationMinutes: 30 })).status, 200, 'okul süresine eşit kabul');
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '10:00', endTime: '11:00', customDurationMinutes: 40 })).status, 200, 'okul süresinin üstü kabul');
+    await db.query(`UPDATE schools SET settings=jsonb_set(settings,'{defaultSlotMinutes}','15') WHERE id=$1`, [schoolId]);
+    await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND day_of_week=$2', [schoolId, day2]);
 
     stage = 'list returns effective duration';
     const listed = (await request('GET', path, teacher.token)).body.availability as Array<{ startTime: string; slotDurationMinutes: number; customDurationMinutes: number | null }>;

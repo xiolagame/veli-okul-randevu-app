@@ -3,7 +3,7 @@ import { Minus, Plus } from 'lucide-react';
 import { Button } from './ui';
 import { AVAILABILITY_DAYS } from '../utils/availability';
 import { AVAILABILITY_PRESETS, WEEKDAY_IDS, meetingCount, shiftTime, unusedMinutes } from '../utils/availability-form';
-import { CUSTOM_MEETING_DURATIONS, effectiveMeetingDuration, parseCustomMeetingDuration } from '../utils/meeting-duration';
+import { customDurationChoices, effectiveMeetingDuration, parseCustomMeetingDuration } from '../utils/meeting-duration';
 
 const SHORT_DAY: Record<number, string> = { 1: 'Pt', 2: 'Sa', 3: 'Ça', 4: 'Pe', 5: 'Cu', 6: 'Ct' };
 
@@ -14,7 +14,9 @@ export function AvailabilityForm({ durationMinutes, busy, onSubmit }: {
   onSubmit: (days: number[], start: string, end: string, customDurationMinutes: number | null) => void;
 }) {
   // null = okulun standart süresi; aksi halde öğretmenin seçtiği 20/30/40/50/60 dk.
-  const [customDuration, setCustomDuration] = useState<number | null>(null);
+  const [chosenDuration, setCustomDuration] = useState<number | null>(null);
+  // Okul süresi değişirse eski seçim listede yoksa okul süresine dönülür.
+  const customDuration = chosenDuration !== null && customDurationChoices(durationMinutes).includes(chosenDuration as never) ? chosenDuration : null;
   const meetingMinutes = effectiveMeetingDuration(customDuration, durationMinutes);
   const [days, setDays] = useState<number[]>([]);
   const [range, setRange] = useState<{ start: string; end: string }>({ start: AVAILABILITY_PRESETS[0].start, end: AVAILABILITY_PRESETS[0].end });
@@ -55,7 +57,7 @@ export function AvailabilityForm({ durationMinutes, busy, onSubmit }: {
       <label className="availability-duration" htmlFor="availability-duration"><span>Görüşme süresi</span>
         <select id="availability-duration" value={customDuration ?? ''} onChange={(event) => { const parsed = parseCustomMeetingDuration(event.target.value); setCustomDuration(parsed === 'invalid' ? null : parsed); }}>
           <option value="">Okul süresi ({durationMinutes} dk)</option>
-          {CUSTOM_MEETING_DURATIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes} dk</option>)}
+          {customDurationChoices(durationMinutes).map((minutes) => <option key={minutes} value={minutes}>{minutes} dk</option>)}
         </select>
       </label>
     </fieldset>

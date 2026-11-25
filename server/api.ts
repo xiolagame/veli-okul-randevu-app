@@ -22,7 +22,7 @@ import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
-import { effectiveMeetingDuration, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
+import { effectiveMeetingDuration, isCustomDurationAllowed, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
@@ -908,6 +908,9 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
       const customDuration = parseCustomMeetingDuration(req.body?.customDurationMinutes);
       if (customDuration === 'invalid') {
         return res.status(400).json({ error: 'Görüşme süresi 20, 30, 40, 50 veya 60 dakika olmalıdır.' });
+      }
+      if (customDuration !== null && !isCustomDurationAllowed(customDuration, school.settings.defaultSlotMinutes)) {
+        return res.status(400).json({ error: `Görüşme süresi okulun belirlediği süreden (${school.settings.defaultSlotMinutes} dk) kısa olamaz.` });
       }
       const duration = effectiveMeetingDuration(customDuration, school.settings.defaultSlotMinutes);
 
