@@ -30,7 +30,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "8895ecbdc86f3796ca50ac979c813dc84b48a0db58586fc831e3842a23afe35b"
+      "currentCanonicalSha256": "e6a5836404ada296a3cb79358b8a255fc07e932694918c74937f218c3bd65683"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -84,7 +84,7 @@
       "path": "package.json",
       "baselineCanonicalSha256": "2f953b5ec9dc86960a62dfc28fc4868e1d1664c2a70c185f2d431c3dad4b0fe4",
       "archivedProductionCanonicalSha256": "39fd20d062c83303d01ee7ec3bf3106e46e51e4bd6ff902fbb4253b25ab8fedb",
-      "currentCanonicalSha256": "ab6ff191330ccaefc47d1f45e36d6cf29bf9565ca3ca1c62fedc44e154ed9dca"
+      "currentCanonicalSha256": "04736b51d539525fe55f5a7eeb7dd58592a533a5956924301520dc45055961a4"
     },
     {
       "path": "public/PERSONEL_BİLGİ_FORMU.xlsx",
@@ -189,6 +189,12 @@
       "currentCanonicalSha256": "784d06cfcac2a827946148e46b2811114ae6d90f65e9229e1f676ca399007c61"
     },
     {
+      "path": "scripts/test-activation-auth.ts",
+      "baselineCanonicalSha256": "f04103cf07aef25fc07ae6737a30108648c2bc52e653a7a49a7a748f5cf21fe0",
+      "archivedProductionCanonicalSha256": "f04103cf07aef25fc07ae6737a30108648c2bc52e653a7a49a7a748f5cf21fe0",
+      "currentCanonicalSha256": "cae509b02d2154ea51c3b47144921369aec925dd70b8a12c069ef419954854c4"
+    },
+    {
       "path": "scripts/test-admin-cache-behaviour.mjs",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
@@ -211,6 +217,12 @@
       "baselineCanonicalSha256": "243394c5242b643fabd141b732831dc966416f1d653ede8344c13d0a8707290f",
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "5dac56339d7e3bf4866ba06c79b79c93a4c5bb9690c68fcd9422af0c95db963e"
+    },
+    {
+      "path": "scripts/test-appointment-cancellation.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "6edad4577c2b2fb17360e1fccad42d3caf0dc43cb6f3a28c8436f698d957e2f0"
     },
     {
       "path": "scripts/test-appointment-slot-visibility.ts",
@@ -348,7 +360,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "61d370c012629349389cc84d9cb6bffbe50919efd63cde59fbe04df1ff56c809"
+      "currentCanonicalSha256": "b7c9cac90641fe127e40c21728ca788e33bb18f53c05e608b0b01e1c14adf3b6"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -439,6 +451,12 @@
       "baselineCanonicalSha256": "9a41376c9520079f762ae9e5933d0d8309ab69807d325f75c4405ff915a95bd8",
       "archivedProductionCanonicalSha256": null,
       "currentCanonicalSha256": "1cb95094f6d671108372f11dc0f6d9c7d09b3b946b9ac61873bf63007e6989f4"
+    },
+    {
+      "path": "scripts/test-school-admin-provisioning.ts",
+      "baselineCanonicalSha256": "8c0b3190685d9e78b72a4f61c0d7dd2cdce8b9de4d79496a34fe214e8123aa63",
+      "archivedProductionCanonicalSha256": "8c0b3190685d9e78b72a4f61c0d7dd2cdce8b9de4d79496a34fe214e8123aa63",
+      "currentCanonicalSha256": "f074e22a7098c456e9983c82fd576670ac66c9e99d24a0389a39e03cad05af2f"
     },
     {
       "path": "scripts/test-school-cache-lifecycle.ts",
@@ -600,7 +618,7 @@
       "path": "scripts/test-whatsapp-pilot.ts",
       "baselineCanonicalSha256": "e49c31d008a9a3e24af20d8e9985c12b5bc1baecb0b83181e5c0a8307b66c1db",
       "archivedProductionCanonicalSha256": "e49c31d008a9a3e24af20d8e9985c12b5bc1baecb0b83181e5c0a8307b66c1db",
-      "currentCanonicalSha256": "0c452194dc0a08084b0111b34503b1b721071f5ebe391433b2266d6f1a10f4a2"
+      "currentCanonicalSha256": "0db9fb612ea52d775e9eddecab4a716c69e1888e020e9b1c7785b8cd2f6b9870"
     },
     {
       "path": "scripts/verify-apple-toolchain.sh",
@@ -648,7 +666,7 @@
       "path": "server/api.ts",
       "baselineCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
       "archivedProductionCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
-      "currentCanonicalSha256": "b336165178663deda9f7f56bf610bb089cb1e535e7e070db85e50b38e938b633"
+      "currentCanonicalSha256": "c88df4137ab0a28ada68d3ce40f70172ffee8d3d5f6d52e63dab635cdfba2380"
     },
     {
       "path": "server/app.ts",
@@ -693,6 +711,12 @@
       "currentCanonicalSha256": "c71db2572436e2b034108d4ca1436f196e7f78da34706f20e4cc16c9db31e864"
     },
     {
+      "path": "server/database/migrations/20261126_add_appointment_cancellation.sql",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "2a15934f4f6b9947593d76bdec28c2ac667f27f023505f695f3aef79d2f60c7d"
+    },
+    {
       "path": "server/database/postgres.ts",
       "baselineCanonicalSha256": "435d0734e382b8f061d8fd7a7c0c7042dc4074ecc8615bf6457e1d786cc59f35",
       "archivedProductionCanonicalSha256": "435d0734e382b8f061d8fd7a7c0c7042dc4074ecc8615bf6457e1d786cc59f35",
@@ -702,7 +726,7 @@
       "path": "server/database/supabase_schema.sql",
       "baselineCanonicalSha256": "11aada73b28f0db9fe6469bc7f59064d0a4c8dc023860e5a63cc67956be30215",
       "archivedProductionCanonicalSha256": "11aada73b28f0db9fe6469bc7f59064d0a4c8dc023860e5a63cc67956be30215",
-      "currentCanonicalSha256": "cb954b47d0a73a17904766dad0e51838ad8ff42a5a337bf44730ecc514a14187"
+      "currentCanonicalSha256": "7add9cf68eb5e77c989a6b1394b207c5668147a40075e3adc8373f9aff78425d"
     },
     {
       "path": "server/email-template.ts",
@@ -750,13 +774,13 @@
       "path": "server/push-notifications.ts",
       "baselineCanonicalSha256": "f177c7b9ada35eb5afe38f0bf174bf74f7641f2b771e685f0d9fb49be27e32f9",
       "archivedProductionCanonicalSha256": "f177c7b9ada35eb5afe38f0bf174bf74f7641f2b771e685f0d9fb49be27e32f9",
-      "currentCanonicalSha256": "a9d11dadcbd0b87ac48f2667c252b5cbd9d334c31d999a95b1b9dd219111c62f"
+      "currentCanonicalSha256": "122705f45b9424d7248919839fb43e3e512a5ac9cc1dad0a11fd2eb6962b4f5f"
     },
     {
       "path": "server/repositories/index.ts",
       "baselineCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
       "archivedProductionCanonicalSha256": "f26434b40c1826a9535f5a847a46548332fdeb9b332c13f6a417e880920e9522",
-      "currentCanonicalSha256": "a4fd745e7a71ab806686675dfbf2e1533b911e9079b114622875f272a70ea7ec"
+      "currentCanonicalSha256": "f8c516e9e04aae910483a937ea804229bf7bef18ff5a39b3987cd999c69ccadf"
     },
     {
       "path": "server/route-param.ts",
@@ -912,7 +936,7 @@
       "path": "src/components/ParentView.tsx",
       "baselineCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
       "archivedProductionCanonicalSha256": "2cb9332ee458cfccd01a3421a517f76914295f235cd8e5b790c690512973cd5d",
-      "currentCanonicalSha256": "d069aae526f8aa2173571114521c8816eb3812012f4381b27529c6aa74333fc7"
+      "currentCanonicalSha256": "7ad0766cff10be51c797bd677d5846bfe7d7371096105a675eb6fcc02b3ed674"
     },
     {
       "path": "src/components/PhoneCentricLoginPanel.tsx",
@@ -984,7 +1008,7 @@
       "path": "src/components/TeacherView.tsx",
       "baselineCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
       "archivedProductionCanonicalSha256": "c2715f8d5d0943f700c19d6542ad205e5637ab01918c5d9744b74c0b3910a054",
-      "currentCanonicalSha256": "2e290ec18c3d777e70be530800b5c4f29626b83a360b13bd435eee7c7720f189"
+      "currentCanonicalSha256": "e294b25aecaa5c7d294130ecce565b0372655023c33fd1011a5b7d5a1246d3b5"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -1056,7 +1080,7 @@
       "path": "src/context/AppContext.tsx",
       "baselineCanonicalSha256": "43c92babdc8d99008d82ab408cac8bd835201bc3b281eeaa2d861fe5eef4645a",
       "archivedProductionCanonicalSha256": "1302e0e3bea60335d4ffe080bce426311c2d063359b63563ae85ba6d3ddcc0cd",
-      "currentCanonicalSha256": "524902c54b869e3f3ac448724c3a88a7eb83955748d61a9e24670f47d9830865"
+      "currentCanonicalSha256": "6d2cb1ce73c1a450fa6492844fdef965613cb00b37dc935fc40d78b1899f0017"
     },
     {
       "path": "src/index.css",
@@ -1134,7 +1158,7 @@
       "path": "src/services/api.ts",
       "baselineCanonicalSha256": "03342d6da50b1184be5de51eea20461a8155478857d8aba9fffb21ef85738ca4",
       "archivedProductionCanonicalSha256": "eb8a46d19afbed74d0fe7e8d766db27dc9466a46dd1b617ccd47743276cc120f",
-      "currentCanonicalSha256": "900789a0d3e4dbea4467a7dc26bf82a77ea3570890e26a79df57cdb694138c72"
+      "currentCanonicalSha256": "cbebd3b0d204a1033b469399cb7ab9842ea76aead209f1fa65f427ee54c49c5f"
     },
     {
       "path": "src/theme.css",
@@ -1146,7 +1170,7 @@
       "path": "src/types.ts",
       "baselineCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
       "archivedProductionCanonicalSha256": "f1fd599dfa3635f87693791cc78fd0a67a9f3a242b9032ddc1354aa8043736dc",
-      "currentCanonicalSha256": "a5fc63f398f933409203a898dc624c53cb27665cd62781a29c39f3f39400a396"
+      "currentCanonicalSha256": "6374374f42abbe2434952f75869c1f39692ce12427efaff4c78649e0e17efa69"
     },
     {
       "path": "src/types/licenses.ts",
@@ -1159,6 +1183,12 @@
       "baselineCanonicalSha256": "9df942a51faf53663e335866256c3b5fad1c05bd3b7f37dc9582cbdc0488d7a5",
       "archivedProductionCanonicalSha256": "9df942a51faf53663e335866256c3b5fad1c05bd3b7f37dc9582cbdc0488d7a5",
       "currentCanonicalSha256": "67a06365af22a8778a7a93bd4e2abc572c43cab648a3ce3c486b72e91d47d8c7"
+    },
+    {
+      "path": "src/utils/appointment-messages.ts",
+      "baselineCanonicalSha256": null,
+      "archivedProductionCanonicalSha256": null,
+      "currentCanonicalSha256": "78a67318347a64bd9c8de6824a131c129cacf63833d0435827ac1563562dc678"
     },
     {
       "path": "src/utils/availability-form.ts",
