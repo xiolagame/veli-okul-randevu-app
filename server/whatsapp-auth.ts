@@ -238,7 +238,13 @@ async function resolveUnifiedTarget(phone: string, knownUser?: Awaited<ReturnTyp
     }
   }
 
-  return candidates.length === 1 ? candidates[0] : null;
+  if (candidates.length === 1) return candidates[0];
+  // Aynı numara hem personel (öğretmen/güvenlik) hem veli olarak kayıtlıysa (ör. öğretmenin kendi çocuğu
+  // okulda) giriş personel kaydıyla yapılır; veli kaydı telefon doğrulandıktan sonra aynı hesaba bağlanır.
+  // Birden fazla personel kaydı veya okul yöneticisi daveti varsa belirsizlik sürer ve giriş açılmaz.
+  const staff = candidates.filter((item) => item.purpose === 'staff_activation');
+  const others = candidates.filter((item) => item.purpose !== 'staff_activation' && item.purpose !== 'parent_registration');
+  return staff.length === 1 && others.length === 0 ? staff[0] : null;
 }
 
 type KnownUser = Awaited<ReturnType<typeof userRepository.getByPhone>>;
@@ -405,20 +411,72 @@ async function readAndValidateChallenge(
   return row;
 }
 
+type RosterRow = { id: string; parent_name: string; student_name: string; class_name: string; student_number: string | null; birth_date: string | null };
+
+async function unclaimedParentRoster(tx: TransactionClient, schoolId: string, digits: string[]): Promise<RosterRow[]> {
+  return (await tx.query<RosterRow>(
+    `SELECT id,parent_name,student_name,class_name,student_number,birth_date::text AS birth_date
+     FROM school_roster WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
+       AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`,
+    [schoolId, ...digits],
+  )).rows;
+}
+
+async function linkParentRoster(tx: TransactionClient, schoolId: string, userId: string, roster: RosterRow[]) {
+  await membershipRepository.createOrActivate({ schoolId, userId, role: 'parent' }, tx);
+  for (const entry of roster) {
+    const student = await studentRepository.findOrCreateStudent(schoolId, {
+      name: entry.student_name,
+      className: entry.class_name,
+      studentNumber: entry.student_number || undefined,
+      birthDate: entry.birth_date ? String(entry.birth_date).slice(0, 10) : undefined,
+    }, tx);
+    await relationRepository.createRelation({ schoolId, studentId: student.id, parentUserId: userId }, tx);
+    await tx.query(
+      `UPDATE school_roster SET is_claimed=TRUE,claimed_at=NOW(),updated_at=NOW()
+       WHERE school_id=$1 AND id=$2 AND is_claimed=FALSE`,
+      [schoolId, entry.id],
+    );
+  }
+}
+
+// Telefonu WhatsApp ile doğrulanmış personel/kullanıcının, öğrenci listesinde veli olarak duran kayıtlarını bağlar.
+// Veli kaydı yalnız telefonla eşleşir (veli kaydı oluşturmanın kuralı da budur); kaldırılmış rol geri açılmaz.
+async function activateAdditionalParent(tx: TransactionClient, challenge: ChallengeRow, user: User) {
+  const digits = getTurkishPhoneLookupDigits(challenge.target_phone);
+  if (!digits) return;
+  const schools = await tx.query<{ school_id: string }>(
+    `SELECT DISTINCT sr.school_id FROM school_roster sr JOIN schools s ON s.id=sr.school_id AND s.disabled_at IS NULL
+     WHERE sr.is_claimed=FALSE AND sr.parent_account_deleted_at IS NULL
+       AND regexp_replace(sr.parent_phone,'[^0-9]','','g') IN ($1,$2,$3)`,
+    digits,
+  );
+  for (const { school_id: schoolId } of schools.rows) {
+    if (!await schoolLicenseRepository.isAccessAllowed(schoolId, tx)) continue;
+    const denied = await tx.query(
+      `SELECT 1 FROM school_memberships WHERE school_id=$1 AND user_id=$2 AND role='parent' AND status<>'active'`,
+      [schoolId, user.id],
+    );
+    if (denied.rows.length) continue;
+    const roster = await unclaimedParentRoster(tx, schoolId, digits);
+    if (!roster.length || new Set(roster.map((row) => normalizePersonName(row.parent_name))).size !== 1) continue;
+    await linkParentRoster(tx, schoolId, user.id, roster);
+    await auditLogRepository.createAuditLog({
+      schoolId,
+      action: 'parent_whatsapp_activation_completed',
+      actorName: 'Sistem',
+      details: `Veli rolü ${user.id} hesabına WhatsApp doğrulamasıyla bağlandı.`,
+    }, tx);
+  }
+}
+
 async function activateParent(tx: TransactionClient, challenge: ChallengeRow): Promise<User & { authVersion: number }> {
   if (!challenge.school_id || challenge.target_role !== 'parent') throw new Error('INVALID_WHATSAPP_CHALLENGE');
   const digits = getTurkishPhoneLookupDigits(challenge.target_phone);
   if (!digits) throw new Error('INVALID_WHATSAPP_CHALLENGE');
   const school = await tx.query('SELECT id FROM schools WHERE id=$1 AND disabled_at IS NULL FOR SHARE', [challenge.school_id]);
   if (!school.rows.length || !await schoolLicenseRepository.isAccessAllowed(challenge.school_id, tx)) throw new Error('INVALID_WHATSAPP_CHALLENGE');
-  const roster = await tx.query<{
-    id: string; parent_name: string; student_name: string; class_name: string; student_number: string | null; birth_date: string | null;
-  }>(
-    `SELECT id,parent_name,student_name,class_name,student_number,birth_date::text AS birth_date
-     FROM school_roster WHERE school_id=$1 AND is_claimed=FALSE AND parent_account_deleted_at IS NULL
-       AND regexp_replace(parent_phone,'[^0-9]','','g') IN ($2,$3,$4) FOR UPDATE`,
-    [challenge.school_id, ...digits],
-  );
+  const roster = { rows: await unclaimedParentRoster(tx, challenge.school_id, digits) };
   const names = new Set(roster.rows.map((row) => normalizePersonName(row.parent_name)));
   if (!roster.rows.length || names.size !== 1) throw new Error('INVALID_WHATSAPP_CHALLENGE');
   const nameParts = roster.rows[0].parent_name.trim().split(/\s+/);
@@ -430,21 +488,7 @@ async function activateParent(tx: TransactionClient, challenge: ChallengeRow): P
     isPhoneVerified: true,
   }, tx);
   await userRepository.verifyPhone(created.id, tx);
-  await membershipRepository.createOrActivate({ schoolId: challenge.school_id, userId: created.id, role: 'parent' }, tx);
-  for (const entry of roster.rows) {
-    const student = await studentRepository.findOrCreateStudent(challenge.school_id, {
-      name: entry.student_name,
-      className: entry.class_name,
-      studentNumber: entry.student_number || undefined,
-      birthDate: entry.birth_date ? String(entry.birth_date).slice(0, 10) : undefined,
-    }, tx);
-    await relationRepository.createRelation({ schoolId: challenge.school_id, studentId: student.id, parentUserId: created.id }, tx);
-    await tx.query(
-      `UPDATE school_roster SET is_claimed=TRUE,claimed_at=NOW(),updated_at=NOW()
-       WHERE school_id=$1 AND id=$2 AND is_claimed=FALSE`,
-      [challenge.school_id, entry.id],
-    );
-  }
+  await linkParentRoster(tx, challenge.school_id, created.id, roster.rows);
   await auditLogRepository.createAuditLog({
     schoolId: challenge.school_id,
     action: 'parent_whatsapp_activation_completed',
@@ -656,7 +700,10 @@ export async function verifyWhatsAppAuthChallenge(input: {
     if (!user) return null;
     await userRepository.verifyPhone(user.id, tx);
     user = { ...user, isPhoneVerified: true };
-    if (challenge.purpose === 'login' || challenge.purpose === 'staff_activation') await activateAdditionalStaff(tx, challenge, user);
+    if (challenge.purpose === 'login' || challenge.purpose === 'staff_activation') {
+      await activateAdditionalStaff(tx, challenge, user);
+      await activateAdditionalParent(tx, challenge, user);
+    }
     const memberships = adminFlow
       ? (await membershipRepository.getMembershipsByUserId(user.id, tx)).filter((membership) =>
         membership.role === 'admin' && membership.status === 'active' && membership.schoolId === challenge.school_id)
