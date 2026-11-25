@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "279dc4bbabad60941c05af4837dd761a24f5df8784c0887a89132c291851e989"
+      "sha256": "22cc6f8b42c2404ad76d101fcec6621f0accb233d393c3e55119730272980ba3"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "749f4428f5b45255208f5b05d65697af3e3de3dfcc00373aa3c8568b60e46003"
+      "sha256": "8895ecbdc86f3796ca50ac979c813dc84b48a0db58586fc831e3842a23afe35b"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -846,11 +846,11 @@
     },
     {
       "path": "scripts/test-availability-duration.ts",
-      "sha256": "73f65a783f90d62d99a89ef13855ad632fad5e7234b8f0e6cb798a509c1ca911"
+      "sha256": "71219a5d730e23eb28e59ad6e6423749c0c73027343e952cc970b00fa4088868"
     },
     {
       "path": "scripts/test-availability-form.ts",
-      "sha256": "e3118b519fd31edf4c14df80a0bdabf2d9ab79dc1c33b8bd3a1497f7ac1aa259"
+      "sha256": "c08c94261180b6a1a8fd4f29a411b9637c5bc89e2b6ae5500845d672ad24673d"
     },
     {
       "path": "scripts/test-booking-window.ts",
@@ -966,7 +966,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "9fafee31e8b09f1413a1b7b669d60aba123354ee3b19b35f593aa280659e11a8"
+      "sha256": "61d370c012629349389cc84d9cb6bffbe50919efd63cde59fbe04df1ff56c809"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1314,7 +1314,7 @@
     },
     {
       "path": "server/api.ts",
-      "sha256": "b8ace9775eebd1fdb9fbba5bac03271fbbe6ed0c1e1ea83aa654bfb119698c8c"
+      "sha256": "b336165178663deda9f7f56bf610bb089cb1e535e7e070db85e50b38e938b633"
     },
     {
       "path": "server/app.ts",
@@ -1614,7 +1614,7 @@
     },
     {
       "path": "src/booking-calendar.css",
-      "sha256": "d9aa38fb2542fcc7f92dad4eae29c42617c85fd98bf3aa078cd824d26ceae1cf"
+      "sha256": "935622e46366e5ddeb3d6952cca8452beef113151985774b90f6ded1af20c15b"
     },
     {
       "path": "src/components/AdminView.tsx",
@@ -1638,7 +1638,7 @@
     },
     {
       "path": "src/components/AvailabilityForm.tsx",
-      "sha256": "64348ae523c2439539b09e2dc2c444b2dac003418747cec690e000f1c94c90b2"
+      "sha256": "56177fa0da34f8a4e4f7c64eab53a5794bfcd93cffb60f00b1cd48ba38ac72b2"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -1774,7 +1774,7 @@
     },
     {
       "path": "src/components/TeacherView.tsx",
-      "sha256": "ac7b6033f3055ea11ca96652bd0a4d43c9b9aa6b17d46ac9f79371803671a0d5"
+      "sha256": "2e290ec18c3d777e70be530800b5c4f29626b83a360b13bd435eee7c7720f189"
     },
     {
       "path": "src/components/ThemeSwitcher.tsx",
@@ -2046,7 +2046,7 @@
     },
     {
       "path": "src/utils/availability-form.ts",
-      "sha256": "00e6a48f5402adb2c2f93f8e6312306a4e15e02b0e201116876d7b5601744783"
+      "sha256": "222f8fc1e75b3d4ac34387e3ceecfd749db75d70194217fe27c8b76ffeb5222a"
     },
     {
       "path": "src/utils/availability.ts",
