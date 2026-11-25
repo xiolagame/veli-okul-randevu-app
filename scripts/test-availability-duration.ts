@@ -37,7 +37,7 @@ async function run() {
 
   stage = 'source contracts';
   const form = fs.readFileSync('src/components/AvailabilityForm.tsx', 'utf8');
-  assert(form.includes('id="availability-duration"') && form.includes('Okul süresi ({durationMinutes} dk)') && form.includes('customDurationChoices(durationMinutes)'));
+  assert(form.includes('role="radiogroup"') && form.includes('customDurationChoices(durationMinutes)') && !form.includes('Hafta içi'));
   const parent = fs.readFileSync('src/components/ParentView.tsx', 'utf8');
   assert(parent.includes('window.slotDurationMinutes || settings.defaultSlotMinutes'), 'veli saatleri blok süresiyle üretilmeli');
 
@@ -79,57 +79,74 @@ async function run() {
     const teacherId = `tch-duration-${suffix}`;
     await db.query('INSERT INTO teacher_profiles(id,school_id,user_id,first_name,last_name,branch,phone) VALUES($1,$2,$3,$4,$5,$6,$7)',
       [teacherId, schoolId, teacher.user.id, 'ÖĞRETMEN', 'TEST', 'Rehberlik', teacher.user.phone]);
-    // Randevu aralığındaki ilk Pazar olmayan gün (Pazar müsaitlik günü değil).
-    const date = [1, 2, 3, 4, 5, 6, 7].map(bookableDate).find((candidate) => new Date(`${candidate}T00:00:00Z`).getUTCDay() !== 0)!;
-    const bookDay = new Date(`${date}T00:00:00Z`).getUTCDay();
+    // Randevu aralığındaki Pazar olmayan üç farklı gün: her biri farklı bir süre için (günde tek süre kuralı).
+    const dates = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(bookableDate).filter((candidate) => new Date(`${candidate}T00:00:00Z`).getUTCDay() !== 0);
+    const [date30, date15, date60] = dates;
+    const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+    const [day30, day15, day60] = [weekday(date30), weekday(date15), weekday(date60)];
+    assert.equal(new Set([day30, day15, day60]).size, 3);
+    const freeDay = [1, 2, 3, 4, 5, 6].find((day) => ![day30, day15, day60].includes(day))!;
     const path = `/schools/${schoolId}/availability`;
 
     stage = 'validation';
     for (const bad of [15, 25, 70, 'abc']) {
-      const rejected = await request('POST', path, teacher.token, { dayOfWeek: bookDay, startTime: '08:00', endTime: '09:00', customDurationMinutes: bad });
+      const rejected = await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '08:00', endTime: '09:00', customDurationMinutes: bad });
       assert.equal(rejected.status, 400, `süre ${bad} reddedilmeli`);
     }
-    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: bookDay, startTime: '08:00', endTime: '08:30', customDurationMinutes: 40 })).status, 400, 'aralığa sığmayan süre');
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '08:00', endTime: '08:30', customDurationMinutes: 40 })).status, 400, 'aralığa sığmayan süre');
+    const notDivisible = await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '09:00', endTime: '10:30', customDurationMinutes: 60 });
+    assert.equal(notDivisible.status, 400, '09:00–10:30 60 dk ile reddedilmeli');
+    assert.match(String(notDivisible.body.error), /tam bölünmeli/);
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '05:00', endTime: '06:00', customDurationMinutes: 60 })).status, 400, '06:00 öncesi reddedilmeli');
 
     stage = 'create custom and school blocks';
-    const custom = await request('POST', path, teacher.token, { dayOfWeek: bookDay, startTime: '09:00', endTime: '11:00', customDurationMinutes: 30 });
+    const custom = await request('POST', path, teacher.token, { dayOfWeek: day30, startTime: '09:00', endTime: '11:00', customDurationMinutes: 30 });
     assert.equal(custom.status, 200);
     assert.equal(custom.body.slot.customDurationMinutes, 30);
     assert.equal(custom.body.slot.slotDurationMinutes, 30);
-    const school = await request('POST', path, teacher.token, { dayOfWeek: bookDay, startTime: '13:00', endTime: '14:00' });
+    const school = await request('POST', path, teacher.token, { dayOfWeek: day15, startTime: '13:00', endTime: '14:00' });
     assert.equal(school.status, 200);
     assert.equal(school.body.slot.customDurationMinutes, null);
-    const stringValue = await request('POST', path, teacher.token, { dayOfWeek: bookDay, startTime: '15:00', endTime: '16:00', customDurationMinutes: '60' });
+    const stringValue = await request('POST', path, teacher.token, { dayOfWeek: day60, startTime: '15:00', endTime: '16:00', customDurationMinutes: '60' });
     assert.equal(stringValue.status, 200);
     assert.equal(stringValue.body.slot.customDurationMinutes, 60);
     // Eski kayıt: slot_duration içinde eski okul süresi (20) yazılı, özel süre yok -> okul süresi (15) kullanılmalı.
     await db.query(`INSERT INTO availability_slots(id,school_id,teacher_id,day_of_week,start_time,end_time,slot_duration)
-      VALUES($1,$2,$3,$4,'17:00','18:00',20)`, [`slot-legacy-${suffix}`, schoolId, teacherId, bookDay]);
+      VALUES($1,$2,$3,$4,'17:00','18:00',20)`, [`slot-legacy-${suffix}`, schoolId, teacherId, day15]);
     let constraintCode = '';
     try {
       await db.query(`INSERT INTO availability_slots(id,school_id,teacher_id,day_of_week,start_time,end_time,slot_duration,custom_duration_minutes)
-        VALUES($1,$2,$3,$4,'19:00','20:00',25,25)`, [`slot-bad-${suffix}`, schoolId, teacherId, bookDay]);
+        VALUES($1,$2,$3,$4,'19:00','20:00',25,25)`, [`slot-bad-${suffix}`, schoolId, teacherId, freeDay]);
     } catch (cause) { constraintCode = String((cause as { code?: string }).code || ''); }
     assert.equal(constraintCode, '23514', 'veritabanı izinsiz süreyi reddetmeli');
 
+    stage = 'one duration per day';
+    const otherDuration = await request('POST', path, teacher.token, { dayOfWeek: day30, startTime: '13:00', endTime: '14:00', customDurationMinutes: 60 });
+    assert.equal(otherDuration.status, 409, 'aynı güne farklı süre eklenemez');
+    assert.match(String(otherDuration.body.error), /için bir müsaitliğiniz var, farklı bir süre için önce onu silin\./);
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: day30, startTime: '13:00', endTime: '14:00', customDurationMinutes: 30 })).status, 200, 'aynı süreyle yeni aralık eklenebilir');
+    const overlapping = await request('POST', path, teacher.token, { dayOfWeek: day30, startTime: '10:00', endTime: '10:30', customDurationMinutes: 30 });
+    assert.equal(overlapping.status, 409);
+    assert.match(String(overlapping.body.error), /için bu saatlerde başka bir müsaitliğiniz var\./);
+
     stage = 'durations shorter than the school duration are rejected';
     await db.query(`UPDATE schools SET settings=jsonb_set(settings,'{defaultSlotMinutes}','30') WHERE id=$1`, [schoolId]);
-    const day2 = bookDay === 6 ? 5 : bookDay + 1;
-    const tooShort = await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '08:00', endTime: '09:00', customDurationMinutes: 20 });
+    const tooShort = await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '08:00', endTime: '09:00', customDurationMinutes: 20 });
     assert.equal(tooShort.status, 400, 'okul süresi 30 iken 20 dk reddedilmeli');
     assert.match(String(tooShort.body.error), /30 dk/);
-    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '08:00', endTime: '09:00', customDurationMinutes: 30 })).status, 200, 'okul süresine eşit kabul');
-    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: day2, startTime: '10:00', endTime: '11:00', customDurationMinutes: 40 })).status, 200, 'okul süresinin üstü kabul');
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '08:00', endTime: '09:00', customDurationMinutes: 30 })).status, 200, 'okul süresine eşit kabul');
+    await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND day_of_week=$2', [schoolId, freeDay]);
+    assert.equal((await request('POST', path, teacher.token, { dayOfWeek: freeDay, startTime: '10:00', endTime: '11:20', customDurationMinutes: 40 })).status, 200, 'okul süresinin üstü kabul');
     await db.query(`UPDATE schools SET settings=jsonb_set(settings,'{defaultSlotMinutes}','15') WHERE id=$1`, [schoolId]);
-    await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND day_of_week=$2', [schoolId, day2]);
+    await db.query('DELETE FROM availability_slots WHERE school_id=$1 AND day_of_week=$2', [schoolId, freeDay]);
 
     stage = 'list returns effective duration';
-    const listed = (await request('GET', path, teacher.token)).body.availability as Array<{ startTime: string; slotDurationMinutes: number; customDurationMinutes: number | null }>;
-    const byStart = (start: string) => listed.find((slot) => slot.startTime === start)!;
-    assert.equal(byStart('09:00').slotDurationMinutes, 30);
-    assert.equal(byStart('13:00').slotDurationMinutes, 15);
-    assert.equal(byStart('15:00').slotDurationMinutes, 60);
-    assert.equal(byStart('17:00').slotDurationMinutes, 15, 'eski kayıt okul süresini izler');
+    const listed = (await request('GET', path, teacher.token)).body.availability as Array<{ dayOfWeek: number; startTime: string; slotDurationMinutes: number }>;
+    const find = (day: number, start: string) => listed.find((slot) => slot.dayOfWeek === day && slot.startTime === start)!;
+    assert.equal(find(day30, '09:00').slotDurationMinutes, 30);
+    assert.equal(find(day15, '13:00').slotDurationMinutes, 15);
+    assert.equal(find(day60, '15:00').slotDurationMinutes, 60);
+    assert.equal(find(day15, '17:00').slotDurationMinutes, 15, 'eski kayıt okul süresini izler');
 
     stage = 'booking uses each block duration';
     const parent = await person('parent', 'VELİ');
@@ -139,17 +156,17 @@ async function run() {
       await db.query('INSERT INTO students(id,school_id,name,class_name,student_number) VALUES($1,$2,$3,$4,$5)', [studentId, schoolId, `${name} ÖĞRENCİ`, '5-A', String(index + 1)]);
       await db.query('INSERT INTO student_parent_relations(school_id,student_id,parent_user_id) VALUES($1,$2,$3)', [schoolId, studentId, parent.user.id]);
     }
-    const book = (student: string, startTime: string, endTime: string) => request('POST', `/schools/${schoolId}/appointments`, parent.token,
+    const book = (student: string, date: string, startTime: string, endTime: string) => request('POST', `/schools/${schoolId}/appointments`, parent.token,
       { teacherId, studentName: `${student} ÖĞRENCİ`, className: '5-A', date, startTime, endTime });
-    assert.equal((await book('BİRİNCİ', '09:00', '09:15')).status, 409, '30 dk blokta 15 dk randevu reddedilmeli');
-    assert.equal((await book('BİRİNCİ', '09:15', '09:45')).status, 409, '30 dk blokta kaymış başlangıç reddedilmeli');
-    assert.equal((await book('BİRİNCİ', '09:30', '10:00')).status, 200, '30 dk blokta doğru randevu');
-    assert.equal((await book('İKİNCİ', '13:00', '13:30')).status, 409, 'okul süreli blokta 30 dk reddedilmeli');
-    assert.equal((await book('İKİNCİ', '13:15', '13:30')).status, 200, 'okul süreli blokta 15 dk randevu');
-    assert.equal((await book('ÜÇÜNCÜ', '17:00', '17:20')).status, 409, 'eski kayıttaki 20 dk artık geçerli değil');
-    assert.equal((await book('ÜÇÜNCÜ', '15:00', '16:00')).status, 200, '60 dk blokta tam saatlik randevu');
+    assert.equal((await book('BİRİNCİ', date30, '09:00', '09:15')).status, 409, '30 dk blokta 15 dk randevu reddedilmeli');
+    assert.equal((await book('BİRİNCİ', date30, '09:15', '09:45')).status, 409, '30 dk blokta kaymış başlangıç reddedilmeli');
+    assert.equal((await book('BİRİNCİ', date30, '09:30', '10:00')).status, 200, '30 dk blokta doğru randevu');
+    assert.equal((await book('İKİNCİ', date15, '13:00', '13:30')).status, 409, 'okul süreli blokta 30 dk reddedilmeli');
+    assert.equal((await book('İKİNCİ', date15, '13:15', '13:30')).status, 200, 'okul süreli blokta 15 dk randevu');
+    assert.equal((await book('ÜÇÜNCÜ', date15, '17:00', '17:20')).status, 409, 'eski kayıttaki 20 dk artık geçerli değil');
+    assert.equal((await book('ÜÇÜNCÜ', date60, '15:00', '16:00')).status, 200, '60 dk blokta tam saatlik randevu');
 
-    console.log('Availability custom meeting duration: allowed values, DB check, effective list duration, legacy rows and per-block booking validation PASS.');
+    console.log('Availability custom meeting duration: allowed values, DB check, effective list duration, legacy rows, whole-meeting ranges, one duration per day and per-block booking validation PASS.');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await db.query('DELETE FROM schools WHERE id=$1', [schoolId]);

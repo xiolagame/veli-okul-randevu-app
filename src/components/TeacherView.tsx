@@ -8,7 +8,7 @@ import { ApiError } from '../platform/api-error';
 import { formatTurkishPhoneInput } from '../utils/phone';
 import { isSlotInFuture } from '../utils/booking-window';
 import { AvailabilityForm } from './AvailabilityForm';
-import { planAvailabilityAdditions } from '../utils/availability-form';
+import { otherDurationMessage, planAvailabilityAdditions } from '../utils/availability-form';
 import { AVAILABILITY_DAYS, groupAvailabilityByDay } from '../utils/availability';
 import {
   Calendar,
@@ -130,10 +130,14 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
 
   // Seçilen günlerin her birine aynı saat aralığını ekler; çakışan günler atlanır ve ayrıca bildirilir.
   const handleAddSlots = async (days: number[], startTime: string, endTime: string, customDurationMinutes: number | null) => {
-    const dayName = (id: number) => AVAILABILITY_DAYS.find((day) => day.id === id)?.name || '';
-    const { add, conflicts } = planAvailabilityAdditions(teacherAvailability, days, startTime, endTime);
+    const duration = customDurationMinutes ?? settings.defaultSlotMinutes;
+    const dayList = (ids: number[]) => ids.map((id) => AVAILABILITY_DAYS.find((day) => day.id === id)?.name || '').join(', ');
+    const { add, conflicts, otherDuration } = planAvailabilityAdditions(teacherAvailability, days, startTime, endTime, duration);
+    const skipped: string[] = [];
+    if (conflicts.length) skipped.push(`${dayList(conflicts)} için bu saatlerde başka bir müsaitliğiniz var.`);
+    otherDuration.forEach((day) => skipped.push(otherDurationMessage(day)));
     if (!add.length) {
-      setFeedback({ message: `Bu saat aralığı seçtiğiniz günlerde (${conflicts.map(dayName).join(', ')}) eklediğiniz başka bir aralıkla çakışıyor.`, failed: true });
+      setFeedback({ message: skipped.join(' '), failed: true });
       return;
     }
     setBusy(true);
@@ -143,7 +147,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
     try {
       for (const day of add) {
         try {
-          await addAvailabilitySlot({ dayOfWeek: day, startTime, endTime, slotDurationMinutes: customDurationMinutes ?? settings.defaultSlotMinutes, customDurationMinutes });
+          await addAvailabilitySlot({ dayOfWeek: day, startTime, endTime, slotDurationMinutes: duration, customDurationMinutes });
           added.push(day);
         } catch (cause) {
           failure = cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && cause.message ? cause.message : 'İşlem tamamlanamadı. Lütfen tekrar deneyin.';
@@ -154,8 +158,8 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       setBusy(false);
     }
     const parts: string[] = [];
-    if (added.length) parts.push(`${added.map(dayName).join(', ')} için ${startTime}–${endTime} eklendi.`);
-    if (conflicts.length) parts.push(`${conflicts.map(dayName).join(', ')} çakıştığı için eklenmedi.`);
+    if (added.length) parts.push(`${dayList(added)} için ${startTime}–${endTime} eklendi.`);
+    parts.push(...skipped);
     if (failure) parts.push(failure);
     setFeedback({ message: parts.join(' '), failed: !!failure || !added.length });
   };
@@ -208,7 +212,7 @@ export const TeacherView: React.FC<{ pushAppointmentIntent?: { id: string; seque
       </div>}
       {activeTab === 'availability' && <div className="space-y-6">
         <section className="surface"><div className="section-heading"><h2>Görüşme saatlerinizi belirleyin</h2></div>
-          <AvailabilityForm durationMinutes={settings.defaultSlotMinutes} busy={busy} onSubmit={(days, start, end, customDuration) => { void handleAddSlots(days, start, end, customDuration); }} />
+          <AvailabilityForm durationMinutes={settings.defaultSlotMinutes} busy={busy} existing={teacherAvailability} onSubmit={(days, start, end, customDuration) => { void handleAddSlots(days, start, end, customDuration); }} />
         </section>
         <section className="surface"><div className="section-heading"><h2>Haftalık müsaitliğiniz</h2></div>{availabilityGroups.length ? <div className="space-y-3">{availabilityGroups.map((day) => <section key={day.id} className="availability-day" aria-labelledby={`availability-day-${day.id}`}><h3 id={`availability-day-${day.id}`} className="font-bold text-sm uppercase tracking-wide text-slate-700">{day.name}</h3><div className="divide-y divide-slate-200">{day.slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-4 py-2"><p className="text-sm font-semibold text-slate-700">{slot.startTime} – {slot.endTime} <span className="availability-slot-duration">· {slot.slotDurationMinutes || settings.defaultSlotMinutes} dk</span></p><button type="button" disabled={busy} className="icon-button" aria-label={`${day.name} ${slot.startTime} müsaitlik aralığını sil`} onClick={() => { void perform(() => removeAvailabilitySlot(slot.id), 'Müsaitlik aralığı kaldırıldı.'); }}><Trash2 size={18} /></button></div>)}</div></section>)}</div> : <EmptyState icon={Clock} title="Henüz saat belirlemediniz" description="Yukarıdaki formdan uygun olduğunuz saatleri ekleyin." />}</section>
       </div>}

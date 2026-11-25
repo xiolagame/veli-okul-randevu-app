@@ -23,6 +23,7 @@ import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/pho
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
 import { effectiveMeetingDuration, isCustomDurationAllowed, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
+import { AVAILABILITY_FIRST_MINUTE, AVAILABILITY_LAST_MINUTE, dayName, otherDurationMessage } from '../src/utils/availability-form';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
 import { normalizePersonName } from '../src/utils/person-name';
 import { evaluateSecurityQr, invalidQrVerification } from './appointment-entry';
@@ -923,6 +924,13 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
       if (toMinutes(endTime) - toMinutes(startTime) < duration) {
         return res.status(400).json({ error: `Seçilen saat aralığına ${duration} dakikalık en az bir görüşme sığmalıdır.` });
       }
+      if (toMinutes(startTime) < AVAILABILITY_FIRST_MINUTE || toMinutes(endTime) > AVAILABILITY_LAST_MINUTE) {
+        return res.status(400).json({ error: 'Saatler 06:00 ile 22:00 arasında olmalı.' });
+      }
+      // Aralık görüşme süresine tam bölünmeli (ör. 40 dk için 09:00–10:20; 09:00–10:30 olmaz).
+      if ((toMinutes(endTime) - toMinutes(startTime)) % duration !== 0) {
+        return res.status(400).json({ error: `Saat aralığı ${duration} dk'lık görüşmelere tam bölünmeli. Bitiş saatini değiştirin.` });
+      }
 
       const teacher = await teacherRepository.getTeacherByUserId(schoolId, req.user!.id);
       if (!teacher) {
@@ -933,6 +941,11 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
       // için metin karşılaştırması doğru sıralar. Aynı öğretmen+gün için kilit, eşzamanlı iki eklemeyi de engeller.
       const slot = await (await getDb()).transaction(async (tx) => {
         await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`availability:${schoolId}:${teacher.id}:${Number(dayOfWeek)}`]);
+        // Bir günde tek görüşme süresi: o günün mevcut saatleri farklı süredeyse eklenmez.
+        const sameDay = await tx.query<{ custom_duration_minutes: number | null }>(
+          'SELECT custom_duration_minutes FROM availability_slots WHERE school_id=$1 AND teacher_id=$2 AND day_of_week=$3',
+          [schoolId, teacher.id, Number(dayOfWeek)]);
+        if (sameDay.rows.some((row) => effectiveMeetingDuration(row.custom_duration_minutes, school.settings.defaultSlotMinutes) !== duration)) return 'OTHER_DURATION' as const;
         const overlap = await tx.query(
           `SELECT 1 FROM availability_slots
            WHERE school_id=$1 AND teacher_id=$2 AND day_of_week=$3 AND start_time < $5 AND end_time > $4 LIMIT 1`,
@@ -948,7 +961,8 @@ apiRouter.get('/schools/:schoolId/availability', authMiddleware, tenantGuard(), 
           customDurationMinutes: customDuration,
         }, tx);
       });
-      if (!slot) return res.status(409).json({ error: 'Bu saat aralığı o gün için eklediğiniz başka bir aralıkla çakışıyor.' });
+      if (slot === 'OTHER_DURATION') return res.status(409).json({ error: otherDurationMessage(Number(dayOfWeek)) });
+      if (!slot) return res.status(409).json({ error: `${dayName(Number(dayOfWeek))} için bu saatlerde başka bir müsaitliğiniz var.` });
 
       res.json({ success: true, slot });
     } catch (err: any) {
