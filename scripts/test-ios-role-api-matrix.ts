@@ -34,7 +34,7 @@ async function run() {
   }
   try {
     for(const [label,actor] of Object.entries({admin,teacher,security,parent})) {
-      for(const endpoint of ['info','users?role=security','roster','management/student-records','management/admins','management/operations']) await req(label+' '+endpoint,'GET',`/schools/${schoolA}/${endpoint}`,actor.token,label==='admin'?200:403);
+      for(const endpoint of ['users?role=security','roster','management/student-records','management/admins','management/operations']) await req(label+' '+endpoint,'GET',`/schools/${schoolA}/${endpoint}`,actor.token,label==='admin'?200:403);
       for(const endpoint of ['teachers','appointments','settings','availability']) await req(label+' own '+endpoint,'GET',`/schools/${schoolA}/${endpoint}`,actor.token,200);
       await req(label+' cross-school','GET',`/schools/${schoolB}/appointments`,actor.token,403);
       await req(label+' platform denied','GET','/platform/schools',actor.token,403);

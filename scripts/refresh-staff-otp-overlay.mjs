@@ -4,7 +4,7 @@ import {contentHash} from './ios-artifact-policy.mjs';
 const base='ecbedc4fac7d657fff147d647625736c7be29c05';
 const git=(...args)=>execFileSync('git',args,{maxBuffer:30*1024*1024});
 const archive=JSON.parse(fs.readFileSync('audit/production-source-manifest.json'));
-const paths=git('diff','--cached','--name-only',base,'-z').toString().split('\0').filter(p=>p&&!p.startsWith('audit/')&&!p.startsWith('docs/'));
+const paths=git('diff','--cached','--name-only','--diff-filter=d',base,'-z').toString().split('\0').filter(p=>p&&!p.startsWith('audit/')&&!p.startsWith('docs/'));
 const files=paths.map(p=>{
  let baseline=null;try{baseline=contentHash(p,git('show',base+':'+p));}catch{}
  return {path:p,baselineCanonicalSha256:baseline,archivedProductionCanonicalSha256:archive.files.find(f=>f.path===p)?.canonicalSha256??null,currentCanonicalSha256:contentHash(p,git('show',':'+p))};
