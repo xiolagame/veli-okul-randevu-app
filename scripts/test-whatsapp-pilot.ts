@@ -53,7 +53,11 @@ async function run() {
   const request = async (route: string, body: object, fixedIp?: string) => { const response = await fetch(base + route, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': fixedIp || `192.0.2.${ip++}` }, body: JSON.stringify(body) }); return { status: response.status, body: await response.json() as Body }; };
   const start = (phone: string, fixedIp?: string) => request('/auth/whatsapp/request-code', { purpose: 'auto', phone }, fixedIp);
   const verify = (phone: string, challengeId: string | undefined, code: string) => request('/auth/whatsapp/verify-code', { phone, challengeId, code });
-  const clear = (phone: string) => db.query('DELETE FROM whatsapp_auth_challenges WHERE target_phone=$1', [phone]);
+  // Her senaryo temiz başlasın: önceki adımların istekleri hız sınırını doldurmasın.
+  const clear = async (phone: string) => {
+    await db.query('DELETE FROM whatsapp_auth_challenges WHERE target_phone=$1', [phone]);
+    await db.query('DELETE FROM auth_rate_limits');
+  };
   try {
     stage = 'all registered roles outside retired allowlist';
     for (const user of users) {
