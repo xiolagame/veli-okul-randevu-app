@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { getDb, TransactionClient } from './database/postgres';
+import { shortenForPush } from '../src/utils/appointment-messages';
 
-export type PushEventType = 'APPOINTMENT_REQUESTED' | 'APPOINTMENT_APPROVED' | 'APPOINTMENT_REJECTED';
+export type PushEventType = 'APPOINTMENT_REQUESTED' | 'APPOINTMENT_APPROVED' | 'APPOINTMENT_REJECTED'
+  | 'APPOINTMENT_CANCELLED_FOR_PARENT' | 'APPOINTMENT_CANCELLED_FOR_TEACHER';
 
 export interface PushPayload {
   title: string;
@@ -47,13 +49,22 @@ export function getSafeFcmErrorCode(error: unknown): string {
 const messages: Record<PushEventType, { title: string; body: string; role: 'teacher' | 'parent' }> = {
   APPOINTMENT_REQUESTED: { title: 'Yeni randevu talebi', body: 'Yeni bir randevu talebiniz var.', role: 'teacher' },
   APPOINTMENT_APPROVED: { title: 'Randevunuz onaylandı', body: 'Randevu talebiniz öğretmen tarafından onaylandı.', role: 'parent' },
-  APPOINTMENT_REJECTED: { title: 'Randevu talebiniz sonuçlandı', body: 'Randevu talebiniz öğretmen tarafından onaylanmadı.', role: 'parent' },
+  APPOINTMENT_REJECTED: { title: 'Randevunuz reddedildi', body: 'Randevu talebiniz öğretmen tarafından reddedildi.', role: 'parent' },
+  APPOINTMENT_CANCELLED_FOR_PARENT: { title: 'Randevunuz iptal edildi', body: 'Randevunuz iptal edildi.', role: 'parent' },
+  APPOINTMENT_CANCELLED_FOR_TEACHER: { title: 'Randevu iptal edildi', body: 'Bir veli randevusunu iptal etti.', role: 'teacher' },
 };
 
-export function createPushPayload(eventType: PushEventType, appointmentId: string, notificationId: string): PushPayload {
+/** Push alıcısının rolü: öğretmen olaylarında randevunun öğretmeni, veli olaylarında randevunun velisi. */
+export function pushRecipientRole(eventType: PushEventType): 'teacher' | 'parent' {
+  return messages[eventType].role;
+}
+
+// text verilirse push, uygulama içi bildirimle aynı başlık ve metni (kısaltılmış) gösterir.
+export function createPushPayload(eventType: PushEventType, appointmentId: string, notificationId: string,
+  text?: { title?: string | null; message?: string | null }): PushPayload {
   return {
-    title: messages[eventType].title,
-    body: messages[eventType].body,
+    title: shortenForPush(text?.title || '', 60) || messages[eventType].title,
+    body: shortenForPush(text?.message || '') || messages[eventType].body,
     data: { eventType, resourceType: 'appointment', resourceId: appointmentId, notificationId,
       route: `/app/appointments/${appointmentId}` },
   };
@@ -229,8 +240,7 @@ export async function enqueueAppointmentPush(tx: TransactionClient, input: {
         JOIN appointments a ON a.school_id=n.school_id AND a.id=n.appointment_id
         LEFT JOIN teacher_profiles tp ON tp.school_id=a.school_id AND tp.id=a.teacher_id
         WHERE n.id=$1 AND n.school_id=$2 AND n.user_id=$3 AND n.appointment_id=$4
-          AND (($5='APPOINTMENT_REQUESTED' AND tp.user_id=$3)
-            OR ($5 IN ('APPOINTMENT_APPROVED','APPOINTMENT_REJECTED') AND a.parent_id=$3)))
+          AND (($6='teacher' AND tp.user_id=$3) OR ($6='parent' AND a.parent_id=$3)))
     ON CONFLICT (notification_id,device_id,channel) DO NOTHING`,
   [input.notificationId, input.schoolId, input.userId, input.appointmentId, input.eventType, messages[input.eventType].role]);
 }
@@ -238,6 +248,7 @@ export async function enqueueAppointmentPush(tx: TransactionClient, input: {
 interface ClaimedDelivery {
   id: string; device_id: string; provider_target: string; event_type: PushEventType;
   target_hash: string; appointment_id: string; notification_id: string; user_id: string; school_id: string;
+  title: string | null; message: string | null;
 }
 
 export async function dispatchPushDeliveries(provider: PushProvider = new FirebasePushProvider(), limit = 50, appointmentId?: string): Promise<{
@@ -259,7 +270,7 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
     const records: ClaimedDelivery[] = [];
     for (const row of result.rows) {
       const details = await tx.query<ClaimedDelivery>(`SELECT nd.id,nd.device_id,nd.event_type,nd.notification_id,
-        n.appointment_id,n.user_id,n.school_id,d.provider_target,d.target_hash
+        n.appointment_id,n.user_id,n.school_id,n.title,n.message,d.provider_target,d.target_hash
         FROM notification_deliveries nd JOIN notifications n ON n.id=nd.notification_id
         JOIN appointments a ON a.school_id=n.school_id AND a.id=n.appointment_id
         LEFT JOIN teacher_profiles tp ON tp.school_id=a.school_id AND tp.id=a.teacher_id
@@ -270,8 +281,7 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
         JOIN schools s ON s.id=n.school_id AND s.disabled_at IS NULL
         WHERE nd.id=$1 AND d.active=TRUE AND d.user_id=n.user_id
           AND n.appointment_id IS NOT NULL AND n.hidden_at IS NULL
-          AND ((nd.event_type='APPOINTMENT_REQUESTED' AND tp.user_id=n.user_id)
-            OR (nd.event_type IN ('APPOINTMENT_APPROVED','APPOINTMENT_REJECTED') AND a.parent_id=n.user_id))`,
+          AND (($2='teacher' AND tp.user_id=n.user_id) OR ($2='parent' AND a.parent_id=n.user_id))`,
       [row.id, messages[row.event_type].role]);
       if (details.rows[0]) records.push(details.rows[0]);
       else await tx.query(`UPDATE notification_deliveries SET status='CANCELLED',updated_at=NOW() WHERE id=$1`, [row.id]);
@@ -283,7 +293,8 @@ export async function dispatchPushDeliveries(provider: PushProvider = new Fireba
     let sendResult: PushSendResult;
     try {
       sendResult = await provider.send(delivery.provider_target,
-        createPushPayload(delivery.event_type, delivery.appointment_id, delivery.notification_id));
+        createPushPayload(delivery.event_type, delivery.appointment_id, delivery.notification_id,
+          { title: delivery.title, message: delivery.message }));
     } catch {
       sendResult = { status: 'RETRYABLE_FAILURE', errorCode: 'UNKNOWN_FCM_ERROR' };
     }

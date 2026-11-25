@@ -22,6 +22,8 @@ import { hashPassword, validatePassword, verifyPassword } from './passwords';
 import { normalizeTurkishPhone, normalizeUserPhoneInput } from '../src/utils/phone';
 import { slotMatchesAvailability } from '../src/utils/appointment-slots';
 import { MAX_BOOKING_DAYS_AHEAD, bookingTimeProblem, bookingWindow, isSlotInFuture } from '../src/utils/booking-window';
+import { appointmentApprovedMessage, appointmentCancelledForParentMessage, appointmentCancelledForTeacherMessage,
+  appointmentRejectedMessage, appointmentRequestedMessage, cleanAppointmentReason } from '../src/utils/appointment-messages';
 import { effectiveMeetingDuration, isCustomDurationAllowed, parseCustomMeetingDuration } from '../src/utils/meeting-duration';
 import { AVAILABILITY_FIRST_MINUTE, AVAILABILITY_LAST_MINUTE, dayName, otherDurationMessage } from '../src/utils/availability-form';
 import { normalizeSchoolSettings, validateDefaultSlotMinutes } from '../src/utils/school-settings';
@@ -1210,8 +1212,7 @@ apiRouter.post(
           {
             schoolId,
             userId: teacherUserId,
-            title: 'Yeni Randevu Talebi',
-            message: `${created.parentName} (${studentName} - ${className}) ${date} saat ${startTime} için randevu talep etti.`,
+            ...appointmentRequestedMessage({ parentName: created.parentName, studentName, className, date, startTime }),
             appointmentId: created.id,
           },
           tx
@@ -1273,8 +1274,8 @@ async function approvePendingAppointment(tx: TransactionClient, schoolId: string
   if (!updatedApt) return null;
   if (updatedApt.parentId) {
     const parentNotification = await notificationRepository.createNotification({
-    schoolId, userId: updatedApt.parentId, title: 'Randevunuz Onaylandı!',
-    message: `${updatedApt.teacherName} ile ${updatedApt.date} ${updatedApt.startTime} randevunuz onaylandı. Okul Giriş Kodunuz: ${updatedApt.entryCode}`,
+    schoolId, userId: updatedApt.parentId,
+    ...appointmentApprovedMessage({ teacherName: updatedApt.teacherName, date: updatedApt.date, startTime: updatedApt.startTime }),
     appointmentId: updatedApt.id,
     }, tx);
     await enqueueAppointmentPush(tx, { notificationId: parentNotification.id, schoolId,
@@ -1390,7 +1391,7 @@ apiRouter.post(
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
     const aptId = scalarRouteParam(req.params.id);
-      const reason = typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) : undefined;
+    const reason = cleanAppointmentReason(req.body?.reason);
 
     try {
       // 1. Verify appointment belongs to this school
@@ -1423,8 +1424,7 @@ apiRouter.post(
           {
             schoolId,
             userId: updatedApt.parentId,
-            title: 'Randevu Talebi Reddedildi',
-            message: `${updatedApt.teacherName} ile randevu talebiniz reddedildi.${reason ? ' Sebep: ' + reason : ''}`,
+            ...appointmentRejectedMessage({ teacherName: updatedApt.teacherName, reason }),
             appointmentId: updatedApt.id,
           },
           tx
@@ -1467,6 +1467,7 @@ apiRouter.post(
   async (req: AuthenticatedRequest, res) => {
     const schoolId = req.membership!.schoolId;
     const aptId = scalarRouteParam(req.params.id);
+    const reason = cleanAppointmentReason(req.body?.reason);
 
     try {
       // 1. Verify appointment belongs to this school
@@ -1491,7 +1492,8 @@ apiRouter.post(
 
       const db = await getDb();
       const updated = await db.transaction(async (tx) => {
-        const updatedApt = await appointmentRepository.updateStatus(schoolId, aptId, 'cancelled', undefined, tx);
+        // Yalnız bekleyen/onaylı randevu iptal edilir; ikinci iptal bildirim üretmez.
+        const updatedApt = await appointmentRepository.cancelOpenAppointment(schoolId, aptId, reason, tx);
         if (!updatedApt) return null;
 
         await auditLogRepository.createAuditLog(
@@ -1500,41 +1502,46 @@ apiRouter.post(
             action: 'Randevu İptali',
             actorName: `${req.user!.firstName} ${req.user!.lastName}`.trim() || 'Kullanıcı',
             actorUserId: req.user!.id,
-            details: `${updatedApt.teacherName} ile ${updatedApt.date} randevusu iptal edildi.`,
+            details: `${updatedApt.teacherName} ile ${updatedApt.date} randevusu iptal edildi. Sebep: ${reason || 'Belirtilmedi'}`,
           },
           tx
         );
 
-        // Karşı tarafa uygulama içi bildirim: veli iptal ederse öğretmene, öğretmen/yönetim iptal ederse veliye.
-        const when = `${updatedApt.date} saat ${updatedApt.startTime}`;
+        // Karşı tarafa bildirim + push: veli iptal ederse öğretmene, öğretmen/yönetim iptal ederse veliye.
+        const when = { date: updatedApt.date, startTime: updatedApt.startTime, reason };
         if (req.membership!.role === 'parent') {
           const teacherProfile = await teacherRepository.getTeacherById(schoolId, updatedApt.teacherId, tx);
           if (teacherProfile?.userId) {
-            await notificationRepository.createNotification({
+            const notification = await notificationRepository.createNotification({
               schoolId,
               userId: teacherProfile.userId,
-              title: 'Randevu İptal Edildi',
-              message: `${updatedApt.parentName} (${updatedApt.studentName} - ${updatedApt.className}) ${when} randevusunu iptal etti.`,
+              ...appointmentCancelledForTeacherMessage({ parentName: updatedApt.parentName, studentName: updatedApt.studentName,
+                className: updatedApt.className, ...when }),
               appointmentId: updatedApt.id,
             }, tx);
+            await enqueueAppointmentPush(tx, { notificationId: notification.id, schoolId, userId: teacherProfile.userId,
+              appointmentId: updatedApt.id, eventType: 'APPOINTMENT_CANCELLED_FOR_TEACHER' });
           }
         } else if (updatedApt.parentId) {
-          await notificationRepository.createNotification({
+          const notification = await notificationRepository.createNotification({
             schoolId,
             userId: updatedApt.parentId,
-            title: 'Randevunuz İptal Edildi',
-            message: `${updatedApt.teacherName} ile ${updatedApt.studentName} için ${when} randevusu iptal edildi.`,
+            ...appointmentCancelledForParentMessage({ cancelledBy: req.membership!.role === 'teacher' ? 'teacher' : 'admin',
+              teacherName: updatedApt.teacherName, ...when }),
             appointmentId: updatedApt.id,
           }, tx);
+          await enqueueAppointmentPush(tx, { notificationId: notification.id, schoolId, userId: updatedApt.parentId,
+            appointmentId: updatedApt.id, eventType: 'APPOINTMENT_CANCELLED_FOR_PARENT' });
         }
 
         return updatedApt;
       });
 
       if (!updated) {
-        return res.status(404).json({ error: 'Randevu bulunamadı' });
+        return res.status(409).json({ error: 'Bu randevu artık iptal edilemez. Sayfayı yenileyin.' });
       }
 
+      await dispatchPushDeliveries(undefined, 50, updated.id).catch(() => {});
       res.json({ success: true, appointment: req.membership!.role === 'parent' ? forParent(updated) : withoutQrToken(updated) });
     } catch (err: any) {
       console.error('[POST /schools/:schoolId/appointments/:id/cancel Error]:', err);

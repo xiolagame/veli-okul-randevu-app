@@ -78,7 +78,7 @@ interface AppContextType {
   }) => Promise<Appointment>;
   approveAppointment: (appointmentId: string) => Promise<void>;
   rejectAppointment: (appointmentId: string, reason?: string) => Promise<void>;
-  cancelAppointment: (appointmentId: string) => Promise<void>;
+  cancelAppointment: (appointmentId: string, reason?: string) => Promise<void>;
   verifySecurityQr: (qrToken: string) => Promise<SecurityQrVerification>;
   addAvailabilitySlot: (slot: Omit<AvailabilitySlot, 'id' | 'teacherId'>) => Promise<void>;
   createTeacher: (data: { fullName: string; role: 'teacher' | 'security'; branch?: string; phone: string; email?: string }) => Promise<unknown>;
@@ -514,9 +514,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Cancel Appointment
-  const cancelAppointment = async (appointmentId: string) => {
+  const cancelAppointment = async (appointmentId: string, reason?: string) => {
     if (!currentSchool) return;
-    const res = await api.cancelAppointment(currentSchool.id, appointmentId);
+    const res = await api.cancelAppointment(currentSchool.id, appointmentId, reason?.trim() || undefined);
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? res.appointment : a)));
   };
 

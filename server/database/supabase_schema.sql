@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     qr_token TEXT,
     notes TEXT,
     rejection_reason TEXT,
+    cancellation_reason TEXT,
     approved_at TIMESTAMPTZ,
     approved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
     check_in_time VARCHAR(30),

@@ -431,10 +431,10 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ reason }) }
     ),
 
-  cancelAppointment: (schoolId: string, id: string) =>
+  cancelAppointment: (schoolId: string, id: string, reason?: string) =>
     request<{ success: boolean; appointment: Appointment }>(
       `/api/schools/${schoolId}/appointments/${id}/cancel`,
-      { method: 'POST' }
+      { method: 'POST', body: JSON.stringify({ reason }) }
     ),
 
   verifySecurityQr: (schoolId: string, qrToken: string) =>

@@ -76,6 +76,7 @@ function mapAppointment(row: any): Appointment {
     qrToken: row.qr_token || undefined,
     notes: row.notes || undefined,
     rejectionReason: row.rejection_reason || undefined,
+    cancellationReason: row.cancellation_reason || undefined,
     approvedAt: row.approved_at || undefined,
     approvedBy: row.approved_by || undefined,
     checkedInAt: row.checked_in_at || undefined,
@@ -1122,7 +1123,7 @@ export const appointmentRepository = {
 
     let sql = `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                       student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                      notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+                      notes, rejection_reason, cancellation_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
                FROM appointments
                WHERE school_id = $1`;
     const params: any[] = [schoolId];
@@ -1158,6 +1159,7 @@ export const appointmentRepository = {
       qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
+      cancellationReason: r.cancellation_reason || undefined,
       checkedInAt: r.checked_in_at || undefined,
       checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
@@ -1168,7 +1170,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+              notes, rejection_reason, cancellation_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments
        WHERE school_id = $1 AND id = $2${client ? ' FOR UPDATE' : ''};`,
       [schoolId, appointmentId], client
@@ -1195,6 +1197,7 @@ export const appointmentRepository = {
       qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
+      cancellationReason: r.cancellation_reason || undefined,
       checkedInAt: r.checked_in_at || undefined,
       checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
@@ -1206,7 +1209,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+              notes, rejection_reason, cancellation_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments
        WHERE school_id = $1 AND (entry_code = $2 OR id = $2);`,
       [schoolId, clean]
@@ -1233,6 +1236,7 @@ export const appointmentRepository = {
       qrToken: r.qr_token || undefined,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
+      cancellationReason: r.cancellation_reason || undefined,
       checkedInAt: r.checked_in_at || undefined,
       checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
@@ -1243,7 +1247,7 @@ export const appointmentRepository = {
     const res = await execQuery<any>(
       `SELECT id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
               student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-              notes, rejection_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
+              notes, rejection_reason, cancellation_reason, qr_token, approved_at, approved_by, check_in_time, checked_in_by, checked_in_at, check_out_time, checked_out_at, created_at
        FROM appointments WHERE school_id = $1 AND qr_token = $2;`,
       [schoolId, qrToken.trim()]
     );
@@ -1357,7 +1361,7 @@ export const appointmentRepository = {
        WHERE school_id = $5 AND id = $6
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
                  student_id, student_name, class_name, date, start_time, end_time, status, entry_code,
-                 notes, rejection_reason, checked_in_at, checked_out_at, created_at;`,
+                 notes, rejection_reason, cancellation_reason, checked_in_at, checked_out_at, created_at;`,
       [
         status,
         extra?.rejectionReason || null,
@@ -1389,6 +1393,7 @@ export const appointmentRepository = {
       entryCode: r.entry_code,
       notes: r.notes || undefined,
       rejectionReason: r.rejection_reason || undefined,
+      cancellationReason: r.cancellation_reason || undefined,
       checkedInAt: r.checked_in_at || undefined,
       checkedOutAt: r.checked_out_at || undefined,
       createdAt: r.created_at,
@@ -1410,8 +1415,22 @@ export const appointmentRepository = {
        WHERE school_id = $5 AND id = $6 AND status = $7
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
          student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
-         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
+         notes, rejection_reason, cancellation_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
       [toStatus, extra?.rejectionReason || null, extra?.approvedAt || null, extra?.approvedBy || null, schoolId, appointmentId, fromStatus],
+      client
+    );
+    return res.rows[0] ? mapAppointment(res.rows[0]) : null;
+  },
+
+  /** Yalnız bekleyen veya onaylı randevu iptal edilir; zaten iptal/bitmiş randevu için null döner (çift bildirim olmaz). */
+  async cancelOpenAppointment(schoolId: string, appointmentId: string, cancellationReason: string | undefined, client?: TransactionClient): Promise<Appointment | null> {
+    const res = await execQuery<any>(
+      `UPDATE appointments SET status = 'cancelled', cancellation_reason = $3, updated_at = NOW()
+       WHERE school_id = $1 AND id = $2 AND status IN ('pending', 'booked')
+       RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
+         student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
+         notes, rejection_reason, cancellation_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
+      [schoolId, appointmentId, cancellationReason || null],
       client
     );
     return res.rows[0] ? mapAppointment(res.rows[0]) : null;
@@ -1423,7 +1442,7 @@ export const appointmentRepository = {
        WHERE school_id = $2 AND id = $3 AND status = 'booked'
        RETURNING id, school_id, teacher_id, teacher_name, teacher_branch, parent_id, parent_name, parent_phone,
          student_id, student_name, class_name, date, start_time, end_time, status, entry_code, qr_token,
-         notes, rejection_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
+         notes, rejection_reason, cancellation_reason, approved_at, approved_by, checked_in_at, checked_in_by, checked_out_at, created_at;`,
       [checkedInBy, schoolId, appointmentId]
     );
     return res.rows[0] ? mapAppointment(res.rows[0]) : null;

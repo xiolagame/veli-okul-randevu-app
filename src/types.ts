@@ -132,6 +132,7 @@ export interface Appointment {
   entryCode?: string;
   notes?: string;
   rejectionReason?: string;
+  cancellationReason?: string;
   createdAt: string;
   approvedAt?: string;
   checkedInAt?: string;

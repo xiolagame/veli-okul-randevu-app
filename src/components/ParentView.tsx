@@ -76,6 +76,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
   // Randevu tek dokunuşla iptal edilmesin: önce onay penceresi.
   const [cancelingAppointment, setCancelingAppointment] = useState<Appointment | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   // Bildirimler sekmesi açılınca hepsi okunmuş sayılır; açılış anındaki okunmamışlar "Yeni" etiketiyle görünür.
   const [parentNewIds, setParentNewIds] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -275,7 +276,8 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
       <div className="appointment-detail">
         <div className="appointment-top"><div><h3>{normalizePersonName(appointment.teacherName)}</h3><p>{appointment.teacherBranch}</p></div><StatusBadge status={appointment.status} /></div>
         <div className="detail-row"><span><Calendar size={15} />{formatDate(appointment.date)}</span><span><User size={15} />{normalizePersonName(appointment.studentName)} · {appointment.className}</span></div>
-        {appointment.rejectionReason && <p className="mt-3 text-red-700">{appointment.rejectionReason}</p>}
+        {appointment.status === 'rejected' && appointment.rejectionReason && <p className="mt-3 text-red-700">Ret gerekçesi: {appointment.rejectionReason}</p>}
+        {appointment.status === 'cancelled' && appointment.cancellationReason && <p className="mt-3 text-red-700">İptal gerekçesi: {appointment.cancellationReason}</p>}
         {appointment.notes && <p className="mt-3">Notunuz: {appointment.notes}</p>}
         <div className="appointment-actions">
           {/* Giriş kartı yalnız onaylı görüşmede anlamlı; onay bekleyen kart giriş izni vermez. */}
@@ -358,7 +360,7 @@ export const ParentView: React.FC<{ pushAppointmentIntent?: { id: string; sequen
           <div className="form-actions"><Button variant="secondary" onClick={() => setBookingTeacher(null)} disabled={bookingBusy}>Vazgeç</Button><Button type="submit" disabled={!selectedSlotTime || bookingBusy || occupiedSlots?.key !== occupiedKey || !!slotsError}>{bookingBusy ? 'Gönderiliyor…' : 'Randevu talebi gönder'}</Button></div>
         </form>}
       </Dialog>}
-      {cancelingAppointment && <Dialog title="Randevuyu iptal et" description={`${normalizePersonName(cancelingAppointment.teacherName)} · ${formatDate(cancelingAppointment.date)} ${cancelingAppointment.startTime}`} onClose={() => setCancelingAppointment(null)} dismissible={!cancelBusy}><div className="form-stack"><p className="text-sm text-slate-600">Bu randevu iptal edilecek ve öğretmeninize bilgi verilecek. Emin misiniz?</p><div className="form-actions"><Button variant="secondary" disabled={cancelBusy} onClick={() => setCancelingAppointment(null)}>Vazgeç</Button><Button variant="danger" disabled={cancelBusy} onClick={() => { const target = cancelingAppointment; setCancelBusy(true); void cancelAppointment(target.id).then(() => setCancelingAppointment(null)).catch(() => { setCancelingAppointment(null); setActionError('Randevu iptal edilemedi. Lütfen tekrar deneyin.'); }).finally(() => setCancelBusy(false)); }}>{cancelBusy ? 'İptal ediliyor…' : 'Randevuyu iptal et'}</Button></div></div></Dialog>}
+      {cancelingAppointment && <Dialog title="Randevuyu iptal et" description={`${normalizePersonName(cancelingAppointment.teacherName)} · ${formatDate(cancelingAppointment.date)} ${cancelingAppointment.startTime}`} onClose={() => { setCancelingAppointment(null); setCancelReason(''); }} dismissible={!cancelBusy}><div className="form-stack"><p className="text-sm text-slate-600">Bu randevu iptal edilecek ve öğretmeninize bilgi verilecek. Emin misiniz?</p><label className="field" htmlFor="parent-cancel-reason">İptal gerekçesi <span className="field-hint">İsteğe bağlı</span><textarea id="parent-cancel-reason" rows={3} maxLength={500} value={cancelReason} disabled={cancelBusy} onChange={(event) => setCancelReason(event.target.value)} placeholder="Öğretmeninize iletilecek kısa bir açıklama…" /></label><div className="form-actions"><Button variant="secondary" disabled={cancelBusy} onClick={() => { setCancelingAppointment(null); setCancelReason(''); }}>Vazgeç</Button><Button variant="danger" disabled={cancelBusy} onClick={() => { const target = cancelingAppointment; setCancelBusy(true); void cancelAppointment(target.id, cancelReason).then(() => { setCancelingAppointment(null); setCancelReason(''); }).catch(() => { setCancelingAppointment(null); setCancelReason(''); setActionError('Randevu iptal edilemedi. Lütfen tekrar deneyin.'); }).finally(() => setCancelBusy(false)); }}>{cancelBusy ? 'İptal ediliyor…' : 'Randevuyu iptal et'}</Button></div></div></Dialog>}
       {selectedPassAppointment && <QRCodePass appointment={selectedPassAppointment} schoolName={settings.schoolName} onClose={() => setSelectedPassAppointment(null)} />}
     </main>
   );
