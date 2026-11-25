@@ -234,7 +234,7 @@
       "path": "scripts/test-availability-duration.ts",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "b0abd1392b192cece6e7236f9c498c2fd278e19c36b8fd36ad4d171cdb1d465b"
+      "currentCanonicalSha256": "73f65a783f90d62d99a89ef13855ad632fad5e7234b8f0e6cb798a509c1ca911"
     },
     {
       "path": "scripts/test-availability-form.ts",
@@ -648,7 +648,7 @@
       "path": "server/api.ts",
       "baselineCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
       "archivedProductionCanonicalSha256": "22ecc1390de3a0710a6778c64e57a261e4318d63d2cf0d5e5302556a2dae4b4f",
-      "currentCanonicalSha256": "80d90cb5ee5d6acd06eaa4b84bbfc2cbc9a6a675c4a2c5df0e6c93f3c9437b34"
+      "currentCanonicalSha256": "b8ace9775eebd1fdb9fbba5bac03271fbbe6ed0c1e1ea83aa654bfb119698c8c"
     },
     {
       "path": "server/app.ts",
@@ -828,7 +828,7 @@
       "path": "src/components/AvailabilityForm.tsx",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "716609ee2a930b36b24912263b17e635fb66aab7c3866bffa88cc35cb2f5aaeb"
+      "currentCanonicalSha256": "64348ae523c2439539b09e2dc2c444b2dac003418747cec690e000f1c94c90b2"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -1194,7 +1194,7 @@
       "path": "src/utils/meeting-duration.ts",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "3795db3dfc92bb4837e6b7a51a15a1da8d5b9bb9849a4bb9b682cdca04d465b5"
+      "currentCanonicalSha256": "c1e7653234c3e75e7793a9232919cbc3fef212958d22e7a0138e96fc10a32b65"
     },
     {
       "path": "src/utils/phone.ts",

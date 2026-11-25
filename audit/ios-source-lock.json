@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "c494d0ae260d7152c73eade64223e4da7c4ee69ff715eb5a41a7ac1115c60b1e"
+      "sha256": "279dc4bbabad60941c05af4837dd761a24f5df8784c0887a89132c291851e989"
     },
     {
       "path": "bun.lock",
@@ -846,7 +846,7 @@
     },
     {
       "path": "scripts/test-availability-duration.ts",
-      "sha256": "b0abd1392b192cece6e7236f9c498c2fd278e19c36b8fd36ad4d171cdb1d465b"
+      "sha256": "73f65a783f90d62d99a89ef13855ad632fad5e7234b8f0e6cb798a509c1ca911"
     },
     {
       "path": "scripts/test-availability-form.ts",
@@ -1314,7 +1314,7 @@
     },
     {
       "path": "server/api.ts",
-      "sha256": "80d90cb5ee5d6acd06eaa4b84bbfc2cbc9a6a675c4a2c5df0e6c93f3c9437b34"
+      "sha256": "b8ace9775eebd1fdb9fbba5bac03271fbbe6ed0c1e1ea83aa654bfb119698c8c"
     },
     {
       "path": "server/app.ts",
@@ -1638,7 +1638,7 @@
     },
     {
       "path": "src/components/AvailabilityForm.tsx",
-      "sha256": "716609ee2a930b36b24912263b17e635fb66aab7c3866bffa88cc35cb2f5aaeb"
+      "sha256": "64348ae523c2439539b09e2dc2c444b2dac003418747cec690e000f1c94c90b2"
     },
     {
       "path": "src/components/BulkRosterImport.tsx",
@@ -2090,7 +2090,7 @@
     },
     {
       "path": "src/utils/meeting-duration.ts",
-      "sha256": "3795db3dfc92bb4837e6b7a51a15a1da8d5b9bb9849a4bb9b682cdca04d465b5"
+      "sha256": "c1e7653234c3e75e7793a9232919cbc3fef212958d22e7a0138e96fc10a32b65"
     },
     {
       "path": "src/utils/multi-class-challenge.ts",
