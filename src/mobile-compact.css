@@ -206,7 +206,6 @@ html, body { overscroll-behavior-y: auto; }
 
 /* Giriş ekranı (Android/iOS/dar web): daha küçük ölçüler, kod adımında yalnız gerekli öğeler. */
 @media (max-width: 767px) {
-  .auth-form-side-phone { align-items: flex-start; }
   .auth-form-wrap-phone { padding: 14px 16px; }
   .auth-form-wrap-phone .auth-mobile-brand { margin-bottom: 4px; }
   .auth-form-wrap-phone .auth-mobile-brand .brand { font-size: 19px; }
