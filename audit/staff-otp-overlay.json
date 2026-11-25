@@ -30,7 +30,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "cd1902cdb39354af1284947a261d0f8bc7057b188f4c99638d2343a0a0930226"
+      "currentCanonicalSha256": "749f4428f5b45255208f5b05d65697af3e3de3dfcc00373aa3c8568b60e46003"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -348,7 +348,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "e5b573c549b76e3cbf534609891b203cec93ef2d19ca45e1ae1ee9ffeede7037"
+      "currentCanonicalSha256": "9fafee31e8b09f1413a1b7b669d60aba123354ee3b19b35f593aa280659e11a8"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
@@ -1074,7 +1074,7 @@
       "path": "src/mobile-compact.css",
       "baselineCanonicalSha256": null,
       "archivedProductionCanonicalSha256": null,
-      "currentCanonicalSha256": "0d58b059cbc6c11498bd5c4e1e8dd6897e81c60d4b6b42b3415a4729e1c1dd79"
+      "currentCanonicalSha256": "f00cdc01bcf195b6894b33c7edcad0e0599f8bab975c8b05535b32b05c6f2d9d"
     },
     {
       "path": "src/platform/NativeWebWelcome.tsx",

@@ -322,7 +322,7 @@
     },
     {
       "path": "audit/staff-otp-overlay.json",
-      "sha256": "63188e7d66140307c7fd8dfc373d8ffac5e9ed84e006a739756572ddf7b39449"
+      "sha256": "c494d0ae260d7152c73eade64223e4da7c4ee69ff715eb5a41a7ac1115c60b1e"
     },
     {
       "path": "bun.lock",
@@ -450,7 +450,7 @@
     },
     {
       "path": "ios/App/App.xcodeproj/project.pbxproj",
-      "sha256": "cd1902cdb39354af1284947a261d0f8bc7057b188f4c99638d2343a0a0930226"
+      "sha256": "749f4428f5b45255208f5b05d65697af3e3de3dfcc00373aa3c8568b60e46003"
     },
     {
       "path": "ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
@@ -966,7 +966,7 @@
     },
     {
       "path": "scripts/test-ios-shell.ts",
-      "sha256": "e5b573c549b76e3cbf534609891b203cec93ef2d19ca45e1ae1ee9ffeede7037"
+      "sha256": "9fafee31e8b09f1413a1b7b669d60aba123354ee3b19b35f593aa280659e11a8"
     },
     {
       "path": "scripts/test-ios-source-lock.mjs",
@@ -1846,7 +1846,7 @@
     },
     {
       "path": "src/mobile-compact.css",
-      "sha256": "0d58b059cbc6c11498bd5c4e1e8dd6897e81c60d4b6b42b3415a4729e1c1dd79"
+      "sha256": "f00cdc01bcf195b6894b33c7edcad0e0599f8bab975c8b05535b32b05c6f2d9d"
     },
     {
       "path": "src/platform/NativeWebWelcome.tsx",
