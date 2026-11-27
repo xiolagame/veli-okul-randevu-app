@@ -68,7 +68,7 @@ try{
  // Actual links, keyboard focus, back navigation, persistent single theme control.
  await page.goto(current.origin+'/yardim');await page.locator('.help-topic-link').first().focus();assert(await page.locator('.help-topic-link').first().evaluate(e=>getComputedStyle(e).outlineStyle!=='none'));await page.locator('.help-topic-link').first().click();await page.locator('.help-guide').waitFor();await page.getByRole('button',{name:'Yardım merkezine dön',exact:true}).click();await page.locator('.help-hero').waitFor();
  for(const kind of ['CONTACT','YEARLY_LICENSE'])for(const mode of ['success','partial','failure']){
-  await page.goto(current.origin+'/lisans-iletisim'+(kind==='CONTACT'?'?request=contact':''));await page.locator('#request-plan').waitFor();assert.equal(await page.locator('#request-plan').inputValue(),kind);
+  await page.goto(current.origin+'/lisans-iletisim'+(kind==='CONTACT'?'?request=contact':'?request=yearly'));await page.locator('#request-plan').waitFor();assert.equal(await page.locator('#request-plan').inputValue(),kind);
   const count=submissions.length;await page.getByRole('button',{name:'Talebi Gönder'}).click();await page.getByRole('alert').first().waitFor();assert.equal(submissions.length,count,'Invalid form must not submit');
   for(const [id,value] of Object.entries({'school':'Sentetik Test Okulu','contact':'Sentetik Kişi','email':'review@example.test','phone':'05551234567','message':'Yalnız yerel fixture'}))await page.locator('#request-'+id).fill(value);
   responseMode=mode;await page.getByRole('button',{name:'Talebi Gönder'}).click();await page.getByRole(mode==='failure'?'alert':'status').first().waitFor();assert.equal(submissions.length,count+1);assert.equal(submissions.at(-1).requestType,kind);

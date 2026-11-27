@@ -5,21 +5,21 @@ import { api } from '../services/api';
 import { formatTryAmount, loadYearlyLicensePrice } from '../utils/license-price';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
 import { isBasicEmailAddress } from '../utils/platform-request-ui';
-import type { PublicRequestKind } from '../utils/public-request-route';
+import { getDefaultPublicRequestKind, type PublicRequestKind } from '../utils/public-request-route';
 import { createRequestToken } from '../utils/request-token';
 import { Alert, Button } from './ui';
 
 function requestLabels(yearlyPriceMinor: number | null): Record<PublicRequestKind, string> {
   return {
-    YEARLY_LICENSE: yearlyPriceMinor === null ? 'Yıllık Lisans' : `Yıllık Lisans / ${formatTryAmount(yearlyPriceMinor)}`,
     FREE_TRIAL: '1 Haftalık Ücretsiz Deneme',
+    YEARLY_LICENSE: yearlyPriceMinor === null ? 'Yıllık Lisans' : `Yıllık Lisans / ${formatTryAmount(yearlyPriceMinor)}`,
     CONTACT: 'İletişim',
   };
 }
 
 const emptyForm = { schoolName: '', contactName: '', email: '', phone: '', message: '', companyWebsite: '' };
 
-export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', onBack, backLabel = 'Giriş ekranına dön' }: { initialRequestType?: PublicRequestKind; onBack: () => void; backLabel?: string }) {
+export function PublicRequestSection({ initialRequestType = getDefaultPublicRequestKind(isNativeRuntime()), onBack, backLabel = 'Giriş ekranına dön' }: { initialRequestType?: PublicRequestKind; onBack: () => void; backLabel?: string }) {
   const [requestType, setRequestType] = useState<PublicRequestKind>(initialRequestType);
   const [form, setForm] = useState(emptyForm);
   const [requestToken, setRequestToken] = useState(createRequestToken);

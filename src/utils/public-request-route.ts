@@ -7,13 +7,19 @@ export const LEGACY_HELP_SUPPORT_PATH = `${HELP_PATH}/destek`;
 export type PublicRequestKind = Extract<PlatformRequestType, 'YEARLY_LICENSE' | 'FREE_TRIAL' | 'CONTACT'>;
 
 const requestPresets: Record<string, PublicRequestKind> = {
+  monthly: 'YEARLY_LICENSE',
   yearly: 'YEARLY_LICENSE',
   contact: 'CONTACT',
 };
 
-export function getPublicRequestPreset(search: string): PublicRequestKind {
+// Sayfa açılınca seçili gelen talep türü. Ücretsiz deneme yalnız web'de sunulduğu için mobilde yıllık lisans kalır.
+export function getDefaultPublicRequestKind(nativeApp: boolean): PublicRequestKind {
+  return nativeApp ? 'YEARLY_LICENSE' : 'FREE_TRIAL';
+}
+
+export function getPublicRequestPreset(search: string, fallback: PublicRequestKind = getDefaultPublicRequestKind(false)): PublicRequestKind {
   const value = new URLSearchParams(search).get('request')?.toLowerCase();
-  return value && requestPresets[value] ? requestPresets[value] : 'YEARLY_LICENSE';
+  return value && requestPresets[value] ? requestPresets[value] : fallback;
 }
 
 export function isHelpPath(pathname: string): boolean {

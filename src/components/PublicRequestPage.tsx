@@ -1,12 +1,13 @@
 import React from 'react';
 import { ArrowLeft, BadgeHelp } from 'lucide-react';
-import { getPublicRequestPreset } from '../utils/public-request-route';
+import { isNativeRuntime } from '../platform/runtime-platform';
+import { getDefaultPublicRequestKind, getPublicRequestPreset } from '../utils/public-request-route';
 import { Button } from './ui';
 import { PublicRequestSection } from './PublicRequestSection';
 import {ThemeSwitcher} from './ThemeSwitcher';
 
 export function PublicRequestPage({ onBack, backLabel = 'Giriş ekranına dön' }: { onBack: () => void; backLabel?: string }) {
-  const initialRequestType = getPublicRequestPreset(window.location.search);
+  const initialRequestType = getPublicRequestPreset(window.location.search, getDefaultPublicRequestKind(isNativeRuntime()));
 
   return <main className="public-request-page" data-help-theme={initialRequestType === 'CONTACT' ? 'support' : undefined}>
     <div className="public-request-page-shell">

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
 import { filterPlatformRequests, getPlatformRequestStatusOptions, isBasicEmailAddress } from '../src/utils/platform-request-ui';
-import { getPublicRequestPreset, PUBLIC_REQUEST_PATH } from '../src/utils/public-request-route';
+import { getDefaultPublicRequestKind, getPublicRequestPreset, PUBLIC_REQUEST_PATH } from '../src/utils/public-request-route';
 import type { PlatformRequestItem } from '../src/types/platform';
 
 type ResponseResult = { status: number; body: Record<string, unknown> };
@@ -85,7 +85,12 @@ async function run() {
   check(publicPageSource.includes('PublicRequestSection') && publicPageSource.includes('Giriş ekranına dön'), 'public page renders reusable form and back action');
   check(!publicRequestSource.includes('MONTHLY_LICENSE') && !publicRequestSource.includes('Aylık Lisans'), 'public form does not expose monthly license');
   check(publicRequestSource.includes('YEARLY_LICENSE') && publicRequestSource.includes('Yıllık Lisans') && publicRequestSource.includes('İletişim'), 'public form exposes yearly license and contact');
-  check(publicRequestSource.includes("initialRequestType = 'YEARLY_LICENSE'"), 'public form defaults to yearly license');
+  check(publicRequestSource.includes('initialRequestType = getDefaultPublicRequestKind(isNativeRuntime())'), 'public form takes the platform default');
+  check(publicRequestSource.indexOf("FREE_TRIAL: '1 Haftalık") < publicRequestSource.indexOf('YEARLY_LICENSE: yearlyPriceMinor') && publicRequestSource.indexOf('YEARLY_LICENSE: yearlyPriceMinor') < publicRequestSource.indexOf("CONTACT: 'İletişim'"), 'options are ordered trial, yearly, contact');
+  equal(getDefaultPublicRequestKind(false), 'FREE_TRIAL', 'web opens with the free trial selected');
+  equal(getDefaultPublicRequestKind(true), 'YEARLY_LICENSE', 'native app keeps yearly license selected');
+  equal(getPublicRequestPreset(''), 'FREE_TRIAL', 'web page without a query opens on the free trial');
+  equal(getPublicRequestPreset('', getDefaultPublicRequestKind(true)), 'YEARLY_LICENSE', 'native page without a query opens on yearly license');
   check(publicRequestSource.includes('1 Haftalık Ücretsiz Deneme') && publicRequestSource.includes("value !== 'FREE_TRIAL' || !isNativeRuntime()"), 'free trial option is offered on the web only');
   check(!getPlatformRequestStatusOptions('NEW', 'FREE_TRIAL').includes('WAITING_PAYMENT'), 'free trial request does not offer WAITING_PAYMENT');
   check(publicRequestSource.includes('api.createPublicRequest'), 'public page form keeps existing API submission');
@@ -94,7 +99,7 @@ async function run() {
   equal(getPublicRequestPreset('?request=monthly'), 'YEARLY_LICENSE', 'monthly query safely falls back to yearly');
   equal(getPublicRequestPreset('?request=yearly'), 'YEARLY_LICENSE', 'yearly query preset supported');
   equal(getPublicRequestPreset('?request=contact'), 'CONTACT', 'contact query preset supported');
-  equal(getPublicRequestPreset('?request=invalid'), 'YEARLY_LICENSE', 'unknown query preset safely falls back to yearly');
+  equal(getPublicRequestPreset('?request=invalid'), 'FREE_TRIAL', 'unknown query preset falls back to the default');
   check(authViewSource.includes('PhoneCentricLoginPanel') && !authViewSource.includes('Personel İlk Giriş') && !authViewSource.includes('Okul Yöneticisi İlk Giriş'), 'shared phone login and parent/admin flows remain; retired staff activation stays closed');
   check(authViewSource.includes('Yıllık lisans hakkında bilgi alın veya bize ulaşın.'), 'public CTA describes annual license');
   check(!publicRequestSource.match(/!success[\s\S]*Giriş ekranına dön[\s\S]*Talebi Gönder/), 'normal public form does not render a second back button');
