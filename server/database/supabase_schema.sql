@@ -452,7 +452,7 @@ CREATE TABLE IF NOT EXISTS platform_requests (
     school_id TEXT REFERENCES schools(id) ON DELETE SET NULL,
     created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     source VARCHAR(20) NOT NULL CHECK (source IN ('PUBLIC', 'SCHOOL_ADMIN')),
-    request_type VARCHAR(30) NOT NULL CHECK (request_type IN ('MONTHLY_LICENSE', 'YEARLY_LICENSE', 'CONTACT', 'SUPPORT')),
+    request_type VARCHAR(30) NOT NULL CHECK (request_type IN ('MONTHLY_LICENSE', 'YEARLY_LICENSE', 'FREE_TRIAL', 'CONTACT', 'SUPPORT')),
     school_name_snapshot VARCHAR(255) NOT NULL,
     contact_name_snapshot VARCHAR(150) NOT NULL,
     email_snapshot VARCHAR(254),

@@ -16,9 +16,9 @@ import {
   SupportThread,
 } from '../src/types/platform';
 
-const PUBLIC_REQUEST_TYPES: PlatformRequestType[] = ['YEARLY_LICENSE', 'CONTACT'];
+const PUBLIC_REQUEST_TYPES: PlatformRequestType[] = ['YEARLY_LICENSE', 'FREE_TRIAL', 'CONTACT'];
 const SCHOOL_REQUEST_TYPES: PlatformRequestType[] = ['YEARLY_LICENSE', 'SUPPORT'];
-const REQUEST_TYPES: PlatformRequestType[] = ['MONTHLY_LICENSE', 'YEARLY_LICENSE', 'CONTACT', 'SUPPORT'];
+const REQUEST_TYPES: PlatformRequestType[] = ['MONTHLY_LICENSE', 'YEARLY_LICENSE', 'FREE_TRIAL', 'CONTACT', 'SUPPORT'];
 const REQUEST_STATUSES: PlatformRequestStatus[] = ['NEW', 'IN_PROGRESS', 'WAITING_PAYMENT', 'RESOLVED', 'ARCHIVED'];
 const SUPPORT_CATEGORIES = ['Teknik Sorun', 'Randevu Sorunu', 'Veli Hesabı', 'Personel Hesabı', 'QR / Güvenlik', 'Lisans', 'Öneri', 'Diğer'] as const;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -345,6 +345,7 @@ function requestTypeLabel(type: PlatformRequestType): string {
   return ({
     MONTHLY_LICENSE: 'Aylık Lisans (Eski)',
     YEARLY_LICENSE: 'Yıllık Lisans',
+    FREE_TRIAL: '1 Haftalık Ücretsiz Deneme',
     CONTACT: 'İletişim',
     SUPPORT: 'Destek',
   } as const)[type];

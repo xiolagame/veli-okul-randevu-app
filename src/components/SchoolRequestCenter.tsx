@@ -11,7 +11,7 @@ import { SupportConversation } from './SupportConversation';
 
 const categories = ['Teknik Sorun', 'Randevu Sorunu', 'Veli Hesabı', 'Personel Hesabı', 'QR / Güvenlik', 'Lisans', 'Öneri', 'Diğer'] as const;
 const statusLabels: Record<PlatformRequestStatus, string> = { NEW: 'Yeni', IN_PROGRESS: 'İşlemde', WAITING_PAYMENT: 'Ödeme Bekleniyor', RESOLVED: 'Çözüldü', ARCHIVED: 'Arşivlendi' };
-const typeLabels = { MONTHLY_LICENSE: 'Aylık Lisans (Eski)', YEARLY_LICENSE: 'Yıllık Lisans', CONTACT: 'İletişim', SUPPORT: 'Destek' } as const;
+const typeLabels = { MONTHLY_LICENSE: 'Aylık Lisans (Eski)', YEARLY_LICENSE: 'Yıllık Lisans', FREE_TRIAL: '1 Haftalık Ücretsiz Deneme', CONTACT: 'İletişim', SUPPORT: 'Destek' } as const;
 
 export function SchoolRequestCenter() {
   const { currentSchool, currentUser } = useApp();

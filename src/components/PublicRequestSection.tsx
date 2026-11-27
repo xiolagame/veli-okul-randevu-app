@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
+import { isNativeRuntime } from '../platform/runtime-platform';
 import { api } from '../services/api';
 import { formatTryAmount, loadYearlyLicensePrice } from '../utils/license-price';
 import { formatTurkishPhoneInput, normalizeUserPhoneInput } from '../utils/phone';
@@ -11,6 +12,7 @@ import { Alert, Button } from './ui';
 function requestLabels(yearlyPriceMinor: number | null): Record<PublicRequestKind, string> {
   return {
     YEARLY_LICENSE: yearlyPriceMinor === null ? 'Yıllık Lisans' : `Yıllık Lisans / ${formatTryAmount(yearlyPriceMinor)}`,
+    FREE_TRIAL: '1 Haftalık Ücretsiz Deneme',
     CONTACT: 'İletişim',
   };
 }
@@ -26,6 +28,8 @@ export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', on
   const [success, setSuccess] = useState('');
   const [yearlyPriceMinor, setYearlyPriceMinor] = useState<number | null>(null);
   const labels = requestLabels(yearlyPriceMinor);
+  // Ücretsiz deneme talebi yalnız web sürümünde sunulur.
+  const options = Object.entries(labels).filter(([value]) => value !== 'FREE_TRIAL' || !isNativeRuntime());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,7 +81,7 @@ export function PublicRequestSection({ initialRequestType = 'YEARLY_LICENSE', on
 
   return <section className="public-request-section" aria-label="Lisans ve iletişim talep formu">
     <form className="form-stack public-request-form" onSubmit={submit} noValidate>
-      <label className="field" htmlFor="request-plan">Talep Türü *<select id="request-plan" value={requestType} disabled={busy || !!success} onChange={(event) => { setRequestType(event.target.value as PublicRequestKind); setError(''); }}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="field" htmlFor="request-plan">Talep Türü *<select id="request-plan" value={requestType} disabled={busy || !!success} onChange={(event) => { setRequestType(event.target.value as PublicRequestKind); setError(''); }}>{options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {error && <Alert tone="danger"><span role="alert">{error}</span></Alert>}
       {success && <Alert tone="success"><span role="status">{success}</span></Alert>}
       {!success && <>

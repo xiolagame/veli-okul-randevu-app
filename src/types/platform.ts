@@ -11,7 +11,7 @@ export interface ManagedSchool {
 }
 
 export type PlatformRequestSource = 'PUBLIC' | 'SCHOOL_ADMIN';
-export type PlatformRequestType = 'MONTHLY_LICENSE' | 'YEARLY_LICENSE' | 'CONTACT' | 'SUPPORT';
+export type PlatformRequestType = 'MONTHLY_LICENSE' | 'YEARLY_LICENSE' | 'FREE_TRIAL' | 'CONTACT' | 'SUPPORT';
 export type PlatformRequestStatus = 'NEW' | 'IN_PROGRESS' | 'WAITING_PAYMENT' | 'RESOLVED' | 'ARCHIVED';
 export type SupportMessageSenderKind = 'SCHOOL_ADMIN' | 'PLATFORM_ADMIN';
 

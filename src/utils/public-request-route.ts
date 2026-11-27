@@ -4,7 +4,7 @@ export const PUBLIC_REQUEST_PATH = '/lisans-iletisim';
 export const HELP_PATH = '/yardim';
 export const PUBLIC_CONTACT_PATH = `${PUBLIC_REQUEST_PATH}?request=contact`;
 export const LEGACY_HELP_SUPPORT_PATH = `${HELP_PATH}/destek`;
-export type PublicRequestKind = Extract<PlatformRequestType, 'YEARLY_LICENSE' | 'CONTACT'>;
+export type PublicRequestKind = Extract<PlatformRequestType, 'YEARLY_LICENSE' | 'FREE_TRIAL' | 'CONTACT'>;
 
 const requestPresets: Record<string, PublicRequestKind> = {
   yearly: 'YEARLY_LICENSE',

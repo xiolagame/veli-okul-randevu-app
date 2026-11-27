@@ -86,6 +86,8 @@ async function run() {
   check(!publicRequestSource.includes('MONTHLY_LICENSE') && !publicRequestSource.includes('Aylık Lisans'), 'public form does not expose monthly license');
   check(publicRequestSource.includes('YEARLY_LICENSE') && publicRequestSource.includes('Yıllık Lisans') && publicRequestSource.includes('İletişim'), 'public form exposes yearly license and contact');
   check(publicRequestSource.includes("initialRequestType = 'YEARLY_LICENSE'"), 'public form defaults to yearly license');
+  check(publicRequestSource.includes('1 Haftalık Ücretsiz Deneme') && publicRequestSource.includes("value !== 'FREE_TRIAL' || !isNativeRuntime()"), 'free trial option is offered on the web only');
+  check(!getPlatformRequestStatusOptions('NEW', 'FREE_TRIAL').includes('WAITING_PAYMENT'), 'free trial request does not offer WAITING_PAYMENT');
   check(publicRequestSource.includes('api.createPublicRequest'), 'public page form keeps existing API submission');
   check(!publicRequestSource.includes('teacherCount') && !publicRequestSource.includes('Öğretmen Sayısı'), 'public form omits teacher count state, field and payload');
   equal(PUBLIC_REQUEST_PATH, '/lisans-iletisim', 'public request page uses expected URL');
@@ -99,7 +101,7 @@ async function run() {
   const schoolRequestSourceForTypes = fs.readFileSync('src/components/SchoolRequestCenter.tsx', 'utf8');
   check(!schoolRequestSourceForTypes.includes('<option value="MONTHLY_LICENSE">') && schoolRequestSourceForTypes.includes('<option value="YEARLY_LICENSE">') && schoolRequestSourceForTypes.includes('<option value="SUPPORT">'), 'school admin create options are support and yearly license only');
   const platformRequestSource = fs.readFileSync('src/components/PlatformRequestCenter.tsx', 'utf8');
-  check(platformRequestSource.includes("activeRequestTypes: PlatformRequestType[] = ['YEARLY_LICENSE', 'CONTACT', 'SUPPORT']") && platformRequestSource.includes("MONTHLY_LICENSE: 'Aylık Lisans (Eski)'"), 'platform filters show current products while preserving legacy monthly label');
+  check(platformRequestSource.includes("activeRequestTypes: PlatformRequestType[] = ['YEARLY_LICENSE', 'FREE_TRIAL', 'CONTACT', 'SUPPORT']") && platformRequestSource.includes("MONTHLY_LICENSE: 'Aylık Lisans (Eski)'"), 'platform filters show current products while preserving legacy monthly label');
   check(appSource.indexOf('if (pathname === PUBLIC_REQUEST_PATH)') < appSource.indexOf('if (!currentUser)') && appSource.includes("backLabel={currentUser ? 'Uygulamaya dön' : 'Giriş ekranına dön'}"), 'authenticated help navigation can open the shared public contact page safely');
   const stylesheetSource = fs.readFileSync('src/index.css', 'utf8');
   check(stylesheetSource.includes('.public-request-page-shell { width: min(720px, 100%)') && stylesheetSource.includes('.public-request-page .form-actions { flex-direction: column-reverse; }'), 'public page has bounded desktop width and mobile actions');
@@ -165,6 +167,13 @@ async function run() {
     check(typeof yearly.body.requestId === 'string', 'public response returns request id');
     const contact = await request('POST', '/public/requests', undefined, publicPayload({ requestType: 'CONTACT' }));
     equal(contact.status, 201, 'valid contact request');
+    const trialEmailStart = emails.length;
+    const trial = await request('POST', '/public/requests', undefined, publicPayload({ requestType: 'FREE_TRIAL', message: 'Okulumuzda denemek istiyoruz.' }));
+    equal(trial.status, 201, 'valid free trial request');
+    const trialRow = await db.query('SELECT request_type FROM platform_requests WHERE id=$1', [trial.body.requestId]);
+    equal(trialRow.rows[0].request_type, 'FREE_TRIAL', 'free trial type is stored');
+    check(emails.slice(trialEmailStart).some((email) => email.subject === 'Yeni 1 haftalık ücretsiz deneme talebi'), 'platform email names the free trial request');
+    check(emails.slice(trialEmailStart).some((email) => email.html.includes('1 Haftalık Ücretsiz Deneme talebiniz alınmıştır.')), 'requester email names the free trial request');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ email: '', phone: '0555 123 45 67' }))).status, 400, 'phone-only forged public request rejected');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ phone: '', email: 'email-only@example.test' }))).status, 400, 'email-only forged public request rejected');
     equal((await request('POST', '/public/requests', undefined, publicPayload({ phone: '', email: '' }))).status, 400, 'missing contact rejected');
@@ -235,6 +244,10 @@ async function run() {
     equal((await request('GET', `/platform/requests/${supportId}`, platform.token)).status, 200, 'platform admin views detail');
     equal((await request('PATCH', `/platform/requests/${supportId}/status`, platform.token, { status: 'WAITING_PAYMENT' })).status, 409, 'support cannot wait for payment');
     equal((await request('PATCH', `/platform/requests/${String(contact.body.requestId)}/status`, platform.token, { status: 'WAITING_PAYMENT' })).status, 409, 'contact cannot wait for payment');
+    equal((await request('PATCH', `/platform/requests/${String(trial.body.requestId)}/status`, platform.token, { status: 'WAITING_PAYMENT' })).status, 409, 'free trial cannot wait for payment');
+    const trialList = await request('GET', '/platform/requests?requestType=FREE_TRIAL', platform.token);
+    check(trialList.status === 200 && (trialList.body.requests as Array<{ id: string }>).some((item) => item.id === trial.body.requestId), 'platform can filter free trial requests');
+    equal((await request('POST', `/schools/${schoolA}/requests`, adminA.token, { requestToken: crypto.randomUUID(), requestType: 'FREE_TRIAL', message: 'Deneme' })).status, 400, 'school admin free trial create rejected');
     equal((await request('PATCH', `/platform/requests/${supportId}/status`, platform.token, { status: 'IN_PROGRESS' })).status, 200, 'allowed status update works');
     equal((await request('PATCH', `/platform/requests/${supportId}/status`, platform.token, { status: 'NOT_VALID' })).status, 400, 'invalid status rejected');
     equal((await request('PATCH', `/platform/requests/${supportId}/status`, adminA.token, { status: 'RESOLVED' })).status, 403, 'school admin cannot change global status');

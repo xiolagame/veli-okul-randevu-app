@@ -9,8 +9,8 @@ import { Alert, Button, Dialog, EmptyState, Skeleton } from './ui';
 import { SupportConversation } from './SupportConversation';
 
 const statusLabels: Record<PlatformRequestStatus, string> = { NEW: 'Yeni', IN_PROGRESS: 'İşlemde', WAITING_PAYMENT: 'Ödeme Bekleniyor', RESOLVED: 'Çözüldü', ARCHIVED: 'Arşiv' };
-const typeLabels: Record<PlatformRequestType, string> = { MONTHLY_LICENSE: 'Aylık Lisans (Eski)', YEARLY_LICENSE: 'Yıllık Lisans', CONTACT: 'İletişim', SUPPORT: 'Destek' };
-const activeRequestTypes: PlatformRequestType[] = ['YEARLY_LICENSE', 'CONTACT', 'SUPPORT'];
+const typeLabels: Record<PlatformRequestType, string> = { MONTHLY_LICENSE: 'Aylık Lisans (Eski)', YEARLY_LICENSE: 'Yıllık Lisans', FREE_TRIAL: '1 Haftalık Ücretsiz Deneme', CONTACT: 'İletişim', SUPPORT: 'Destek' };
+const activeRequestTypes: PlatformRequestType[] = ['YEARLY_LICENSE', 'FREE_TRIAL', 'CONTACT', 'SUPPORT'];
 const sourceLabels = { PUBLIC: 'Public Form', SCHOOL_ADMIN: 'Okul Yönetimi' } as const;
 
 export function PlatformRequestCenter() {
