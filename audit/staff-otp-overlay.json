@@ -30,7 +30,7 @@
       "path": "ios/App/App.xcodeproj/project.pbxproj",
       "baselineCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
       "archivedProductionCanonicalSha256": "011b976d7472d58d42c2edf830278856c2ed7cf77cb2a4ab4931fe295b18c0cb",
-      "currentCanonicalSha256": "e6a5836404ada296a3cb79358b8a255fc07e932694918c74937f218c3bd65683"
+      "currentCanonicalSha256": "d44295b77a5433b5815afca4afec00c893d3d449314245e1cfcc5f38441ae28f"
     },
     {
       "path": "ios/App/App/Base.lproj/LaunchScreen.storyboard",
@@ -360,7 +360,7 @@
       "path": "scripts/test-ios-shell.ts",
       "baselineCanonicalSha256": "45352d703f52ec66dbb60f423ae3cbef9c80c8644005a2a966f557cd727c7464",
       "archivedProductionCanonicalSha256": "fe64f56b2bc4911592a3c9ddf7bced88b63d42f9fd7209e658e2da127fd193c6",
-      "currentCanonicalSha256": "b7c9cac90641fe127e40c21728ca788e33bb18f53c05e608b0b01e1c14adf3b6"
+      "currentCanonicalSha256": "1a3963ddf432800875bac243e1fecff1b1a21ac5502ced3ef0b7bcd693bdf551"
     },
     {
       "path": "scripts/test-ios-statusbar-surfaces.mjs",
