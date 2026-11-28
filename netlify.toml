@@ -6,6 +6,8 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  # Yerel deneme veritabanı (server/data) sunucu paketine girmesin; canlıda Supabase kullanılır.
+  included_files = ["!server/data/**"]
 
 # Direct all /api/* calls to Netlify Serverless Express Function
 [[redirects]]
