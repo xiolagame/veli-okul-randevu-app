@@ -3,6 +3,7 @@ import cors from 'cors';
 import { apiRouter } from './api';
 import { initDatabase } from './database/postgres';
 import { platformTargetContextGuard } from './platform-management';
+import { WHATSAPP_WEBHOOK_PATH } from './whatsapp-status';
 
 let initPromise: Promise<void> | null = null;
 
@@ -60,6 +61,11 @@ export function createExpressApp() {
       ? 'Aktarım partisi çok büyük. Dosyanın tamamı yerine güvenli partiler gönderin.'
       : 'Aktarım partisi okunamadı.' });
   });
+  // WhatsApp teslim bildirimleri imza denetimi için ham gövdeyle okunur (genel JSON okuyucudan önce).
+  app.use(
+    [`/api${WHATSAPP_WEBHOOK_PATH}`, `/.netlify/functions/api${WHATSAPP_WEBHOOK_PATH}`],
+    express.raw({ type: () => true, limit: '256kb' }),
+  );
   app.use(express.json());
 
   // Ensure database is initialized before handling API requests

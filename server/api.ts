@@ -7,6 +7,7 @@ import { adminManagementRouter } from './admin-management';
 import { platformManagementRouter } from './platform-management';
 import { publicRequestRouter, schoolRequestRouter } from './platform-requests';
 import { publicPricingRouter } from './platform-pricing';
+import { WHATSAPP_WEBHOOK_PATH, whatsAppWebhookRouter } from './whatsapp-status';
 import { accountDeletionRouter } from './account-deletion';
 import crypto from 'crypto';
 import { deactivatePushDevice, dispatchPushDeliveries, enqueueAppointmentPush, registerPushDevice, StalePushRegistrationError, StalePushSessionError } from './push-notifications';
@@ -145,6 +146,7 @@ apiRouter.use('/auth', (req, res, next) => {
 apiRouter.use('/schools/:schoolId/management', adminManagementRouter);
 apiRouter.use('/public/requests', publicRequestRouter);
 apiRouter.use('/public/pricing', publicPricingRouter);
+apiRouter.use(WHATSAPP_WEBHOOK_PATH, whatsAppWebhookRouter);
 apiRouter.use('/schools/:schoolId/requests', schoolRequestRouter);
 apiRouter.use('/platform', platformManagementRouter);
 apiRouter.use(accountDeletionRouter);

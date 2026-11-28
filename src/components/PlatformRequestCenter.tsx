@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Inbox, Mail, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
+import { isNativeRuntime } from '../platform/runtime-platform';
 import { PlatformRequestItem, PlatformRequestStatus, PlatformRequestType, SupportThread } from '../types/platform';
 import { createRequestToken } from '../utils/request-token';
 import { formatDateTime } from '../utils/dates';
@@ -26,6 +27,9 @@ export function PlatformRequestCenter() {
   const [reply, setReply] = useState('');
   const [replyToken, setReplyToken] = useState(createRequestToken);
   const [hideTarget, setHideTarget] = useState<PlatformRequestItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PlatformRequestItem | null>(null);
+  // Kalıcı silme yalnız web panelinde sunulur.
+  const canDelete = !isNativeRuntime();
 
   const load = async () => {
     setLoading(true); setError('');
@@ -87,6 +91,17 @@ export function PlatformRequestCenter() {
     finally { setBusy(false); }
   };
 
+  const deleteRequest = async () => {
+    if (!deleteTarget || busy) return;
+    setBusy(true); setError('');
+    try {
+      await api.deletePlatformRequest(deleteTarget.id);
+      setDeleteTarget(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Talep silinemedi.'); }
+    finally { setBusy(false); }
+  };
+
   if (threadLoading) return <section className="surface"><Skeleton /></section>;
   if (thread) return <div className="space-y-5">
     {error && <Alert tone="danger"><span role="alert">{error}</span></Alert>}
@@ -119,7 +134,14 @@ export function PlatformRequestCenter() {
       <label className="field" htmlFor="platform-request-type">Talep Türü<select id="platform-request-type" value={requestType} onChange={(event) => setRequestType(event.target.value)}><option value="">Tüm Türler</option>{activeRequestTypes.map((value) => <option key={value} value={value}>{typeLabels[value]}</option>)}</select></label>
     </div>
     {error && <Alert tone="danger"><span role="alert">{error}</span></Alert>}
-    {loading ? <Skeleton /> : requests.length ? <div className="request-list platform-request-list">{requests.map((item) => <button type="button" className="request-card request-card-button" key={item.id} onClick={() => void openRequest(item)}><div className="platform-request-summary"><small>{typeLabels[item.requestType]} · {sourceLabels[item.source]}</small><strong>{item.subject || item.schoolName}</strong><p>{item.schoolName} · {item.subject ? item.message || 'Mesaj bulunmuyor.' : item.contactName}</p><small>Son güncelleme: {formatDateTime(item.updatedAt)}{item.requestType === 'SUPPORT' ? ` · ${item.messageCount} mesaj` : ''}</small></div><span className={`status-badge tone-${item.status === 'RESOLVED' ? 'success' : item.status === 'ARCHIVED' ? 'neutral' : 'warning'}`}>{statusLabels[item.status]}</span></button>)}</div> : <EmptyState icon={Inbox} title="Bu filtrede talep yok" description="Yeni talepler geldiğinde burada görüntülenir." />}
+    {loading ? <Skeleton /> : requests.length ? <div className="request-list platform-request-list">{requests.map((item) => <div className="platform-request-row" key={item.id}><button type="button" className="request-card request-card-button" onClick={() => void openRequest(item)}><div className="platform-request-summary"><small>{typeLabels[item.requestType]} · {sourceLabels[item.source]}</small><strong>{item.subject || item.schoolName}</strong><p>{item.schoolName} · {item.subject ? item.message || 'Mesaj bulunmuyor.' : item.contactName}</p><small>Son güncelleme: {formatDateTime(item.updatedAt)}{item.requestType === 'SUPPORT' ? ` · ${item.messageCount} mesaj` : ''}</small></div><span className={`status-badge tone-${item.status === 'RESOLVED' ? 'success' : item.status === 'ARCHIVED' ? 'neutral' : 'warning'}`}>{statusLabels[item.status]}</span></button>{canDelete && <button type="button" className="icon-button platform-request-delete" disabled={busy} title="Talebi kalıcı olarak sil" aria-label={`${item.schoolName} talebini kalıcı olarak sil`} onClick={() => { setError(''); setDeleteTarget(item); }}><Trash2 size={18} aria-hidden="true" /></button>}</div>)}</div> : <EmptyState icon={Inbox} title="Bu filtrede talep yok" description="Yeni talepler geldiğinde burada görüntülenir." />}
+    {deleteTarget && <Dialog title="Talebi kalıcı olarak sil" description={`${typeLabels[deleteTarget.requestType]} · ${deleteTarget.schoolName} · ${deleteTarget.contactName}`} onClose={() => setDeleteTarget(null)} dismissible={!busy}>
+      <div className="form-stack">
+        <Alert tone="danger"><strong>Bu işlem geri alınamaz.</strong><p className="mt-2">Talep{deleteTarget.requestType === 'SUPPORT' ? ' ve tüm konuşma mesajları' : ''} tamamen silinir{deleteTarget.source === 'SCHOOL_ADMIN' ? '; okul yöneticisinin listesinden de kaybolur' : ''}.</p></Alert>
+        {error && <Alert tone="danger"><span role="alert">{error}</span></Alert>}
+        <div className="form-actions"><Button variant="secondary" disabled={busy} onClick={() => setDeleteTarget(null)}>Vazgeç</Button><Button variant="danger" disabled={busy} onClick={() => void deleteRequest()}>{busy ? 'Siliniyor…' : 'Kalıcı Olarak Sil'}</Button></div>
+      </div>
+    </Dialog>}
     {selected && <Dialog wide title={typeLabels[selected.requestType]} description={`${sourceLabels[selected.source]} · ${formatDateTime(selected.createdAt)}`} onClose={() => setSelected(null)} dismissible={!busy}>
       {error && <Alert tone="danger">{error}</Alert>}
       <dl className="pass-details request-detail"><div><dt>Okul</dt><dd>{selected.schoolName}</dd></div><div><dt>Yetkili</dt><dd>{selected.contactName}</dd></div><div><dt>E-posta</dt><dd>{selected.email || '—'}</dd></div><div><dt>Telefon</dt><dd>{selected.phone || '—'}</dd></div><div><dt>Öğretmen Sayısı</dt><dd>{selected.teacherCount || '—'}</dd></div><div><dt>Konu</dt><dd>{selected.subject || '—'}</dd></div></dl>

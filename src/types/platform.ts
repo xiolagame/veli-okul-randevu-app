@@ -53,3 +53,23 @@ export interface SupportThread {
   request: PlatformRequestItem;
   messages: SupportMessage[];
 }
+
+export type WhatsAppDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface WhatsAppDeliveryItem {
+  id: string;
+  phone: string;
+  name: string | null;
+  status: WhatsAppDeliveryStatus;
+  errorCode: number | null;
+  errorTitle: string | null;
+  statusAt: string;
+  createdAt: string;
+}
+
+export interface WhatsAppStatusReport {
+  configured: boolean;
+  lastReportAt: string | null;
+  messages: WhatsAppDeliveryItem[];
+  codeRequests: string[];
+}

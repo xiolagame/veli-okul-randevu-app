@@ -205,6 +205,10 @@ export const api = {
   hidePlatformSupportRequest: (id: string) =>
     request<{ success: boolean; request: import('../types/platform').PlatformRequestItem }>(
       `/api/platform/requests/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deletePlatformRequest: (id: string) =>
+    request<{ success: boolean }>(`/api/platform/requests/${encodeURIComponent(id)}/permanent`, { method: 'DELETE' }),
+  getPlatformWhatsAppStatus: (phone?: string) =>
+    request<import('../types/platform').WhatsAppStatusReport>(`/api/platform/whatsapp-status${phone ? `?${new URLSearchParams({ phone })}` : ''}`),
   updatePlatformRequestStatus: (id: string, status: import('../types/platform').PlatformRequestStatus) =>
     request<{ request: import('../types/platform').PlatformRequestItem }>(`/api/platform/requests/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   getManagedParents: (schoolId: string) => request<{ parents: import('../types/management').ManagedParent[] }>(`/api/schools/${schoolId}/management/parents`),

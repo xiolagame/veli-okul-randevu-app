@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import { ManagedSchool } from '../types/platform';
 import { Alert, Button, Dialog, Skeleton, Toast } from './ui';
 import { formatDateTime } from '../utils/dates';
-import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, Trash2 } from 'lucide-react';
+import { ShieldCheck, School as SchoolIcon, FileText, Inbox, LayoutDashboard, MessageCircle, Trash2 } from 'lucide-react';
 import { auditDisplay } from '../utils/audit-display';
 import { formatTurkishPhoneInput, isValidTurkishPhoneInput } from '../utils/phone';
 import { uppercasePersonNameInput } from '../utils/person-name';
@@ -11,8 +11,10 @@ import { PlatformRequestCenter } from './PlatformRequestCenter';
 import { PlatformPhoneBinding } from './PlatformPhoneBinding';
 import { LicenseManagement } from './LicenseManagement';
 import { PlatformPricing } from './PlatformPricing';
+import { PlatformWhatsAppStatus } from './PlatformWhatsAppStatus';
+import { isNativeRuntime } from '../platform/runtime-platform';
 
-type PlatformManagementSection = 'overview' | 'schools' | 'licenses' | 'requests' | 'security' | 'audit';
+type PlatformManagementSection = 'overview' | 'schools' | 'licenses' | 'requests' | 'whatsapp' | 'security' | 'audit';
 
 export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSection = 'overview' }: { onClose: () => void; onManageSchool: (schoolId: string) => void; onChanged: () => Promise<void>; initialSection?: PlatformManagementSection }) {
   const [schools, setSchools] = useState<ManagedSchool[]>([]);
@@ -93,7 +95,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
     </header>
     <div className="space-y-5">
       <nav className="platform-nav" aria-label="Platform yönetimi">
-        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'licenses', label: 'Lisans Yönetimi', Icon: FileText }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}{id === 'requests' && unseenRequests > 0 && <span className="platform-unseen-badge" aria-label={`${unseenRequests} yeni talep`}>{unseenRequests > 99 ? '99+' : unseenRequests}</span>}</button>)}
+        {([{ id: 'overview', label: 'Genel Bakış', Icon: LayoutDashboard }, { id: 'schools', label: 'Okullar', Icon: SchoolIcon }, { id: 'licenses', label: 'Lisans Yönetimi', Icon: FileText }, { id: 'requests', label: 'Gelen Talepler', Icon: Inbox }, { id: 'whatsapp', label: 'WhatsApp Durumu', Icon: MessageCircle }, { id: 'security', label: 'Sistem Güvenliği', Icon: ShieldCheck }, { id: 'audit', label: 'Platform İşlem Günlüğü', Icon: FileText }] as const).filter(({ id }) => id !== 'whatsapp' || !isNativeRuntime()).map(({ id, label, Icon }) => <button type="button" key={id} aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}><Icon size={17} />{label}{id === 'requests' && unseenRequests > 0 && <span className="platform-unseen-badge" aria-label={`${unseenRequests} yeni talep`}>{unseenRequests > 99 ? '99+' : unseenRequests}</span>}</button>)}
       </nav>
       {section === 'licenses' && <><PlatformPricing/><LicenseManagement/></>}
       {error && <Alert tone="danger">{error}<Button variant="quiet" disabled={busy} onClick={() => { void load().then(() => setError('')).catch(() => setError('Okullar yüklenemedi.')); }}>Listeyi yeniden yükle</Button></Alert>}
@@ -121,6 +123,7 @@ export function SchoolManagement({ onClose, onManageSchool, onChanged, initialSe
       {section === 'security' && <><section className="surface"><h3>Sistem Güvenliği</h3><p>Yalnızca bileşen durumu gösterilir; gizli anahtar değerleri bu ekranda bulunmaz.</p>{security ? <dl className="pass-details mt-4">{([['Veritabanı', security.database === 'connected' ? 'Bağlı' : 'Erişilemiyor'], ['Oturum imzalama yapılandırması', security.authConfiguration === 'ready' ? 'Hazır' : 'Eksik'], ['Aktivasyon kodu imzalama yapılandırması', security.codeSigning === 'ready' ? 'Hazır' : 'Eksik']] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : <Skeleton rows={2} />}</section><PlatformPhoneBinding /></>}
       {section === 'audit' && <section className="surface"><div className="section-heading"><h3>Platform İşlem Günlüğü</h3><Button variant="danger" disabled={busy} onClick={() => { setClearAuditConfirmation(''); setClearAuditOpen(true); }}>Platform Günlüğünü Temizle</Button></div>{logs.length ? logs.slice(0, logLimit).map((log) => <article key={log.id} className="py-4 border-b"><span className={`status-badge tone-${auditDisplay(log.action, log.details).tone}`}>{auditDisplay(log.action, log.details).label}</span><p className="mt-2">{log.actorName} · {log.schoolName || 'Platform'}</p><p className="text-sm text-slate-500">{formatDateTime(log.timestamp)}</p></article>) : <p className="mt-3 text-sm text-slate-500">Henüz platform işlem kaydı yok.</p>}{logs.length > logLimit && <Button variant="secondary" className="w-full mt-4" onClick={() => setLogLimit((limit) => limit + 50)}>Daha fazla göster ({logs.length - logLimit} kayıt daha)</Button>}</section>}
       {section === 'requests' && <PlatformRequestCenter />}
+      {section === 'whatsapp' && !isNativeRuntime() && <PlatformWhatsAppStatus />}
     </div>
     {target && <Dialog title={target.disabledAt ? 'Okulu etkinleştir' : 'Okulu devre dışı bırak'} onClose={() => setTarget(null)} dismissible={!busy}>
       <Alert tone="warning">{target.name}: {target.disabledAt ? 'Mevcut aktif üyeliklerin erişimi yeniden açılır.' : 'Bu okuldaki tüm rollerin erişimi, aktivasyon ve reset işlemleri kapanır. Geçmiş randevular, üyelikler ve ayarlar korunur; hiçbir kayıt silinmez.'} Devam etmek istiyor musunuz?</Alert>

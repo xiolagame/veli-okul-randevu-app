@@ -45,6 +45,7 @@ const events: Record<string, [string, string]> = {
   'school.enabled': ['Okul etkinleştirildi.', 'success'],
   'school.code_changed': ['Okul kodu değiştirildi.', 'info'],
   'platform.audit_logs_cleared': ['Platform işlem günlüğü temizlendi.', 'warning'],
+  'platform_request.deleted': ['Gelen talep kalıcı olarak silindi.', 'rose'],
 };
 
 export function auditDisplay(action: string, details: string) {

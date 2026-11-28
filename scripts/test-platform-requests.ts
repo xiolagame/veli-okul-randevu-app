@@ -263,6 +263,28 @@ async function run() {
     equal(licenseAfter.rows[0].expires_at, licenseBefore.rows[0].expires_at, 'request does not extend license');
     equal((await db.query('SELECT COUNT(*)::text AS count FROM school_licenses WHERE school_id=$1', [schoolA])).rows[0].count, '1', 'request does not create license');
 
+    // Kalıcı silme: yalnız platform yöneticisi; talep ve konuşma mesajları tamamen gider.
+    const doomed = await request('POST', `/schools/${schoolA}/requests`, adminA.token, { requestToken: crypto.randomUUID(), requestType: 'SUPPORT', subject: 'Diğer', message: 'Silinecek destek talebi' });
+    equal(doomed.status, 201, 'support request created for deletion');
+    const doomedId = String(doomed.body.requestId);
+    equal((await request('POST', `/platform/requests/${doomedId}/messages`, platform.token, { requestToken: crypto.randomUUID(), message: 'Yanıt' })).status, 201, 'support request has a reply');
+    equal((await request('DELETE', `/platform/requests/${doomedId}/permanent`)).status, 401, 'anonymous cannot delete a request');
+    for (const [label, account] of Object.entries({ adminA, teacher, security, parent })) {
+      equal((await request('DELETE', `/platform/requests/${doomedId}/permanent`, account.token)).status, 403, `${label} cannot delete a request`);
+    }
+    equal((await db.query('SELECT 1 FROM platform_requests WHERE id=$1', [doomedId])).rows.length, 1, 'rejected deletion keeps the request');
+    equal((await request('DELETE', `/platform/requests/${doomedId}/permanent`, platform.token)).status, 200, 'platform admin permanently deletes an open request');
+    equal((await db.query('SELECT 1 FROM platform_requests WHERE id=$1', [doomedId])).rows.length, 0, 'request row is removed');
+    equal((await db.query('SELECT 1 FROM platform_request_messages WHERE request_id=$1', [doomedId])).rows.length, 0, 'conversation messages are removed');
+    equal((await request('DELETE', `/platform/requests/${doomedId}/permanent`, platform.token)).status, 404, 'deleting again returns not found');
+    const schoolView = await request('GET', `/schools/${schoolA}/requests`, adminA.token);
+    check(!(schoolView.body.requests as Array<{ id: string }>).some((item) => item.id === doomedId), 'deleted request disappears from the school view');
+    const deletionLog = await db.query<{ details: string; audit_scope: string }>(`SELECT details,audit_scope FROM audit_logs WHERE action='platform_request.deleted' AND details LIKE $1`, [`%${doomedId}%`]);
+    check(deletionLog.rows.length === 1 && deletionLog.rows[0].audit_scope === 'PLATFORM' && !deletionLog.rows[0].details.includes('Silinecek'), 'deletion is logged without personal content');
+    const publicDoomed = await request('POST', '/public/requests', undefined, publicPayload({ requestType: 'CONTACT' }));
+    equal((await request('DELETE', `/platform/requests/${String(publicDoomed.body.requestId)}/permanent`, platform.token)).status, 200, 'public request without a school can be deleted');
+    equal((await db.query('SELECT 1 FROM platform_requests WHERE id=$1', [publicDoomed.body.requestId])).rows.length, 0, 'public request row is removed');
+
     check(emails.some((email) => email.to === 'platform@example.test' && email.subject.includes('Yeni')), 'platform notification attempted');
     check(emails.some((email) => email.subject === 'Talebiniz alındı'), 'requester acknowledgement sent when email exists');
     const phoneOnlyEmail = `phone-only-${crypto.randomBytes(3).toString('hex')}@example.test`;

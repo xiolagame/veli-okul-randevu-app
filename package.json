@@ -26,6 +26,7 @@
     "test:auth": "tsx scripts/test-activation-auth.ts",
     "test:activation": "tsx scripts/test-activation-auth.ts",
     "test:whatsapp-auth": "tsx scripts/test-whatsapp-auth.ts",
+    "test:whatsapp-status": "tsx scripts/test-whatsapp-status.ts",
     "test:test-login": "tsx scripts/test-test-login.ts",
     "test:teacher-email": "tsx scripts/test-teacher-optional-email.ts",
     "test:booking-window": "tsx scripts/test-booking-window.ts",

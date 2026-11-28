@@ -736,6 +736,34 @@ platformRequestRouter.post('/:id/messages', async (req: AuthenticatedRequest, re
   }
 });
 
+// Kalıcı silme: talep ve (CASCADE ile) konuşma mesajları veritabanından tamamen kaldırılır.
+// Yalnızca platform yöneticisi (router üst katmanında denetlenir); okulun görünümünden de kaybolur.
+platformRequestRouter.delete('/:id/permanent', async (req: AuthenticatedRequest, res) => {
+  try {
+    const db = await getDb();
+    const deleted = await db.transaction(async (tx) => {
+      const result = await tx.query<{ id: string; school_id: string | null; request_type: PlatformRequestType }>(
+        'DELETE FROM platform_requests WHERE id=$1 RETURNING id,school_id,request_type', [scalarRouteParam(req.params.id)]);
+      const row = result.rows[0];
+      if (!row) return false;
+      // Günlüğe yalnızca talep kimliği ve türü yazılır; silinen kişisel bilgiler saklanmaz.
+      await auditLogRepository.createAuditLog({
+        schoolId: row.school_id as string,
+        action: 'platform_request.deleted',
+        actorName: `${req.user!.firstName} ${req.user!.lastName} (Platform Yönetimi)`.trim(),
+        actorUserId: req.user!.id,
+        details: JSON.stringify({ requestId: row.id, requestType: row.request_type }),
+        auditScope: 'PLATFORM',
+      }, tx);
+      return true;
+    });
+    if (!deleted) return res.status(404).json({ error: 'Talep bulunamadı.' });
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ error: 'Talep silinemedi.' });
+  }
+});
+
 platformRequestRouter.delete('/:id', async (req: AuthenticatedRequest, res) => {
   try {
     const request = await hideSupportRequest({
